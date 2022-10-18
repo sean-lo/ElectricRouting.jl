@@ -273,6 +273,32 @@ function plot_instance(data)
     plot!(legend = :outerright)
 end
 
+function construct_paths(
+    results,
+    data,
+)
+    paths = Dict()
+    for k in data["N_vehicles"] 
+        arcs = [
+            (i,j) for (i,j) in keys(data["A"]) 
+            if results["x"][(i,j),k] > 0.5
+        ]
+        path = []
+        i = findfirst(x -> (x[1] ∈ data["N_depots"]), arcs)
+        while true
+            a = popat!(arcs, i)
+            push!(path, a)
+            current_node = a[2]
+            if length(arcs) == 0
+                break
+            end
+            i = findfirst(x -> (x[1] == current_node), arcs)
+        end
+        paths[k] = path
+    end
+    return paths
+end
+
 function results_printout(
     results, 
     params,
@@ -295,17 +321,13 @@ function results_printout(
         println("Vehicles         From      time             To      time  |  arc_time ")
         println("----------------------------------------------------------|-----------")
     end
+
+    paths = construct_paths(results, data)
+
     for k in data["N_vehicles"]
-        arcs = [
-            (i,j) for (i,j) in keys(data["A"]) 
-            if results["x"][(i,j),k] > 0.5
-        ]
-        i = findfirst(x -> (x[1] ∈ data["N_depots"]), arcs)
-        while true
-            a = popat!(arcs, i)
-            current_node = a[2]
+        for a in paths
             if with_charging
-                if current_node in data["N_charging"]
+                if a[2] in data["N_charging"]
                     @printf(
                         "Vehicle %s: %12s (%6.1f,  %6.1f) -> %12s (%6.1f,  %6.1f) | -  %6.1f | -    %6.1f \n", 
                         k, 
@@ -323,10 +345,10 @@ function results_printout(
                         k, 
                         data["node_labels"][a[2]], 
                         results["τ_reach"][a[2],k],
-                        results["b_start"][current_node,k],
+                        results["b_start"][a[2],k],
                         data["node_labels"][a[2]], 
                         results["τ_leave"][a[2],k],
-                        results["b_end"][current_node,k],
+                        results["b_end"][a[2],k],
                         results["δ"][a[2],k],
                         results["δ"][a[2],k] * data["μ"],
                     )
@@ -355,10 +377,6 @@ function results_printout(
                     data["t"][a[1],a[2]],
                 )
             end
-            if length(arcs) == 0
-                break
-            end
-            i = findfirst(x -> (x[1] == current_node), arcs)
         end
         println("")
     end
