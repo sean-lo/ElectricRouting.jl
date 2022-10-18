@@ -112,18 +112,18 @@ function arc_formulation(
     @constraint(
         model, 
         [i ∈ N_depots, k ∈ V[i]],
-        sum(x[(i,j),k] for j in N_nodes) == 1
+        sum(x[(i,j),k] for j in N_nodes if (i,j) in keys(A)) == 1
     ); # (1c): leave from depot
     @constraint(
         model, 
-        [i ∈ N_depots, j ∈ N_nodes, k ∈ setdiff(N_vehicles, V[i])],
+        [i ∈ N_depots, j ∈ N_nodes, k ∈ setdiff(N_vehicles, V[i]); (i,j) in keys(A)],
         x[(i,j),k] == 0
     ); # (1d): leave from depot (others)
     @constraint(
         model,
         [i ∈ setdiff(N_nodes, N_depots), k ∈ N_vehicles],
-        sum(x[(i,j),k] for j in N_nodes if (i,j) in keys(A)) # can impose j != i here because i is not depot
-        == sum(x[(j,i),k] for j in N_nodes if (j,i) in keys(A)) # can impose j != i here because i is not depot
+        sum(x[(i,j),k] for j in N_nodes if (i,j) in keys(A))
+        == sum(x[(j,i),k] for j in N_nodes if (j,i) in keys(A))
     ); # (1e): flow conservation (outside of depots)
     @constraint(
         model,
@@ -139,7 +139,7 @@ function arc_formulation(
     @constraint(
         model, 
         [k ∈ N_vehicles],
-        sum(x[(j,i),k] for i in N_depots, j in N_nodes) == 1
+        sum(x[(j,i),k] for i in N_depots, j in N_nodes if (j,i) in keys(A)) == 1
     ); # (1h): all vehicles reach a depot
     @constraint(
         model, 
@@ -214,7 +214,7 @@ function arc_formulation(
             [i ∈ N_depots, k ∈ N_vehicles],
             b_end[i,k] == B
         ); # (1t): charge leaving depot
-        @constraint( # FIXME
+        @constraint(
             model,
             [(i,j) in keys(A), k ∈ N_vehicles],
             b_start[j,k] ≤ b_end[i,k] - q[i,j] + (1 - x[(i,j),k]) * B

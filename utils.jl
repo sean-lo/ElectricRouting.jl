@@ -211,6 +211,60 @@ function generate_instance(
     return data
 end
 
+function preprocess_arcs!(
+    data, 
+    with_charging::Bool = false,
+    allow_nonempty_at_charging::Bool = true,
+) 
+    for (i,j) in keys(data["A"])
+        # remove arcs due to time window infeasibility
+        if data["α"][i] + data["t"][i,j] > data["β"][j]
+            delete!(data["A"], (i,j))
+        end
+        # (depot, dropoff)-pair infeasible
+        if i in data["N_depots"] && j in data["N_dropoffs"]
+            delete!(data["A"], (i,j))
+        end
+        # (pickup, depot)-pair infeasible
+        if i in data["N_pickups"] && j in data["N_depots"]
+            delete!(data["A"], (i,j))
+        end
+        if with_charging 
+            if !allow_nonempty_at_charging
+                # (pickup, charging)-pair infeasible
+                if i in data["N_pickups"] && j in data["N_charging"]
+                    delete!(data["A"], (i,j))
+                end
+                # (pickup, charging)-pair infeasible
+                if i in data["N_charging"] && j in data["N_dropoffs"]
+                    delete!(data["A"], (i,j))
+                end
+            end
+        end
+        if with_charging
+            # if C == 1: (pickup[i], j) infeasible if j != dropoff[i]
+            if (i in data["N_pickups"]) && (j != i + data["n_customers"]) && !(j in data["N_charging"])
+                delete!(data["A"], (i,j))
+            end
+            # if C == 1: (i, dropoff[j]) infeasible if i != pickup[j]
+            if (j in data["N_dropoffs"]) && (i != j - data["n_customers"]) && !(i in data["N_charging"])
+                delete!(data["A"], (i,j))
+            end
+        else
+            # if C == 1: (pickup[i], j) infeasible if j != dropoff[i]
+            if (i in data["N_pickups"]) && (j != i + data["n_customers"])
+                delete!(data["A"], (i,j))
+            end
+            # if C == 1: (i, dropoff[j]) infeasible if i != pickup[j]
+            if (j in data["N_dropoffs"]) && (i != j - data["n_customers"])
+                delete!(data["A"], (i,j))
+            end
+        end
+        #
+    end
+    return data
+end
+
 function plot_instance(data)
     p = plot(
         # xlim = (0, 1), ylim = (0, 1),
