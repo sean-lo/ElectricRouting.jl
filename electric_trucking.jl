@@ -4,9 +4,26 @@ using Gurobi
 function arc_formulation(
     data,
     with_charging::Bool = false,
+    with_charging_separate::Bool = false,
     ;
+    paths::Union{Dict, Nothing} = nothing,
     time_limit::Union{Float64, Int} = 60.0,
 )
+
+    if with_charging_separate
+        if !with_charging
+            error("""
+            Cannot impose charging solution without enabling charging 
+            (`with_charging == false`)
+            """)
+        elseif isnothing(paths)
+            error("""
+            For `with_charging_separate == true`, must provide paths 
+            of solution obtained without charging!
+            """)
+        end
+    end
+
     n_nodes = data["n_nodes"]
     n_customers = data["n_customers"]
     n_depots = data["n_depots"]
@@ -55,6 +72,41 @@ function arc_formulation(
         @variable(model, b_start[N_nodes, N_vehicles] ≥ 0)
         @variable(model, b_end[N_nodes, N_vehicles] ≥ 0)
         @variable(model, δ[N_nodes, N_vehicles] ≥ 0)
+    end
+
+    if with_charging_separate
+        for k in N_vehicles
+            for a in paths[k]
+                if (a[1] in N_depots && a[2] in N_depots)
+                    @constraint(
+                        model, 
+                        [(i,j) in setdiff(keys(A), [a])], 
+                        x[(i,j),k] == 0
+                    )
+                    @constraint(
+                        model, 
+                        x[a,k] == 1
+                    )
+                else
+                    # This includes (for now) (N_pickups, N_pickups) 
+                    # and (N_dropoffs, N_dropoffs) pairs,
+                    # which are not possible when C = 1.
+
+                    # cannot go anywhere else from a[1], aside from a[2] and CS
+                    for j in setdiff(N_nodes, [a[2]], N_charging)
+                        if (a[1],j) in keys(A)
+                            @constraint(model, x[(a[1],j),k] == 0)
+                        end
+                    end
+                    # cannot arrive at a[2] from anywhere else, aside from a[1] and CS
+                    for i in setdiff(N_nodes, [a[1]], N_charging)
+                        if (i,a[2]) in keys(A)
+                            @constraint(model, x[(i,a[2]),k] == 0)
+                        end
+                    end
+                end
+            end
+        end    
     end
 
     @constraint(
