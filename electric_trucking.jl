@@ -8,6 +8,7 @@ function arc_formulation(
     ;
     paths::Union{Dict, Nothing} = nothing,
     time_limit::Union{Float64, Int} = 60.0,
+    formulate_only::Bool = false,
 )
 
     if with_charging_separate
@@ -273,6 +274,11 @@ function arc_formulation(
             total_travel_cost + total_vehicle_time 
         ); # (1a): objective
     end
+
+    if formulate_only
+        return
+    end
+
     optimize!(model)
     end_time = time()
     time_taken = end_time - start_time
