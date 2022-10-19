@@ -1,154 +1,25 @@
-using Distances
 using Random
 using Suppressor 
 using Combinatorics
 using StatsBase
 using StatsPlots
 using Distributions
+using Distances
 using Printf
 
-function generate_instance(
-    ;
-    n_depots::Int, 
-    n_customers::Int,
-    n_charging::Int,
-    charging_repeats::Int,
-    n_vehicles::Int,
-    shrinkage_depots::Float64,
-    shrinkage_charging::Float64,
-    T::Float64,
-    seed::Int,
-    with_charging::Bool,
-    B::Union{Float64, Nothing} = nothing,
-    μ::Union{Float64, Nothing} = nothing,
-    C::Int = 1,
+function generate_times(
+    T,
+    n_customers,
+    seed
 )
-    if with_charging
-        if isnothing(B) || isnothing(μ)
-            error()
-        end
-    end
-
-    if with_charging
-        n_nodes = n_depots + 2 * n_customers + n_charging * charging_repeats
-    else
-        n_nodes = n_depots + 2 * n_customers
-    end
-
-    N_pickups = collect(1:n_customers)
-    N_dropoffs = collect(n_customers+1:2*n_customers)
-    N_depots = collect(2*n_customers+1:2*n_customers+n_depots)
-    N_vehicles = collect(1:n_vehicles)
-    if with_charging
-        N_charging = collect(2*n_customers+n_depots+1:2*n_customers+n_depots+n_charging*charging_repeats)
-        N_nodes = vcat(N_pickups, N_dropoffs, N_depots, N_charging)
-    else
-        N_nodes = vcat(N_pickups, N_dropoffs, N_depots)
-    end
-
-    node_labels = merge(Dict(
-        i => "Depot $ind" for (ind, i) in enumerate(N_depots)
-    ), Dict(
-        i => "Pickup $ind" for (ind, i) in enumerate(N_pickups)
-    ), Dict(
-        i => "Dropoff $ind" for (ind, i) in enumerate(N_dropoffs)
-    ))
-    if with_charging
-        merge!(node_labels, Dict(
-            i => "Charging $((ind+charging_repeats-1) ÷ charging_repeats)" for (ind, i) in enumerate(N_charging)
-        ))
-    end
-
-    Random.seed!(seed)
-    pickup_coords = Random.randn(Float64, (2, n_customers))
-    dropoff_coords = Random.randn(Float64, (2, n_customers))
-    depot_coords = shrinkage_depots * Random.randn(Float64, (2, n_depots))
-    if with_charging
-        charging_coords = shrinkage_charging * Random.randn(Float64, (2, n_charging))
-        coords = hcat(
-            pickup_coords, 
-            dropoff_coords, 
-            depot_coords, 
-            repeat(
-                charging_coords, 
-                inner = (1, charging_repeats),
-            )
-        )
-    else
-        coords = hcat(
-            pickup_coords, 
-            dropoff_coords, 
-            depot_coords, 
-        )
-    end
-
-    distances = pairwise(Euclidean(), coords, dims=2)
-
-    start_depots = sample(N_depots, n_vehicles, replace = true)
-    V = Dict(i => findall(x -> x==i, start_depots) for i in N_depots)
-    v_start = [length(V[i]) for i in N_depots]
-    v_end_vec = repeat([1], n_depots)
-    v_end  = Dict(i => v_end_vec[ind] for (ind, i) in enumerate(N_depots))
-    
-    c = Int.(round.(100 .* distances))
-    t = Int.(round.(100 .* distances)) # travel times are integer
-    if with_charging
-        d = vcat(
-            repeat([1], n_customers), 
-            repeat([-1], n_customers), 
-            repeat([0], length(N_depots) + length(N_charging)),
-        )
-        q = Int.(round.(100 .* distances)) # charge costs are integer
-    else
-        d = vcat(
-            repeat([1], n_customers), 
-            repeat([-1], n_customers), 
-            repeat([0], length(N_depots)),
-        )
-    end
-
-    if with_charging
-        A = merge(
-            Dict(
-                (i,j) => t[i,j] for (i,j) in combinations(vcat(N_pickups, N_dropoffs, N_depots), 2)
-            ), 
-            Dict(
-                (j,i) => t[i,j] for (i,j) in combinations(vcat(N_pickups, N_dropoffs, N_depots), 2)
-            ), 
-            # prevent self-loops at charging stations and between its duplicates
-            Dict(
-                (i,j) => t[i,j] for i in vcat(N_pickups, N_dropoffs, N_depots), j in N_charging
-            ), 
-            Dict(
-                (j,i) => t[i,j] for i in vcat(N_pickups, N_dropoffs, N_depots), j in N_charging
-            ), 
-            Dict(
-                (i,i) => 0 for i in N_depots # allow self-loops at depots
-            ),
-        )
-    else
-        A = merge(
-            Dict(
-                (i,j) => t[i,j] for (i,j) in combinations(N_nodes, 2)
-            ), 
-            Dict(
-                (j,i) => t[i,j] for (i,j) in combinations(N_nodes, 2)
-            ), 
-            Dict(
-                (i,i) => 0 for i in N_depots # allow self-loops at depots
-            ),
-        )
-    end
-    
     times_dist = Uniform(0, T)
+    α = zeros(2 * n_customers)
+    β = zeros(2 * n_customers)
+
     Random.seed!(seed)
-    println(n_nodes)
-    α = zeros(n_nodes)
-    β = zeros(n_nodes)
-    
     for i in 1:n_customers
-        pickup_i = N_pickups[i]
-        dropoff_i = N_dropoffs[i]
+        pickup_i = i
+        dropoff_i = i + n_customers
         while true
             s1, s2, e1, e2 = round.(sort(rand(times_dist, 4)))
             if (e1 - s1) / T > 0.4 && (e2 - s2) / T > 0.4
@@ -160,55 +31,179 @@ function generate_instance(
             end
         end
     end
-    α[N_depots] .= 0.0
-    β[N_depots] .= T
-    if with_charging
-        α[N_charging] .= 0.0
-        β[N_charging] .= T
-    end
+    return α, β
+end
 
-    data = Dict(
+function generate_instance_pair(
+    ;
+    n_depots::Int, 
+    n_customers::Int,
+    n_charging::Int,
+    charging_repeats::Int,
+    n_vehicles::Int,
+    shrinkage_depots::Float64,
+    shrinkage_charging::Float64,
+    T::Float64,
+    seed::Int,
+    B::Float64,
+    μ::Float64,
+    C::Int = 1,
+)
+    n_nodes_charge = n_depots + 2 * n_customers + n_charging * charging_repeats
+    n_nodes_nocharge = n_depots + 2 * n_customers
+
+    seeds = abs.(rand(MersenneTwister(seed), Int, 6))
+
+    N_pickups = collect(1:n_customers)
+    N_dropoffs = collect(n_customers+1:2*n_customers)
+    N_depots = collect(2*n_customers+1:2*n_customers+n_depots)
+    N_vehicles = collect(1:n_vehicles)
+    N_charging = collect(2*n_customers+n_depots+1:2*n_customers+n_depots+n_charging*charging_repeats)
+    N_nodes_nocharge = vcat(N_pickups, N_dropoffs, N_depots)
+    N_nodes_charge = vcat(N_pickups, N_dropoffs, N_depots, N_charging)
+
+    node_labels_nocharge = merge(Dict(
+        i => "Depot $ind" for (ind, i) in enumerate(N_depots)
+    ), Dict(
+        i => "Pickup $ind" for (ind, i) in enumerate(N_pickups)
+    ), Dict(
+        i => "Dropoff $ind" for (ind, i) in enumerate(N_dropoffs)
+    ))
+    node_labels_charge = merge(
+        node_labels_nocharge, 
+        Dict(
+            i => "Charging $((ind+charging_repeats-1) ÷ charging_repeats)" for (ind, i) in enumerate(N_charging)
+        )
+    )
+
+    pickup_coords = Random.randn(MersenneTwister(seeds[1]), Float64, (2, n_customers))
+    dropoff_coords = Random.randn(MersenneTwister(seeds[2]), Float64, (2, n_customers))
+    depot_coords = shrinkage_depots * Random.randn(MersenneTwister(seeds[3]), Float64, (2, n_depots))
+    charging_coords = shrinkage_charging * Random.randn(MersenneTwister(seeds[4]), Float64, (2, n_charging))
+    coords_nocharge = hcat(
+        pickup_coords, 
+        dropoff_coords, 
+        depot_coords,  
+    )
+    coords_charge = hcat(
+        coords_nocharge,
+        repeat(
+            charging_coords, 
+            inner = (1, charging_repeats),
+        )
+    )
+
+    distances_nocharge = Distances.pairwise(Euclidean(), coords_nocharge, dims=2)
+    distances_charge = Distances.pairwise(Euclidean(), coords_charge, dims=2)
+
+    start_depots = StatsBase.sample(MersenneTwister(seeds[5]), N_depots, n_vehicles, replace = true)
+    V = Dict(i => findall(x -> x==i, start_depots) for i in N_depots)
+    v_start = [length(V[i]) for i in N_depots]
+    v_end_vec = repeat([1], n_depots)
+    v_end  = Dict(i => v_end_vec[ind] for (ind, i) in enumerate(N_depots))
+    
+    c_nocharge = Int.(round.(100 .* distances_nocharge))
+    c_charge = Int.(round.(100 .* distances_charge))
+    t_nocharge = Int.(round.(100 .* distances_nocharge)) # travel times are integer
+    t_charge = Int.(round.(100 .* distances_charge)) # travel times are integer
+    d_nocharge = vcat(
+        repeat([1], n_customers), 
+        repeat([-1], n_customers), 
+        repeat([0], n_depots),
+    )
+    d_charge = vcat(
+        d_nocharge,
+        repeat([0], length(N_charging)),
+    )
+    q = Int.(round.(100 .* distances_charge)) # charge costs are integer
+
+    A_nocharge = merge(
+        Dict(
+            (i,j) => t_nocharge[i,j] for (i,j) in combinations(N_nodes_nocharge, 2)
+        ), 
+        Dict(
+            (j,i) => t_nocharge[i,j] for (i,j) in combinations(N_nodes_nocharge, 2)
+        ), 
+        Dict(
+            (i,i) => 0 for i in N_depots # allow self-loops at depots
+        ),
+    )
+    A_charge = merge(
+        Dict(
+            (i,j) => t_charge[i,j] for (i,j) in combinations(vcat(N_pickups, N_dropoffs, N_depots), 2)
+        ), 
+        Dict(
+            (j,i) => t_charge[i,j] for (i,j) in combinations(vcat(N_pickups, N_dropoffs, N_depots), 2)
+        ), 
+        # prevent self-loops at charging stations and between its duplicates
+        Dict(
+            (i,j) => t_charge[i,j] for i in vcat(N_pickups, N_dropoffs, N_depots), j in N_charging
+        ), 
+        Dict(
+            (j,i) => t_charge[i,j] for i in vcat(N_pickups, N_dropoffs, N_depots), j in N_charging
+        ), 
+        Dict(
+            (i,i) => 0 for i in N_depots # allow self-loops at depots
+        ),
+    )
+    
+    α, β = generate_times(T, n_customers, seeds[6])
+    α_nocharge = vcat(α, repeat([0.0], n_depots))
+    β_nocharge = vcat(β, repeat([T], n_depots))
+    α_charge = vcat(α_nocharge, repeat([0.0], length(N_charging)))
+    β_charge = vcat(β_nocharge, repeat([T], length(N_charging)))
+
+    nocharge_data = Dict(
         "n_depots" => n_depots,
         "n_customers" => n_customers,
         "n_vehicles" => n_vehicles,
-        "n_nodes" => n_nodes,
+        "n_nodes" => n_nodes_nocharge,
         "N_pickups" => N_pickups, 
         "N_dropoffs" => N_dropoffs,
         "N_depots" => N_depots,
         "N_vehicles" => N_vehicles,
-        "N_nodes" => N_nodes,
-        "node_labels" => node_labels,
+        "N_nodes" => N_nodes_nocharge,
+        "node_labels" => node_labels_nocharge,
         "shrinkage_depots" => shrinkage_depots,
         "pickup_coords" => pickup_coords,
         "dropoff_coords" => dropoff_coords,
         "depot_coords" => depot_coords,
-        "coords" => coords,
-        "distances" => distances,
+        "coords" => coords_nocharge,
+        "distances" => distances_nocharge,
         "V" => V,
         "v_start" => v_start,
         "v_end" => v_end,
-        "c" => c,
-        "t" => t,
+        "c" => c_nocharge,
+        "t" => t_nocharge,
         "C" => C,
-        "d" => d,
+        "d" => d_nocharge,
         "T" => T,
-        "A" => A,
-        "α" => α,
-        "β" => β,
+        "A" => A_nocharge,
+        "α" => α_nocharge,
+        "β" => β_nocharge,
     )
-    if with_charging
-        merge!(data, Dict(
-            "n_charging" => n_charging,
-            "charging_repeats" => charging_repeats,
-            "N_charging" => N_charging,
-            "shrinkage_charging" => shrinkage_charging,
-            "charging_coords" => charging_coords,
-            "q" => q,
-            "B" => B,
-            "μ" => μ,
-        ))
-    end
-    return data
+    charge_data = merge(nocharge_data, Dict(
+        "n_charging" => n_charging,
+        "charging_repeats" => charging_repeats,
+        "n_nodes" => n_nodes_charge,
+        "N_charging" => N_charging,
+        "N_nodes" => N_nodes_charge,
+        "node_labels" => node_labels_charge,
+        "shrinkage_charging" => shrinkage_charging,
+        "charging_coords" => charging_coords,
+        "coords" => coords_charge,
+        "distances" => distances_charge,
+        "c" => c_charge,
+        "t" => t_charge,
+        "d" => d_charge,
+        "A" => A_charge,
+        "α" => α_charge,
+        "β" => β_charge,
+        "q" => q,
+        "B" => B,
+        "μ" => μ,
+    ))
+    return nocharge_data, charge_data
 end
 
 function preprocess_arcs!(
