@@ -374,7 +374,7 @@ function results_printout(
     paths = construct_paths(results, data)
 
     for k in data["N_vehicles"]
-        for a in paths
+        for a in paths[k]
             if with_charging
                 if a[2] in data["N_charging"]
                     @printf(
