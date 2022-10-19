@@ -206,15 +206,22 @@ function generate_instance_pair(
     return nocharge_data, charge_data
 end
 
-function preprocess_arcs!(
-    data, 
+function preprocess_arcs(
+    in_data, 
     with_charging::Bool = false,
     allow_nonempty_at_charging::Bool = true,
 ) 
+    data = copy(in_data)
     for (i,j) in keys(data["A"])
         # remove arcs due to time window infeasibility
         if data["α"][i] + data["t"][i,j] > data["β"][j]
             delete!(data["A"], (i,j))
+        end
+        if with_charging
+            # remove arcs due to charge infeasibility
+            if data["q"][i,j] > data["B"]
+                delete!(data["A"], (i,j))
+            end
         end
         # (depot, dropoff)-pair infeasible
         if i in data["N_depots"] && j in data["N_dropoffs"]
@@ -255,7 +262,6 @@ function preprocess_arcs!(
                 delete!(data["A"], (i,j))
             end
         end
-        #
     end
     return data
 end
