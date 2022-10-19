@@ -260,7 +260,7 @@ function preprocess_arcs!(
     return data
 end
 
-function plot_instance(data)
+function plot_instance(data, with_charging::Bool = true)
     p = plot(
         # xlim = (0, 1), ylim = (0, 1),
         aspect_ratio = :equal, 
@@ -305,19 +305,21 @@ function plot_instance(data)
             :black, :left, 11
         )
     )
-    plot!(
-        data["charging_coords"][1,:], data["charging_coords"][2,:],
-        seriestype = :scatter, 
-        label = "Recharging stations",
-        color = :grey
-    )
-    annotate!.(
-        data["charging_coords"][1,:] .+ 0.01, data["charging_coords"][2,:], 
-        text.(
-            collect("R" * string(i) for i in 1:data["n_charging"]), 
-            :grey, :left, 11
+    if with_charging
+        plot!(
+            data["charging_coords"][1,:], data["charging_coords"][2,:],
+            seriestype = :scatter, 
+            label = "Recharging stations",
+            color = :grey
         )
-    )
+        annotate!.(
+            data["charging_coords"][1,:] .+ 0.01, data["charging_coords"][2,:], 
+            text.(
+                collect("R" * string(i) for i in 1:data["n_charging"]), 
+                :grey, :left, 11
+            )
+        )
+    end
 
     plot!(legend = :outerright)
 end
