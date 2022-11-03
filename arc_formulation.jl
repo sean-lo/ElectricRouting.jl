@@ -265,13 +265,15 @@ function arc_formulation(
         @objective(
             model,
             Min,
-            total_travel_cost + total_vehicle_time + total_charge_required
+            total_travel_cost 
+            # + total_vehicle_time + 0.9 * total_charge_required
         ); # (1a): objective
     else
         @objective(
             model,
             Min,
-            total_travel_cost + total_vehicle_time 
+            total_travel_cost 
+            # + total_vehicle_time 
         ); # (1a): objective
     end
 

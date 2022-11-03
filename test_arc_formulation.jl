@@ -1,17 +1,17 @@
-include("electric_trucking.jl")
+include("arc_formulation.jl")
 include("utils.jl")
 
 nocharge_data, charge_data = generate_instance_pair(
     n_depots = 2, 
-    n_customers = 5,
+    n_customers = 6,
     n_charging = 2,
     charging_repeats = 2,
     n_vehicles = 3,
     shrinkage_depots = 1.4,
     shrinkage_charging = 0.6,
     T = 900.0,
-    seed = 0,
-    B = 700.0,
+    seed = 8,
+    B = 650.0,
     μ = 5.0,
 )
 plot_instance(nocharge_data, false)
@@ -29,6 +29,8 @@ arc_charge_results, arc_charge_params = arc_formulation(
 );
 
 paths = construct_paths(arc_nocharge_results, nocharge_data)
+paths_c = construct_paths(arc_charge_results, charge_data)
+
 arc_chargesep_results, arc_chargesep_params = arc_formulation(
     charge_data, 
     true, 
