@@ -111,8 +111,8 @@ function enumerate_subpaths(
                 time = new_time,
                 charge = new_charge, 
                 served = served,
-                delta_time = 0,
-                delta_charge = 0,
+                delta_time = 0.0,
+                delta_charge = 0.0,
                 end_time = new_time,
                 end_charge = new_charge,
                 round_time = new_time,
@@ -311,7 +311,7 @@ function enumerate_subpaths_withcharge(
         if s.current_node in data["N_depots"]
             s_withcharge = copy(s)
             s_withcharge.round_time = dceil(s.end_time, T_range)
-            s_withcharge.round_charge = dceil(s.charge, B_range)
+            s_withcharge.round_charge = dfloor(s.charge, B_range)
             push!(nondominated_subpaths_withcharge, s_withcharge)
         else
             # Ensures that you can charge until time's up or you're full
@@ -373,7 +373,7 @@ function enumerate_all_subpaths_withcharge(
         ),
         Iterators.product(
             data["N_depots"],
-            [0],
+            [0.0],
             [data["B"]],
         ),
     ))
