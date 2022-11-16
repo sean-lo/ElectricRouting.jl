@@ -150,7 +150,13 @@ function generate_instance_pair(
         ), 
         Dict(
             (j,i) => t_charge[i,j] for i in vcat(N_pickups, N_dropoffs, N_depots), j in N_charging
-        ), 
+        ),
+        Dict(
+            (i,j) => t_charge[i,j] for (i,j) in combinations(N_charging, 2)
+        ),
+        Dict(
+            (j,i) => t_charge[i,j] for (i,j) in combinations(N_charging, 2)
+        ), # FIXME: what happens to duplicates of charging stations?
         Dict(
             (i,i) => 0 for i in N_depots # allow self-loops at depots
         ),
@@ -220,8 +226,12 @@ function preprocess_arcs(
     with_charging::Bool = false,
     allow_nonempty_at_charging::Bool = true,
 ) 
-    data = copy(in_data)
+    data = deepcopy(in_data)
     for (i,j) in keys(data["A"])
+        # Remove going from a dropoff to its pickup
+        if i in data["N_dropoffs"] && j == i - data["n_customers"]
+            delete!(data["A"], (i,j))
+        end
         # remove arcs due to time window infeasibility
         if data["α"][i] + data["t"][i,j] > data["β"][j]
             delete!(data["A"], (i,j))
@@ -246,7 +256,7 @@ function preprocess_arcs(
                 if i in data["N_pickups"] && j in data["N_charging"]
                     delete!(data["A"], (i,j))
                 end
-                # (pickup, charging)-pair infeasible
+                # (charging, dropoff)-pair infeasible
                 if i in data["N_charging"] && j in data["N_dropoffs"]
                     delete!(data["A"], (i,j))
                 end
