@@ -1,0 +1,939 @@
+using Parameters
+
+using JuMP
+using Gurobi
+
+@with_kw mutable struct Subpath
+    starting_node::Int
+    starting_time::Float64
+    starting_charge::Float64
+    current_node::Int
+    arcs::Vector{Tuple}
+    time::Float64
+    charge::Float64
+    served::BitVector
+    delta_time::Float64
+    delta_charge::Float64
+    end_time::Float64
+    end_charge::Float64
+    round_time::Float64
+    round_charge::Float64
+end
+
+Base.copy(s::Subpath) = Subpath(
+    starting_node = s.starting_node,
+    starting_time = s.starting_time,
+    starting_charge = s.starting_charge,
+    current_node = s.current_node,
+    arcs = copy(s.arcs),
+    time = s.time,
+    charge = s.charge,
+    served = copy(s.served),
+    delta_time = s.delta_time,
+    delta_charge = s.delta_charge,
+    end_time = s.end_time,
+    end_charge = s.end_charge,
+    round_time = s.round_time,
+    round_charge = s.round_charge,
+)
+
+function construct_graph(data)
+    G = SimpleWeightedDiGraph(data["n_nodes"])
+    for (i, j) in keys(data["A"])
+        if i == j
+            add_edge!(G, i, i, 1)
+        else 
+            add_edge!(G, i, j, data["t"][i,j])
+        end
+    end
+    return G
+end
+
+function enumerate_subpaths(
+    starting_node, 
+    starting_time, 
+    starting_charge,
+    G,
+    data,
+)
+    """
+    Enumerates all subpaths starting from `starting_node`
+    (which must be a charging station or depot), 
+    at time `starting_time` with charge `starting_charge`,
+    visiting some pickups and dropoffs, and arriving at a
+    charging station or depot (i) empty, (ii) with feasible charge 
+    and (iii) in feasible time.
+    """
+
+    # Initializes queue of subpaths
+    subpaths = []
+    for j in neighbors(G, starting_node)
+        if j in data["N_pickups"]
+            # two-step lookahead if j is a pickup
+            new_time = starting_time + data["t"][starting_node,j] + data["t"][j,j+data["n_customers"]]
+            new_charge = starting_charge - data["q"][starting_node,j] - data["q"][j,j+data["n_customers"]]
+        else 
+            new_time = starting_time + data["t"][starting_node,j]
+            new_charge = starting_charge - data["q"][starting_node,j]
+        end
+
+        if !(data["B"] ≥ new_charge ≥ 0)
+            continue
+        end
+        if !(new_time ≤ data["β"][j])
+            continue
+        end
+
+        if j in data["N_pickups"]
+            current_node = j + data["n_customers"]
+            arcs = [(starting_node, j), (j, j+data["n_customers"])]
+            new_time = max(new_time, data["α"][j+data["n_customers"]])
+            served = falses(data["n_customers"])
+        else 
+            current_node = j
+            arcs = [(starting_node, j)]
+            new_time = max(new_time, data["α"][j])
+            served = falses(data["n_customers"])
+        end
+
+        if j in data["N_pickups"]
+            served[j] = true
+        end
+
+        push!(
+            subpaths,
+            Subpath(
+                starting_node = starting_node,
+                starting_time = starting_time,
+                starting_charge = starting_charge,
+                current_node = current_node,
+                arcs = arcs,
+                time = new_time,
+                charge = new_charge, 
+                served = served,
+                delta_time = 0,
+                delta_charge = 0,
+                end_time = new_time,
+                end_charge = new_charge,
+                round_time = new_time,
+                round_charge = new_charge,
+            )
+        )
+    end
+    
+    # Processes subpath s in subpaths one at a time
+    completed_subpaths = []
+    while length(subpaths) > 0
+        s = pop!(subpaths)
+        # If current node of subpath is a charging station or depot, end the subpath
+        if s.current_node in union(data["N_charging"], data["N_depots"])
+            # Cleanup actions
+            s.end_time = s.time
+            s.round_time = s.time
+            s.end_charge = s.charge
+            s.round_charge = s.charge
+            push!(completed_subpaths, s)
+        else
+            # Iterate over out-neighbors of current node
+            for j in neighbors(G, s.current_node)
+                if j in data["N_pickups"] && s.served[j]
+                    continue
+                elseif j in data["N_dropoffs"] && s.served[j-data["n_customers"]]
+                    continue
+                end
+                s0 = copy(s)
+
+                if j in data["N_pickups"]
+                    # two-step lookahead if j is a pickup
+                    new_time = s.time + data["t"][s.current_node,j] + data["t"][j,j+data["n_customers"]]
+                    new_charge = s.charge - data["q"][s.current_node,j] - data["q"][j,j+data["n_customers"]]
+                else 
+                    new_time = s.time + data["t"][s.current_node,j]
+                    new_charge = s.charge - data["q"][s.current_node,j]
+                end
+
+                if !(new_time ≤ data["β"][j])
+                    continue
+                end
+                if !(new_charge ≥ 0)
+                    continue
+                end
+
+                if j in data["N_pickups"]
+                    s0.current_node = j+data["n_customers"]
+                    push!(s0.arcs, (s.current_node, j), (j, j+data["n_customers"]))
+                    s0.time = max(new_time, data["α"][j+data["n_customers"]])
+                else 
+                    s0.current_node = j
+                    push!(s0.arcs, (s.current_node, j))
+                    s0.time = max(new_time, data["α"][j])
+                end
+                s0.charge = new_charge
+
+                if j in data["N_pickups"]
+                    s0.served[j] = true
+                end
+
+                push!(subpaths, s0)
+            end
+        end
+    end
+    println("Enumerated $(length(completed_subpaths)) subpaths.")
+
+    # Split completed subpaths into groups according to:
+    # (i) starting_node (ii) ending_node (iii) customers served
+    split_completed_subpaths = Dict(
+        (starting_node, j, BitVector(x)) => []
+        for j in union(data["N_charging"], data["N_depots"])
+        for x in Iterators.product(repeat([[true, false]], data["n_customers"])...)
+    )
+    for s in completed_subpaths 
+        push!(
+            split_completed_subpaths[(s.starting_node, s.current_node, s.served)],
+            s
+        )
+    end
+
+    # Within each group: remove dominated subpaths
+    # Domination criterion: 
+    # (i)   s1.time ≤ s2.time, and 
+    # (ii)  s1.charge ≥ s2.charge
+    for ((starting_node, ending_node, served), group_subpaths) in pairs(split_completed_subpaths)
+        if length(group_subpaths) ≤ 1
+            continue
+        end
+        keep = trues(length(group_subpaths))
+        for (i1, i2) in combinations(1:length(group_subpaths), 2)
+            if !(keep[i1] && keep[i2])
+                continue
+            end
+            s1 = group_subpaths[i1]
+            s2 = group_subpaths[i2]
+            if s1.time ≤ s2.time && s1.charge ≥ s2.charge
+                keep[i2] = false
+            elseif s1.time ≥ s2.time && s1.charge ≤ s2.charge
+                keep[i1] = false
+            end
+        end
+        split_completed_subpaths[(starting_node, ending_node, served)] = group_subpaths[keep] 
+    end
+
+    # Across two groups: remove dominated subpaths
+    # (starting_node, ending_node, served_1),
+    # (starting_node, ending_node, served_2),
+    # with served_2 ≥ served_1, served_2 ≂̸ served_1
+    # and for some ending_node
+    # Question: is this step ever necessary?
+    for diff in 1:data["n_customers"]
+        for n1 in 0:(data["n_customers"]-diff)
+            n2 = n1 + diff
+            for n1_cust in combinations(1:data["n_customers"], n1)
+                n1_served = BitVector([i in n1_cust for i in 1:data["n_customers"]])
+                for n2_new_cust in combinations(setdiff(1:data["n_customers"], n1_cust), diff)
+                    n2_cust = union(n1_cust, n2_new_cust)
+                    n2_served = BitVector([i in n2_cust for i in 1:data["n_customers"]])
+                    for j in union(data["N_depots"], data["N_charging"])
+                        large_group = split_completed_subpaths[(starting_node, j, n2_served)]
+                        small_group = split_completed_subpaths[(starting_node, j, n1_served)]
+                        if !(length(large_group) ≥ 1 && length(small_group) ≥ 1)
+                            continue
+                        end
+                        small_group_keep = trues(length(small_group))
+                        for s_large in large_group
+                            for (ind, s_small) in enumerate(small_group)
+                                if !small_group_keep[ind]
+                                    continue
+                                end
+                                if s_small.time ≥ s_large.time && s_small.charge ≤ s_large.charge
+                                    small_group_keep[ind] = false
+                                end
+                            end
+                        end
+                        split_completed_subpaths[(starting_node, j, n1_served)] = small_group[small_group_keep]
+                    end
+                end
+            end
+        end
+    end
+
+    nondominated_subpaths = vcat(collect(values(split_completed_subpaths))...)
+    println("Retaining $(length(nondominated_subpaths)) non-dominated subpaths.")
+    return completed_subpaths, nondominated_subpaths
+end
+
+function dceil(
+    x::Float64,
+    points,
+)
+    return points[searchsortedfirst(points, x)]
+end
+
+function dfloor(
+    x::Float64,
+    points,
+)
+    return points[searchsortedlast(points, x)]
+end
+
+function dceilall(
+    x::Float64,
+    points,
+)
+    return points[searchsortedfirst(points, x):end]
+end
+
+function dfloorall(
+    x::Float64,
+    points,
+)
+    return points[1:searchsortedlast(points, x)]
+end
+
+function enumerate_subpaths_withcharge(
+    starting_node, 
+    starting_time, 
+    starting_charge, 
+    G, 
+    data,
+    T_range,
+    B_range,
+)
+    """
+    `nondominated_subpaths_withcharge`: Vector{Subpath}, 
+    generated from a single Subpath with additional discretized charging options
+    """
+    _, nondominated_subpaths = enumerate_subpaths(starting_node, starting_time, starting_charge, G, data)
+    # Version 2: charge by fixed time intervals inside T_range
+    # If maximum time reached, charge to maximum time and get the corresponding charge
+    # If maximum charge reached, charge to the next higher time (in T_range) and get to max charge
+    nondominated_subpaths_withcharge = []
+    for s in nondominated_subpaths
+        if s.current_node in data["N_depots"]
+            s_withcharge = copy(s)
+            s_withcharge.round_time = dceil(s.end_time, T_range)
+            s_withcharge.round_charge = dceil(s.charge, B_range)
+            push!(nondominated_subpaths_withcharge, s_withcharge)
+        else
+            # Ensures that you can charge until time's up or you're full
+            max_end_time_unbounded = s.time + (data["B"] - s.charge) / data["μ"]
+            if max_end_time_unbounded > data["T"]
+                max_end_time = data["T"]
+            else
+                # This dceil means that if you charge to full charge,
+                # you have to wait until the next discretized time
+                max_end_time = dceil(max_end_time_unbounded, T_range)
+            end
+            delta_times = [
+                t - s.time
+                for t in T_range
+                if s.time < t ≤ max_end_time
+            ]
+            delta_charges = data["μ"] .* delta_times
+            end_times = s.time .+ delta_times
+            round_times = end_times
+            end_charges = [s.charge + c for c in delta_charges]
+            round_charges = [dfloor(c, B_range) for c in end_charges]
+            for (delta_time, delta_charge, 
+                end_time, end_charge, 
+                round_time, round_charge) in Iterators.zip(
+                delta_times, delta_charges, 
+                end_times, end_charges,
+                round_times, round_charges,
+            )
+                s_withcharge = copy(s)
+                s_withcharge.delta_time = delta_time
+                s_withcharge.delta_charge = delta_charge
+                s_withcharge.end_time = end_time
+                s_withcharge.end_charge = end_charge
+                s_withcharge.round_time = round_time
+                s_withcharge.round_charge = round_charge
+                push!(nondominated_subpaths_withcharge, s_withcharge)
+            end
+        end 
+    end
+    return nondominated_subpaths_withcharge
+end
+
+function enumerate_all_subpaths_withcharge(
+    G, 
+    data, 
+    T_range,
+    B_range,
+)
+    """
+    `all_subpaths`: Dictionary mapping (I,J)-pairs of states
+    to a Vector{Subpath}.
+    """
+    all_subpaths_withcharge = Dict()
+    for (starting_node, starting_time, starting_charge) in Iterators.flatten((
+        Iterators.product(
+            data["N_charging"],
+            T_range,
+            B_range,
+        ),
+        Iterators.product(
+            data["N_depots"],
+            [0],
+            [data["B"]],
+        ),
+    ))
+        # Regular nondominated_subpaths
+        for s in @suppress enumerate_subpaths_withcharge(
+            starting_node, starting_time, starting_charge,
+            G, data, T_range, B_range,
+        )
+            key = (
+                (starting_node, starting_time, starting_charge),
+                (s.current_node, s.round_time, s.round_charge)
+            )
+            if !(key in keys(all_subpaths_withcharge))
+                all_subpaths_withcharge[key] = []
+            end
+            push!(all_subpaths_withcharge[key], s)
+        end
+    end
+    return all_subpaths_withcharge
+end
+
+function compute_subpath_costs(
+    data,
+    all_subpaths,
+)
+    subpath_costs = Dict(
+        key => [
+            sum(data["c"][a...] for a in s.arcs)
+            for s in all_subpaths[key]
+        ]
+        for key in keys(all_subpaths)
+    )
+    return subpath_costs
+end
+
+function compute_subpath_service(
+    data, 
+    all_subpaths,
+)
+    subpath_service = Dict(
+        (key, i) => [
+            s.served[i]
+            for s in all_subpaths[key]
+        ]
+        for key in keys(all_subpaths), i in 1:data["n_customers"]
+    )
+    return subpath_service
+end
+
+function subpath_withcharge_formulation(
+    data, 
+    all_subpaths_withcharge,
+    subpath_withcharge_costs, 
+    subpath_withcharge_service,
+    T_range,
+    B_range,
+)
+    # Charging always present
+
+    start_time = time()
+
+    model = Model(Gurobi.Optimizer)
+
+    m = maximum(length(x) for x in values(all_subpaths_withcharge))
+    @variable(model, z[k=keys(all_subpaths_withcharge), p=1:m; p ≤ length(all_subpaths_withcharge[k])], Bin);
+
+    # Constraint (4b): number of subpaths starting at depot i
+    # at time 0 with full charge to be v_startᵢ
+    @constraint(
+        model,
+        [i in data["N_depots"]],
+        sum(
+            sum(
+                z[((i,0,data["B"]),(j,t2,b2)),p]
+                for p in 1:length(all_subpaths_withcharge[((i,0,data["B"]),(j,t2,b2))])
+            )        
+            for j in union(data["N_charging"], data["N_depots"]), 
+                t2 in T_range, 
+                b2 in B_range
+                if ((i,0,data["B"]),(j,t2,b2)) in keys(all_subpaths_withcharge)
+        )
+        == data["v_start"][findfirst(x -> (x == i), data["N_depots"])]
+    )
+
+    # Constraint (4c) Flow conservation at charging stations
+    # (here the other node can be either a depot or charging station)
+    @constraint(
+        model, 
+        [n1 in data["N_charging"], t1 in T_range, b1 in B_range],
+        sum(
+            sum(
+                z[((n1,t1,b1),(n2,t2,b2)),p] 
+                for p in 1:length(all_subpaths_withcharge[((n1,t1,b1),(n2,t2,b2))])
+            )
+            for n2 in union(data["N_charging"], data["N_depots"]), 
+                t2 in T_range, 
+                b2 in B_range
+                if ((n1,t1,b1),(n2,t2,b2)) in keys(all_subpaths_withcharge)
+        ) == sum(
+            sum(
+                z[((n2,t2,b2),(n1,t1,b1)),p] 
+                for p in 1:length(all_subpaths_withcharge[((n2,t2,b2),(n1,t1,b1))])
+            )
+            for n2 in union(data["N_charging"], data["N_depots"]), 
+                t2 in T_range, 
+                b2 in B_range
+                if ((n2,t2,b2),(n1,t1,b1)) in keys(all_subpaths_withcharge)
+        )
+    )
+    
+    # Constraint (4d) Serving all customers exactly once across all subpaths
+    @constraint(
+        model,
+        [j in data["N_pickups"]],
+        sum(
+            sum(
+                subpath_withcharge_service[(((n1,t1,b1),(n2,t2,b2)),j)][p] * z[((n1,t1,b1),(n2,t2,b2)),p]
+                for p in 1:length(all_subpaths_withcharge[((n1,t1,b1),(n2,t2,b2))])
+            )
+            for ((n1,t1,b1),(n2,t2,b2)) in keys(all_subpaths_withcharge)
+        ) == 1
+    )
+
+    # Constraint (4e) Number of subpaths ending at each depot n2 
+    # is at least the number of vehicles required
+    @constraint(
+        model,
+        [n2 in data["N_depots"]],
+        sum(
+            sum(
+                z[((n1,t1,b1),(n2,t2,b2)),p]
+                for p in 1:length(all_subpaths_withcharge[((n1,t1,b1),(n2,t2,b2))])
+            )
+            for n1 in union(data["N_charging"], data["N_depots"]),
+                t1 in T_range, t2 in T_range, 
+                b1 in B_range, b2 in B_range
+            if ((n1,t1,b1),(n2,t2,b2)) in keys(all_subpaths_withcharge)
+        ) ≥ data["v_end"][n2]
+    )
+
+    # Objective: minimize the cost of all chosen subpaths
+    @objective(
+        model,
+        Min,
+        sum(
+            sum(
+                subpath_withcharge_costs[state_pair][p] * z[state_pair,p]
+                for p in 1:length(all_subpaths_withcharge[state_pair])
+            )
+            for state_pair in keys(all_subpaths_withcharge)
+        )
+    )
+
+    constraint_end_time = time()
+
+    optimize!(model)
+    end_time = time()
+    time_taken = end_time - start_time
+    constraint_time_taken = constraint_end_time - start_time
+    solution_time_taken = end_time - constraint_end_time
+
+    params = Dict(
+        "time_taken" => time_taken,
+        "constraint_time_taken" => constraint_time_taken,
+        "solution_time_taken" => solution_time_taken,
+    )
+    results = Dict(
+        "objective" => objective_value(model),
+        "z" => value.(z),
+    )
+    return results, params
+end
+
+function construct_paths_from_subpath_withcharge_solution(
+    results, data, all_subpaths_withcharge
+)
+    results_subpaths = []
+    for key in keys(all_subpaths_withcharge)
+        for p in 1:length(all_subpaths_withcharge[key])
+            if results["z"][key,p] != 0
+                push!(results_subpaths, all_subpaths_withcharge[key][p])
+            end
+        end
+    end
+
+    paths = Dict(v => [] for v in 1:data["n_vehicles"])
+    schedules = Dict(v => [] for v in 1:data["n_vehicles"])
+    for v in 1:data["n_vehicles"]
+        t = 0
+        current_state = nothing
+        while true
+            if t == 0
+                i = findfirst(
+                    s -> (
+                        s.starting_node in data_e["N_depots"]
+                        && s.starting_time == 0.0
+                        && s.starting_charge == data_e["B"]
+                    ), 
+                    results_subpaths
+                )
+            else
+                i = findfirst(
+                    s -> (
+                        (
+                            s.starting_node, 
+                            s.starting_time,
+                            s.starting_charge
+                        ) == current_state
+                    ),
+                    results_subpaths
+                )
+            end
+            current_s = popat!(results_subpaths, i)
+            push!(schedules[v], current_s)
+            append!(paths[v], current_s.arcs)
+            current_state = (current_s.current_node, current_s.round_time, current_s.round_charge)
+            if current_state[1] in data_e["N_depots"]
+                break
+            end        
+            t += 1
+        end
+    end
+    return paths, schedules
+end
+
+function enumerate_all_subpaths_withoutcharge(
+    G, 
+    data, 
+    T_range, 
+    B_range,
+)
+    all_subpaths_withoutcharge = Dict()
+    for (starting_node, starting_time, starting_charge) in Iterators.flatten((
+        Iterators.product(
+            data["N_charging"],
+            T_range,
+            B_range,
+        ),
+        Iterators.product(
+            data["N_depots"],
+            [0.0],
+            [data["B"]],
+        ),
+    ))
+        _, subpaths = @suppress enumerate_subpaths(
+            starting_node, 
+            starting_time, 
+            starting_charge,
+            G,
+            data,
+        )
+        for s in subpaths
+            s.round_time = dceil(s.end_time, T_range)
+            s.round_charge = dfloor(s.end_charge, B_range)
+            key = (
+                (starting_node, starting_time, starting_charge),
+                (s.current_node, s.round_time, s.round_charge)
+            )
+            if !(key in keys(all_subpaths_withoutcharge))
+                all_subpaths_withoutcharge[key] = []
+            end
+            push!(all_subpaths_withoutcharge[key], s)
+        end
+    end
+    return all_subpaths_withoutcharge
+end
+
+function enumerate_all_charging_arcs(
+    data,
+    all_subpaths,
+    T_range,
+    B_range,
+)
+    states = sort(unique(vcat(
+        collect([x[1], x[2]] for x in keys(all_subpaths))...
+    )))
+    length(states)
+    all_charging_arcs = []
+    for starting_node in data["N_charging"]
+        for t1 in T_range
+            end_times = dceilall(t1, T_range)
+            if length(end_times) == 1
+                continue
+            else
+                end_times = end_times[2:end]
+            end
+            round_times = end_times
+            delta_times = end_times .- t1
+            for b1 in B_range
+                if !((starting_node, t1, b1) in states)
+                    continue 
+                end
+                delta_charges = delta_times .* data["μ"]
+                end_charges = delta_charges .+ b1
+                round_charges = [dfloor(b, B_range) for b in end_charges]
+                last_index = searchsortedfirst(round_charges, data["B"])
+                if length(end_times) ≥ last_index
+                    round_charges = round_charges[1:last_index]
+                end
+                if round_charges[end] ≥ data["B"]
+                    round_charges[end] = data["B"]
+                end
+                append!(
+                    all_charging_arcs, 
+                    [
+                        ((starting_node, t1, b1), (starting_node, t2, b2))
+                        for (t2, b2) in Iterators.zip(round_times, round_charges)
+                    ]
+                )
+            end
+        end
+    end
+    charging_arcs_costs = Dict(state_pair => 0.0 for state_pair in all_charging_arcs)
+    return all_charging_arcs, charging_arcs_costs
+end
+
+function subpath_withoutcharge_formulation(
+    data, 
+    all_subpaths_withoutcharge,
+    subpath_withoutcharge_costs, 
+    subpath_withoutcharge_service,
+    all_charging_arcs,
+    charging_arcs_costs,
+    T_range,
+    B_range,
+)
+    # Charging always present
+
+    start_time = time()
+
+    model = Model(Gurobi.Optimizer)
+
+    states = sort(unique(vcat(
+        collect([x[1], x[2]] for x in keys(all_subpaths_withoutcharge))...
+    )))
+
+    m = maximum(length(x) for x in values(all_subpaths_withoutcharge))
+    @variable(model, z[
+        k=keys(all_subpaths_withoutcharge), 
+        p=1:m; p ≤ length(all_subpaths_withoutcharge[k])
+    ], Bin);
+    @variable(model, y[all_charging_arcs], Bin);
+
+    # Constraint (4b): number of subpaths starting at depot i
+    # at time 0 with full charge to be v_startᵢ
+    @constraint(
+        model,
+        [i in data["N_depots"]],
+        sum(
+            sum(
+                z[((i,0,data["B"]),(j,t2,b2)),p]
+                for p in 1:length(all_subpaths_withoutcharge[((i,0,data["B"]),(j,t2,b2))])
+            )        
+            for j in union(data["N_charging"], data["N_depots"]), 
+                t2 in T_range, 
+                b2 in B_range
+                if ((i,0,data["B"]),(j,t2,b2)) in keys(all_subpaths_withoutcharge)
+        )
+        == data["v_start"][findfirst(x -> (x == i), data["N_depots"])]
+    )
+
+    # FIXME: make more efficient
+    # Constraint (7b) Flow conservation at charging stations
+    # (here the other node can be either a depot or charging station)
+    # (here the arcs can be subpaths or charging arcs)
+    for n1 in data["N_charging"]
+        for t1 in T_range
+            t1_floor = dfloorall(t1, T_range)
+            t1_ceil = dceilall(t1, T_range)
+            for b1 in B_range
+                b1_floor = dfloorall(b1, B_range)
+                b1_ceil = dceilall(b1, B_range)
+                out_sp_neighbors = [state for state in states if ((n1, t1, b1), state) in keys(all_subpaths_withoutcharge)]
+                in_sp_neighbors = [state for state in states if (state, (n1, t1, b1)) in keys(all_subpaths_withoutcharge)]
+                out_a_neighbors = [(n1, t2, b2) for t2 in t1_ceil, b2 in b1_ceil if ((n1, t1, b1), (n1, t2, b2)) in all_charging_arcs]
+                in_a_neighbors = [(n1, t2, b2) for t2 in t1_floor, b2 in b1_floor if ((n1, t2, b2), (n1, t1, b1)) in all_charging_arcs]
+                @constraint(
+                    model,
+                    sum(
+                        sum(
+                            z[((n1,t1,b1),(n2,t2,b2)),p] 
+                            for p in 1:length(all_subpaths_withoutcharge[((n1,t1,b1),(n2,t2,b2))])
+                        )
+                        for (n2, t2, b2) in out_sp_neighbors
+                    )
+                    + sum(
+                        y[((n1,t1,b1),(n1,t2,b2))]
+                        for (n1, t2, b2) in out_a_neighbors
+                    )
+                    == 
+                    sum(
+                        sum(
+                            z[((n2,t2,b2),(n1,t1,b1)),p] 
+                            for p in 1:length(all_subpaths_withoutcharge[((n2,t2,b2),(n1,t1,b1))])
+                        )
+                        for (n2, t2, b2) in in_sp_neighbors
+                    )
+                    + sum(
+                        y[((n1,t2,b2),(n1,t1,b1))]
+                        for (n1, t2, b2) in in_a_neighbors
+                    )
+                )
+            end
+        end
+    end
+
+    # FIXME: make more efficient
+    # Constraint (7c): having at most 1 charging arc incident to any charging node
+    @constraint(
+        model,
+        [n1 in data["N_charging"], t1 in T_range, b1 in B_range],
+        sum(
+            y[((n1,t1,b1),(n1,t2,b2))]
+            for t2 in dceilall(t1, T_range), 
+                b2 in dceilall(b1, B_range)
+                if ((n1,t1,b1),(n1,t2,b2)) in all_charging_arcs
+        ) 
+        + sum(
+            y[((n1,t2,b2),(n1,t1,b1))]
+            for t2 in dfloorall(t1, T_range), 
+                b2 in dfloorall(b1, T_range)
+                if ((n1,t2,b2),(n1,t1,b1)) in all_charging_arcs
+        )
+        ≤ 1
+    )
+
+    # Constraint (4d) Serving all customers exactly once across all subpaths
+    @constraint(
+        model,
+        [j in data["N_pickups"]],
+        sum(
+            sum(
+                subpath_withoutcharge_service[(((n1,t1,b1),(n2,t2,b2)),j)][p] * z[((n1,t1,b1),(n2,t2,b2)),p]
+                for p in 1:length(all_subpaths_withoutcharge[((n1,t1,b1),(n2,t2,b2))])
+            )
+            for ((n1,t1,b1),(n2,t2,b2)) in keys(all_subpaths_withoutcharge)
+        ) == 1
+    )
+
+    # Constraint (4e) Number of subpaths ending at each depot n2 
+    # is at least the number of vehicles required
+    @constraint(
+        model,
+        [n2 in data["N_depots"]],
+        sum(
+            sum(
+                z[((n1,t1,b1),(n2,t2,b2)),p]
+                for p in 1:length(all_subpaths_withoutcharge[((n1,t1,b1),(n2,t2,b2))])
+            )
+            for n1 in union(data["N_charging"], data["N_depots"]),
+                t1 in T_range, t2 in dceilall(t1, T_range), 
+                b1 in B_range, b2 in dfloorall(b1, B_range)
+            if ((n1,t1,b1),(n2,t2,b2)) in keys(all_subpaths_withoutcharge)
+        ) ≥ data["v_end"][n2]
+    )
+
+    # Objective: minimize the cost of all chosen subpaths, 
+    # and the cost of all charging arcs
+    @objective(
+        model,
+        Min,
+        sum(
+            sum(
+                subpath_withoutcharge_costs[state_pair][p] * z[state_pair,p]
+                for p in 1:length(all_subpaths_withoutcharge[state_pair])
+            )
+            for state_pair in keys(all_subpaths_withoutcharge)
+        ) + 
+        sum(
+            y[state_pair] * charging_arcs_costs[state_pair] 
+            for state_pair in all_charging_arcs
+        )
+    )
+
+    constraint_end_time = time()
+
+    optimize!(model)
+    end_time = time()
+    time_taken = end_time - start_time
+    constraint_time_taken = constraint_end_time - start_time
+    solution_time_taken = end_time - constraint_end_time
+
+    params = Dict(
+        "time_taken" => time_taken,
+        "constraint_time_taken" => constraint_time_taken,
+        "solution_time_taken" => solution_time_taken,
+    )
+    results = Dict(
+        "objective" => objective_value(model),
+        "z" => value.(z),
+        "y" => value.(y),
+    )
+    return results, params
+end
+
+function construct_paths_from_subpath_withoutcharge_solution(
+    results, data, all_subpaths_withoutcharge
+)
+    results_subpaths = []
+    for key in keys(all_subpaths_withoutcharge)
+        for p in 1:length(all_subpaths_withoutcharge[key])
+            if results["z"][key,p] != 0
+                push!(results_subpaths, all_subpaths_withoutcharge[key][p])
+            end
+        end
+    end
+    results_charging_arcs = []
+    for key in all_charging_arcs
+        if results["y"][key] != 0
+            push!(results_charging_arcs, key)
+        end
+    end
+
+    paths = Dict(v => [] for v in 1:data["n_vehicles"])
+    schedules = Dict(v => [] for v in 1:data["n_vehicles"])
+    for v in 1:data["n_vehicles"]
+        t = 0
+        current_state = nothing
+        while true
+            if t == 0
+                i = findfirst(
+                    s -> (
+                        s.starting_node in data_e["N_depots"]
+                        && s.starting_time == 0.0
+                        && s.starting_charge == data_e["B"]
+                    ), 
+                    results_subpaths
+                )
+            else
+                i = findfirst(
+                    s -> (
+                        (
+                            s.starting_node, 
+                            s.starting_time,
+                            s.starting_charge
+                        ) == current_state
+                    ),
+                    results_subpaths
+                )
+            end
+            if isnothing(i) && t != 0
+                i = findfirst(
+                    s -> (s[1] == current_state),
+                    results_charging_arcs
+                )
+                current_a = popat!(results_charging_arcs, i)
+                push!(schedules[v], current_a)
+                push!(paths[v], (current_a[1][1], current_a[2][1]))
+                current_state = current_a[2]
+            else
+                current_s = popat!(results_subpaths, i)
+                push!(schedules[v], current_s)
+                append!(paths[v], current_s.arcs)
+                current_state = (current_s.current_node, current_s.round_time, current_s.round_charge)
+            end
+            if current_state[1] in data_e["N_depots"]
+                break
+            end        
+            t += 1
+        end
+    end
+    return paths, schedules
+end
