@@ -289,6 +289,46 @@ function dfloorall(
     return points[1:searchsortedlast(points, x)]
 end
 
+function generate_charging_options(
+    starting_time,
+    starting_charge,
+    data,
+    T_range,
+    B_range,
+)
+    # Version 2: charge by fixed time intervals inside T_range
+    # If maximum time reached, charge to maximum time and get the corresponding charge
+    # If maximum charge reached, charge to the next higher time (in T_range) and get to max charge
+    end_times = dceilall(starting_time, T_range)
+    if length(end_times) == 1
+        return []
+    else
+        # the possible times at which you end charging
+        # exclude the first time (equal to starting_time)
+        end_times = end_times[2:end]
+    end
+    round_times = end_times
+    delta_times = end_times .- starting_time
+
+    delta_charges = delta_times .* data["μ"]
+    end_charges = delta_charges .+ starting_charge
+    # the possible charges at which you end charging
+    round_charges = [dfloor(b, B_range) for b in end_charges]
+    # if you "overshoot", keep only the option that takes the shortest time
+    last_index = searchsortedfirst(round_charges, data["B"])
+    if length(end_times) ≥ last_index
+        round_charges = round_charges[1:last_index]
+    end
+    if round_charges[end] ≥ data["B"]
+        round_charges[end] = data["B"]
+    end
+    return collect(Iterators.zip(
+        delta_times, delta_charges, 
+        end_times, end_charges, 
+        round_times, round_charges,
+    ))
+end
+
 function enumerate_subpaths_withcharge(
     starting_node, 
     starting_time, 
@@ -303,42 +343,16 @@ function enumerate_subpaths_withcharge(
     generated from a single Subpath with additional discretized charging options
     """
     _, nondominated_subpaths = enumerate_subpaths(starting_node, starting_time, starting_charge, G, data)
-    # Version 2: charge by fixed time intervals inside T_range
-    # If maximum time reached, charge to maximum time and get the corresponding charge
-    # If maximum charge reached, charge to the next higher time (in T_range) and get to max charge
+    
     nondominated_subpaths_withcharge = []
     for s in nondominated_subpaths
         if s.current_node in data["N_depots"]
-            s_withcharge = copy(s)
-            s_withcharge.round_time = dceil(s.end_time, T_range)
-            s_withcharge.round_charge = dfloor(s.charge, B_range)
-            push!(nondominated_subpaths_withcharge, s_withcharge)
+            push!(nondominated_subpaths_withcharge, s)
         else
-            # Ensures that you can charge until time's up or you're full
-            max_end_time_unbounded = s.time + (data["B"] - s.charge) / data["μ"]
-            if max_end_time_unbounded > data["T"]
-                max_end_time = data["T"]
-            else
-                # This dceil means that if you charge to full charge,
-                # you have to wait until the next discretized time
-                max_end_time = dceil(max_end_time_unbounded, T_range)
-            end
-            delta_times = [
-                t - s.time
-                for t in T_range
-                if s.time < t ≤ max_end_time
-            ]
-            delta_charges = data["μ"] .* delta_times
-            end_times = s.time .+ delta_times
-            round_times = end_times
-            end_charges = [s.charge + c for c in delta_charges]
-            round_charges = [dfloor(c, B_range) for c in end_charges]
             for (delta_time, delta_charge, 
                 end_time, end_charge, 
-                round_time, round_charge) in Iterators.zip(
-                delta_times, delta_charges, 
-                end_times, end_charges,
-                round_times, round_charges,
+                round_time, round_charge) in generate_charging_options(
+                s.time, s.charge, data, T_range, B_range,
             )
                 s_withcharge = copy(s)
                 s_withcharge.delta_time = delta_time
@@ -391,11 +405,9 @@ function enumerate_all_subpaths(
             )
         end
         for s in subpaths
-            if !charging_in_subpath
-                # perform rounding here
-                s.round_time = dceil(s.end_time, T_range)
-                s.round_charge = dfloor(s.end_charge, B_range)
-            end
+            # perform rounding here
+            s.round_time = dceil(s.end_time, T_range)
+            s.round_charge = dfloor(s.end_charge, B_range)
             key = (
                 (starting_node, starting_time, starting_charge),
                 (s.current_node, s.round_time, s.round_charge)
@@ -444,39 +456,27 @@ function enumerate_all_charging_arcs(
     B_range,
 )
     states = Set()
-    for k in keys(all_subpaths_c_e)
+    for k in keys(all_subpaths)
         push!(states, k[1], k[2])
     end
     all_charging_arcs = []
     for starting_node in data["N_charging"]
         for t1 in T_range
-            end_times = dceilall(t1, T_range)
-            if length(end_times) == 1
-                continue
-            else
-                end_times = end_times[2:end]
-            end
-            round_times = end_times
-            delta_times = end_times .- t1
             for b1 in B_range
                 if !((starting_node, t1, b1) in states)
                     continue 
-                end
-                delta_charges = delta_times .* data["μ"]
-                end_charges = delta_charges .+ b1
-                round_charges = [dfloor(b, B_range) for b in end_charges]
-                last_index = searchsortedfirst(round_charges, data["B"])
-                if length(end_times) ≥ last_index
-                    round_charges = round_charges[1:last_index]
-                end
-                if round_charges[end] ≥ data["B"]
-                    round_charges[end] = data["B"]
                 end
                 append!(
                     all_charging_arcs, 
                     [
                         ((starting_node, t1, b1), (starting_node, t2, b2))
-                        for (t2, b2) in Iterators.zip(round_times, round_charges)
+                        for (_, _, _, _, t2, b2) in generate_charging_options(
+                            t1,
+                            b1,
+                            data,
+                            T_range,
+                            B_range,
+                        )
                     ]
                 )
             end
@@ -578,17 +578,11 @@ function subpath_formulation(
                     in_a_neighbors = [(n1, t2, b2) for t2 in t1_floor, b2 in b1_floor if ((n1, t2, b2), state1) in all_charging_arcs]
                     flow_conservation_exprs[(state1,"out_a")] = @expression(
                         model, 
-                        sum(
-                            y[(state1, state2)]
-                            for state2 in out_a_neighbors
-                        )
+                        sum(y[(state1, state2)] for state2 in out_a_neighbors)
                     )
                     flow_conservation_exprs[(state1,"in_a")] = @expression(
                         model, 
-                        sum(
-                            y[(state2, state1)]
-                            for state2 in in_a_neighbors
-                        )
+                        sum(y[(state2, state1)] for state2 in in_a_neighbors)
                     )
                     # FIXME: make more efficient
                     # Constraint (7b) Flow conservation at charging stations
