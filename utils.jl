@@ -7,6 +7,8 @@ using Distributions
 using Distances
 using Printf
 
+using Graphs, SimpleWeightedGraphs
+
 function generate_times(
     T,
     n_customers,
