@@ -724,21 +724,26 @@ function subpath_formulation(
     return results, params
 end
 
-function construct_paths_from_subpath_withoutcharge_solution(
-    results, data, all_subpaths_withoutcharge
+function construct_paths_from_subpath_solution(
+    results, data, all_subpaths, 
+    ;
+    charging_in_subpath::Bool = false,
+    all_charging_arcs::Vector{Any} = [],
 )
     results_subpaths = []
-    for key in keys(all_subpaths_withoutcharge)
-        for p in 1:length(all_subpaths_withoutcharge[key])
+    for key in keys(all_subpaths)
+        for p in 1:length(all_subpaths[key])
             if results["z"][key,p] != 0
-                push!(results_subpaths, all_subpaths_withoutcharge[key][p])
+                push!(results_subpaths, all_subpaths[key][p])
             end
         end
     end
-    results_charging_arcs = []
-    for key in all_charging_arcs
-        if results["y"][key] != 0
-            push!(results_charging_arcs, key)
+    if !charging_in_subpath
+        results_charging_arcs = []
+        for key in all_charging_arcs
+            if results["y"][key] != 0
+                push!(results_charging_arcs, key)
+            end
         end
     end
 
@@ -769,7 +774,7 @@ function construct_paths_from_subpath_withoutcharge_solution(
                     results_subpaths
                 )
             end
-            if isnothing(i) && t != 0
+            if !charging_in_subpath && isnothing(i) && t != 0
                 i = findfirst(
                     s -> (s[1] == current_state),
                     results_charging_arcs
