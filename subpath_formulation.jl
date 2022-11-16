@@ -354,17 +354,19 @@ function enumerate_subpaths_withcharge(
     return nondominated_subpaths_withcharge
 end
 
-function enumerate_all_subpaths_withcharge(
+function enumerate_all_subpaths(
     G, 
     data, 
-    T_range,
+    T_range, 
     B_range,
+    ;
+    charging_in_subpath::Bool = false,
 )
     """
     `all_subpaths`: Dictionary mapping (I,J)-pairs of states
     to a Vector{Subpath}.
     """
-    all_subpaths_withcharge = Dict()
+    all_subpaths = Dict()
     for (starting_node, starting_time, starting_charge) in Iterators.flatten((
         Iterators.product(
             data["N_charging"],
@@ -377,22 +379,34 @@ function enumerate_all_subpaths_withcharge(
             [data["B"]],
         ),
     ))
-        # Regular nondominated_subpaths
-        for s in @suppress enumerate_subpaths_withcharge(
-            starting_node, starting_time, starting_charge,
-            G, data, T_range, B_range,
-        )
+        if charging_in_subpath
+            subpaths = @suppress enumerate_subpaths_withcharge(
+                starting_node, starting_time, starting_charge,
+                G, data, T_range, B_range,
+            )
+        else
+            _, subpaths = @suppress enumerate_subpaths(
+                starting_node, starting_time, starting_charge,
+                G, data,
+            )
+        end
+        for s in subpaths
+            if !charging_in_subpath
+                # perform rounding here
+                s.round_time = dceil(s.end_time, T_range)
+                s.round_charge = dfloor(s.end_charge, B_range)
+            end
             key = (
                 (starting_node, starting_time, starting_charge),
                 (s.current_node, s.round_time, s.round_charge)
             )
-            if !(key in keys(all_subpaths_withcharge))
-                all_subpaths_withcharge[key] = []
+            if !(key in keys(all_subpaths))
+                all_subpaths[key] = []
             end
-            push!(all_subpaths_withcharge[key], s)
+            push!(all_subpaths[key], s)
         end
     end
-    return all_subpaths_withcharge
+    return all_subpaths
 end
 
 function compute_subpath_costs(
@@ -421,48 +435,6 @@ function compute_subpath_service(
         for key in keys(all_subpaths), i in 1:data["n_customers"]
     )
     return subpath_service
-end
-
-function enumerate_all_subpaths_withoutcharge(
-    G, 
-    data, 
-    T_range, 
-    B_range,
-)
-    all_subpaths_withoutcharge = Dict()
-    for (starting_node, starting_time, starting_charge) in Iterators.flatten((
-        Iterators.product(
-            data["N_charging"],
-            T_range,
-            B_range,
-        ),
-        Iterators.product(
-            data["N_depots"],
-            [0.0],
-            [data["B"]],
-        ),
-    ))
-        _, subpaths = @suppress enumerate_subpaths(
-            starting_node, 
-            starting_time, 
-            starting_charge,
-            G,
-            data,
-        )
-        for s in subpaths
-            s.round_time = dceil(s.end_time, T_range)
-            s.round_charge = dfloor(s.end_charge, B_range)
-            key = (
-                (starting_node, starting_time, starting_charge),
-                (s.current_node, s.round_time, s.round_charge)
-            )
-            if !(key in keys(all_subpaths_withoutcharge))
-                all_subpaths_withoutcharge[key] = []
-            end
-            push!(all_subpaths_withoutcharge[key], s)
-        end
-    end
-    return all_subpaths_withoutcharge
 end
 
 function enumerate_all_charging_arcs(
