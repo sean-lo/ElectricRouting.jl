@@ -313,3 +313,113 @@ function arc_formulation(
     return results, params
 end
 
+function construct_paths_from_arc_solution(
+    results,
+    data,
+)
+    paths = Dict()
+    for k in data["N_vehicles"] 
+        arcs = [
+            (i,j) for (i,j) in keys(data["A"]) 
+            if results["x"][(i,j),k] > 0.5
+        ]
+        path = []
+        i = findfirst(x -> (x[1] ∈ data["N_depots"]), arcs)
+        while true
+            a = popat!(arcs, i)
+            push!(path, a)
+            current_node = a[2]
+            if length(arcs) == 0
+                break
+            end
+            i = findfirst(x -> (x[1] == current_node), arcs)
+        end
+        paths[k] = path
+    end
+    return paths
+end
+
+function arc_results_printout(
+    results, 
+    params,
+    data,
+    with_charging::Bool = false,
+)
+    @printf("Objective:                 %7.1f\n", results["objective"])
+    @printf("Total travel cost:         %7.1f\n", results["total_travel_cost"])
+    @printf("Total vehicle time:        %7.1f\n", results["total_vehicle_time"])
+    if with_charging
+        @printf("Total charge required:     %7.1f\n", results["total_charge_required"])
+    end
+    @printf("Time taken:                %7.1f s\n", params["time_taken"])
+    @printf("Time taken (formulation):  %7.1f s\n", params["constraint_time_taken"])
+    @printf("Time taken (solving):      %7.1f s\n", params["solution_time_taken"])
+    println("")
+
+    if with_charging
+        println("Vehicles         From      time   charge             To      time   charge  |  arc_time |  arc_charge ")
+        println("----------------------------------------------------------------------------|-----------|-------------")
+    else
+        println("Vehicles         From      time             To      time  |  arc_time ")
+        println("----------------------------------------------------------|-----------")
+    end
+
+    paths = construct_paths_from_arc_solution(results, data)
+
+    for k in data["N_vehicles"]
+        for a in paths[k]
+            if with_charging
+                if a[2] in data["N_charging"]
+                    @printf(
+                        "Vehicle %s: %12s (%6.1f,  %6.1f) -> %12s (%6.1f,  %6.1f) | -  %6.1f | -    %6.1f \n", 
+                        k, 
+                        data["node_labels"][a[1]], 
+                        results["τ_leave"][a[1],k],
+                        results["b_end"][a[1],k],
+                        data["node_labels"][a[2]],
+                        results["τ_reach"][a[2],k],
+                        results["b_start"][a[2],k],
+                        data["t"][a[1],a[2]],
+                        data["q"][a[1],a[2]],
+                    )
+                    @printf(
+                        "Vehicle %s: %12s (%6.1f,  %6.1f) -> %12s (%6.1f,  %6.1f) | -  %6.1f | +    %6.1f \n", 
+                        k, 
+                        data["node_labels"][a[2]], 
+                        results["τ_reach"][a[2],k],
+                        results["b_start"][a[2],k],
+                        data["node_labels"][a[2]], 
+                        results["τ_leave"][a[2],k],
+                        results["b_end"][a[2],k],
+                        results["δ"][a[2],k],
+                        results["δ"][a[2],k] * data["μ"],
+                    )
+                else
+                    @printf(
+                        "Vehicle %s: %12s (%6.1f,  %6.1f) -> %12s (%6.1f,  %6.1f) | -  %6.1f | -    %6.1f \n", 
+                        k, 
+                        data["node_labels"][a[1]], 
+                        results["τ_leave"][a[1],k],
+                        results["b_end"][a[1],k],
+                        data["node_labels"][a[2]],
+                        results["τ_reach"][a[2],k],
+                        results["b_start"][a[2],k],
+                        data["t"][a[1],a[2]],
+                        data["q"][a[1],a[2]],
+                    )
+                end
+            else
+                @printf(
+                    "Vehicle %s: %12s (%6.1f) -> %12s (%6.1f) | -  %6.1f\n", 
+                    k, 
+                    data["node_labels"][a[1]], 
+                    results["τ_leave"][a[1],k],
+                    data["node_labels"][a[2]],
+                    results["τ_reach"][a[2],k],
+                    data["t"][a[1],a[2]],
+                )
+            end
+        end
+        println("")
+    end
+end
