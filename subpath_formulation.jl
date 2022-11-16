@@ -797,3 +797,121 @@ function construct_paths_from_subpath_solution(
     end
     return paths, schedules
 end
+
+function subpath_results_printout(
+    results,
+    params,
+    data,
+    all_subpaths,
+    ;
+    charging_in_subpath::Bool = true,
+    all_charging_arcs::Vector{Any} = [],
+)
+
+    @printf("Objective:                 %7.1f\n", results["objective"])
+    println("")
+    @printf("Time taken:                %7.1f s\n", params["time_taken"])
+    @printf("Time taken (formulation):  %7.1f s\n", params["constraint_time_taken"])
+    @printf("Time taken (solving):      %7.1f s\n", params["solution_time_taken"])
+    println("")
+
+    println("Vehicles         From      time   charge             To      time   charge  |   sp_time |   sp_charge ")
+    println("----------------------------------------------------------------------------|-----------|-------------")
+
+    paths, schedules = construct_paths_from_subpath_solution(
+        results, data, all_subpaths;
+        charging_in_subpath = charging_in_subpath,
+        all_charging_arcs = all_charging_arcs,
+    )
+    
+    for k in data["N_vehicles"]
+        for s in schedules[k]
+            if isa(s, Subpath)
+                nodes = []
+                times = []
+                charges = []
+                push!(nodes, data["node_labels"][s.starting_node])
+                current_time = s.starting_time
+                push!(times, current_time)
+                current_charge = s.starting_charge   
+                push!(charges, current_charge)
+                for (i, a) in enumerate(s.arcs)
+                    push!(nodes, data["node_labels"][a[2]])
+                    current_time = max(current_time + data["t"][a...], data["α"][a[2]])
+                    push!(times, current_time)
+                    current_charge = current_charge - data["q"][a...]
+                    push!(charges, current_charge)
+                end
+                @printf(
+                    "Vehicle %s:                                                                  |    %6.1f |      %6.1f \n", 
+                    k, 
+                    s.starting_time, 
+                    s.starting_charge,
+                )
+                for i in 1:length(nodes)-2
+                    @printf(
+                        "Vehicle %s: %12s (%6.1f,  %6.1f) -> %12s (%6.1f,  %6.1f) |           | \n", 
+                        k, 
+                        nodes[i], 
+                        times[i], 
+                        charges[i],
+                        nodes[i+1],
+                        times[i+1],
+                        charges[i+1],
+                    )
+                end
+                @printf(
+                    "Vehicle %s: %12s (%6.1f,  %6.1f) -> %12s (%6.1f,  %6.1f) | +  %6.1f | -    %6.1f \n", 
+                    k, 
+                    nodes[length(nodes)-1], 
+                    times[length(nodes)-1], 
+                    charges[length(nodes)-1],
+                    nodes[length(nodes)],
+                    times[length(nodes)],
+                    charges[length(nodes)],
+                    s.time - s.starting_time, 
+                    s.starting_charge - s.charge,
+                )
+                if charging_in_subpath && s.current_node in data["N_charging"]
+                    @printf(
+                        "Vehicle %s: %12s (%6.1f,  %6.1f) -> %12s (%6.1f,  %6.1f) | +  %6.1f | +    %6.1f \n", 
+                        k, 
+                        data["node_labels"][s.current_node],
+                        s.time,
+                        s.charge,
+                        data["node_labels"][s.current_node],
+                        s.end_time,
+                        s.end_charge,
+                        s.delta_time, 
+                        s.delta_charge,
+                    )
+                end
+                # Rounding
+                @printf(
+                    "Vehicle %s:                                -> %12s (%6.1f,  %6.1f) | +  %6.1f | -    %6.1f \n", 
+                    k, 
+                    data["node_labels"][s.current_node],
+                    s.round_time,
+                    s.round_charge,
+                    s.round_time - s.end_time,
+                    s.end_charge - s.round_charge,
+                )
+            else
+                # Charging arc 
+                @printf(
+                    "Vehicle %s: %12s (%6.1f,  %6.1f) -> %12s (%6.1f,  %6.1f) | +  %6.1f | +    %6.1f \n", 
+                    k, 
+                    data["node_labels"][s[1][1]],
+                    s[1][2],
+                    s[1][3],
+                    data["node_labels"][s[2][1]],
+                    s[2][2],
+                    s[2][3],
+                    s[2][2] - s[1][2],
+                    s[2][3] - s[1][3],
+                )
+            end
+        end
+        println("------------------------------------------------------------------------------------------------------")
+    end
+end
