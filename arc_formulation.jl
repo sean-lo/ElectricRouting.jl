@@ -281,14 +281,21 @@ function arc_formulation(
         return
     end
 
+    constraint_end_time = time()
+
     optimize!(model)
     end_time = time()
     time_taken = end_time - start_time
+    constraint_time_taken = constraint_end_time - start_time
+    solution_time_taken = end_time - constraint_end_time
 
     params = Dict(
         "time_taken" => time_taken,
+        "constraint_time_taken" => constraint_time_taken,
+        "solution_time_taken" => solution_time_taken,
     )
     results = Dict(
+        "model" => model,
         "objective" => objective_value(model),
         "total_travel_cost" => value(total_travel_cost),
         "total_vehicle_time" => value(total_vehicle_time),
