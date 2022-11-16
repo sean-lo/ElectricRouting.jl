@@ -10,23 +10,31 @@ using Printf
 function generate_times(
     T,
     n_customers,
-    seed
+    seed,
+    batch,
 )
+    if n_customers % batch != 0
+        error()
+    end
     times_dist = Uniform(0, T)
     α = zeros(2 * n_customers)
     β = zeros(2 * n_customers)
 
     Random.seed!(seed)
-    for i in 1:n_customers
-        pickup_i = i
-        dropoff_i = i + n_customers
+    for batch_ind in 1:(n_customers ÷ batch)
+        pickup_inds = collect((batch_ind-1)*batch+1:batch_ind*batch)
+        dropoff_inds = collect(n_customers+(batch_ind-1)*batch+1:n_customers+batch_ind*batch)
         while true
-            s1, s2, e1, e2 = round.(sort(rand(times_dist, 4)))
-            if (e1 - s1) / T > 0.4 && (e2 - s2) / T > 0.4
-                α[pickup_i] = s1
-                α[dropoff_i] = s2
-                β[pickup_i] = e1
-                β[dropoff_i] = e2
+            times = round.(sort(rand(times_dist, 4 * batch)))
+            start_times = times[1:end÷2]
+            end_times = times[end÷2+1:end]
+            if all(
+                (end_times .- start_times) ./ T .> 0.4
+            )
+                α[pickup_inds] = start_times[1:end÷2]
+                α[dropoff_inds] = start_times[end÷2+1:end]
+                β[pickup_inds] = end_times[1:end÷2]
+                β[dropoff_inds] = end_times[end÷2+1:end]
                 break
             end
         end
@@ -48,6 +56,7 @@ function generate_instance_pair(
     B::Float64,
     μ::Float64,
     C::Int = 1,
+    batch::Int = 1,
 )
     n_nodes_charge = n_depots + 2 * n_customers + n_charging * charging_repeats
     n_nodes_nocharge = n_depots + 2 * n_customers
@@ -147,7 +156,7 @@ function generate_instance_pair(
         ),
     )
     
-    α, β = generate_times(T, n_customers, seeds[6])
+    α, β = generate_times(T, n_customers, seeds[6], batch)
     α_nocharge = vcat(α, repeat([0.0], n_depots))
     β_nocharge = vcat(β, repeat([T], n_depots))
     α_charge = vcat(α_nocharge, repeat([0.0], length(N_charging)))
