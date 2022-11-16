@@ -423,182 +423,6 @@ function compute_subpath_service(
     return subpath_service
 end
 
-function subpath_withcharge_formulation(
-    data, 
-    all_subpaths_withcharge,
-    subpath_withcharge_costs, 
-    subpath_withcharge_service,
-    T_range,
-    B_range,
-)
-    # Charging always present
-
-    start_time = time()
-
-    model = Model(Gurobi.Optimizer)
-
-    m = maximum(length(x) for x in values(all_subpaths_withcharge))
-    @variable(model, z[k=keys(all_subpaths_withcharge), p=1:m; p ≤ length(all_subpaths_withcharge[k])], Bin);
-
-    # Constraint (4b): number of subpaths starting at depot i
-    # at time 0 with full charge to be v_startᵢ
-    @constraint(
-        model,
-        [i in data["N_depots"]],
-        sum(
-            sum(
-                z[((i,0,data["B"]),(j,t2,b2)),p]
-                for p in 1:length(all_subpaths_withcharge[((i,0,data["B"]),(j,t2,b2))])
-            )        
-            for j in union(data["N_charging"], data["N_depots"]), 
-                t2 in T_range, 
-                b2 in B_range
-                if ((i,0,data["B"]),(j,t2,b2)) in keys(all_subpaths_withcharge)
-        )
-        == data["v_start"][findfirst(x -> (x == i), data["N_depots"])]
-    )
-
-    # Constraint (4c) Flow conservation at charging stations
-    # (here the other node can be either a depot or charging station)
-    @constraint(
-        model, 
-        [n1 in data["N_charging"], t1 in T_range, b1 in B_range],
-        sum(
-            sum(
-                z[((n1,t1,b1),(n2,t2,b2)),p] 
-                for p in 1:length(all_subpaths_withcharge[((n1,t1,b1),(n2,t2,b2))])
-            )
-            for n2 in union(data["N_charging"], data["N_depots"]), 
-                t2 in T_range, 
-                b2 in B_range
-                if ((n1,t1,b1),(n2,t2,b2)) in keys(all_subpaths_withcharge)
-        ) == sum(
-            sum(
-                z[((n2,t2,b2),(n1,t1,b1)),p] 
-                for p in 1:length(all_subpaths_withcharge[((n2,t2,b2),(n1,t1,b1))])
-            )
-            for n2 in union(data["N_charging"], data["N_depots"]), 
-                t2 in T_range, 
-                b2 in B_range
-                if ((n2,t2,b2),(n1,t1,b1)) in keys(all_subpaths_withcharge)
-        )
-    )
-    
-    # Constraint (4d) Serving all customers exactly once across all subpaths
-    @constraint(
-        model,
-        [j in data["N_pickups"]],
-        sum(
-            sum(
-                subpath_withcharge_service[(((n1,t1,b1),(n2,t2,b2)),j)][p] * z[((n1,t1,b1),(n2,t2,b2)),p]
-                for p in 1:length(all_subpaths_withcharge[((n1,t1,b1),(n2,t2,b2))])
-            )
-            for ((n1,t1,b1),(n2,t2,b2)) in keys(all_subpaths_withcharge)
-        ) == 1
-    )
-
-    # Constraint (4e) Number of subpaths ending at each depot n2 
-    # is at least the number of vehicles required
-    @constraint(
-        model,
-        [n2 in data["N_depots"]],
-        sum(
-            sum(
-                z[((n1,t1,b1),(n2,t2,b2)),p]
-                for p in 1:length(all_subpaths_withcharge[((n1,t1,b1),(n2,t2,b2))])
-            )
-            for n1 in union(data["N_charging"], data["N_depots"]),
-                t1 in T_range, t2 in T_range, 
-                b1 in B_range, b2 in B_range
-            if ((n1,t1,b1),(n2,t2,b2)) in keys(all_subpaths_withcharge)
-        ) ≥ data["v_end"][n2]
-    )
-
-    # Objective: minimize the cost of all chosen subpaths
-    @objective(
-        model,
-        Min,
-        sum(
-            sum(
-                subpath_withcharge_costs[state_pair][p] * z[state_pair,p]
-                for p in 1:length(all_subpaths_withcharge[state_pair])
-            )
-            for state_pair in keys(all_subpaths_withcharge)
-        )
-    )
-
-    constraint_end_time = time()
-
-    optimize!(model)
-    end_time = time()
-    time_taken = end_time - start_time
-    constraint_time_taken = constraint_end_time - start_time
-    solution_time_taken = end_time - constraint_end_time
-
-    params = Dict(
-        "time_taken" => time_taken,
-        "constraint_time_taken" => constraint_time_taken,
-        "solution_time_taken" => solution_time_taken,
-    )
-    results = Dict(
-        "objective" => objective_value(model),
-        "z" => value.(z),
-    )
-    return results, params
-end
-
-function construct_paths_from_subpath_withcharge_solution(
-    results, data, all_subpaths_withcharge
-)
-    results_subpaths = []
-    for key in keys(all_subpaths_withcharge)
-        for p in 1:length(all_subpaths_withcharge[key])
-            if results["z"][key,p] != 0
-                push!(results_subpaths, all_subpaths_withcharge[key][p])
-            end
-        end
-    end
-
-    paths = Dict(v => [] for v in 1:data["n_vehicles"])
-    schedules = Dict(v => [] for v in 1:data["n_vehicles"])
-    for v in 1:data["n_vehicles"]
-        t = 0
-        current_state = nothing
-        while true
-            if t == 0
-                i = findfirst(
-                    s -> (
-                        s.starting_node in data_e["N_depots"]
-                        && s.starting_time == 0.0
-                        && s.starting_charge == data_e["B"]
-                    ), 
-                    results_subpaths
-                )
-            else
-                i = findfirst(
-                    s -> (
-                        (
-                            s.starting_node, 
-                            s.starting_time,
-                            s.starting_charge
-                        ) == current_state
-                    ),
-                    results_subpaths
-                )
-            end
-            current_s = popat!(results_subpaths, i)
-            push!(schedules[v], current_s)
-            append!(paths[v], current_s.arcs)
-            current_state = (current_s.current_node, current_s.round_time, current_s.round_charge)
-            if current_state[1] in data_e["N_depots"]
-                break
-            end        
-            t += 1
-        end
-    end
-    return paths, schedules
-end
-
 function enumerate_all_subpaths_withoutcharge(
     G, 
     data, 
@@ -690,15 +514,17 @@ function enumerate_all_charging_arcs(
     return all_charging_arcs, charging_arcs_costs
 end
 
-function subpath_withoutcharge_formulation(
+function subpath_formulation(
     data, 
-    all_subpaths_withoutcharge,
-    subpath_withoutcharge_costs, 
-    subpath_withoutcharge_service,
-    all_charging_arcs,
-    charging_arcs_costs,
+    all_subpaths,
+    subpath_costs, 
+    subpath_service,
     T_range,
     B_range,
+    ;
+    charging_in_subpath::Bool = false,
+    all_charging_arcs = [],
+    charging_arcs_costs = Dict(),
 )
     # Charging always present
 
@@ -711,12 +537,14 @@ function subpath_withoutcharge_formulation(
         push!(states, k[1], k[2])
     end
 
-    m = maximum(length(x) for x in values(all_subpaths_withoutcharge))
+    m = maximum(length(x) for x in values(all_subpaths))
     @variable(model, z[
-        k=keys(all_subpaths_withoutcharge), 
-        p=1:m; p ≤ length(all_subpaths_withoutcharge[k])
+        k=keys(all_subpaths), 
+        p=1:m; p ≤ length(all_subpaths[k])
     ], Bin);
-    @variable(model, y[all_charging_arcs], Bin);
+    if !charging_in_subpath
+        @variable(model, y[all_charging_arcs], Bin)
+    end
 
     # Constraint (4b): number of subpaths starting at depot i
     # at time 0 with full charge to be v_startᵢ
@@ -725,81 +553,94 @@ function subpath_withoutcharge_formulation(
         [i in data["N_depots"]],
         sum(
             sum(
-                z[((i,0,data["B"]),(j,t2,b2)),p]
-                for p in 1:length(all_subpaths_withoutcharge[((i,0,data["B"]),(j,t2,b2))])
+                z[((i,0,data["B"]),state),p]
+                for p in 1:length(all_subpaths[((i,0,data["B"]),state)])
             )        
-            for j in union(data["N_charging"], data["N_depots"]), 
-                t2 in T_range, 
-                b2 in B_range
-                if ((i,0,data["B"]),(j,t2,b2)) in keys(all_subpaths_withoutcharge)
+            for state in states
+                if ((i,0,data["B"]),state) in keys(all_subpaths)
         )
         == data["v_start"][findfirst(x -> (x == i), data["N_depots"])]
     )
 
-    # FIXME: make more efficient
-    # Constraint (7b) Flow conservation at charging stations
-    # (here the other node can be either a depot or charging station)
-    # (here the arcs can be subpaths or charging arcs)
+    flow_conservation_exprs = Dict()
     for n1 in data["N_charging"]
         for t1 in T_range
             t1_floor = dfloorall(t1, T_range)
             t1_ceil = dceilall(t1, T_range)
             for b1 in B_range
+                state1 = (n1, t1, b1)
                 b1_floor = dfloorall(b1, B_range)
                 b1_ceil = dceilall(b1, B_range)
-                out_sp_neighbors = [state for state in states if ((n1, t1, b1), state) in keys(all_subpaths_withoutcharge)]
-                in_sp_neighbors = [state for state in states if (state, (n1, t1, b1)) in keys(all_subpaths_withoutcharge)]
-                out_a_neighbors = [(n1, t2, b2) for t2 in t1_ceil, b2 in b1_ceil if ((n1, t1, b1), (n1, t2, b2)) in all_charging_arcs]
-                in_a_neighbors = [(n1, t2, b2) for t2 in t1_floor, b2 in b1_floor if ((n1, t2, b2), (n1, t1, b1)) in all_charging_arcs]
-                @constraint(
-                    model,
+                out_sp_neighbors = [state for state in states if (state1, state) in keys(all_subpaths)]
+                in_sp_neighbors = [state for state in states if (state, state1) in keys(all_subpaths)]
+                flow_conservation_exprs[(state1,"out_sp")] = @expression(
+                    model, 
                     sum(
                         sum(
-                            z[((n1,t1,b1),(n2,t2,b2)),p] 
-                            for p in 1:length(all_subpaths_withoutcharge[((n1,t1,b1),(n2,t2,b2))])
+                            z[(state1, state2),p] 
+                            for p in 1:length(all_subpaths[(state1, state2)])
                         )
-                        for (n2, t2, b2) in out_sp_neighbors
-                    )
-                    + sum(
-                        y[((n1,t1,b1),(n1,t2,b2))]
-                        for (n1, t2, b2) in out_a_neighbors
-                    )
-                    == 
-                    sum(
-                        sum(
-                            z[((n2,t2,b2),(n1,t1,b1)),p] 
-                            for p in 1:length(all_subpaths_withoutcharge[((n2,t2,b2),(n1,t1,b1))])
-                        )
-                        for (n2, t2, b2) in in_sp_neighbors
-                    )
-                    + sum(
-                        y[((n1,t2,b2),(n1,t1,b1))]
-                        for (n1, t2, b2) in in_a_neighbors
+                        for state2 in out_sp_neighbors
                     )
                 )
+                flow_conservation_exprs[(state1,"in_sp")] = @expression(
+                    model, 
+                    sum(
+                        sum(
+                            z[(state2, state1),p] 
+                            for p in 1:length(all_subpaths[(state2, state1)])
+                        )
+                        for state2 in in_sp_neighbors
+                    )
+                )
+                if charging_in_subpath
+                    # Constraint (4c) Flow conservation at charging stations
+                    # (here the other node can be either a depot or charging station)
+                    @constraint(
+                        model,
+                        flow_conservation_exprs[(state1,"out_sp")]
+                        == flow_conservation_exprs[(state1,"in_sp")]
+                    )
+                else
+                    out_a_neighbors = [(n1, t2, b2) for t2 in t1_ceil, b2 in b1_ceil if (state1, (n1, t2, b2)) in all_charging_arcs]
+                    in_a_neighbors = [(n1, t2, b2) for t2 in t1_floor, b2 in b1_floor if ((n1, t2, b2), state1) in all_charging_arcs]
+                    flow_conservation_exprs[(state1,"out_a")] = @expression(
+                        model, 
+                        sum(
+                            y[(state1, state2)]
+                            for state2 in out_a_neighbors
+                        )
+                    )
+                    flow_conservation_exprs[(state1,"in_a")] = @expression(
+                        model, 
+                        sum(
+                            y[(state2, state1)]
+                            for state2 in in_a_neighbors
+                        )
+                    )
+                    # FIXME: make more efficient
+                    # Constraint (7b) Flow conservation at charging stations
+                    # (here the other node can be either a depot or charging station)
+                    # (here the arcs can be subpaths or charging arcs)
+                    @constraint(
+                        model,
+                        flow_conservation_exprs[(state1,"out_sp")]
+                        + flow_conservation_exprs[(state1,"out_a")]
+                        == flow_conservation_exprs[(state1,"in_sp")]
+                        + flow_conservation_exprs[(state1,"in_a")]
+                    )
+                    # FIXME: make more efficient
+                    # Constraint (7c): having at most 1 charging arc incident to any charging node
+                    @constraint(
+                        model,
+                        flow_conservation_exprs[(state1,"out_a")]
+                        + flow_conservation_exprs[(state1,"in_a")]
+                        ≤ 1
+                    )
+                end
             end
         end
     end
-
-    # FIXME: make more efficient
-    # Constraint (7c): having at most 1 charging arc incident to any charging node
-    @constraint(
-        model,
-        [n1 in data["N_charging"], t1 in T_range, b1 in B_range],
-        sum(
-            y[((n1,t1,b1),(n1,t2,b2))]
-            for t2 in dceilall(t1, T_range), 
-                b2 in dceilall(b1, B_range)
-                if ((n1,t1,b1),(n1,t2,b2)) in all_charging_arcs
-        ) 
-        + sum(
-            y[((n1,t2,b2),(n1,t1,b1))]
-            for t2 in dfloorall(t1, T_range), 
-                b2 in dfloorall(b1, T_range)
-                if ((n1,t2,b2),(n1,t1,b1)) in all_charging_arcs
-        )
-        ≤ 1
-    )
 
     # Constraint (4d) Serving all customers exactly once across all subpaths
     @constraint(
@@ -807,10 +648,10 @@ function subpath_withoutcharge_formulation(
         [j in data["N_pickups"]],
         sum(
             sum(
-                subpath_withoutcharge_service[(((n1,t1,b1),(n2,t2,b2)),j)][p] * z[((n1,t1,b1),(n2,t2,b2)),p]
-                for p in 1:length(all_subpaths_withoutcharge[((n1,t1,b1),(n2,t2,b2))])
+                subpath_service[((state1, state2),j)][p] * z[(state1, state2),p]
+                for p in 1:length(all_subpaths[(state1, state2)])
             )
-            for ((n1,t1,b1),(n2,t2,b2)) in keys(all_subpaths_withoutcharge)
+            for (state1, state2) in keys(all_subpaths)
         ) == 1
     )
 
@@ -822,32 +663,43 @@ function subpath_withoutcharge_formulation(
         sum(
             sum(
                 z[((n1,t1,b1),(n2,t2,b2)),p]
-                for p in 1:length(all_subpaths_withoutcharge[((n1,t1,b1),(n2,t2,b2))])
+                for p in 1:length(all_subpaths[((n1,t1,b1),(n2,t2,b2))])
             )
-            for n1 in union(data["N_charging"], data["N_depots"]),
-                t1 in T_range, t2 in dceilall(t1, T_range), 
-                b1 in B_range, b2 in dfloorall(b1, B_range)
-            if ((n1,t1,b1),(n2,t2,b2)) in keys(all_subpaths_withoutcharge)
+            for (n1, t1, b1) in states,
+                t2 in dceilall(t1, T_range), 
+                b2 in dfloorall(b1, B_range)
+            if ((n1,t1,b1),(n2,t2,b2)) in keys(all_subpaths)
         ) ≥ data["v_end"][n2]
     )
 
-    # Objective: minimize the cost of all chosen subpaths, 
-    # and the cost of all charging arcs
-    @objective(
+    @expression(
         model,
-        Min,
+        subpath_costs_expr,
         sum(
             sum(
-                subpath_withoutcharge_costs[state_pair][p] * z[state_pair,p]
-                for p in 1:length(all_subpaths_withoutcharge[state_pair])
+                subpath_costs[state_pair][p] * z[state_pair,p]
+                for p in 1:length(all_subpaths[state_pair])
             )
-            for state_pair in keys(all_subpaths_withoutcharge)
-        ) + 
-        sum(
-            y[state_pair] * charging_arcs_costs[state_pair] 
-            for state_pair in all_charging_arcs
+            for state_pair in keys(all_subpaths)
         )
     )
+    if charging_in_subpath
+        # Objective: minimize the cost of all chosen subpaths, 
+        # and the cost of all charging arcs
+        @objective(model, Min, subpath_costs_expr)
+    else
+        @expression(
+            model, 
+            charging_arcs_costs_expr,
+            sum(
+                y[state_pair] * charging_arcs_costs[state_pair] 
+                for state_pair in all_charging_arcs
+            )
+        )
+        # Objective: minimize the cost of all chosen subpaths, 
+        # and the cost of all charging arcs
+        @objective(model, Min, subpath_costs_expr + charging_arcs_costs_expr)
+    end
 
     constraint_end_time = time()
 
@@ -865,8 +717,10 @@ function subpath_withoutcharge_formulation(
     results = Dict(
         "objective" => objective_value(model),
         "z" => value.(z),
-        "y" => value.(y),
     )
+    if !charging_in_subpath
+        results["y"] = value.(y)
+    end
     return results, params
 end
 
