@@ -647,10 +647,10 @@ function enumerate_all_charging_arcs(
     T_range,
     B_range,
 )
-    states = sort(unique(vcat(
-        collect([x[1], x[2]] for x in keys(all_subpaths))...
-    )))
-    length(states)
+    states = Set()
+    for k in keys(all_subpaths_c_e)
+        push!(states, k[1], k[2])
+    end
     all_charging_arcs = []
     for starting_node in data["N_charging"]
         for t1 in T_range
@@ -706,9 +706,10 @@ function subpath_withoutcharge_formulation(
 
     model = Model(Gurobi.Optimizer)
 
-    states = sort(unique(vcat(
-        collect([x[1], x[2]] for x in keys(all_subpaths_withoutcharge))...
-    )))
+    states = Set()
+    for k in keys(all_subpaths_c_e)
+        push!(states, k[1], k[2])
+    end
 
     m = maximum(length(x) for x in values(all_subpaths_withoutcharge))
     @variable(model, z[
