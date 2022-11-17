@@ -299,14 +299,18 @@ function generate_charging_options(
     # Version 2: charge by fixed time intervals inside T_range
     # If maximum time reached, charge to maximum time and get the corresponding charge
     # If maximum charge reached, charge to the next higher time (in T_range) and get to max charge
-    end_times = dceilall(starting_time, T_range)
-    if length(end_times) == 1
-        return []
+    max_end_time_unbounded = starting_time + (data["B"] - starting_charge) / data["μ"]
+    if max_end_time_unbounded > data["T"]
+        max_end_time = data["T"]
     else
-        # the possible times at which you end charging
-        # exclude the first time (equal to starting_time)
-        end_times = end_times[2:end]
+        # This dceil means that if you charge to full charge,
+        # you have to wait until the next discretized time
+        max_end_time = dceil(max_end_time_unbounded, T_range)
     end
+    end_times = [
+        t for t in T_range
+        if starting_time < t ≤ max_end_time
+    ]
     round_times = end_times
     delta_times = end_times .- starting_time
 
@@ -314,14 +318,6 @@ function generate_charging_options(
     end_charges = delta_charges .+ starting_charge
     # the possible charges at which you end charging
     round_charges = [dfloor(b, B_range) for b in end_charges]
-    # if you "overshoot", keep only the option that takes the shortest time
-    last_index = searchsortedfirst(round_charges, data["B"])
-    if length(end_times) ≥ last_index
-        round_charges = round_charges[1:last_index]
-    end
-    if round_charges[end] ≥ data["B"]
-        round_charges[end] = data["B"]
-    end
     return collect(Iterators.zip(
         delta_times, delta_charges, 
         end_times, end_charges, 
@@ -477,6 +473,7 @@ function enumerate_all_charging_arcs(
                             T_range,
                             B_range,
                         )
+                        if (starting_node, t2, b2) in states
                     ]
                 )
             end
@@ -505,7 +502,7 @@ function subpath_formulation(
     model = Model(Gurobi.Optimizer)
 
     states = Set()
-    for k in keys(all_subpaths_c_e)
+    for k in keys(all_subpaths)
         push!(states, k[1], k[2])
     end
 
