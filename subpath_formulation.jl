@@ -1,26 +1,71 @@
-using Parameters
+using CompositeStructs
 
 using JuMP
 using Gurobi
 
-@with_kw mutable struct Subpath
+Base.@kwdef mutable struct Subpath
+    n_customers::Int
     starting_node::Int
     starting_time::Float64
     starting_charge::Float64
-    current_node::Int
-    arcs::Vector{Tuple}
-    time::Float64
-    charge::Float64
-    served::BitVector
-    delta_time::Float64
-    delta_charge::Float64
-    end_time::Float64
-    end_charge::Float64
-    round_time::Float64
-    round_charge::Float64
+    current_node::Int = starting_node
+    arcs::Vector{Tuple} = []
+    time::Float64 = starting_time
+    charge::Float64 = starting_charge
+    served::BitVector = falses(n_customers)
+    delta_time::Float64 = 0.0
+    delta_charge::Float64 = 0.0
+    end_time::Float64 = starting_time
+    end_charge::Float64 = starting_charge
+    round_time::Float64 = starting_time
+    round_charge::Float64 = starting_charge
 end
 
 Base.copy(s::Subpath) = Subpath(
+    n_customers = s.n_customers,
+    starting_node = s.starting_node,
+    starting_time = s.starting_time,
+    starting_charge = s.starting_charge,
+    current_node = s.current_node,
+    arcs = copy(s.arcs),
+    time = s.time,
+    charge = s.charge,
+    served = copy(s.served),
+    delta_time = s.delta_time,
+    delta_charge = s.delta_charge,
+    end_time = s.end_time,
+    end_charge = s.end_charge,
+    round_time = s.round_time,
+    round_charge = s.round_charge,
+)
+
+Base.show(io::IO, s::Subpath) = print(io, """Subpath:
+($(s.starting_node), $(s.starting_time), $(s.starting_charge)) -> ($(s.current_node), $(s.round_time), $(s.round_charge))=
+arcs:   $(s.arcs)
+served: $(s.served)
+delta:  ($(s.delta_time), $(s.delta_charge))
+end:    ($(s.end_time), $(s.end_charge))
+round:  ($(s.round_time), $(s.round_charge))
+""")
+
+@composite Base.@kwdef mutable struct SubpathWithCost 
+    Subpath...
+    cost::Float64 = 0.0
+end
+
+Base.show(io::IO, s::SubpathWithCost) = print(io, """SubpathWithCost:
+($(s.starting_node), $(s.starting_time), $(s.starting_charge)) -> ($(s.current_node), $(s.round_time), $(s.round_charge))
+cost:   $(s.cost)
+arcs:   $(s.arcs)
+served: $(s.served)
+delta:  ($(s.delta_time), $(s.delta_charge))
+end:    ($(s.end_time), $(s.end_charge))
+round:  ($(s.round_time), $(s.round_charge))
+""")
+
+Base.copy(s::SubpathWithCost) = SubpathWithCost(
+    cost = s.cost,
+    n_customers = s.n_customers,
     starting_node = s.starting_node,
     starting_time = s.starting_time,
     starting_charge = s.starting_charge,
@@ -103,6 +148,7 @@ function enumerate_subpaths(
         push!(
             subpaths,
             Subpath(
+                n_customers = data["n_customers"],
                 starting_node = starting_node,
                 starting_time = starting_time,
                 starting_charge = starting_charge,
@@ -111,8 +157,6 @@ function enumerate_subpaths(
                 time = new_time,
                 charge = new_charge, 
                 served = served,
-                delta_time = 0.0,
-                delta_charge = 0.0,
                 end_time = new_time,
                 end_charge = new_charge,
                 round_time = new_time,
