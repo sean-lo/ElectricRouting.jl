@@ -1,4 +1,5 @@
 using CompositeStructs
+using Suppressor
 
 using JuMP
 using Gurobi
@@ -782,9 +783,9 @@ function construct_paths_from_subpath_solution(
             if t == 0
                 i = findfirst(
                     s -> (
-                        s.starting_node in data_e["N_depots"]
+                        s.starting_node in data["N_depots"]
                         && s.starting_time == 0.0
-                        && s.starting_charge == data_e["B"]
+                        && s.starting_charge == data["B"]
                     ), 
                     results_subpaths
                 )
@@ -815,7 +816,7 @@ function construct_paths_from_subpath_solution(
                 append!(paths[v], current_s.arcs)
                 current_state = (current_s.current_node, current_s.round_time, current_s.round_charge)
             end
-            if current_state[1] in data_e["N_depots"]
+            if current_state[1] in data["N_depots"]
                 break
             end        
             t += 1
