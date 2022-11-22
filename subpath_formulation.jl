@@ -478,7 +478,6 @@ function enumerate_all_subpaths(
     end
     end_time = time()
     return all_subpaths, end_time - start_time
-    return all_subpaths
 end
 
 function compute_subpath_costs(
