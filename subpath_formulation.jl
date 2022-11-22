@@ -480,6 +480,63 @@ function enumerate_all_subpaths(
     return all_subpaths, end_time - start_time
 end
 
+function enumerate_all_subpaths_faster(
+    G, 
+    data, 
+    T_range, 
+    B_range,
+    ;
+    charging_in_subpath::Bool = false,
+)
+    """
+    `all_subpaths`: Dictionary mapping (I,J)-pairs of states
+    to a Vector{Subpath}.
+    """
+    start_time = time()
+    all_subpaths = Dict()
+    unexplored_states = Set(
+        Iterators.product(
+            data["N_depots"],
+            [0.0],
+            [data["B"]],
+        )
+    )
+    explored_states = Set()
+    while length(unexplored_states) > 0
+        next_unexplored_states = Set()
+        for state in unexplored_states
+            (starting_node, starting_time, starting_charge) = state
+            if charging_in_subpath
+                subpaths = @suppress enumerate_subpaths_withcharge(
+                    starting_node, starting_time, starting_charge,
+                    G, data, T_range, B_range,
+                )
+            else
+                _, subpaths = @suppress enumerate_subpaths(
+                    starting_node, starting_time, starting_charge,
+                    G, data,
+                )
+            end
+            for s in subpaths
+                # perform rounding here
+                s.round_time = dceil(s.end_time, T_range)
+                s.round_charge = dfloor(s.end_charge, B_range)
+                next_state = (s.current_node, s.round_time, s.round_charge)
+                key = (state, next_state)
+                if !(key in keys(all_subpaths))
+                    all_subpaths[key] = []
+                end
+                push!(all_subpaths[key], s)
+                push!(next_unexplored_states, next_state)
+            end
+            push!(explored_states, state)
+        end
+        unexplored_states = setdiff(next_unexplored_states, explored_states)
+    end
+    end_time = time()
+    return all_subpaths, end_time - start_time
+end
+
 function compute_subpath_costs(
     data,
     all_subpaths,
