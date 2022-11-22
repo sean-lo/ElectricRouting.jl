@@ -436,6 +436,7 @@ function enumerate_all_subpaths(
     `all_subpaths`: Dictionary mapping (I,J)-pairs of states
     to a Vector{Subpath}.
     """
+    start_time = time()
     all_subpaths = Dict()
     for (starting_node, starting_time, starting_charge) in Iterators.flatten((
         Iterators.product(
@@ -474,6 +475,8 @@ function enumerate_all_subpaths(
             push!(all_subpaths[key], s)
         end
     end
+    end_time = time()
+    return all_subpaths, end_time - start_time
     return all_subpaths
 end
 
