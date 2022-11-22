@@ -154,115 +154,88 @@ function enumerate_subpaths(
     """
 
     # Initializes queue of subpaths
-    subpaths = []
-    for j in neighbors(G, starting_node)
-        if j in data["N_pickups"]
-            # two-step lookahead if j is a pickup
-            new_time = starting_time + data["t"][starting_node,j] + data["t"][j,j+data["n_customers"]]
-            new_charge = starting_charge - data["q"][starting_node,j] - data["q"][j,j+data["n_customers"]]
-        else 
-            new_time = starting_time + data["t"][starting_node,j]
-            new_charge = starting_charge - data["q"][starting_node,j]
-        end
-
-        if !(data["B"] ≥ new_charge ≥ 0)
-            continue
-        end
-        if !(new_time ≤ data["β"][j])
-            continue
-        end
-
-        if j in data["N_pickups"]
-            current_node = j + data["n_customers"]
-            arcs = [(starting_node, j), (j, j+data["n_customers"])]
-            new_time = max(new_time, data["α"][j+data["n_customers"]])
-            served = falses(data["n_customers"])
-        else 
-            current_node = j
-            arcs = [(starting_node, j)]
-            new_time = max(new_time, data["α"][j])
-            served = falses(data["n_customers"])
-        end
-
-        if j in data["N_pickups"]
-            served[j] = true
-        end
-
-        push!(
-            subpaths,
-            Subpath(
-                n_customers = data["n_customers"],
-                starting_node = starting_node,
-                starting_time = starting_time,
-                starting_charge = starting_charge,
-                current_node = current_node,
-                arcs = arcs,
-                time = new_time,
-                charge = new_charge, 
-                served = served,
-                end_time = new_time,
-                end_charge = new_charge,
-                round_time = new_time,
-                round_charge = new_charge,
-            )
+    subpaths = [
+        Subpath(
+            n_customers = data["n_customers"],
+            starting_node = starting_node,
+            starting_time = starting_time,
+            starting_charge = starting_charge,
         )
-    end
+    ]
     
+    qmin = minimum(
+        data["q"][
+            union(data["N_depots"], data["N_charging"]),
+            1:end
+        ],
+        dims = 1
+    )
+
     # Processes subpath s in subpaths one at a time
     completed_subpaths = []
     while length(subpaths) > 0
-        s = pop!(subpaths)
+        s = popfirst!(subpaths)
         # If current node of subpath is a charging station or depot, end the subpath
-        if s.current_node in union(data["N_charging"], data["N_depots"])
+        if (s.current_node in union(data["N_charging"], data["N_depots"])
+            && length(s.arcs) > 0
+        )
             # Cleanup actions
             s.end_time = s.time
             s.round_time = s.time
             s.end_charge = s.charge
             s.round_charge = s.charge
             push!(completed_subpaths, s)
-        else
-            # Iterate over out-neighbors of current node
-            for j in neighbors(G, s.current_node)
-                if j in data["N_pickups"] && s.served[j]
-                    continue
-                elseif j in data["N_dropoffs"] && s.served[j-data["n_customers"]]
-                    continue
-                end
-                s0 = copy(s)
-
-                if j in data["N_pickups"]
-                    # two-step lookahead if j is a pickup
-                    new_time = s.time + data["t"][s.current_node,j] + data["t"][j,j+data["n_customers"]]
-                    new_charge = s.charge - data["q"][s.current_node,j] - data["q"][j,j+data["n_customers"]]
-                else 
-                    new_time = s.time + data["t"][s.current_node,j]
-                    new_charge = s.charge - data["q"][s.current_node,j]
-                end
-
-                if !(new_time ≤ data["β"][j])
-                    continue
-                end
-                if !(new_charge ≥ 0)
-                    continue
-                end
-
-                if j in data["N_pickups"]
-                    s0.current_node = j+data["n_customers"]
-                    push!(s0.arcs, (s.current_node, j), (j, j+data["n_customers"]))
-                    s0.time = max(new_time, data["α"][j+data["n_customers"]])
-                else 
-                    s0.current_node = j
-                    push!(s0.arcs, (s.current_node, j))
-                    s0.time = max(new_time, data["α"][j])
-                end
-                s0.charge = new_charge
-
-                if j in data["N_pickups"]
-                    s0.served[j] = true
-                end
-
-                push!(subpaths, s0)
+            continue
+        end
+        # Iterate over out-neighbors of current node
+        for j in outneighbors(G, s.current_node)
+            if j in data["N_pickups"] && s.served[j]
+                continue
             end
+            if j in data["N_pickups"]
+                new_node = j + data["n_customers"]
+                # two-step lookahead if j is a pickup
+                new_time_1 = max(
+                    s.time + data["t"][s.current_node,j],
+                    data["α"][j],
+                )
+                feasible_timewindow = (new_time_1 ≤ data["β"][j])
+                new_time = max(
+                    new_time_1 + data["t"][j,new_node],
+                    data["α"][new_node],
+                )
+                feasible_timewindow = feasible_timewindow && (new_time ≤ data["β"][new_node])
+                new_charge = s.charge - data["q"][s.current_node,j] - data["q"][j,new_node]
+                feasible_charge = (new_charge ≥ qmin[new_node])
+            else
+                new_node = j
+                new_time = max(
+                    s.time + data["t"][s.current_node,new_node],
+                    data["α"][new_node],
+                )
+                feasible_timewindow = (new_time ≤ data["β"][new_node])
+                new_charge = s.charge - data["q"][s.current_node,new_node]
+                feasible_charge = (new_charge ≥ qmin[new_node])
+            end
+
+            if !feasible_timewindow
+                continue
+            end
+            if !feasible_charge
+                continue
+            end
+
+            s_j = copy(s)
+            s_j.current_node = new_node
+            if j in data["N_pickups"]
+                push!(s_j.arcs, (s.current_node, j), (j, new_node))
+                s_j.served[j] = true
+            else 
+                push!(s_j.arcs, (s.current_node, new_node))
+            end
+            s_j.time = new_time
+            s_j.charge = new_charge
+            push!(subpaths, s_j)
         end
     end
     println("Enumerated $(length(completed_subpaths)) subpaths.")
