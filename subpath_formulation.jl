@@ -43,10 +43,31 @@ Base.show(io::IO, s::Subpath) = print(io, """Subpath:
 ($(s.starting_node), $(s.starting_time), $(s.starting_charge)) -> ($(s.current_node), $(s.round_time), $(s.round_charge))=
 arcs:   $(s.arcs)
 served: $(s.served)
+now:    ($(s.time), $(s.charge))
 delta:  ($(s.delta_time), $(s.delta_charge))
 end:    ($(s.end_time), $(s.end_charge))
 round:  ($(s.round_time), $(s.round_charge))
 """)
+
+Base.isequal(s1::Subpath, s2::Subpath) = begin 
+    (
+        s1.n_customers == s2.n_customers
+        && s1.starting_node == s2.starting_node
+        && s1.starting_time == s2.starting_time
+        && s1.starting_charge == s2.starting_charge
+        && s1.current_node == s2.current_node
+        && s1.arcs == s2.arcs
+        && s1.time == s2.time
+        && s1.charge == s2.charge
+        && s1.served == s2.served
+        && s1.delta_time == s2.delta_time
+        && s1.delta_charge == s2.delta_charge
+        && s1.end_time == s2.end_time
+        && s1.end_charge == s2.end_charge
+        && s1.round_time == s2.round_time
+        && s1.round_charge == s2.round_charge
+    )
+end
 
 @composite Base.@kwdef mutable struct SubpathWithCost 
     Subpath...
@@ -58,6 +79,7 @@ Base.show(io::IO, s::SubpathWithCost) = print(io, """SubpathWithCost:
 cost:   $(s.cost)
 arcs:   $(s.arcs)
 served: $(s.served)
+now:    ($(s.time), $(s.charge))
 delta:  ($(s.delta_time), $(s.delta_charge))
 end:    ($(s.end_time), $(s.end_charge))
 round:  ($(s.round_time), $(s.round_charge))
@@ -81,6 +103,27 @@ Base.copy(s::SubpathWithCost) = SubpathWithCost(
     round_time = s.round_time,
     round_charge = s.round_charge,
 )
+
+Base.isequal(s1::SubpathWithCost, s2::SubpathWithCost) = begin 
+    (
+        s1.cost == s2.cost
+        && s1.n_customers == s2.n_customers
+        && s1.starting_node == s2.starting_node
+        && s1.starting_time == s2.starting_time
+        && s1.starting_charge == s2.starting_charge
+        && s1.current_node == s2.current_node
+        && s1.arcs == s2.arcs
+        && s1.time == s2.time
+        && s1.charge == s2.charge
+        && s1.served == s2.served
+        && s1.delta_time == s2.delta_time
+        && s1.delta_charge == s2.delta_charge
+        && s1.end_time == s2.end_time
+        && s1.end_charge == s2.end_charge
+        && s1.round_time == s2.round_time
+        && s1.round_charge == s2.round_charge
+    )
+end
 
 function construct_graph(data)
     G = SimpleWeightedDiGraph(data["n_nodes"])
