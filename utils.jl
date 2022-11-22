@@ -10,15 +10,16 @@ using Printf
 using Graphs, SimpleWeightedGraphs
 
 function generate_times(
-    T,
-    n_customers,
-    seed,
-    batch,
+    T::Float64,
+    n_customers::Int,
+    seed::Int,
+    batch::Int,
+    permissiveness::Float64 = 0.4,
 )
     if n_customers % batch != 0
         error()
     end
-    times_dist = Uniform(0, T)
+    times_dist = Uniform(0.0, T)
     α = zeros(2 * n_customers)
     β = zeros(2 * n_customers)
 
@@ -31,7 +32,7 @@ function generate_times(
             start_times = times[1:end÷2]
             end_times = times[end÷2+1:end]
             if all(
-                (end_times .- start_times) ./ T .> 0.4
+                (end_times .- start_times) ./ T .> permissiveness
             )
                 α[pickup_inds] = start_times[1:end÷2]
                 α[dropoff_inds] = start_times[end÷2+1:end]
@@ -59,6 +60,7 @@ function generate_instance_pair(
     μ::Float64,
     C::Int = 1,
     batch::Int = 1,
+    permissiveness::Float64 = 0.4,
 )
     n_nodes_charge = n_depots + 2 * n_customers + n_charging * charging_repeats
     n_nodes_nocharge = n_depots + 2 * n_customers
@@ -164,7 +166,7 @@ function generate_instance_pair(
         ),
     )
     
-    α, β = generate_times(T, n_customers, seeds[6], batch)
+    α, β = generate_times(T, n_customers, seeds[6], batch, permissiveness)
     α_nocharge = vcat(α, repeat([0.0], n_depots))
     β_nocharge = vcat(β, repeat([T], n_depots))
     α_charge = vcat(α_nocharge, repeat([0.0], length(N_charging)))
