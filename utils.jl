@@ -231,6 +231,34 @@ function preprocess_arcs(
     allow_nonempty_at_charging::Bool = true,
 ) 
     data = deepcopy(in_data)
+    # Shrinking of time windows (Dumas 1991)
+    for j in data["N_dropoffs"]
+        data["β"][j] = min(
+            data["β"][j],
+            maximum(data["β"][data["N_depots"]] .- data["t"][j,data["N_depots"]])
+        )
+    end
+    for i in data["N_pickups"]
+        j = i + data["n_customers"]
+        data["β"][i] = min(
+            data["β"][i], 
+            data["β"][j] - data["t"][i,j],
+        )
+    end
+    for i in data["N_pickups"]
+        data["α"][i] = max(
+            data["α"][i],
+            minimum(data["α"][data["N_depots"]] + data["t"][data["N_depots"],i])
+        )
+    end
+    for j in data["N_dropoffs"]
+        i = j - data["n_customers"]
+        data["α"][j] = max(
+            data["α"][j],
+            data["α"][i] + data["t"][i,j],
+        )
+    end
+
     for (i,j) in keys(data["A"])
         # Remove going from a dropoff to its pickup
         if i in data["N_dropoffs"] && j == i - data["n_customers"]
