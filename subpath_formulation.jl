@@ -611,6 +611,7 @@ function subpath_formulation(
     T_range,
     B_range,
     ;
+    integral::Bool = true,
     charging_in_subpath::Bool = false,
     all_charging_arcs = [],
     charging_arcs_costs = Dict(),
@@ -627,12 +628,22 @@ function subpath_formulation(
     end
 
     m = maximum(length(x) for x in values(all_subpaths))
-    @variable(model, z[
-        k=keys(all_subpaths), 
-        p=1:m; p ≤ length(all_subpaths[k])
-    ], Bin);
-    if !charging_in_subpath
-        @variable(model, y[all_charging_arcs], Bin)
+    if integral
+        @variable(model, z[
+            k=keys(all_subpaths), 
+            p=1:m; p ≤ length(all_subpaths[k])
+        ], Bin);
+        if !charging_in_subpath
+            @variable(model, y[all_charging_arcs], Bin)
+        end
+    else 
+        @variable(model, 0 ≤ z[
+            k=keys(all_subpaths), 
+            p=1:m; p ≤ length(all_subpaths[k])
+        ] ≤ 1);
+        if !charging_in_subpath
+            @variable(model, 0 ≤ y[all_charging_arcs] ≤ 1)
+        end
     end
 
     # Constraint (4b): number of subpaths starting at depot i
