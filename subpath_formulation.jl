@@ -562,7 +562,7 @@ function compute_subpath_costs(
 )
     subpath_costs = Dict(
         key => [
-            sum(data["c"][a...] for a in s.arcs)
+            length(s.arcs) > 0 ? sum(data["c"][a...] for a in s.arcs) : 0
             for s in all_subpaths[key]
         ]
         for key in keys(all_subpaths)
