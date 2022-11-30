@@ -126,6 +126,25 @@ Base.isequal(s1::SubpathWithCost, s2::SubpathWithCost) = begin
     )
 end
 
+Subpath(s::SubpathWithCost) = Subpath(
+    n_customers = s.n_customers,
+    starting_node = s.starting_node,
+    starting_time = s.starting_time,
+    starting_charge = s.starting_charge,
+    current_node = s.current_node,
+    arcs = copy(s.arcs),
+    time = s.time,
+    charge = s.charge,
+    served = copy(s.served),
+    delta_time = s.delta_time,
+    delta_charge = s.delta_charge,
+    end_time = s.end_time,
+    end_charge = s.end_charge,
+    round_time = s.round_time,
+    round_charge = s.round_charge,
+)
+
+
 function construct_graph(data)
     G = SimpleWeightedDiGraph(data["n_nodes"])
     for (i, j) in keys(data["A"])
