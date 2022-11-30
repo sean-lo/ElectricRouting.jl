@@ -41,7 +41,7 @@ Base.copy(s::Subpath) = Subpath(
 )
 
 Base.show(io::IO, s::Subpath) = print(io, """Subpath:
-($(s.starting_node), $(s.starting_time), $(s.starting_charge)) -> ($(s.current_node), $(s.round_time), $(s.round_charge))=
+($(s.starting_node), $(s.starting_time), $(s.starting_charge)) -> ($(s.current_node), $(s.round_time), $(s.round_charge))
 arcs:   $(s.arcs)
 served: $(s.served)
 now:    ($(s.time), $(s.charge))
