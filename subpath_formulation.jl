@@ -447,10 +447,6 @@ function enumerate_subpaths_withcharge(
                         round_charge = round_charge,
                     )
                     for (delta_time, delta_charge, 
-            for (delta_time, delta_charge, 
-                    for (delta_time, delta_charge, 
-                        end_time, end_charge, 
-                end_time, end_charge, 
                         end_time, end_charge, 
                         round_time, round_charge) in generate_charging_options(
                         s.time, s.charge, data, T_range, B_range,
