@@ -427,20 +427,36 @@ function enumerate_subpaths_withcharge(
             s.round_charge = dfloor(s.end_charge, T_range)
             push!(nondominated_subpaths_withcharge, s)
         else
+            append!(nondominated_subpaths_withcharge,
+                [
+                    Subpath(
+                        n_customers = data["n_customers"],
+                        starting_node = s.starting_node,
+                        starting_time = s.starting_time,
+                        starting_charge = s.starting_charge,
+                        current_node = s.current_node,
+                        arcs = copy(s.arcs),
+                        time = s.time,
+                        charge = s.charge,
+                        served = copy(s.served),
+                        delta_time = delta_time,
+                        delta_charge = delta_charge,
+                        end_time = end_time,
+                        end_charge = end_charge,
+                        round_time = round_time,
+                        round_charge = round_charge,
+                    )
+                    for (delta_time, delta_charge, 
             for (delta_time, delta_charge, 
+                    for (delta_time, delta_charge, 
+                        end_time, end_charge, 
                 end_time, end_charge, 
-                round_time, round_charge) in generate_charging_options(
-                s.time, s.charge, data, T_range, B_range,
+                        end_time, end_charge, 
+                        round_time, round_charge) in generate_charging_options(
+                        s.time, s.charge, data, T_range, B_range,
+                    )
+                ]
             )
-                s_withcharge = copy(s)
-                s_withcharge.delta_time = delta_time
-                s_withcharge.delta_charge = delta_charge
-                s_withcharge.end_time = end_time
-                s_withcharge.end_charge = end_charge
-                s_withcharge.round_time = round_time
-                s_withcharge.round_charge = round_charge
-                push!(nondominated_subpaths_withcharge, s_withcharge)
-            end
         end 
     end
     return nondominated_subpaths_withcharge
