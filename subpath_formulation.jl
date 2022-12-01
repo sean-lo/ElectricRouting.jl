@@ -423,6 +423,8 @@ function enumerate_subpaths_withcharge(
     nondominated_subpaths_withcharge = []
     for s in nondominated_subpaths
         if s.current_node in data["N_depots"]
+            s.round_time = dceil(s.end_time, T_range)
+            s.round_charge = dfloor(s.end_charge, T_range)
             push!(nondominated_subpaths_withcharge, s)
         else
             for (delta_time, delta_charge, 
@@ -480,11 +482,13 @@ function enumerate_all_subpaths(
                 starting_node, starting_time, starting_charge,
                 G, data,
             )
+            for s in subpaths
+                # perform rounding here
+                s.round_time = dceil(s.end_time, T_range)
+                s.round_charge = dfloor(s.end_charge, B_range)
+            end
         end
         for s in subpaths
-            # perform rounding here
-            s.round_time = dceil(s.end_time, T_range)
-            s.round_charge = dfloor(s.end_charge, B_range)
             key = (
                 (starting_node, starting_time, starting_charge),
                 (s.current_node, s.round_time, s.round_charge)
@@ -535,11 +539,13 @@ function enumerate_all_subpaths_faster(
                     starting_node, starting_time, starting_charge,
                     G, data,
                 )
+                for s in subpaths
+                    # perform rounding here
+                    s.round_time = dceil(s.end_time, T_range)
+                    s.round_charge = dfloor(s.end_charge, B_range)
+                end
             end
             for s in subpaths
-                # perform rounding here
-                s.round_time = dceil(s.end_time, T_range)
-                s.round_charge = dfloor(s.end_charge, B_range)
                 next_state = (s.current_node, s.round_time, s.round_charge)
                 key = (state, next_state)
                 if !(key in keys(all_subpaths))
