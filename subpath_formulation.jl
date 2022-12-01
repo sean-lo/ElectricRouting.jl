@@ -500,7 +500,7 @@ function enumerate_all_subpaths(
         end
     end
     end_time = time()
-    return all_subpaths, end_time - start_time
+    return all_subpaths, round(end_time - start_time, digits=3)
 end
 
 function enumerate_all_subpaths_faster(
@@ -829,9 +829,9 @@ function subpath_formulation(
     solution_time_taken = end_time - constraint_end_time
 
     params = Dict(
-        "time_taken" => time_taken,
-        "constraint_time_taken" => constraint_time_taken,
-        "solution_time_taken" => solution_time_taken,
+        "time_taken" => round(time_taken, digits=3),
+        "constraint_time_taken" => round(constraint_time_taken, digits=3),
+        "solution_time_taken" => round(solution_time_taken, digits=3),
     )
     results = Dict(
         "objective" => objective_value(model),
