@@ -902,7 +902,7 @@ function subpath_formulation(
     # at time 0 with full charge to be v_startᵢ
     @constraint(
         model,
-        [i in data["N_depots"]],
+        κ[i in data["N_depots"]],
         sum(
             sum(
                 z[((i,0,data["B"]),state),p]
@@ -915,6 +915,7 @@ function subpath_formulation(
     )
 
     flow_conservation_exprs = Dict()
+    flow_conservation_constrs = Dict()
     for n1 in data["N_charging"]
         for t1 in T_range
             t1_floor = dfloorall(t1, T_range)
@@ -948,7 +949,7 @@ function subpath_formulation(
                 if charging_in_subpath
                     # Constraint (4c) Flow conservation at charging stations
                     # (here the other node can be either a depot or charging station)
-                    @constraint(
+                    flow_conservation_constrs[state1] = @constraint(
                         model,
                         flow_conservation_exprs[(state1,"out_sp")]
                         == flow_conservation_exprs[(state1,"in_sp")]
@@ -968,7 +969,7 @@ function subpath_formulation(
                     # Constraint (7b) Flow conservation at charging stations
                     # (here the other node can be either a depot or charging station)
                     # (here the arcs can be subpaths or charging arcs)
-                    @constraint(
+                    flow_conservation_constrs[state1] = @constraint(
                         model,
                         flow_conservation_exprs[(state1,"out_sp")]
                         + flow_conservation_exprs[(state1,"out_a")]
@@ -991,7 +992,7 @@ function subpath_formulation(
     # Constraint (4d) Serving all customers exactly once across all subpaths
     @constraint(
         model,
-        [j in data["N_pickups"]],
+        μ[j in data["N_pickups"]],
         sum(
             sum(
                 subpath_service[((state1, state2),j)][p] * z[(state1, state2),p]
@@ -1005,7 +1006,7 @@ function subpath_formulation(
     # is at least the number of vehicles required
     @constraint(
         model,
-        [n2 in data["N_depots"]],
+        ν[n2 in data["N_depots"]],
         sum(
             sum(
                 z[((n1,t1,b1),(n2,t2,b2)),p]
@@ -1061,9 +1062,21 @@ function subpath_formulation(
         "solution_time_taken" => round(solution_time_taken, digits=3),
     )
     results = Dict(
+        "model" => model,
         "objective" => objective_value(model),
         "z" => value.(z),
+        "flow_conservation_constrs" => flow_conservation_constrs,
     )
+    if !integral
+        # retrieve dual solutions
+        results["κ"] = Dict(zip(data["N_depots"], dual.(model[:κ]).data))
+        results["λ"] = Dict(
+            k => dual(v) 
+            for (k, v) in pairs(flow_conservation_constrs)
+        )
+        results["μ"] = dual.(model[:μ]).data
+        results["ν"] = Dict(zip(data["N_depots"], dual.(model[:ν]).data))
+    end
     if !charging_in_subpath
         results["y"] = value.(y)
     end
