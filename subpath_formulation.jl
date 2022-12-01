@@ -20,6 +20,7 @@ Base.@kwdef mutable struct Subpath
     end_charge::Float64 = charge
     round_time::Float64 = end_time
     round_charge::Float64 = end_charge
+    artificial::Bool = false
 end
 
 Base.copy(s::Subpath) = Subpath(
@@ -38,17 +39,26 @@ Base.copy(s::Subpath) = Subpath(
     end_charge = s.end_charge,
     round_time = s.round_time,
     round_charge = s.round_charge,
+    artificial = s.artificial
 )
 
-Base.show(io::IO, s::Subpath) = print(io, """Subpath:
-($(s.starting_node), $(s.starting_time), $(s.starting_charge)) -> ($(s.current_node), $(s.round_time), $(s.round_charge))
-arcs:   $(s.arcs)
-served: $(s.served)
-now:    ($(s.time), $(s.charge))
-delta:  ($(s.delta_time), $(s.delta_charge))
-end:    ($(s.end_time), $(s.end_charge))
-round:  ($(s.round_time), $(s.round_charge))
-""")
+Base.show(io::IO, s::Subpath) = begin
+    if s.artificial
+        print(io, """Subpath (artificial):
+        ($(s.starting_node), $(s.starting_time), $(s.starting_charge)) -> ($(s.current_node), $(s.round_time), $(s.round_charge))
+        """)
+    else
+        print(io, """Subpath:
+        ($(s.starting_node), $(s.starting_time), $(s.starting_charge)) -> ($(s.current_node), $(s.round_time), $(s.round_charge))
+        arcs:   $(s.arcs)
+        served: $(s.served)
+        now:    ($(s.time), $(s.charge))
+        delta:  ($(s.delta_time), $(s.delta_charge))
+        end:    ($(s.end_time), $(s.end_charge))
+        round:  ($(s.round_time), $(s.round_charge))
+        """)
+    end
+end
 
 Base.isequal(s1::Subpath, s2::Subpath) = begin 
     (
@@ -67,6 +77,7 @@ Base.isequal(s1::Subpath, s2::Subpath) = begin
         && s1.end_charge == s2.end_charge
         && s1.round_time == s2.round_time
         && s1.round_charge == s2.round_charge
+        && s1.artificial == s2.artificial
     )
 end
 
@@ -75,16 +86,24 @@ end
     cost::Float64 = 0.0
 end
 
-Base.show(io::IO, s::SubpathWithCost) = print(io, """SubpathWithCost:
-($(s.starting_node), $(s.starting_time), $(s.starting_charge)) -> ($(s.current_node), $(s.round_time), $(s.round_charge))
-cost:   $(s.cost)
-arcs:   $(s.arcs)
-served: $(s.served)
-now:    ($(s.time), $(s.charge))
-delta:  ($(s.delta_time), $(s.delta_charge))
-end:    ($(s.end_time), $(s.end_charge))
-round:  ($(s.round_time), $(s.round_charge))
-""")
+Base.show(io::IO, s::SubpathWithCost) = begin 
+    if s.artificial
+        print(io, """SubpathWithCost (artificial):
+        ($(s.starting_node), $(s.starting_time), $(s.starting_charge)) -> ($(s.current_node), $(s.round_time), $(s.round_charge))
+        """)
+    else
+        print(io, """SubpathWithCost:
+        ($(s.starting_node), $(s.starting_time), $(s.starting_charge)) -> ($(s.current_node), $(s.round_time), $(s.round_charge))
+        cost:   $(s.cost)
+        arcs:   $(s.arcs)
+        served: $(s.served)
+        now:    ($(s.time), $(s.charge))
+        delta:  ($(s.delta_time), $(s.delta_charge))
+        end:    ($(s.end_time), $(s.end_charge))
+        round:  ($(s.round_time), $(s.round_charge))
+        """)
+    end
+end
 
 Base.copy(s::SubpathWithCost) = SubpathWithCost(
     cost = s.cost,
@@ -103,6 +122,7 @@ Base.copy(s::SubpathWithCost) = SubpathWithCost(
     end_charge = s.end_charge,
     round_time = s.round_time,
     round_charge = s.round_charge,
+    artificial = s.artificial,
 )
 
 Base.isequal(s1::SubpathWithCost, s2::SubpathWithCost) = begin 
@@ -123,6 +143,7 @@ Base.isequal(s1::SubpathWithCost, s2::SubpathWithCost) = begin
         && s1.end_charge == s2.end_charge
         && s1.round_time == s2.round_time
         && s1.round_charge == s2.round_charge
+        && s1.artificial == s2.artificial
     )
 end
 
@@ -142,6 +163,7 @@ Subpath(s::SubpathWithCost) = Subpath(
     end_charge = s.end_charge,
     round_time = s.round_time,
     round_charge = s.round_charge,
+    artificial = s.artificial,
 )
 
 
@@ -765,10 +787,15 @@ end
 function compute_subpath_costs(
     data,
     all_subpaths,
+    M::Float64 = 1e6,
 )
     subpath_costs = Dict(
         key => [
-            length(s.arcs) > 0 ? sum(data["c"][a...] for a in s.arcs) : 0
+            s.artificial ? M : (
+                length(s.arcs) == 0 ? 0 : (
+                    sum(data["c"][a...] for a in s.arcs)
+                )
+            )
             for s in all_subpaths[key]
         ]
         for key in keys(all_subpaths)
