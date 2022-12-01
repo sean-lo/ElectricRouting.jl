@@ -16,10 +16,10 @@ Base.@kwdef mutable struct Subpath
     served::BitVector = falses(n_customers)
     delta_time::Float64 = 0.0
     delta_charge::Float64 = 0.0
-    end_time::Float64 = starting_time
-    end_charge::Float64 = starting_charge
-    round_time::Float64 = starting_time
-    round_charge::Float64 = starting_charge
+    end_time::Float64 = time
+    end_charge::Float64 = charge
+    round_time::Float64 = end_time
+    round_charge::Float64 = end_charge
 end
 
 Base.copy(s::Subpath) = Subpath(
