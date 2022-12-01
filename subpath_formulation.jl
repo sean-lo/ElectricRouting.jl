@@ -1200,6 +1200,160 @@ function subpath_formulation(
     return results, params
 end
 
+function subpath_formulation_column_generation(
+    initial_subpaths,
+    G,
+    data, 
+    T_range,
+    B_range,
+    ;
+    charging_in_subpath::Bool = true,
+)
+    # TODO
+    if !charging_in_subpath
+        error()
+    end
+    # Initialization: generate partial set of subpaths that contain some feasible solution
+
+    some_subpaths = deepcopy(initial_subpaths)
+
+    mp_results = Dict()
+
+    params = Dict()
+    params["number_of_subpaths"] = [sum(length(v) for v in values(some_subpaths))]
+    params["number_of_keys"] = [length(some_subpaths)]
+    params["objective"] = []
+    params["κ"] = []
+    params["λ"] = []
+    params["μ"] = []
+    params["ν"] = []
+    params["lp_relaxation_time_taken"] = []
+    params["sp_total_time_taken"] = []
+    params["sp_max_time_taken"] = []
+    params["number_of_current_subpaths"] = []
+
+    while true
+        subpath_costs = compute_subpath_costs(
+            data, 
+            some_subpaths,
+        )
+        subpath_service = compute_subpath_service(
+            data, 
+            some_subpaths,
+        )
+        mp_results, mp_params = @suppress subpath_formulation(
+            data, 
+            some_subpaths,
+            subpath_costs, 
+            subpath_service,
+            T_range,
+            B_range,
+            ;
+            integral = false,
+            charging_in_subpath = charging_in_subpath,
+        )
+        κ = mp_results["κ"]
+        λ = mp_results["λ"]
+        μ = mp_results["μ"]
+        ν = mp_results["ν"]
+
+        push!(params["objective"], mp_results["objective"])
+        push!(params["κ"], κ)
+        push!(params["λ"], λ)
+        push!(params["μ"], μ)
+        push!(params["ν"], ν)
+        push!(params["lp_relaxation_time_taken"], mp_params["time_taken"])
+        
+        sp_total_time_start = time()
+        sp_max_time_taken = 0.0
+        current_subpaths = Dict()
+        for (starting_node, starting_time, starting_charge) in Iterators.flatten((
+            Iterators.product(
+                data["N_charging"],
+                T_range,
+                B_range,
+            ),
+            Iterators.product(
+                data["N_depots"],
+                [0.0],
+                [data["B"]],
+            ),
+        ))  
+            sp_time_start = time()
+            l = generate_subpaths(
+                starting_node,
+                starting_time,
+                starting_charge,
+                G,
+                data,
+                T_range,
+                B_range,
+                κ,
+                λ,
+                μ,
+                ν,
+            )
+            sp_time_end = time()
+            sp_time_taken = sp_time_end - sp_time_start
+            if sp_time_taken > sp_max_time_taken
+                sp_max_time_taken = sp_time_taken
+            end
+            for s in values(l)
+                if s.cost < 0
+                    key = (
+                        (starting_node, starting_time, starting_charge), 
+                        (s.current_node, s.round_time, s.round_charge)
+                    )
+                    current_subpaths[key] = [Subpath(s)]
+                end
+            end
+        end
+        sp_total_time_end = time()
+        push!(
+            params["sp_total_time_taken"],
+            round(sp_total_time_end - sp_total_time_start, digits=3)
+        )
+        push!(
+            params["sp_max_time_taken"],
+            round(sp_max_time_taken, digits=3)
+        )
+        
+        if length(current_subpaths) == 0
+            push!(params["number_of_current_subpaths"], 0)
+            break
+        else
+            push!(
+                params["number_of_current_subpaths"],
+                sum(length(v) for v in values(current_subpaths))
+            )
+        end
+        for key in keys(current_subpaths)
+            if !(key in keys(some_subpaths))
+                some_subpaths[key] = current_subpaths[key]
+            else
+                union!(some_subpaths[key], current_subpaths[key])
+            end
+        end
+        push!(
+            params["number_of_subpaths"], 
+            sum(length(v) for v in values(some_subpaths))
+        )
+        push!(
+            params["number_of_keys"],
+            length(some_subpaths)
+        )
+    end
+    results = Dict(
+        "objective" => mp_results["objective"],
+        "z" => mp_results["z"],
+    )
+    if !charging_in_subpath
+        results["y"] = mp_results["y"]
+    end
+
+    return results, params
+end
+
 function construct_paths_from_subpath_solution(
     results, data, all_subpaths, 
     ;
