@@ -784,6 +784,123 @@ function enumerate_all_single_customer_subpaths(
     return all_subpaths
 end
 
+function generate_subpaths(
+    starting_node,
+    starting_time,
+    starting_charge,
+    G,
+    data,
+    T_range,
+    B_range,
+    κ,
+    λ,
+    μ, # dual values associated with customer service constraints
+    ν,
+)
+    """
+    Generates feasible subpaths (without charging) from a state 
+    (`starting_node`, `starting_time`, `starting_charge`) to all nodes;
+    for each node, generates the one with the smallest reduced cost 
+    based on the modified arc costs (from the dual variables `μ`).
+    """
+    # initialize modified arc costs, subtracting values of dual variables
+    modified_costs = Float64.(copy(data["c"]))
+    for i in 1:data["n_customers"]
+        j = data["n_customers"] + i
+        modified_costs[i,j] -= μ[i]
+        modified_costs[j,i] -= μ[i]
+    end
+    # initialize set of labels
+    initial_cost = 0.0
+    if starting_node in data["N_depots"]
+        if starting_time == 0.0 && starting_charge == data["B"]
+            initial_cost = initial_cost - κ[starting_node]
+        end
+    elseif starting_node in data["N_charging"]
+        initial_cost = initial_cost - λ[(starting_node, starting_time, starting_charge)]
+    end
+    labels = Dict()
+    labels[starting_node] = SubpathWithCost(
+        cost = initial_cost,
+        n_customers = data["n_customers"],
+        starting_node = starting_node,
+        starting_time = starting_time,
+        starting_charge = starting_charge,
+    )
+    # initialize queue of unexplored nodes
+    Q = [starting_node]
+
+    while !isempty(Q)
+        i = popfirst!(Q)
+        # iterate over all out-neighbors of i
+        for j in outneighbors(G, i)
+            # feasibility check
+            if j in data["N_pickups"]
+                feasible_service = !(labels[i].served[j])
+            else
+                feasible_service = true
+            end
+            if !feasible_service 
+                continue
+            end
+            current_time = max(
+                data["α"][j], 
+                labels[i].time + data["t"][i,j],
+            )
+            current_charge = labels[i].charge - data["q"][i,j]
+            feasible_timewindow = (current_time ≤ data["β"][j])
+            feasible_charge = (current_charge ≥ 0.0)
+            feasible = (
+                feasible_timewindow
+                && feasible_charge
+            )
+            if !feasible
+                continue
+            end
+    
+            current_cost = labels[i].cost + modified_costs[i,j]
+            if j in keys(labels)
+                # dont update label if current label is better
+                if labels[j].cost ≤ current_cost
+                    continue
+                end
+            end
+    
+            # update labels
+            s_j = copy(labels[i])
+            s_j.cost = current_cost
+            s_j.current_node = j
+            push!(s_j.arcs, (i,j))
+            s_j.time = current_time
+            s_j.charge = current_charge
+            if j in data["N_dropoffs"]
+                s_j.served[j-data["n_customers"]] = true
+            end
+            labels[j] = s_j
+            # add node j to the list of unexplored nodes
+            if !(j in Q) push!(Q, j) end
+        end
+    end
+    # remove labels corresponding to pickup and dropoff nodes
+    labels = Dict(
+        k => s
+        for (k, s) in pairs(labels)
+            if k in union(data["N_charging"], data["N_depots"])
+    )
+    for (k, s) in pairs(labels)
+        s.end_time = s.time
+        s.round_time = dceil(s.end_time, T_range)
+        s.end_charge = s.charge
+        s.round_charge = dfloor(s.end_charge, B_range)
+        if k in data["N_charging"]
+            s.cost = s.cost + λ[(k, s.round_time, s.round_charge)]
+        elseif k in data["N_depots"]
+            s.cost = s.cost - ν[k]
+        end
+    end
+    return labels
+end
+
 function compute_subpath_costs(
     data,
     all_subpaths,
