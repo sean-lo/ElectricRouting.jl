@@ -72,7 +72,7 @@ function arc_formulation(
     if with_charging
         @variable(model, b_start[N_nodes, N_vehicles] ≥ 0)
         @variable(model, b_end[N_nodes, N_vehicles] ≥ 0)
-        @variable(model, δ[N_nodes, N_vehicles] ≥ 0)
+        @variable(model, δ[N_charging, N_vehicles] ≥ 0)
     end
 
     if with_charging_separate
@@ -240,6 +240,11 @@ function arc_formulation(
             [i ∈ N_nodes, k ∈ N_vehicles],
             0 ≤ b_end[i,k] ≤ B
         ); # (1x): charge within capacity
+        @constraint(
+            model,
+            δ0[i ∈ N_charging, k ∈ N_vehicles],
+            δ[i,k] ≤ sum(x[(j,i),k] for j in N_nodes if (j,i) in keys(A)) * 2 * (B / μ)
+        )
     end
     
     @expression(
