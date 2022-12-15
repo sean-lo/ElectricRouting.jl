@@ -225,6 +225,18 @@ function generate_instance_pair(
     return nocharge_data, charge_data
 end
 
+function construct_graph(data)
+    G = SimpleWeightedDiGraph(data["n_nodes"])
+    for (i, j) in keys(data["A"])
+        if i == j
+            add_edge!(G, i, i, 1)
+        else 
+            add_edge!(G, i, j, data["t"][i,j])
+        end
+    end
+    return G
+end
+
 function preprocess_arcs(
     in_data, 
     with_charging::Bool = false,

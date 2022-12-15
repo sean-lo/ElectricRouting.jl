@@ -166,19 +166,6 @@ Subpath(s::SubpathWithCost) = Subpath(
     artificial = s.artificial,
 )
 
-
-function construct_graph(data)
-    G = SimpleWeightedDiGraph(data["n_nodes"])
-    for (i, j) in keys(data["A"])
-        if i == j
-            add_edge!(G, i, i, 1)
-        else 
-            add_edge!(G, i, j, data["t"][i,j])
-        end
-    end
-    return G
-end
-
 function enumerate_subpaths(
     starting_node, 
     starting_time, 
