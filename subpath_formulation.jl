@@ -939,6 +939,111 @@ function generate_subpaths(
     return labels
 end
 
+function generate_subpaths_withcharge(
+    G,
+    data,
+    T_range,
+    B_range,
+    κ, 
+    λ, 
+    λ_end,
+    μ, 
+    ν,
+    ;
+    charging_in_subpath::Bool = true,
+)
+    # FIXME
+    if !charging_in_subpath
+        error()
+    end
+    generated_subpaths_withcharge = Dict()
+    sp_max_time_taken = 0.0
+    for (starting_node, starting_time, starting_charge) in Iterators.flatten((
+        Iterators.product(
+            data["N_charging"],
+            T_range,
+            B_range,
+        ),
+        Iterators.product(
+            data["N_depots"],
+            [0.0],
+            [data["B"]],
+        ),
+    ))
+        # generate subpaths from this starting state
+        state1 = (starting_node, starting_time, starting_charge)
+        sp_time_start = time()
+        labels = generate_subpaths(
+            starting_node, starting_time, starting_charge,
+            G, data, T_range, B_range,
+            κ, λ, μ, ν,
+        )
+        sp_time_end = time()
+        sp_time_taken = sp_time_end - sp_time_start
+        if sp_time_taken > sp_max_time_taken
+            sp_max_time_taken = sp_time_taken
+        end
+        # remove those corresponding to negative reduced cost;
+        # populate charging options (if ending state is at a charging station)
+        for (end_node, s) in pairs(labels)
+            # Toss out subpaths that have no arcs
+            if length(s.arcs) == 0
+                if !(starting_node in data["N_depots"]
+                    && starting_time == 0.0
+                    && starting_charge == data["B"]
+                )
+                    continue
+                end
+            end
+            if end_node in data["N_depots"]
+                # Skip over this subpath if it has reduced cost nonnegative
+                new_cost = s.cost - ν[end_node]
+                if s.cost ≥ -1e-6
+                    continue
+                end
+                round_time = dceil(s.time, T_range)
+                round_charge = dfloor(s.charge, B_range)                
+                state2 = (end_node, round_time, round_charge)
+                key = (state1, state2)
+                generated_subpaths_withcharge[key] = [Subpath(s)]
+            elseif end_node in data["N_charging"]
+                for (delta_time, delta_charge, 
+                    end_time, end_charge, 
+                    round_time, round_charge) in generate_charging_options(
+                    s.time, s.charge, data, T_range, B_range,
+                )
+                    new_cost = s.cost + λ_end[(end_node, round_time, round_charge)]
+                    if new_cost ≥ -1e-6
+                        continue
+                    end
+                    state2 = (end_node, round_time, round_charge)
+                    key = (state1, state2)
+                    generated_subpaths_withcharge[key] = [
+                        Subpath(
+                            n_customers = data["n_customers"],
+                            starting_node = starting_node,
+                            starting_time = starting_time,
+                            starting_charge = starting_charge,
+                            current_node = end_node,
+                            arcs = copy(s.arcs),
+                            time = s.time,
+                            charge = s.charge,
+                            served = copy(s.served),
+                            delta_time = delta_time,
+                            delta_charge = delta_charge,
+                            end_time = end_time,
+                            end_charge = end_charge,
+                            round_time = round_time,
+                            round_charge = round_charge,
+                        )
+                    ]
+                end
+            end
+        end
+    end
+    return generated_subpaths_withcharge, sp_max_time_taken
+end
+
 function compute_subpath_costs(
     data,
     all_subpaths,
