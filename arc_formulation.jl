@@ -179,7 +179,7 @@ function arc_formulation(
     @constraint(
         model,
         [(i,j) in keys(A), k ∈ N_vehicles],
-        τ_leave[i,k] + t[i,j] ≤ τ_reach[j,k] + (1 - x[(i,j),k]) * T
+        τ_leave[i,k] + t[i,j] ≤ τ_reach[j,k] + (1 - x[(i,j),k]) * 2 * T
     ); # (1l, 1m): precedence conditions
     
     @constraint(
@@ -201,7 +201,7 @@ function arc_formulation(
     @constraint(
         model,
         [(i,j) in keys(A), k ∈ N_vehicles],
-        l[j,k] ≤ l[i,k] + d[j] + (1 - x[(i,j),k]),
+        l[j,k] ≤ l[i,k] + d[j] + (1 - x[(i,j),k]) * 2,
     ); # (1p, 1q, 1r): load after serving a node
     @constraint(
         model,
@@ -218,7 +218,7 @@ function arc_formulation(
         @constraint(
             model,
             [(i,j) in keys(A), k ∈ N_vehicles],
-            b_start[j,k] ≤ b_end[i,k] - q[i,j] + (1 - x[(i,j),k]) * B
+            b_start[j,k] ≤ b_end[i,k] - q[i,j] + (1 - x[(i,j),k]) * 2 * B
         ); # (1u): charge change based on travel cost
         @constraint( 
             model,
