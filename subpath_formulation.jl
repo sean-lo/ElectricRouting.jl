@@ -901,7 +901,8 @@ function generate_subpaths(
     
             current_cost = labels[i].cost + modified_costs[i,j]
             if j in keys(labels)
-                # dont update label if current label is better
+                # dont update label if current label is 
+                # better than the current cost (if the subpath ends here)
                 if labels[j].cost ≤ current_cost
                     continue
                 end
@@ -929,15 +930,11 @@ function generate_subpaths(
             if k in union(data["N_charging"], data["N_depots"])
     )
     for (k, s) in pairs(labels)
+        # k is the current node of s
         s.end_time = s.time
         s.round_time = dceil(s.end_time, T_range)
         s.end_charge = s.charge
         s.round_charge = dfloor(s.end_charge, B_range)
-        if k in data["N_charging"]
-            s.cost = s.cost + λ[(k, s.round_time, s.round_charge)]
-        elseif k in data["N_depots"]
-            s.cost = s.cost - ν[k]
-        end
     end
     return labels
 end
