@@ -1,5 +1,6 @@
 using JuMP
 using Gurobi
+using Printf
 
 function arc_formulation(
     data,
@@ -7,6 +8,7 @@ function arc_formulation(
     with_charging_separate::Bool = false,
     ;
     paths::Union{Dict, Nothing} = nothing,
+    exclude_arcs::Vector = [],
     time_limit::Union{Float64, Int} = 60.0,
     formulate_only::Bool = false,
 )
@@ -75,6 +77,12 @@ function arc_formulation(
         @variable(model, δ[N_charging, N_vehicles] ≥ 0)
     end
 
+    @constraint(
+        model,
+        [k in N_vehicles, (i,j) in exclude_arcs],
+        x[(i,j),k] == 0,
+    )
+
     if with_charging_separate
         for k in N_vehicles
             for a in paths[k]
@@ -136,7 +144,7 @@ function arc_formulation(
         [i ∈ N_pickups, k ∈ N_vehicles],
         sum(x[(i,j),k] for j in N_nodes if (i,j) in keys(A))
         == sum(x[(j,i+n_customers),k] for j in N_nodes if (j, i+n_customers) in keys(A))
-    ); # (1g): save vehicle for a (pickup, dropoff) pair
+    ); # (1g): same vehicle for a (pickup, dropoff) pair
     @constraint(
         model, 
         [k ∈ N_vehicles],
