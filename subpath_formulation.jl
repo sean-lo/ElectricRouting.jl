@@ -771,6 +771,60 @@ function enumerate_all_single_customer_subpaths(
     return all_subpaths
 end
 
+function generate_artificial_subpaths(data)
+    artificial_subpaths = Dict()
+    start_depots = zeros(Int, data["n_vehicles"])
+    for (k, v_list) in pairs(data["V"])
+        for v in v_list
+            start_depots[v] = k
+        end
+    end
+    end_depots = []
+    for k in data["N_depots"]
+        append!(end_depots, repeat([k], data["v_end"][k]))
+    end
+    append!(end_depots, 
+        repeat(
+            [data["N_depots"][1]], 
+            outer = data["n_vehicles"] - sum(values(data["v_end"]))
+        )
+    )
+    for (v, (starting_node, ending_node)) in enumerate(zip(start_depots, end_depots))
+        starting_time = 0.0
+        starting_charge = data["B"]
+        ending_time = 0.0
+        ending_charge = data["B"]
+        key = (
+            (starting_node, starting_time, starting_charge),  
+            (ending_node, ending_time, ending_charge)
+        )
+        # initialise a proportion of the customers to be served
+        served = falses(data["n_customers"])
+        for i in 1:length(served)
+            if mod1(i, data["n_vehicles"]) == v
+                served[i] = true
+            end
+        end
+        s = Subpath(
+            n_customers = data["n_customers"],
+            starting_node = starting_node,
+            starting_time = starting_time,
+            starting_charge = starting_charge,
+            current_node = ending_node,
+            arcs = [],
+            time = ending_time,
+            charge = ending_charge,
+            served = served,
+            artificial = true,
+        )
+        if !(key in keys(artificial_subpaths))
+            artificial_subpaths[key] = []
+        end
+        push!(artificial_subpaths[key], s)
+    end
+    return artificial_subpaths
+end
+
 function generate_subpaths(
     starting_node,
     starting_time,
