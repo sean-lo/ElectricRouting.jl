@@ -1474,8 +1474,13 @@ function subpath_formulation_column_generation(
             if !(key in keys(some_subpaths))
                 some_subpaths[key] = current_subpaths[key]
             else
-                union!(some_subpaths[key], current_subpaths[key])
+                for s_new in current_subpaths[key]
+                    if !any(isequal(s_new, s) for s in some_subpaths[key])
+                        push!(some_subpaths[key], s_new)
+                    end
+                end            
             end
+        end
         end
         push!(
             params["number_of_subpaths"], 
