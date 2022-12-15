@@ -223,7 +223,7 @@ function arc_formulation(
         @constraint( 
             model,
             [i ∈ setdiff(N_nodes, N_depots, N_charging), k ∈ N_vehicles],
-            b_end[i,k] ≤ b_start[i,k]
+            b_end[i,k] == b_start[i,k]
         ); # (1v): charge leaving not more than charge reaching a node (non-charging stations)
         @constraint(
             model,
