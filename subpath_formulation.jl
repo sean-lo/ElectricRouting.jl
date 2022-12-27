@@ -384,6 +384,8 @@ function generate_charging_options(
     data,
     T_range,
     B_range,
+    ;
+    require_charge::Bool = true,
 )
     # Version 2: charge by fixed time intervals inside T_range
     # If maximum time reached, charge to maximum time and get the corresponding charge
@@ -396,10 +398,17 @@ function generate_charging_options(
         # you have to wait until the next discretized time
         max_end_time = dceil(max_end_time_unbounded, T_range)
     end
-    end_times = [
-        t for t in T_range
-        if starting_time < t ≤ max_end_time
-    ]
+    if require_charge
+        end_times = [
+            t for t in T_range
+            if starting_time < t ≤ max_end_time
+        ]
+    else
+        end_times = [
+            t for t in T_range
+            if starting_time ≤ t ≤ max_end_time
+        ]
+    end
     round_times = end_times
     delta_times = end_times .- starting_time
 
