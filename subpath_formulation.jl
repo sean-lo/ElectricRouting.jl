@@ -844,21 +844,21 @@ function generate_subpaths(
     B_range,
     κ,
     λ,
-    μ, # dual values associated with customer service constraints
-    ν,
+    μ,
+    ν, # dual values associated with customer service constraints
 )
     """
     Generates feasible subpaths (without charging) from a state 
     (`starting_node`, `starting_time`, `starting_charge`) to all nodes;
     for each node, generates the one with the smallest reduced cost 
-    based on the modified arc costs (from the dual variables `μ`).
+    based on the modified arc costs (from the dual variables `ν`).
     """
     # initialize modified arc costs, subtracting values of dual variables
     modified_costs = Float64.(copy(data["c"]))
     for i in 1:data["n_customers"]
         j = data["n_customers"] + i
-        modified_costs[i,j] -= μ[i]
-        modified_costs[j,i] -= μ[i]
+        modified_costs[i,j] -= ν[i]
+        modified_costs[j,i] -= ν[i]
     end
     # initialize set of labels
     initial_cost = 0.0
@@ -1006,7 +1006,7 @@ function generate_subpaths_withcharge(
             end
             if end_node in data["N_depots"]
                 # Skip over this subpath if it has reduced cost nonnegative
-                new_cost = s.cost - ν[end_node]
+                new_cost = s.cost - μ[end_node]
                 if s.cost ≥ -1e-6
                     continue
                 end
@@ -1258,24 +1258,11 @@ function subpath_formulation(
         end
     end
 
-    # Constraint (4d) Serving all customers exactly once across all subpaths
-    @constraint(
-        model,
-        μ[j in data["N_pickups"]],
-        sum(
-            sum(
-                subpath_service[((state1, state2),j)][p] * z[(state1, state2),p]
-                for p in 1:length(all_subpaths[(state1, state2)])
-            )
-            for (state1, state2) in keys(all_subpaths)
-        ) == 1
-    )
-
-    # Constraint (4e) Number of subpaths ending at each depot n2 
+    # Constraint (4d) Number of subpaths ending at each depot n2 
     # is at least the number of vehicles required
     @constraint(
         model,
-        ν[n2 in data["N_depots"]],
+        μ[n2 in data["N_depots"]],
         sum(
             sum(
                 z[((n1,t1,b1),(n2,t2,b2)),p]
@@ -1286,6 +1273,19 @@ function subpath_formulation(
                 b2 in dfloorall(b1, B_range)
             if ((n1,t1,b1),(n2,t2,b2)) in keys(all_subpaths)
         ) ≥ data["v_end"][n2]
+    )
+
+    # Constraint (4e) Serving all customers exactly once across all subpaths
+    @constraint(
+        model,
+        ν[j in data["N_pickups"]],
+        sum(
+            sum(
+                subpath_service[((state1, state2),j)][p] * z[(state1, state2),p]
+                for p in 1:length(all_subpaths[(state1, state2)])
+            )
+            for (state1, state2) in keys(all_subpaths)
+        ) == 1
     )
 
     @expression(
@@ -1343,8 +1343,8 @@ function subpath_formulation(
             k => dual(v) 
             for (k, v) in pairs(flow_conservation_constrs)
         )
-        results["μ"] = dual.(model[:μ]).data
-        results["ν"] = Dict(zip(data["N_depots"], dual.(model[:ν]).data))
+        results["μ"] = Dict(zip(data["N_depots"], dual.(model[:μ]).data))
+        results["ν"] = dual.(model[:ν]).data
     end
     if !charging_in_subpath
         results["y"] = value.(y)
