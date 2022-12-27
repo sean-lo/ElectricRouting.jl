@@ -1345,6 +1345,11 @@ function subpath_formulation(
         )
         results["μ"] = Dict(zip(data["N_depots"], dual.(model[:μ]).data))
         results["ν"] = dual.(model[:ν]).data
+        results["π"] = Dict(
+            (k, p) => dual(UpperBoundRef(model[:z][(k, p)]))
+            for (k, v) in all_subpaths
+                for p in 1:length(v)
+        )
     end
     if !charging_in_subpath
         results["y"] = value.(y)
