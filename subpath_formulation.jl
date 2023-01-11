@@ -934,6 +934,7 @@ function subpath_formulation(
     ;
     integral::Bool = true,
     charging_in_subpath::Bool = false,
+    monotonic = false,
     all_charging_arcs = [],
     charging_arcs_costs = Dict(),
 )
@@ -965,6 +966,25 @@ function subpath_formulation(
         if !charging_in_subpath
             @variable(model, 0 ≤ y[all_charging_arcs] ≤ 1)
         end
+    end
+
+    if monotonic
+        @variable(model, α_upper[
+            data["N_charging"],
+            B_range,
+        ] ≥ 0)
+        @variable(model, α_lower[
+            data["N_charging"],
+            B_range,
+        ] ≥ 0)
+        @variable(model, β_upper[
+            data["N_charging"],
+            T_range,
+        ] ≥ 0)
+        @variable(model, β_lower[
+            data["N_charging"],
+            T_range,
+        ] ≥ 0)
     end
 
     # Constraint (4b): number of subpaths starting at depot i
@@ -1016,13 +1036,26 @@ function subpath_formulation(
                     )
                 )
                 if charging_in_subpath
-                    # Constraint (4c) Flow conservation at charging stations
-                    # (here the other node can be either a depot or charging station)
-                    flow_conservation_constrs[state1] = @constraint(
-                        model,
-                        flow_conservation_exprs[(state1,"out_sp")]
-                        == flow_conservation_exprs[(state1,"in_sp")]
-                    )
+                    if monotonic
+                        # Constraint (19c) Relaxed flow conservation at charging stations
+                        # (here the other node can be either a depot or charging station)
+                        flow_conservation_constrs[state1] = @constraint(
+                            model,
+                            flow_conservation_exprs[(state1,"out_sp")]
+                            - flow_conservation_exprs[(state1,"in_sp")]
+                            + α_lower[n1,b1] - α_upper[n1,b1]
+                            + β_upper[n1,t1] - β_lower[n1,t1]
+                            == 0.0
+                        )
+                    else
+                        # Constraint (4c) Flow conservation at charging stations
+                        # (here the other node can be either a depot or charging station)
+                        flow_conservation_constrs[state1] = @constraint(
+                            model,
+                            flow_conservation_exprs[(state1,"out_sp")]
+                            == flow_conservation_exprs[(state1,"in_sp")]
+                        )
+                    end
                 else
                     out_a_neighbors = [(n1, t2, b2) for t2 in t1_ceil, b2 in b1_ceil if (state1, (n1, t2, b2)) in all_charging_arcs]
                     in_a_neighbors = [(n1, t2, b2) for t2 in t1_floor, b2 in b1_floor if ((n1, t2, b2), state1) in all_charging_arcs]
@@ -1034,17 +1067,30 @@ function subpath_formulation(
                         model, 
                         sum(y[(state2, state1)] for state2 in in_a_neighbors)
                     )
-                    # FIXME: make more efficient
-                    # Constraint (7b) Flow conservation at charging stations
-                    # (here the other node can be either a depot or charging station)
-                    # (here the arcs can be subpaths or charging arcs)
-                    flow_conservation_constrs[state1] = @constraint(
-                        model,
-                        flow_conservation_exprs[(state1,"out_sp")]
-                        + flow_conservation_exprs[(state1,"out_a")]
-                        == flow_conservation_exprs[(state1,"in_sp")]
-                        + flow_conservation_exprs[(state1,"in_a")]
-                    )
+                    if monotonic # FIXME: untested
+                        flow_conservation_constrs[state1] = @constraint(
+                            model,
+                            flow_conservation_exprs[(state1,"out_sp")]
+                            + flow_conservation_exprs[(state1,"out_a")]
+                            - flow_conservation_exprs[(state1,"in_sp")]
+                            - flow_conservation_exprs[(state1,"in_a")]
+                            + α_lower[n1,b1] - α_upper[n1,b1]
+                            + β_upper[n1,t1] - β_lower[n1,t1]
+                            == 0.0
+                        )
+                    else
+                        # FIXME: make more efficient
+                        # Constraint (7b) Flow conservation at charging stations
+                        # (here the other node can be either a depot or charging station)
+                        # (here the arcs can be subpaths or charging arcs)
+                        flow_conservation_constrs[state1] = @constraint(
+                            model,
+                            flow_conservation_exprs[(state1,"out_sp")]
+                            + flow_conservation_exprs[(state1,"out_a")]
+                            == flow_conservation_exprs[(state1,"in_sp")]
+                            + flow_conservation_exprs[(state1,"in_a")]
+                        )
+                    end
                     # FIXME: make more efficient
                     # Constraint (7c): having at most 1 charging arc incident to any charging node
                     @constraint(
@@ -1153,6 +1199,12 @@ function subpath_formulation(
     end
     if !charging_in_subpath
         results["y"] = value.(y)
+    end
+    if monotonic
+        results["α_upper"] = value.(model[:α_upper]).data
+        results["α_lower"] = value.(model[:α_lower]).data
+        results["β_upper"] = value.(model[:β_upper]).data
+        results["β_lower"] = value.(model[:β_lower]).data
     end
     return results, params
 end
