@@ -646,7 +646,7 @@ function generate_artificial_subpaths(data)
     return artificial_subpaths
 end
 
-function generate_subpaths(
+function find_smallest_reduced_cost_subpaths(
     starting_node,
     starting_time,
     starting_charge,
@@ -654,16 +654,18 @@ function generate_subpaths(
     data,
     T_range,
     B_range,
+    # dual values associated with flow conservation constraints
     κ,
     λ,
     μ,
-    ν, # dual values associated with customer service constraints
+    # dual values associated with customer service constraints
+    ν,
 )
     """
-    Generates feasible subpaths (without charging) from a state 
+    Generates feasible subpaths from a state 
     (`starting_node`, `starting_time`, `starting_charge`) to all nodes;
     for each node, generates the one with the smallest reduced cost 
-    based on the modified arc costs (from the dual variables `ν`).
+    based on the reduced costs (from the dual variables).
     """
     # initialize modified arc costs, subtracting values of dual variables
     modified_costs = Float64.(copy(data["c"]))
@@ -719,8 +721,33 @@ function generate_subpaths(
             if !feasible
                 continue
             end
-    
+
             current_cost = labels[i].cost + modified_costs[i,j]
+            if j in data["N_charging"]
+                charging_options = generate_charging_options(
+                    current_time, current_charge, data, T_range, B_range,
+                )
+                if length(charging_options) == 0
+                    continue
+                end
+                (val, ind) = findmin(
+                    λ[(j, round_time, round_charge)]
+                    for (_, _, _, _, round_time, round_charge) in charging_options
+                )
+                (delta_time, delta_charge, end_time, end_charge, round_time, round_charge) = charging_options[ind]
+                current_cost = current_cost + val
+            else
+                if j in data["N_depots"]
+                    current_cost = current_cost - μ[j]
+                end
+                delta_time = 0
+                delta_charge = 0
+                end_time = current_time
+                end_charge = current_charge
+                round_time = dceil(end_time, T_range)
+                round_charge = dfloor(end_charge, B_range)
+            end
+    
             if j in keys(labels)
                 # dont update label if current label is 
                 # better than the current cost (if the subpath ends here)
@@ -728,7 +755,7 @@ function generate_subpaths(
                     continue
                 end
             end
-    
+
             # update labels
             s_j = copy(labels[i])
             s_j.cost = current_cost
@@ -739,23 +766,22 @@ function generate_subpaths(
             if j in data["N_dropoffs"]
                 s_j.served[j-data["n_customers"]] = true
             end
+            s_j.delta_time = delta_time
+            s_j.delta_charge = delta_charge
+            s_j.end_time = end_time
+            s_j.end_charge = end_charge
+            s_j.round_time = round_time
+            s_j.round_charge = round_charge 
             labels[j] = s_j
             # add node j to the list of unexplored nodes
-            if !(j in Q) push!(Q, j) end
+            if !(j in Q) && !(j in union(data["N_charging"], data["N_depots"]))
+                push!(Q, j) 
+            end
         end
     end
     # remove labels corresponding to pickup and dropoff nodes
-    labels = Dict(
-        k => s
-        for (k, s) in pairs(labels)
-            if k in union(data["N_charging"], data["N_depots"])
-    )
-    for (k, s) in pairs(labels)
-        # k is the current node of s
-        s.end_time = s.time
-        s.round_time = dceil(s.end_time, T_range)
-        s.end_charge = s.charge
-        s.round_charge = dfloor(s.end_charge, B_range)
+    for k in union(data["N_pickups"], data["N_dropoffs"])
+        delete!(labels, k)
     end
     return labels
 end
@@ -765,19 +791,23 @@ function generate_subpaths_withcharge(
     data,
     T_range,
     B_range,
-    κ, 
-    λ, 
-    λ_end,
-    μ, 
+    κ,
+    λ,
+    μ,
     ν,
     ;
     charging_in_subpath::Bool = true,
 )
+    """
+    Generates subpaths (inclusive of charging) with 
+    negative reduced cost (determined by dual variables)
+    for all (I, j) pairs.
+    """
     # FIXME
     if !charging_in_subpath
         error()
     end
-    generated_subpaths_withcharge = Dict()
+    generated_subpaths_withcharge = Dict{Tuple, Vector}()
     sp_max_time_taken = 0.0
     for (starting_node, starting_time, starting_charge) in Iterators.flatten((
         Iterators.product(
@@ -793,19 +823,16 @@ function generate_subpaths_withcharge(
     ))
         # generate subpaths from this starting state
         state1 = (starting_node, starting_time, starting_charge)
-        sp_time_start = time()
-        labels = generate_subpaths(
+        r = @timed find_smallest_reduced_cost_subpaths(
             starting_node, starting_time, starting_charge,
             G, data, T_range, B_range,
             κ, λ, μ, ν,
         )
-        sp_time_end = time()
-        sp_time_taken = sp_time_end - sp_time_start
-        if sp_time_taken > sp_max_time_taken
-            sp_max_time_taken = sp_time_taken
+        labels = r.value
+        if r.time > sp_max_time_taken
+            sp_max_time_taken = r.time
         end
-        # remove those corresponding to negative reduced cost;
-        # populate charging options (if ending state is at a charging station)
+        # remove those corresponding to positive reduced cost
         for (end_node, s) in pairs(labels)
             # Toss out subpaths that have no arcs
             if length(s.arcs) == 0
@@ -816,50 +843,11 @@ function generate_subpaths_withcharge(
                     continue
                 end
             end
-            if end_node in data["N_depots"]
-                # Skip over this subpath if it has reduced cost nonnegative
-                new_cost = s.cost - μ[end_node]
-                if s.cost ≥ -1e-6
-                    continue
-                end
-                round_time = dceil(s.time, T_range)
-                round_charge = dfloor(s.charge, B_range)                
-                state2 = (end_node, round_time, round_charge)
-                key = (state1, state2)
-                generated_subpaths_withcharge[key] = [Subpath(s)]
-            elseif end_node in data["N_charging"]
-                for (delta_time, delta_charge, 
-                    end_time, end_charge, 
-                    round_time, round_charge) in generate_charging_options(
-                    s.time, s.charge, data, T_range, B_range,
-                )
-                    new_cost = s.cost + λ_end[(end_node, round_time, round_charge)]
-                    if new_cost ≥ -1e-6
-                        continue
-                    end
-                    state2 = (end_node, round_time, round_charge)
-                    key = (state1, state2)
-                    generated_subpaths_withcharge[key] = [
-                        Subpath(
-                            n_customers = data["n_customers"],
-                            starting_node = starting_node,
-                            starting_time = starting_time,
-                            starting_charge = starting_charge,
-                            current_node = end_node,
-                            arcs = copy(s.arcs),
-                            time = s.time,
-                            charge = s.charge,
-                            served = copy(s.served),
-                            delta_time = delta_time,
-                            delta_charge = delta_charge,
-                            end_time = end_time,
-                            end_charge = end_charge,
-                            round_time = round_time,
-                            round_charge = round_charge,
-                        )
-                    ]
-                end
+            if s.cost ≥ -1e-6
+                continue
             end
+            state2 = (s.current_node, s.round_time, s.round_charge)
+            generated_subpaths_withcharge[(state1, state2)] = [Subpath(s)]
         end
     end
     return generated_subpaths_withcharge, sp_max_time_taken
