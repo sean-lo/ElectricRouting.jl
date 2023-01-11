@@ -166,6 +166,34 @@ Subpath(s::SubpathWithCost) = Subpath(
     artificial = s.artificial,
 )
 
+function dceil(
+    x::Float64,
+    points,
+)
+    return points[searchsortedfirst(points, x)]
+end
+
+function dfloor(
+    x::Float64,
+    points,
+)
+    return points[searchsortedlast(points, x)]
+end
+
+function dceilall(
+    x::Float64,
+    points,
+)
+    return points[searchsortedfirst(points, x):end]
+end
+
+function dfloorall(
+    x::Float64,
+    points,
+)
+    return points[1:searchsortedlast(points, x)]
+end
+
 function enumerate_subpaths(
     starting_node, 
     starting_time, 
@@ -348,34 +376,6 @@ function enumerate_subpaths(
     nondominated_subpaths = vcat(collect(values(split_completed_subpaths))...)
     println("Retaining $(length(nondominated_subpaths)) non-dominated subpaths.")
     return completed_subpaths, nondominated_subpaths
-end
-
-function dceil(
-    x::Float64,
-    points,
-)
-    return points[searchsortedfirst(points, x)]
-end
-
-function dfloor(
-    x::Float64,
-    points,
-)
-    return points[searchsortedlast(points, x)]
-end
-
-function dceilall(
-    x::Float64,
-    points,
-)
-    return points[searchsortedfirst(points, x):end]
-end
-
-function dfloorall(
-    x::Float64,
-    points,
-)
-    return points[1:searchsortedlast(points, x)]
 end
 
 function generate_charging_options(
