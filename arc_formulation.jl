@@ -7,6 +7,7 @@ function arc_formulation(
     with_charging::Bool = false,
     with_charging_separate::Bool = false,
     ;
+    integral::Bool = true,
     paths::Union{Dict, Nothing} = nothing,
     exclude_arcs::Vector = [],
     time_limit::Union{Float64, Int} = 60.0,
@@ -67,7 +68,11 @@ function arc_formulation(
 
     model = Model(Gurobi.Optimizer)
     set_time_limit_sec(model, time_limit)
-    @variable(model, x[keys(A), N_vehicles], Bin)
+    if integral
+        @variable(model, x[keys(A), N_vehicles], Bin)
+    else
+        @variable(model, 0 ≤ x[keys(A), N_vehicles] ≤ 1)
+    end
     @variable(model, τ_reach[N_nodes, N_vehicles] ≥ 0)
     @variable(model, τ_leave[N_nodes, N_vehicles] ≥ 0)
     @variable(model, l[N_nodes, N_vehicles] ≥ 0)
