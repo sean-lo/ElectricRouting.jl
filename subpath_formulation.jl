@@ -1014,12 +1014,12 @@ function subpath_formulation(
             @variable(model, y[all_charging_arcs], Bin)
         end
     else 
-        @variable(model, 0 ≤ z[
+        @variable(model, z[
             k=keys(all_subpaths), 
             p=1:m; p ≤ length(all_subpaths[k])
-        ] ≤ 1);
+        ] ≥ 0);
         if !charging_in_subpath
-            @variable(model, 0 ≤ y[all_charging_arcs] ≤ 1)
+            @variable(model, y[all_charging_arcs] ≥ 0)
         end
     end
 
@@ -1246,11 +1246,6 @@ function subpath_formulation(
         )
         results["μ"] = Dict(zip(data["N_depots"], dual.(model[:μ]).data))
         results["ν"] = dual.(model[:ν]).data
-        results["ξ"] = Dict(
-            (k, p) => dual(UpperBoundRef(model[:z][(k, p)]))
-            for (k, v) in all_subpaths
-                for p in 1:length(v)
-        )
     end
     if !charging_in_subpath
         results["y"] = value.(y)
