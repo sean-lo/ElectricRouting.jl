@@ -646,6 +646,41 @@ function generate_artificial_subpaths(data)
     return artificial_subpaths
 end
 
+function compute_subpath_reduced_cost(
+    s::Subpath,
+    data,
+    T_range,
+    B_range,
+    κ,
+    λ,
+    μ,
+    ν,
+)
+    reduced_cost = sum(data["c"][a...] for a in s.arcs)
+
+    for j in data["N_pickups"]
+        if s.served[j]
+            reduced_cost = reduced_cost - ν[j]
+        end
+    end
+    
+    if s.starting_node in data["N_depots"]
+        if s.starting_time == 0.0 && s.starting_charge == data["B"]
+            reduced_cost = reduced_cost - κ[s.starting_node]
+        end
+    elseif s.starting_node in data["N_charging"]
+        reduced_cost = reduced_cost - λ[(s.starting_node, s.starting_time, s.starting_charge)]
+    end
+
+    if s.current_node in data["N_depots"]
+        reduced_cost = reduced_cost - μ[s.current_node]
+    elseif s.current_node in data["N_charging"]
+        reduced_cost = reduced_cost + λ[(s.current_node, s.round_time, s.round_charge)]
+    end
+
+    return reduced_cost
+end
+
 function find_smallest_reduced_cost_subpaths(
     starting_node,
     starting_time,
