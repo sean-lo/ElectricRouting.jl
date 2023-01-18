@@ -857,6 +857,7 @@ function generate_subpaths_withcharge(
         error()
     end
     generated_subpaths_withcharge = Dict{Tuple, Vector}()
+    smallest_reduced_costs = Dict{Tuple, Float64}()
     sp_max_time_taken = 0.0
     for (starting_node, starting_time, starting_charge) in Iterators.flatten((
         Iterators.product(
@@ -882,6 +883,7 @@ function generate_subpaths_withcharge(
             sp_max_time_taken = r.time
         end
         # remove those corresponding to positive reduced cost
+        smallest_reduced_cost = Inf
         for (end_node, s) in pairs(labels)
             # Toss out subpaths that have no arcs
             if length(s.arcs) == 0
@@ -895,11 +897,15 @@ function generate_subpaths_withcharge(
             if s.cost ≥ -1e-6
                 continue
             end
+            if s.cost < smallest_reduced_cost
+                smallest_reduced_cost = s.cost
+            end
             state2 = (s.current_node, s.round_time, s.round_charge)
             generated_subpaths_withcharge[(state1, state2)] = [Subpath(s)]
         end
+        smallest_reduced_costs[state1] = smallest_reduced_cost
     end
-    return generated_subpaths_withcharge, sp_max_time_taken
+    return generated_subpaths_withcharge, smallest_reduced_costs, sp_max_time_taken
 end
 
 function compute_subpath_costs(
