@@ -732,7 +732,7 @@ function find_smallest_reduced_cost_subpaths(
     while !isempty(Q)
         i = popfirst!(Q)
         # iterate over all out-neighbors of i
-        for j in outneighbors(G, i)
+        for j in setdiff(outneighbors(G, i), i)
             # feasibility check
             if j in data["N_pickups"]
                 feasible_service = !(labels[i].served[j])
@@ -817,6 +817,20 @@ function find_smallest_reduced_cost_subpaths(
     # remove labels corresponding to pickup and dropoff nodes
     for k in union(data["N_pickups"], data["N_dropoffs"])
         delete!(labels, k)
+    end
+    # include subpath from a depot to itself, if it is better
+    if starting_node in data["N_depots"]
+        null_subpath_cost = initial_cost - μ[starting_node]
+        if null_subpath_cost < labels[starting_node].cost
+            labels[starting_node] = SubpathWithCost(
+                cost = null_subpath_cost,
+                n_customers = data["n_customers"],
+                starting_node = starting_node,
+                starting_time = starting_time,
+                starting_charge = starting_charge,
+                arcs = [(starting_node, starting_node)],
+            )
+        end
     end
     return labels
 end
