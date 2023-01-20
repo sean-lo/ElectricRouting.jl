@@ -681,6 +681,246 @@ function compute_subpath_reduced_cost(
     return reduced_cost
 end
 
+function find_smallest_reduced_cost_paths(
+    starting_node,
+    G, 
+    data, 
+    T_range, 
+    B_range,
+    # dual values associated with flow conservation constraints
+    κ,
+    λ,
+    μ,
+    # dual values associated with customer service constraints
+    ν,
+)
+
+    # initialize modified arc costs, subtracting values of dual variables
+    modified_costs = Float64.(copy(data["c"]))
+    for i in 1:data["n_customers"]
+        j = data["n_customers"] + i
+        modified_costs[i,j] -= ν[i]
+        modified_costs[j,i] -= ν[i]
+    end
+    # initialize set of labels
+    starting_time = 0.0
+    starting_charge = data["B"]
+    labels = Dict()
+    labels[starting_node] = Dict(
+        (starting_time, starting_charge) => [
+            SubpathWithCost(
+                cost = - κ[starting_node],
+                n_customers = data["n_customers"],
+                starting_node = starting_node,
+                starting_time = starting_time,
+                starting_charge = starting_charge,
+            )
+        ]
+    )
+    Q = [starting_node]
+
+    while !isempty(Q)
+        i = popfirst!(Q)
+        for j in setdiff(outneighbors(G, i), i)
+            add_to_queue = false
+            for ((now_time, now_charge), s_list) in pairs(labels[i])
+                if j in data["N_pickups"]
+                    feasible_service = !any(s.served[j] for s in s_list)
+                else
+                    feasible_service = true
+                end
+                if !feasible_service 
+                    continue
+                end
+                current_time = max(
+                    data["α"][j], 
+                    now_time + data["t"][i,j],
+                )
+                current_charge = now_charge - data["q"][i,j]
+                feasible_timewindow = (current_time ≤ data["β"][j])
+                feasible_charge = (current_charge ≥ 0.0)
+                feasible = (
+                    feasible_timewindow
+                    && feasible_charge
+                )
+                if !feasible
+                    continue
+                end
+                
+                current_cost = s_list[end].cost
+                cumulative_cost = sum(s.cost for s in s_list)
+                current_cost = current_cost + modified_costs[i,j]
+                cumulative_cost = cumulative_cost + modified_costs[i,j]
+                if j in data["N_charging"]
+                    charging_options = generate_charging_options(
+                        current_time, current_charge, 
+                        data, T_range, B_range,
+                    )
+                    if length(charging_options) == 0
+                        continue
+                    end
+                else
+                    if j in data["N_depots"]
+                        current_cost = current_cost - μ[j]
+                        cumulative_cost = cumulative_cost - μ[j]
+                    end
+                    charging_options = [(
+                        0, 0, current_time, current_charge, 
+                        dceil(current_time, T_range), dfloor(current_charge, B_range)
+                    )]
+                end
+
+                
+                for (delta_time, delta_charge, end_time, end_charge, round_time, round_charge) in charging_options
+                    # determine if label ought to be updated
+                    if j in data["N_charging"]
+                        # store this subpath under (round_time, round_charge)
+                        store_time, store_charge = round_time, round_charge
+                    else
+                        # store this subpath under (end_time, end_charge)
+                        store_time, store_charge = current_time, current_charge
+                    end
+                    if j in keys(labels)
+                        if (store_time, store_charge) in keys(labels[j])
+                            if sum(s.cost for s in labels[j][(store_time, store_charge)]) ≤ cumulative_cost
+                                continue
+                            end
+                        end
+                    end
+
+                    # update labels
+                    add_to_queue = true
+                    s_j = copy(s_list[end])
+                    s_j.cost = current_cost
+                    if j in data["N_charging"]
+                        # no need to change cumulative_cost since it will be subtracted from the cost of the next subpath!
+                        s_j.cost = current_cost + λ[(j, round_time, round_charge)]
+                    else 
+                        s_j.cost = current_cost
+                    end
+                    s_j.current_node = j
+                    push!(s_j.arcs, (i, j))
+                    s_j.time = current_time
+                    s_j.charge = current_charge
+                    if j in data["N_dropoffs"]
+                        s_j.served[j - data["n_customers"]] = true
+                    end
+                    s_j.delta_time = delta_time
+                    s_j.delta_charge = delta_charge
+                    s_j.end_time = end_time
+                    s_j.end_charge = end_charge
+                    s_j.round_time = round_time
+                    s_j.round_charge = round_charge
+
+                    s_list_new = vcat(s_list[1:end-1], [s_j])
+                    if j in data["N_charging"]
+                        push!(
+                            s_list_new, 
+                            # new null subpath starting at j
+                            SubpathWithCost(
+                                cost = - λ[(j, round_time, round_charge)],
+                                n_customers = data["n_customers"],
+                                starting_node = j,
+                                starting_time = round_time,
+                                starting_charge = round_charge,
+                            )
+                        )
+                    end
+                    if j in keys(labels)
+                        labels[j][(store_time, store_charge)] = s_list_new
+                    else
+                        labels[j] = Dict(
+                            (store_time, store_charge) => s_list_new
+                        )
+                    end
+                end
+                
+            end
+            if add_to_queue && !(j in Q) && !(j in data["N_depots"])
+                push!(Q, j)
+            end
+        end
+    end
+    # remove labels corresponding to pickup, dropoff, and charging stations
+    for k in union(data["N_pickups"], data["N_dropoffs"], data["N_charging"])
+        delete!(labels, k)
+    end
+    # include subpath from a depot to itself, if it is better
+    null_subpath_cost = - κ[starting_node] - μ[starting_node]
+    if !(
+        (starting_time, starting_charge) in keys(labels[starting_node])
+        && sum(s.cost for s in labels[starting_node][(starting_time, starting_charge)]) 
+        ≤ null_subpath_cost
+    )
+        labels[starting_node][(starting_time, starting_charge)] = [
+            SubpathWithCost(
+                cost = null_subpath_cost,
+                n_customers = data["n_customers"],
+                starting_node = starting_node,
+                starting_time = starting_time,
+                starting_charge = starting_charge,
+                arcs = [(starting_node, starting_node)],
+            )
+        ]
+    end
+    return labels
+end
+
+function generate_subpaths_withcharge_from_paths(
+    G,
+    data,
+    T_range,
+    B_range,
+    κ,
+    λ,
+    μ,
+    ν,
+    ;
+    charging_in_subpath::Bool = true,
+)
+    if !charging_in_subpath
+        error()
+    end
+    generated_subpaths_withcharge = Dict{Tuple, Vector}()
+    sp_max_time_taken = 0.0
+    for starting_node in data["N_depots"]
+        r = @timed find_smallest_reduced_cost_paths(
+            starting_node, G, data, T_range, B_range, 
+            κ, λ, μ, ν,
+        )
+        labels = r.value
+        if r.time > sp_max_time_taken
+            sp_max_time_taken = r.time
+        end
+        # remove those corresponding to positive reduced cost
+        for (end_node, subpath_list_dict) in pairs(labels)
+            for subpath_list in values(subpath_list_dict)
+                ## VERSION 1: include all subpaths in subpath_list if cumulative cost is negative
+                # if sum(s.cost for s in subpath_list) ≥ -1e-6
+                #     continue
+                # end
+                ## VERSION 2: include all subpaths if any r.c. is negative
+                if all(s.cost ≥ -1e-6 for s in subpath_list)
+                    continue
+                end
+                states = vcat(
+                    [(starting_node, 0.0, data["B"])],
+                    [
+                        (
+                            s.current_node, s.round_time, s.round_charge
+                        )
+                        for s in subpath_list
+                    ]
+                )
+                for (ind, s) in enumerate(subpath_list)
+                    generated_subpaths_withcharge[(states[ind], states[ind+1])] = [Subpath(s)]
+                end
+            end
+        end
+    end
+    return generated_subpaths_withcharge, nothing, sp_max_time_taken
+end
+
 function find_smallest_reduced_cost_subpaths(
     starting_node,
     starting_time,
@@ -1269,6 +1509,180 @@ function subpath_formulation(
         results["β_lower"] = value.(model[:β_lower]).data
     end
     return results, params
+end
+
+function subpath_formulation_column_generation_from_paths(
+    G,
+    data,
+    T_range,
+    B_range,
+    ;
+    charging_in_subpath::Bool = true,
+    verbose::Bool = false,
+)
+    function add_message!(
+        printlist::Vector, 
+        message::String, 
+        verbose::Bool,
+    )
+        push!(printlist, message)
+        if verbose
+            print(message)
+        end
+    end
+
+    start_time = time()
+
+    artificial_subpaths = generate_artificial_subpaths(data)
+    some_subpaths = deepcopy(artificial_subpaths)
+    mp_results = Dict()
+    params = Dict()
+    params["number_of_subpaths"] = [sum(length(v) for v in values(some_subpaths))]
+    params["number_of_keys"] = [length(some_subpaths)]
+    params["objective"] = []
+    params["κ"] = []
+    params["λ"] = []
+    params["μ"] = []
+    params["ν"] = []
+    # params["ξ"] = []
+    params["lp_relaxation_time_taken"] = []
+    params["sp_total_time_taken"] = []
+    params["sp_max_time_taken"] = []
+    params["number_of_current_subpaths"] = []
+    printlist = []
+
+    counter = 0
+    converged = false
+    add_message!(
+        printlist,
+        @sprintf(
+            """
+            Starting column generation.
+            # customers:                %2d
+            # depots:                   %2d
+            # charging stations:        %2d
+            # vehicles:                 %2d
+
+            """,
+            data["n_customers"],
+            data["n_depots"],
+            data["n_charging"],
+            data["n_vehicles"],
+        ),
+        verbose,
+    )
+    add_message!(
+        printlist,
+        @sprintf("              |  Objective | # subpaths | Time (LP) | Time (SP) | # new subpaths \n"),
+        verbose,
+    )
+    while !converged
+        counter += 1
+        subpath_costs = compute_subpath_costs(
+            data, 
+            some_subpaths,
+        )
+        subpath_service = compute_subpath_service(
+            data, 
+            some_subpaths,
+        )
+        mp_results, mp_params = @suppress subpath_formulation(
+            data, 
+            some_subpaths,
+            subpath_costs, 
+            subpath_service,
+            T_range,
+            B_range,
+            ;
+            integral = false,
+            charging_in_subpath = charging_in_subpath,
+        )
+
+        push!(params["objective"], mp_results["objective"])
+        push!(params["κ"], mp_results["κ"])
+        push!(params["λ"], mp_results["λ"])
+        push!(params["μ"], mp_results["μ"])
+        push!(params["ν"], mp_results["ν"])
+        push!(params["lp_relaxation_time_taken"], mp_params["time_taken"])
+
+        # generate subpaths
+        generate_subpaths_result = @timed generate_subpaths_withcharge_from_paths(
+            G, data, T_range, B_range,
+            mp_results["κ"], mp_results["λ"], mp_results["μ"], mp_results["ν"],
+            ;
+            charging_in_subpath = charging_in_subpath,
+        )
+        (current_subpaths, _, sp_max_time_taken) = generate_subpaths_result.value
+
+        push!(
+            params["sp_total_time_taken"],
+            round(generate_subpaths_result.time, digits=3)
+        )
+        push!(
+            params["sp_max_time_taken"],
+            round(sp_max_time_taken, digits=3)
+        )
+        if length(current_subpaths) == 0
+            push!(params["number_of_current_subpaths"], 0)
+            converged = true
+        else
+            push!(
+                params["number_of_current_subpaths"],
+                sum(length(v) for v in values(current_subpaths))
+            )
+        end
+        for key in keys(current_subpaths)
+            if !(key in keys(some_subpaths))
+                some_subpaths[key] = current_subpaths[key]
+            else
+                for s_new in current_subpaths[key]
+                    if !any(isequal(s_new, s) for s in some_subpaths[key])
+                        push!(some_subpaths[key], s_new)
+                    end
+                end
+            end
+        end
+        push!(
+            params["number_of_keys"],
+            length(some_subpaths)
+        )
+        push!(
+            params["number_of_subpaths"], 
+            sum(length(v) for v in values(some_subpaths))
+        )
+        add_message!(
+            printlist, 
+            @sprintf(
+                "Iteration %3d | %.4e | %10d | %9.3f | %9.3f | %14d \n", 
+                counter,
+                params["objective"][counter],
+                params["number_of_subpaths"][counter],
+                params["lp_relaxation_time_taken"][counter],
+                params["sp_total_time_taken"][counter],
+                params["number_of_current_subpaths"][counter],
+            ),
+            verbose,
+        )
+    end
+    results = Dict(
+        "objective" => mp_results["objective"],
+        "z" => mp_results["z"],
+    )
+    params["counter"] = counter
+    end_time = time()
+    time_taken = end_time - start_time
+    params["time_taken"] = time_taken
+
+    for message in [
+        @sprintf("\n")
+        @sprintf("Objective: \t\t%.4e\n", mp_results["objective"])
+        @sprintf("Total time (LP): \t%10.3f s\n", sum(params["lp_relaxation_time_taken"]))
+        @sprintf("Total time (SP): \t%10.3f s\n", sum(params["sp_total_time_taken"]))
+        @sprintf("Total time: \t\t%10.3f s\n", time_taken)
+    ]
+        add_message!(printlist, message, verbose)
+    end
+    return results, params, printlist, some_subpaths
 end
 
 function subpath_formulation_column_generation(
