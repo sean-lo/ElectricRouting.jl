@@ -312,7 +312,7 @@ function arc_formulation(
         "constraint_time_taken" => round(constraint_time_taken, digits = 3),
         "solution_time_taken" => round(solution_time_taken, digits = 3),
     )
-    results = Dict(
+    results = Dict{Any, Any}(
         "model" => model,
     )
     if (
