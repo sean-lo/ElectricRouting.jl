@@ -1,0 +1,19 @@
+# Login
+ssh slo@txe1-login.mit.edu
+
+# File transfer (local to cloud)
+(From research) 
+scp -r electric_trucking slo@txe1-login.mit.edu:/home/gridsan/slo/slo
+
+# Query resources
+LLstat
+squeue
+
+# Make script executable
+chmod u+x [filename].sh
+
+# Concatenate CSV files in the same directory
+awk '(NR == 1) || (FNR > 1)' *.csv > ../combined.csv
+
+# Get memory usage of job
+sacct -j JOBID -o JobID,AllocCPUS,MaxRSS,MaxVMSize --units=G
