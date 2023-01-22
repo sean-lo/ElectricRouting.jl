@@ -314,19 +314,39 @@ function arc_formulation(
     )
     results = Dict(
         "model" => model,
-        "objective" => objective_value(model),
-        "total_travel_cost" => value(total_travel_cost),
-        "total_vehicle_time" => value(total_vehicle_time),
-        "x" => value.(x[:,:]),
-        "τ_reach" => value.(τ_reach[:,:]),
-        "τ_leave" => value.(τ_leave[:,:]),
-        "l" => value.(l[:,:]),
     )
-    if with_charging
-        results["total_charge_required"] = value.(total_charge_required)
-        results["b_start"] = value.(b_start)
-        results["b_end"] = value.(b_end)
-        results["δ"] = value.(δ)
+    if (
+        termination_status(model) == OPTIMAL
+        || (
+            termination_status(model) == TIME_LIMIT 
+            && has_values(model)
+        )
+    )
+        if termination_status(model) == OPTIMAL
+            results["status"] = "optimal"
+        else
+            results["status"] = "time_limit_with_values"
+        end
+        results["objective"] = objective_value(model)
+        results["total_travel_cost"] = value(total_travel_cost)
+        results["total_vehicle_time"] = value(total_vehicle_time)
+        results["x"] = value.(x[:,:])
+        results["τ_reach"] = value.(τ_reach[:,:])
+        results["τ_leave"] = value.(τ_leave[:,:])
+        results["l"] = value.(l[:,:])
+        if with_charging
+            results["total_charge_required"] = value.(total_charge_required)
+            results["b_start"] = value.(b_start)
+            results["b_end"] = value.(b_end)
+            results["δ"] = value.(δ)
+        end
+    elseif (
+        termination_status(model) == TIME_LIMIT
+        && !has_values(model)
+    )
+        results["status"] = "time_limit_no_values"
+    elseif termination_status(model) == INFEASIBLE
+        results["status"] = "infeasible"
     end
     return results, params
 end
