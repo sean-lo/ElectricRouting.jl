@@ -7,7 +7,7 @@ using Distributions
 using Distances
 using Printf
 
-using Graphs, SimpleWeightedGraphs
+using Graphs
 
 function generate_times(
     T::Float64,
@@ -226,13 +226,9 @@ function generate_instance_pair(
 end
 
 function construct_graph(data)
-    G = SimpleWeightedDiGraph(data["n_nodes"])
+    G = SimpleDiGraph(data["n_nodes"])
     for (i, j) in keys(data["A"])
-        if i == j
-            add_edge!(G, i, i, 1)
-        else 
-            add_edge!(G, i, j, data["t"][i,j])
-        end
+        add_edge!(G, i, j)
     end
     return G
 end
