@@ -125,6 +125,7 @@ for row_index in task_index:n_tasks:size(args_df, 1)
         ;
         charging_in_subpath = true,
         verbose = true,
+        time_limit = time_limit,
     )
     cg_number_of_subpaths = sum(
         length(v) for v in values(cg_subpaths)

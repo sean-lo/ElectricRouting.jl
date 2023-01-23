@@ -1545,6 +1545,7 @@ function subpath_formulation_column_generation_from_paths(
     ;
     charging_in_subpath::Bool = true,
     verbose::Bool = false,
+    time_limit::Float64 = Inf,
 )
     function add_message!(
         printlist::Vector, 
@@ -1602,7 +1603,10 @@ function subpath_formulation_column_generation_from_paths(
         @sprintf("              |  Objective | # subpaths | Time (LP) | Time (SP) | # new subpaths \n"),
         verbose,
     )
-    while !converged
+    while (
+        !converged
+        && time_limit > time() - start_time
+    )
         counter += 1
         subpath_costs = compute_subpath_costs(
             data, 
@@ -1698,6 +1702,7 @@ function subpath_formulation_column_generation_from_paths(
     end_time = time()
     time_taken = end_time - start_time
     params["time_taken"] = time_taken
+    params["time_limit_reached"] = (time_taken > time_limit)
 
     for message in [
         @sprintf("\n")
