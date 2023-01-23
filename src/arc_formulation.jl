@@ -347,6 +347,8 @@ function arc_formulation(
         results["status"] = "time_limit_no_values"
     elseif termination_status(model) == INFEASIBLE
         results["status"] = "infeasible"
+    else
+        results["status"] = "unknown"
     end
     return results, params
 end
