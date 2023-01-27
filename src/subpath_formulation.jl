@@ -743,7 +743,8 @@ function find_smallest_reduced_cost_paths(
             for j in setdiff(outneighbors(G, i), i)
                 add_to_queue = false
                 if j in data["N_pickups"]
-                    feasible_service = !any(s.served[j] for s in path.subpaths)
+                    # feasible_service = !any(s.served[j] for s in path.subpaths)
+                    feasible_service = !path.subpaths[end].served[j]
                 else
                     feasible_service = true
                 end
