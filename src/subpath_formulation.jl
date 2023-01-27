@@ -769,6 +769,10 @@ function find_smallest_reduced_cost_paths(
                 cumulative_cost = path.cost
                 current_cost = current_cost + modified_costs[i,j]
                 cumulative_cost = cumulative_cost + modified_costs[i,j]
+                if j in data["N_depots"]
+                    current_cost = current_cost - μ[j]
+                    cumulative_cost = cumulative_cost - μ[j]
+                end
                 if j in data["N_charging"]
                     charging_options = generate_charging_options(
                         current_time, current_charge, 
@@ -791,21 +795,18 @@ function find_smallest_reduced_cost_paths(
                         # store this subpath under (round_time, round_charge)
                         store_time, store_charge = round_time, round_charge
                         this_current_cost = current_cost + λ[(j, round_time, round_charge)]
-                        this_cumulative_cost = cumulative_cost + λ[(j, round_time, round_charge)] 
                     elseif j in data["N_depots"]
                         # store this subpath under (end_time, end_charge)
                         store_time, store_charge = current_time, current_charge
-                        this_current_cost = current_cost - μ[j]
-                        this_cumulative_cost = cumulative_cost - μ[j]
+                        this_current_cost = current_cost
                     else
                         # store this subpath under (end_time, end_charge)
                         store_time, store_charge = current_time, current_charge
                         this_current_cost = current_cost
-                        this_cumulative_cost = cumulative_cost
                     end
                     if j in keys(labels)
                         if (store_time, store_charge) in keys(labels[j])
-                            if labels[j][(store_time, store_charge)].cost ≤ this_cumulative_cost
+                            if labels[j][(store_time, store_charge)].cost ≤ cumulative_cost
                                 if verbose
                                     println("$i, $now_time, $now_charge dominated by $j, $store_time, $store_charge")
                                 end
@@ -845,18 +846,17 @@ function find_smallest_reduced_cost_paths(
                                 starting_charge = round_charge,
                             )
                         )
-                        this_cumulative_cost = this_cumulative_cost - λ[(j, round_time, round_charge)] 
                     end
                     if j in keys(labels)
                         labels[j][(store_time, store_charge)] = PathWithCost(
                             subpaths = s_list_new,
-                            cost = this_cumulative_cost,
+                            cost = cumulative_cost,
                         )
                     else
                         labels[j] = Dict(
                             (store_time, store_charge) => PathWithCost(
                                 subpaths = s_list_new,
-                                cost = this_cumulative_cost,
+                                cost = cumulative_cost,
                             )
                         )
                     end
