@@ -1692,13 +1692,16 @@ function subpath_formulation_column_generation_from_paths(
                 sum(length(v) for v in values(current_subpaths))
             )
         end
+        converged = true
         for key in keys(current_subpaths)
             if !(key in keys(some_subpaths))
                 some_subpaths[key] = current_subpaths[key]
+                converged = false
             else
                 for s_new in current_subpaths[key]
                     if !any(isequal(s_new, s) for s in some_subpaths[key])
                         push!(some_subpaths[key], s_new)
+                        converged = false
                     end
                 end
             end
