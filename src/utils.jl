@@ -1,3 +1,4 @@
+using CompositeStructs
 using Random
 using Suppressor 
 using Combinatorics
@@ -8,6 +9,212 @@ using Distances
 using Printf
 
 using Graphs
+
+Base.@kwdef mutable struct Subpath
+    n_customers::Int
+    starting_node::Int
+    starting_time::Float64
+    starting_charge::Float64
+    current_node::Int = starting_node
+    arcs::Vector{Tuple} = []
+    time::Float64 = starting_time
+    charge::Float64 = starting_charge
+    served::BitVector = falses(n_customers)
+    delta_time::Float64 = 0.0
+    delta_charge::Float64 = 0.0
+    end_time::Float64 = time
+    end_charge::Float64 = charge
+    round_time::Float64 = end_time
+    round_charge::Float64 = end_charge
+    artificial::Bool = false
+end
+
+Base.copy(s::Subpath) = Subpath(
+    n_customers = s.n_customers,
+    starting_node = s.starting_node,
+    starting_time = s.starting_time,
+    starting_charge = s.starting_charge,
+    current_node = s.current_node,
+    arcs = copy(s.arcs),
+    time = s.time,
+    charge = s.charge,
+    served = copy(s.served),
+    delta_time = s.delta_time,
+    delta_charge = s.delta_charge,
+    end_time = s.end_time,
+    end_charge = s.end_charge,
+    round_time = s.round_time,
+    round_charge = s.round_charge,
+    artificial = s.artificial
+)
+
+Base.show(io::IO, s::Subpath) = begin
+    if s.artificial
+        print(io, """Subpath (artificial):
+        ($(s.starting_node), $(s.starting_time), $(s.starting_charge)) -> ($(s.current_node), $(s.round_time), $(s.round_charge))
+        """)
+    else
+        print(io, """Subpath:
+        ($(s.starting_node), $(s.starting_time), $(s.starting_charge)) -> ($(s.current_node), $(s.round_time), $(s.round_charge))
+        arcs:   $(s.arcs)
+        served: $(s.served)
+        now:    ($(s.time), $(s.charge))
+        delta:  ($(s.delta_time), $(s.delta_charge))
+        end:    ($(s.end_time), $(s.end_charge))
+        round:  ($(s.round_time), $(s.round_charge))
+        """)
+    end
+end
+
+Base.isequal(s1::Subpath, s2::Subpath) = begin 
+    (
+        s1.n_customers == s2.n_customers
+        && s1.starting_node == s2.starting_node
+        && s1.starting_time == s2.starting_time
+        && s1.starting_charge == s2.starting_charge
+        && s1.current_node == s2.current_node
+        && s1.arcs == s2.arcs
+        && s1.time == s2.time
+        && s1.charge == s2.charge
+        && s1.served == s2.served
+        && s1.delta_time == s2.delta_time
+        && s1.delta_charge == s2.delta_charge
+        && s1.end_time == s2.end_time
+        && s1.end_charge == s2.end_charge
+        && s1.round_time == s2.round_time
+        && s1.round_charge == s2.round_charge
+        && s1.artificial == s2.artificial
+    )
+end
+
+@composite Base.@kwdef mutable struct SubpathWithCost 
+    Subpath...
+    cost::Float64 = 0.0
+end
+
+Base.show(io::IO, s::SubpathWithCost) = begin 
+    if s.artificial
+        print(io, """SubpathWithCost (artificial):
+        ($(s.starting_node), $(s.starting_time), $(s.starting_charge)) -> ($(s.current_node), $(s.round_time), $(s.round_charge))
+        """)
+    else
+        print(io, """SubpathWithCost:
+        ($(s.starting_node), $(s.starting_time), $(s.starting_charge)) -> ($(s.current_node), $(s.round_time), $(s.round_charge))
+        cost:   $(s.cost)
+        arcs:   $(s.arcs)
+        served: $(s.served)
+        now:    ($(s.time), $(s.charge))
+        delta:  ($(s.delta_time), $(s.delta_charge))
+        end:    ($(s.end_time), $(s.end_charge))
+        round:  ($(s.round_time), $(s.round_charge))
+        """)
+    end
+end
+
+Base.copy(s::SubpathWithCost) = SubpathWithCost(
+    cost = s.cost,
+    n_customers = s.n_customers,
+    starting_node = s.starting_node,
+    starting_time = s.starting_time,
+    starting_charge = s.starting_charge,
+    current_node = s.current_node,
+    arcs = copy(s.arcs),
+    time = s.time,
+    charge = s.charge,
+    served = copy(s.served),
+    delta_time = s.delta_time,
+    delta_charge = s.delta_charge,
+    end_time = s.end_time,
+    end_charge = s.end_charge,
+    round_time = s.round_time,
+    round_charge = s.round_charge,
+    artificial = s.artificial,
+)
+
+Base.isequal(s1::SubpathWithCost, s2::SubpathWithCost) = begin 
+    (
+        s1.cost == s2.cost
+        && s1.n_customers == s2.n_customers
+        && s1.starting_node == s2.starting_node
+        && s1.starting_time == s2.starting_time
+        && s1.starting_charge == s2.starting_charge
+        && s1.current_node == s2.current_node
+        && s1.arcs == s2.arcs
+        && s1.time == s2.time
+        && s1.charge == s2.charge
+        && s1.served == s2.served
+        && s1.delta_time == s2.delta_time
+        && s1.delta_charge == s2.delta_charge
+        && s1.end_time == s2.end_time
+        && s1.end_charge == s2.end_charge
+        && s1.round_time == s2.round_time
+        && s1.round_charge == s2.round_charge
+        && s1.artificial == s2.artificial
+    )
+end
+
+Subpath(s::SubpathWithCost) = Subpath(
+    n_customers = s.n_customers,
+    starting_node = s.starting_node,
+    starting_time = s.starting_time,
+    starting_charge = s.starting_charge,
+    current_node = s.current_node,
+    arcs = copy(s.arcs),
+    time = s.time,
+    charge = s.charge,
+    served = copy(s.served),
+    delta_time = s.delta_time,
+    delta_charge = s.delta_charge,
+    end_time = s.end_time,
+    end_charge = s.end_charge,
+    round_time = s.round_time,
+    round_charge = s.round_charge,
+    artificial = s.artificial,
+)
+
+Base.@kwdef mutable struct Path
+    subpaths::Vector{Subpath}
+end
+
+Base.isequal(p1::Path, p2::Path) = all(isequal(s1, s2) for (s1, s2) in zip(p1.subpaths, p2.subpaths))
+
+Base.@kwdef mutable struct PathWithCost
+    subpaths::Vector{SubpathWithCost}
+    cost::Float64
+    explored::Bool = false
+end
+
+Path(p::PathWithCost) = Path(
+    subpaths = [Subpath(s) for s in p.subpaths],
+)
+
+function dceil(
+    x::Float64,
+    points,
+)
+    return points[searchsortedfirst(points, x)]
+end
+
+function dfloor(
+    x::Float64,
+    points,
+)
+    return points[searchsortedlast(points, x)]
+end
+
+function dceilall(
+    x::Float64,
+    points,
+)
+    return points[searchsortedfirst(points, x):end]
+end
+
+function dfloorall(
+    x::Float64,
+    points,
+)
+    return points[1:searchsortedlast(points, x)]
+end
 
 function generate_times(
     T::Float64,
