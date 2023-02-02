@@ -722,7 +722,6 @@ function generate_subpaths_withcharge_from_paths(
     T_range,
     B_range,
     κ,
-    λ,
     μ,
     ν,
     ;
@@ -1471,7 +1470,7 @@ function subpath_formulation_column_generation_from_paths(
         # generate subpaths
         generate_subpaths_result = @timed generate_subpaths_withcharge_from_paths(
             G, data, T_range, B_range,
-            mp_results["κ"], mp_results["λ"], mp_results["μ"], mp_results["ν"],
+            mp_results["κ"], mp_results["μ"], mp_results["ν"],
             ;
             charging_in_subpath = charging_in_subpath,
         )
