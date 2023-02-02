@@ -600,7 +600,10 @@ function enumerate_all_subpaths_faster(
 end
 
 function generate_artificial_subpaths(data)
-    artificial_subpaths = Dict()
+    artificial_subpaths = Dict{
+        Tuple{Tuple{Int, Float64, Float64}, Tuple{Int, Float64, Float64}},
+        Vector{Subpath},
+    }()
     start_depots = zeros(Int, data["n_vehicles"])
     for (k, v_list) in pairs(data["V"])
         for v in v_list
@@ -656,8 +659,6 @@ end
 function compute_subpath_reduced_cost(
     s::Subpath,
     data,
-    T_range,
-    B_range,
     κ,
     λ,
     μ,
@@ -897,7 +898,10 @@ function generate_subpaths_withcharge_from_paths(
     if !charging_in_subpath
         error()
     end
-    generated_subpaths_withcharge = Dict{Tuple, Vector}()
+    generated_subpaths_withcharge = Dict{
+        Tuple{Tuple{Int, Float64, Float64}, Tuple{Int, Float64, Float64}}, 
+        Vector{Subpath},
+    }()
     sp_max_time_taken = 0.0
     for starting_node in data["N_depots"]
         r = @timed find_smallest_reduced_cost_paths(
