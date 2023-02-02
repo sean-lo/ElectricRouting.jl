@@ -557,13 +557,33 @@ function find_smallest_reduced_cost_paths(
                     continue
                 end
 
-                current_time = max(
-                    data["α"][j], 
-                    now_time + data["t"][i,j],
-                )
-                current_charge = now_charge - data["q"][i,j]
-                feasible_timewindow = (current_time ≤ data["β"][j])
-                feasible_charge = (current_charge ≥ 0.0)
+                if j in data["N_pickups"]
+                    current_node = j + data["n_customers"]
+                    current_time = max(
+                        data["α"][j], 
+                        now_time + data["t"][i,j],
+                    )
+                    feasible_timewindow = (current_time ≤ data["β"][j])
+                    current_time = max(
+                        data["α"][current_node], 
+                        current_time + data["t"][j, current_node],
+                    )
+                    feasible_timewindow = feasible_timewindow && (current_time ≤ data["β"][current_node])
+                    current_charge = now_charge - data["q"][i,j]
+                    feasible_charge = (current_charge ≥ 0.0)
+                    current_charge = current_charge - data["q"][j, current_node]
+                    feasible_charge = feasible_charge && (current_charge ≥ 0.0)
+                else
+                    current_node = j
+                    current_time = max(
+                        data["α"][j], 
+                        now_time + data["t"][i,j],
+                    )
+                    feasible_timewindow = (current_time ≤ data["β"][j])
+                    current_charge = now_charge - data["q"][i,j]
+                    feasible_charge = (current_charge ≥ 0.0)
+                end
+
                 feasible = (
                     feasible_timewindow
                     && feasible_charge
@@ -576,7 +596,10 @@ function find_smallest_reduced_cost_paths(
                 cumulative_cost = path.cost
                 current_cost = current_cost + modified_costs[i,j]
                 cumulative_cost = cumulative_cost + modified_costs[i,j]
-                if j in data["N_depots"]
+                if j in data["N_pickups"]
+                    current_cost = current_cost + modified_costs[j, current_node]
+                    cumulative_cost = cumulative_cost + modified_costs[j, current_node]
+                elseif j in data["N_depots"]
                     current_cost = current_cost - μ[j]
                     cumulative_cost = cumulative_cost - μ[j]
                 end
@@ -599,11 +622,11 @@ function find_smallest_reduced_cost_paths(
                 
                 for (delta_time, delta_charge, end_time, end_charge, store_time, store_charge) in charging_options
                     # determine if label ought to be updated
-                    if j in keys(labels)
-                        if (store_time, store_charge) in keys(labels[j])
-                            if labels[j][(store_time, store_charge)].cost ≤ cumulative_cost
+                    if current_node in keys(labels)
+                        if (store_time, store_charge) in keys(labels[current_node])
+                            if labels[current_node][(store_time, store_charge)].cost ≤ cumulative_cost
                                 if verbose
-                                    println("$i, $now_time, $now_charge dominated by $j, $store_time, $store_charge")
+                                    println("$i, $now_time, $now_charge dominated by $current_node, $store_time, $store_charge")
                                 end
                                 continue
                             end
@@ -614,12 +637,17 @@ function find_smallest_reduced_cost_paths(
                     add_to_queue = true
                     s_j = copy(path.subpaths[end])
                     s_j.cost = current_cost
-                    s_j.current_node = j
-                    push!(s_j.arcs, (i, j))
+                    s_j.current_node = current_node
+                    if j in data["N_pickups"]
+                        push!(s_j.arcs, (i, j))
+                        push!(s_j.arcs, (j, current_node))
+                    else
+                        push!(s_j.arcs, (i, current_node))
+                    end
                     s_j.time = current_time
                     s_j.charge = current_charge
-                    if j in data["N_dropoffs"]
-                        s_j.served[j - data["n_customers"]] = true
+                    if current_node in data["N_dropoffs"]
+                        s_j.served[j] = true
                     end
                     s_j.delta_time = delta_time
                     s_j.delta_charge = delta_charge
@@ -629,26 +657,26 @@ function find_smallest_reduced_cost_paths(
                     s_j.round_charge = dfloor(end_charge, B_range)
     
                     s_list_new = vcat(path.subpaths[1:end-1], [s_j])
-                    if j in data["N_charging"]
+                    if current_node in data["N_charging"]
                         push!(
                             s_list_new, 
                             # new null subpath starting at current_node
                             SubpathWithCost(
                                 cost = 0,
                                 n_customers = data["n_customers"],
-                                starting_node = j,
+                                starting_node = current_node,
                                 starting_time = store_time,
                                 starting_charge = store_charge,
                             )
                         )
                     end
-                    if j in keys(labels)
-                        labels[j][(store_time, store_charge)] = PathWithCost(
+                    if current_node in keys(labels)
+                        labels[current_node][(store_time, store_charge)] = PathWithCost(
                             subpaths = s_list_new,
                             cost = cumulative_cost,
                         )
                     else
-                        labels[j] = Dict(
+                        labels[current_node] = Dict(
                             (store_time, store_charge) => PathWithCost(
                                 subpaths = s_list_new,
                                 cost = cumulative_cost,
@@ -656,11 +684,11 @@ function find_smallest_reduced_cost_paths(
                         )
                     end
                     if verbose
-                        println("Added $j, $store_time, $store_charge from $i, $now_time, $now_charge")
+                        println("Added $current_node, $store_time, $store_charge from $i, $now_time, $now_charge")
                     end
                 end
-                if add_to_queue && !(j in Q) && !(j in data["N_depots"])
-                    push!(Q, j)
+                if add_to_queue && !(current_node in Q) && !(current_node in data["N_depots"])
+                    push!(Q, current_node)
                 end
             end
         end
