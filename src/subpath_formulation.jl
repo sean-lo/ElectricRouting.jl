@@ -696,7 +696,6 @@ function find_smallest_reduced_cost_paths(
     B_range,
     # dual values associated with flow conservation constraints
     κ,
-    λ,
     μ,
     # dual values associated with customer service constraints
     ν,
@@ -743,13 +742,15 @@ function find_smallest_reduced_cost_paths(
             for j in setdiff(outneighbors(G, i), i)
                 add_to_queue = false
                 if j in data["N_pickups"]
-                    feasible_service = !any(s.served[j] for s in path.subpaths)
+                    # feasible_service = !any(s.served[j] for s in path.subpaths)
+                    feasible_service = !path.subpaths[end].served[j]
                 else
                     feasible_service = true
                 end
                 if !feasible_service 
                     continue
                 end
+
                 current_time = max(
                     data["α"][j], 
                     now_time + data["t"][i,j],
@@ -773,6 +774,7 @@ function find_smallest_reduced_cost_paths(
                     current_cost = current_cost - μ[j]
                     cumulative_cost = cumulative_cost - μ[j]
                 end
+
                 if j in data["N_charging"]
                     charging_options = generate_charging_options(
                         current_time, current_charge, 
@@ -784,26 +786,13 @@ function find_smallest_reduced_cost_paths(
                 else
                     charging_options = [(
                         0, 0, current_time, current_charge, 
-                        dceil(current_time, T_range), dfloor(current_charge, B_range)
+                        current_time, current_charge
                     )]
                 end
     
                 
-                for (delta_time, delta_charge, end_time, end_charge, round_time, round_charge) in charging_options
+                for (delta_time, delta_charge, end_time, end_charge, store_time, store_charge) in charging_options
                     # determine if label ought to be updated
-                    if j in data["N_charging"]
-                        # store this subpath under (round_time, round_charge)
-                        store_time, store_charge = round_time, round_charge
-                        this_current_cost = current_cost + λ[(j, round_time, round_charge)]
-                    elseif j in data["N_depots"]
-                        # store this subpath under (end_time, end_charge)
-                        store_time, store_charge = current_time, current_charge
-                        this_current_cost = current_cost
-                    else
-                        # store this subpath under (end_time, end_charge)
-                        store_time, store_charge = current_time, current_charge
-                        this_current_cost = current_cost
-                    end
                     if j in keys(labels)
                         if (store_time, store_charge) in keys(labels[j])
                             if labels[j][(store_time, store_charge)].cost ≤ cumulative_cost
@@ -818,7 +807,7 @@ function find_smallest_reduced_cost_paths(
                     # update labels
                     add_to_queue = true
                     s_j = copy(path.subpaths[end])
-                    s_j.cost = this_current_cost
+                    s_j.cost = current_cost
                     s_j.current_node = j
                     push!(s_j.arcs, (i, j))
                     s_j.time = current_time
@@ -830,20 +819,20 @@ function find_smallest_reduced_cost_paths(
                     s_j.delta_charge = delta_charge
                     s_j.end_time = end_time
                     s_j.end_charge = end_charge
-                    s_j.round_time = round_time
-                    s_j.round_charge = round_charge
+                    s_j.round_time = dceil(end_time, T_range)
+                    s_j.round_charge = dfloor(end_charge, B_range)
     
                     s_list_new = vcat(path.subpaths[1:end-1], [s_j])
                     if j in data["N_charging"]
                         push!(
                             s_list_new, 
-                            # new null subpath starting at j
+                            # new null subpath starting at current_node
                             SubpathWithCost(
-                                cost = - λ[(j, round_time, round_charge)],
+                                cost = 0,
                                 n_customers = data["n_customers"],
                                 starting_node = j,
-                                starting_time = round_time,
-                                starting_charge = round_charge,
+                                starting_time = store_time,
+                                starting_charge = store_charge,
                             )
                         )
                     end
@@ -913,7 +902,7 @@ function generate_subpaths_withcharge_from_paths(
     for starting_node in data["N_depots"]
         r = @timed find_smallest_reduced_cost_paths(
             starting_node, G, data, T_range, B_range, 
-            κ, λ, μ, ν,
+            κ, μ, ν,
         )
         labels = r.value
         if r.time > sp_max_time_taken
@@ -940,7 +929,13 @@ function generate_subpaths_withcharge_from_paths(
                     ]
                 )
                 for (ind, s) in enumerate(path.subpaths)
-                    generated_subpaths_withcharge[(states[ind], states[ind+1])] = [Subpath(s)]
+                    state_pair = (states[ind], states[ind+1])
+                    if state_pair in keys(generated_subpaths_withcharge)
+                        push!(generated_subpaths_withcharge[state_pair], Subpath(s))
+                    else
+                        generated_subpaths_withcharge[state_pair] = [Subpath(s)]
+                    end
+                    # generated_subpaths_withcharge[state_pair] = [Subpath(s)]
                 end
             end
         end
