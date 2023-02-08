@@ -1405,6 +1405,8 @@ function subpath_formulation_column_generation_from_paths(
     params["ν"] = []
     # params["ξ"] = []
     params["lp_relaxation_time_taken"] = []
+    params["lp_relaxation_solution_time_taken"] = []
+    params["lp_relaxation_constraint_time_taken"] = []
     params["sp_total_time_taken"] = []
     params["sp_max_time_taken"] = []
     params["number_of_current_subpaths"] = []
@@ -1466,6 +1468,8 @@ function subpath_formulation_column_generation_from_paths(
         push!(params["μ"], mp_results["μ"])
         push!(params["ν"], mp_results["ν"])
         push!(params["lp_relaxation_time_taken"], mp_params["time_taken"])
+        push!(params["lp_relaxation_constraint_time_taken"], mp_params["constraint_time_taken"])
+        push!(params["lp_relaxation_solution_time_taken"], mp_params["solution_time_taken"])
 
         # generate subpaths
         generate_subpaths_result = @timed generate_subpaths_withcharge_from_paths(
