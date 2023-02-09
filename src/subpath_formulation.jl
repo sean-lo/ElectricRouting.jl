@@ -1018,6 +1018,22 @@ function generate_subpaths_withcharge(
     return generated_subpaths_withcharge, smallest_reduced_costs, sp_max_time_taken
 end
 
+function compute_subpath_cost(
+    data,
+    s::Subpath,
+    M::Float64 = 1e6,
+)
+    if s.artificial 
+        return M
+    elseif length(s.arcs) == 0
+        return 0
+    else
+        return sum(
+            data["c"][a...] for a in s.arcs
+        )
+    end
+end
+
 function compute_subpath_costs(
     data,
     all_subpaths,
@@ -1025,11 +1041,7 @@ function compute_subpath_costs(
 )
     subpath_costs = Dict(
         key => [
-            s.artificial ? M : (
-                length(s.arcs) == 0 ? 0 : (
-                    sum(data["c"][a...] for a in s.arcs)
-                )
-            )
+            compute_subpath_cost(data, s, M)
             for s in all_subpaths[key]
         ]
         for key in keys(all_subpaths)
