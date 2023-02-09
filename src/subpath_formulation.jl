@@ -1744,6 +1744,346 @@ function subpath_formulation_column_generation(
     return results, params, printlist, some_subpaths
 end
 
+function subpath_formulation_column_generation_integrated_from_paths(
+    G,
+    data, 
+    T_range,
+    B_range,
+    ;
+    verbose::Bool = true,
+    time_limit::Float64 = Inf,
+)
+    function add_message!(
+        printlist::Vector, 
+        message::String, 
+        verbose::Bool,
+    )
+        push!(printlist, message)
+        if verbose
+            print(message)
+        end
+    end
+
+    start_time = time()
+
+    some_subpaths = generate_artificial_subpaths(data)
+    subpath_costs = compute_subpath_costs(
+        data, 
+        some_subpaths,
+    )
+    subpath_service = compute_subpath_service(
+        data, 
+        some_subpaths,
+    )
+    mp_results = Dict()
+    params = Dict()
+    params["number_of_subpaths"] = [sum(length(v) for v in values(some_subpaths))]
+    params["number_of_keys"] = [length(some_subpaths)]
+    params["objective"] = Float64[]
+    params["κ"] = []
+    params["μ"] = []
+    params["ν"] = []
+    params["lp_relaxation_solution_time_taken"] = Float64[]
+    params["sp_total_time_taken"] = Float64[]
+    params["sp_max_time_taken"] = Float64[]
+    params["lp_relaxation_constraint_time_taken"] = Float64[]
+    params["number_of_current_subpaths"] = Int[]
+    params["number_of_new_charging_states"] = Int[]
+    params["number_of_charging_states"] = Int[]
+    charging_states = Set()
+
+    printlist = []
+    counter = 0
+    converged = false
+
+    add_message!(
+        printlist,
+        @sprintf(
+            """
+            Starting column generation.
+            # customers:                %2d
+            # depots:                   %2d
+            # charging stations:        %2d
+            # vehicles:                 %2d
+
+            """,
+            data["n_customers"],
+            data["n_depots"],
+            data["n_charging"],
+            data["n_vehicles"],
+        ),
+        verbose,
+    )
+    add_message!(
+        printlist,
+        @sprintf("              |  Objective | # subpaths | Time (LP) | Time (SP) | Time (LP) | # subpaths \n"),
+        verbose,
+    )
+    add_message!(
+        printlist,
+        @sprintf("              |            |            |           |           |    (cons) |      (new) \n"),
+        verbose,
+    )
+
+    mp_model = @suppress Model(Gurobi.Optimizer)
+    z = Dict{Tuple{Tuple{Tuple{Int, Float64, Float64}, Tuple{Int, Float64, Float64}}, Int}, VariableRef}(
+        (key, p) => @variable(mp_model, lower_bound = 0, base_name = "z[($(key), $(p))]")
+        for key in keys(some_subpaths)
+            for p in 1:length(some_subpaths[key])
+    )
+    @constraint(
+        mp_model,
+        κ[i in data["N_depots"]],
+        sum(
+            sum(
+                z[((i,0,data["B"]),state2),p]
+                for p in 1:length(some_subpaths[((i,0,data["B"]),state2)])
+            )        
+            for (state1, state2) in keys(some_subpaths)
+                if state1[1] == i
+        )
+        == data["v_start"][findfirst(x -> (x == i), data["N_depots"])]
+    )
+    
+    flow_conservation_exprs_out = Dict{Tuple{Int, Float64, Float64}, AffExpr}()
+    flow_conservation_exprs_in = Dict{Tuple{Int, Float64, Float64}, AffExpr}()
+    flow_conservation_constrs = Dict{Tuple{Int, Float64, Float64}, ConstraintRef}()
+    @constraint(
+        mp_model,
+        μ[n2 in data["N_depots"]],
+        sum(
+            sum(
+                z[(state1, state2),p]
+                for p in 1:length(some_subpaths[(state1, state2)])
+            )
+            for (state1, state2) in keys(some_subpaths)
+                if state2[1] == n2
+        ) ≥ data["v_end"][n2]
+    )
+    @constraint(
+        mp_model,
+        ν[j in data["N_pickups"]],
+        sum(
+            sum(
+                subpath_service[((state1, state2),j)][p] * z[(state1, state2),p]
+                for p in 1:length(some_subpaths[(state1, state2)])
+            )
+            for (state1, state2) in keys(some_subpaths)
+        ) == 1
+    )
+    @expression(
+        mp_model,
+        subpath_costs_expr,
+        sum(
+            sum(
+                subpath_costs[state_pair][p] * z[state_pair,p]
+                for p in 1:length(some_subpaths[state_pair])
+            )
+            for state_pair in keys(some_subpaths)
+        )
+    )
+    @objective(mp_model, Min, subpath_costs_expr)
+
+    while (
+        !converged
+        && time_limit ≥ (time() - start_time)
+    )
+        counter += 1
+        mp_solution_start_time = time()
+        @suppress optimize!(mp_model)
+        mp_solution_end_time = time()
+        mp_results = Dict(
+            "model" => mp_model,
+            "objective" => objective_value(mp_model),
+            "z" => Dict(
+                (key, p) => value.(z[(key, p)])
+                for (key, p) in keys(z)
+            ),
+            "κ" => Dict(zip(data["N_depots"], dual.(mp_model[:κ]).data)),
+            "μ" => Dict(zip(data["N_depots"], dual.(mp_model[:μ]).data)),
+            "ν" => dual.(mp_model[:ν]).data,
+            "solution_time_taken" => round(mp_solution_end_time - mp_solution_start_time, digits = 3),
+        )
+        push!(params["objective"], mp_results["objective"])
+        push!(params["κ"], mp_results["κ"])
+        push!(params["μ"], mp_results["μ"])
+        push!(params["ν"], mp_results["ν"])
+        push!(params["lp_relaxation_solution_time_taken"], mp_results["solution_time_taken"])
+
+        generate_subpaths_result = @timed generate_subpaths_withcharge_from_paths(
+            G, data, T_range, B_range,
+            mp_results["κ"],
+            mp_results["μ"], 
+            mp_results["ν"],
+            ;
+            charging_in_subpath = true,
+        )
+        (current_subpaths, _, sp_max_time_taken) = generate_subpaths_result.value
+
+        push!(
+            params["sp_total_time_taken"],
+            round(generate_subpaths_result.time, digits=3)
+        )
+        push!(
+            params["sp_max_time_taken"],
+            round(sp_max_time_taken, digits=3)
+        )
+        if length(current_subpaths) == 0
+            push!(params["number_of_current_subpaths"], 0)
+            converged = true
+        else
+            push!(
+                params["number_of_current_subpaths"],
+                sum(length(v) for v in values(current_subpaths))
+            )
+        end
+
+        new_charging_states = Set()
+        mp_constraint_start_time = time()
+        for key in keys(current_subpaths)
+            if !(key in keys(some_subpaths))
+                some_subpaths[key] = []
+                subpath_costs[key] = []
+                for i in 1:data["n_customers"]
+                    subpath_service[(key, i)] = []
+                end
+                count = 0
+            else
+                count = length(some_subpaths[key])
+            end
+            for s_new in current_subpaths[key]
+                if key in keys(some_subpaths)
+                    add = !any(isequal(s_new, s) for s in some_subpaths[key])
+                else
+                    add = true
+                end
+                if add
+                    # 1: include in some_subpaths
+                    push!(some_subpaths[key], s_new)
+                    # 2: add subpath cost
+                    push!(subpath_costs[key], compute_subpath_cost(data, s_new))
+                    # 3: add subpath service
+                    for i in 1:data["n_customers"]
+                        push!(subpath_service[(key, i)], s_new.served[i])
+                    end
+                    # 4: create variable
+                    count += 1
+                    z[(key, count)] = @variable(mp_model, lower_bound = 0, base_name = "z[($(key), $(count))]")
+                    # 5: modify constraints starting from depot, ending at depot, and flow conservation
+                    if key[1][1] in data["N_depots"] && key[1][2] == 0.0 && key[1][3] == data["B"]
+                        set_normalized_coefficient(κ[key[1][1]], z[key,count], 1)
+                    elseif key[1][1] in data["N_charging"]
+                        push!(new_charging_states, key[1])
+                        if !(key[1] in keys(flow_conservation_exprs_out))
+                            flow_conservation_exprs_out[key[1]] = @expression(mp_model, 0)
+                        end
+                        if !(key[1] in keys(flow_conservation_exprs_in))
+                            flow_conservation_exprs_in[key[1]] = @expression(mp_model, 0)
+                        end
+                        add_to_expression!(flow_conservation_exprs_out[key[1]], z[key, count])
+                    end
+                    if key[2][1] in data["N_depots"]
+                        set_normalized_coefficient(μ[key[2][1]], z[key,count], 1)
+                    elseif key[2][1] in data["N_charging"]
+                        push!(new_charging_states, key[2])
+                        if !(key[2] in keys(flow_conservation_exprs_out))
+                            flow_conservation_exprs_out[key[2]] = @expression(mp_model, 0)
+                        end
+                        if !(key[2] in keys(flow_conservation_exprs_in))
+                            flow_conservation_exprs_in[key[2]] = @expression(mp_model, 0)
+                        end
+                        add_to_expression!(flow_conservation_exprs_in[key[2]], z[key, count])
+                    end
+                    # 6: modify customer service constraints
+                    for l in data["N_pickups"]
+                        if subpath_service[(key, l)][count] == 1
+                            set_normalized_coefficient(ν[l], z[key, count], 1)
+                        end
+                    end
+                    # 7: modify objective
+                    set_objective_coefficient(mp_model, z[key, count], subpath_costs[key][count])
+                end
+            end
+        end
+        
+        for state in new_charging_states
+            if state in charging_states
+                con = pop!(flow_conservation_constrs, state)
+                delete(mp_model, con)
+            end
+            flow_conservation_constrs[state] = @constraint(
+                mp_model,
+                flow_conservation_exprs_out[state]
+                == flow_conservation_exprs_in[state]
+            )
+        end
+        union!(charging_states, new_charging_states)
+        mp_constraint_end_time = time()
+
+        push!(
+            params["number_of_new_charging_states"],
+            length(new_charging_states)
+        )
+        push!(
+            params["number_of_charging_states"],
+            length(charging_states)
+        )
+        push!(
+            params["number_of_keys"],
+            length(some_subpaths)
+        )
+        push!(
+            params["number_of_subpaths"], 
+            sum(length(v) for v in values(some_subpaths))
+        )
+        push!(
+            params["lp_relaxation_constraint_time_taken"],
+            round(mp_constraint_end_time - mp_constraint_start_time, digits = 3)
+        )
+        add_message!(
+            printlist, 
+            @sprintf(
+                "Iteration %3d | %.4e | %10d | %9.3f | %9.3f | %9.3f | %10d \n", 
+                counter,
+                params["objective"][counter],
+                params["number_of_subpaths"][counter],
+                params["lp_relaxation_solution_time_taken"][counter],
+                params["sp_total_time_taken"][counter],
+                params["lp_relaxation_constraint_time_taken"][counter],
+                params["number_of_current_subpaths"][counter],
+            ),
+            verbose,
+        )
+    end
+
+    results = Dict(
+        "objective" => mp_results["objective"],
+        "z" => mp_results["z"],
+        "κ" => mp_results["κ"],
+        "μ" => mp_results["μ"],
+        "ν" => mp_results["ν"],
+    )
+    params["counter"] = counter
+    end_time = time() 
+    time_taken = round(end_time - start_time, digits = 3)
+    params["time_taken"] = time_taken
+    params["time_limit_reached"] = (time_taken > time_limit)
+    params["lp_relaxation_time_taken"] = params["lp_relaxation_constraint_time_taken"] .+ params["lp_relaxation_solution_time_taken"]
+
+    for message in [
+        @sprintf("\n")
+        @sprintf("Objective: \t\t\t%.4e\n", mp_results["objective"])
+        @sprintf("Total time (LP): \t\t%10.3f s\n", sum(params["lp_relaxation_solution_time_taken"]))
+        @sprintf("Total time (SP): \t\t%10.3f s\n", sum(params["sp_total_time_taken"]))
+        @sprintf("Total time (LP construction): \t%10.3f s\n", sum(params["lp_relaxation_constraint_time_taken"]))
+        @sprintf("Total time: \t\t\t%10.3f s\n", time_taken)
+    ]
+        add_message!(printlist, message, verbose)
+    end
+    return results, params, printlist, some_subpaths
+
+end
+
 function construct_paths_from_subpath_solution(
     results, data, all_subpaths, 
     ;
