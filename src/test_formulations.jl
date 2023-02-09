@@ -90,238 +90,250 @@ end
 
 # Path formulations
 include("path_formulation.jl")
-for (size, run_index) in Iterators.product(
-    [
-        "xs",
-        "s",
-        # "m",
-    ],
-    collect(1:10),
-)
-    (
-        all_data[size][run_index]["path_cg_results"],
-        all_data[size][run_index]["path_cg_params"],
-        all_data[size][run_index]["path_cg_printlist"],
-        all_data[size][run_index]["path_cg_paths"],
-    ) = path_formulation_column_generation(
-        all_data[size][run_index]["G"],
-        all_data[size][run_index]["data"], 
-        all_data[size][run_index]["T_range"],
-        all_data[size][run_index]["B_range"],
-        ;
-        verbose = true,
-    );
-    all_data[size][run_index]["path_cg_number_of_paths"] = sum(
-        length(v) for v in values(all_data[size][run_index]["path_cg_paths"])
+begin
+    datestr = Dates.format(Dates.now(), "yyyymmdd_HHMMSS")
+    for (size, run_index) in Iterators.product(
+        [
+            "xs",
+            "s",
+            # "m",
+        ],
+        collect(1:10),
     )
-    filename = "path_cg_lp_$(size)_$(run_index)_$(Dates.format(Dates.now(), "yyyymmdd_HHMMSS"))"
-    open("$(@__DIR__)/../logs/$filename.txt", "w") do io
-        for message in all_data[size][run_index]["path_cg_printlist"]
-            write(io, message)
+        dirname = "$(@__DIR__)/../logs/$datestr/path_cg/$size/$run_index"
+        mkpath(dirname)
+        (
+            all_data[size][run_index]["path_cg_results"],
+            all_data[size][run_index]["path_cg_params"],
+            all_data[size][run_index]["path_cg_printlist"],
+            all_data[size][run_index]["path_cg_paths"],
+        ) = path_formulation_column_generation(
+            all_data[size][run_index]["G"],
+            all_data[size][run_index]["data"], 
+            all_data[size][run_index]["T_range"],
+            all_data[size][run_index]["B_range"],
+            ;
+            verbose = true,
+        );
+        all_data[size][run_index]["path_cg_number_of_paths"] = sum(
+            length(v) for v in values(all_data[size][run_index]["path_cg_paths"])
+        )
+        open(joinpath(dirname, "log.txt"), "w") do io
+            for message in all_data[size][run_index]["path_cg_printlist"]
+                write(io, message)
+            end
         end
+        groupedbar(
+            hcat(
+                all_data[size][run_index]["path_cg_params"]["lp_relaxation_time_taken"],
+                all_data[size][run_index]["path_cg_params"]["sp_total_time_taken"],
+            ),
+            group = repeat(
+                ["LP relaxation solve time", "Subproblem solve time"], 
+                inner = length(all_data[size][run_index]["path_cg_params"]["sp_total_time_taken"]),
+            ),
+            bar_position = :stack,
+            framestyle = :box,
+            xlabel = "Iteration",
+            xticks = 2:length(all_data[size][run_index]["path_cg_params"]["sp_total_time_taken"]),
+            ylabel = "Time (s)",
+            title = """
+            Time of LP relaxation and subproblem, with artificial starting paths
+            ($(all_data[size][run_index]["data"]["n_customers"]) customers, $(all_data[size][run_index]["data"]["n_vehicles"]) vehicles, $(all_data[size][run_index]["data"]["n_depots"]) depots, $(all_data[size][run_index]["data"]["n_charging"]) charging stations)
+            """,
+            size = (800, 600),
+        )
+        savefig(joinpath(dirname, "barplot.png"))
+        all_data[size][run_index]["path_cg_path_costs"] = compute_path_costs(
+            all_data[size][run_index]["data"], 
+            all_data[size][run_index]["path_cg_paths"],
+        )
+        all_data[size][run_index]["path_cg_path_service"] = compute_path_service(
+            all_data[size][run_index]["data"], 
+            all_data[size][run_index]["path_cg_paths"],
+        )
+        (
+            all_data[size][run_index]["path_cg_lpip_results"],
+            all_data[size][run_index]["path_cg_lpip_params"],
+        ) = path_formulation(
+            all_data[size][run_index]["data"],
+            all_data[size][run_index]["path_cg_paths"],
+            all_data[size][run_index]["path_cg_path_costs"],
+            all_data[size][run_index]["path_cg_path_service"],
+            all_data[size][run_index]["T_range"],
+            all_data[size][run_index]["B_range"],
+            ;
+            integral = true,
+        )
+        delete!(all_data[size][run_index], "path_cg_paths")
     end
-    groupedbar(
-        hcat(
-            all_data[size][run_index]["path_cg_params"]["lp_relaxation_time_taken"],
-            all_data[size][run_index]["path_cg_params"]["sp_total_time_taken"],
-        ),
-        group = repeat(
-            ["LP relaxation solve time", "Subproblem solve time"], 
-            inner = length(all_data[size][run_index]["path_cg_params"]["sp_total_time_taken"]),
-        ),
-        bar_position = :stack,
-        framestyle = :box,
-        xlabel = "Iteration",
-        xticks = 2:length(all_data[size][run_index]["path_cg_params"]["sp_total_time_taken"]),
-        ylabel = "Time (s)",
-        title = """
-        Time of LP relaxation and subproblem, with artificial starting paths
-        ($(all_data[size][run_index]["data"]["n_customers"]) customers, $(all_data[size][run_index]["data"]["n_vehicles"]) vehicles, $(all_data[size][run_index]["data"]["n_depots"]) depots, $(all_data[size][run_index]["data"]["n_charging"]) charging stations)
-        """,
-        size = (800, 600),
-    )
-    savefig("$(@__DIR__)/../plots/$filename.png")
-    all_data[size][run_index]["path_cg_path_costs"] = compute_path_costs(
-        all_data[size][run_index]["data"], 
-        all_data[size][run_index]["path_cg_paths"],
-    )
-    all_data[size][run_index]["path_cg_path_service"] = compute_path_service(
-        all_data[size][run_index]["data"], 
-        all_data[size][run_index]["path_cg_paths"],
-    )
-    (
-        all_data[size][run_index]["path_cg_lpip_results"],
-        all_data[size][run_index]["path_cg_lpip_params"],
-    ) = path_formulation(
-        all_data[size][run_index]["data"],
-        all_data[size][run_index]["path_cg_paths"],
-        all_data[size][run_index]["path_cg_path_costs"],
-        all_data[size][run_index]["path_cg_path_service"],
-        all_data[size][run_index]["T_range"],
-        all_data[size][run_index]["B_range"],
-        ;
-        integral = true,
-    )
-    delete!(all_data[size][run_index], "path_cg_paths")
 end
 
 # Subpath formulations
 
 ## Subpath generation
 include("subpath_formulation.jl")
-for (size, run_index) in Iterators.product(
-    [
-        "xs",
-        "s",
-        # "m",
-    ],
-    collect(1:10),
-)
-    (
-        all_data[size][run_index]["cg_results"],
-        all_data[size][run_index]["cg_params"],
-        all_data[size][run_index]["cg_printlist"],
-        all_data[size][run_index]["cg_subpaths"],
-    ) = subpath_formulation_column_generation_from_paths(
-        all_data[size][run_index]["G"],
-        all_data[size][run_index]["data"], 
-        all_data[size][run_index]["T_range"],
-        all_data[size][run_index]["B_range"],
-        ;
-        charging_in_subpath = true,
-        verbose = true,
-    );
-    all_data[size][run_index]["cg_number_of_subpaths"] = sum(
-        length(v) for v in values(all_data[size][run_index]["cg_subpaths"])
+begin
+    datestr = Dates.format(Dates.now(), "yyyymmdd_HHMMSS")
+    for (size, run_index) in Iterators.product(
+        [
+            "xs",
+            "s",
+            # "m",
+        ],
+        collect(1:10),
     )
-    filename = "cg_lp_$(size)_$(run_index)_$(Dates.format(Dates.now(), "yyyymmdd_HHMMSS"))"
-    open("$(@__DIR__)/../logs/$filename.txt", "w") do io
-        for message in all_data[size][run_index]["cg_printlist"]
-            write(io, message)
+        dirname = "$(@__DIR__)/../logs/$datestr/cg/$size/$run_index"
+        mkpath(dirname)
+        (
+            all_data[size][run_index]["cg_results"],
+            all_data[size][run_index]["cg_params"],
+            all_data[size][run_index]["cg_printlist"],
+            all_data[size][run_index]["cg_subpaths"],
+        ) = subpath_formulation_column_generation_from_paths(
+            all_data[size][run_index]["G"],
+            all_data[size][run_index]["data"], 
+            all_data[size][run_index]["T_range"],
+            all_data[size][run_index]["B_range"],
+            ;
+            charging_in_subpath = true,
+            verbose = true,
+        );
+        all_data[size][run_index]["cg_number_of_subpaths"] = sum(
+            length(v) for v in values(all_data[size][run_index]["cg_subpaths"])
+        )
+        open(joinpath(dirname, "log.txt"), "w") do io
+            for message in all_data[size][run_index]["cg_printlist"]
+                write(io, message)
+            end
         end
+        groupedbar(
+            hcat(
+                all_data[size][run_index]["cg_params"]["lp_relaxation_time_taken"],
+                all_data[size][run_index]["cg_params"]["sp_total_time_taken"],
+            ),
+            group = repeat(
+                ["LP relaxation solve time", "Subproblem solve time"], 
+                inner = length(all_data[size][run_index]["cg_params"]["sp_total_time_taken"]),
+            ),
+            bar_position = :stack,
+            framestyle = :box,
+            xlabel = "Iteration",
+            xticks = 2:length(all_data[size][run_index]["cg_params"]["sp_total_time_taken"]),
+            ylabel = "Time (s)",
+            title = """
+            Time of LP relaxation and subproblem, with artificial starting subpaths
+            ($(all_data[size][run_index]["data"]["n_customers"]) customers, $(all_data[size][run_index]["data"]["n_vehicles"]) vehicles, $(all_data[size][run_index]["data"]["n_depots"]) depots, $(all_data[size][run_index]["data"]["n_charging"]) charging stations)
+            """,
+            size = (800, 600),
+        )
+        savefig(joinpath(dirname, "barplot.png"))
+        all_data[size][run_index]["cg_subpath_costs"] = compute_subpath_costs(
+            all_data[size][run_index]["data"], 
+            all_data[size][run_index]["cg_subpaths"],
+        )
+        all_data[size][run_index]["cg_subpath_service"] = compute_subpath_service(
+            all_data[size][run_index]["data"], 
+            all_data[size][run_index]["cg_subpaths"],
+        )
+        (
+            all_data[size][run_index]["cg_lpip_results"],
+            all_data[size][run_index]["cg_lpip_params"],
+        ) = subpath_formulation(
+            all_data[size][run_index]["data"],
+            all_data[size][run_index]["cg_subpaths"],
+            all_data[size][run_index]["cg_subpath_costs"],
+            all_data[size][run_index]["cg_subpath_service"],
+            all_data[size][run_index]["T_range"],
+            all_data[size][run_index]["B_range"],
+            ;
+            integral = true,
+            charging_in_subpath = true,
+        )
+        delete!(all_data[size][run_index], "cg_subpaths")
     end
-    groupedbar(
-        hcat(
-            all_data[size][run_index]["cg_params"]["lp_relaxation_time_taken"],
-            all_data[size][run_index]["cg_params"]["sp_total_time_taken"],
-        ),
-        group = repeat(
-            ["LP relaxation solve time", "Subproblem solve time"], 
-            inner = length(all_data[size][run_index]["cg_params"]["sp_total_time_taken"]),
-        ),
-        bar_position = :stack,
-        framestyle = :box,
-        xlabel = "Iteration",
-        xticks = 2:length(all_data[size][run_index]["cg_params"]["sp_total_time_taken"]),
-        ylabel = "Time (s)",
-        title = """
-        Time of LP relaxation and subproblem, with artificial starting subpaths
-        ($(all_data[size][run_index]["data"]["n_customers"]) customers, $(all_data[size][run_index]["data"]["n_vehicles"]) vehicles, $(all_data[size][run_index]["data"]["n_depots"]) depots, $(all_data[size][run_index]["data"]["n_charging"]) charging stations)
-        """,
-        size = (800, 600),
-    )
-    savefig("$(@__DIR__)/../plots/$filename.png")
-    all_data[size][run_index]["cg_subpath_costs"] = compute_subpath_costs(
-        all_data[size][run_index]["data"], 
-        all_data[size][run_index]["cg_subpaths"],
-    )
-    all_data[size][run_index]["cg_subpath_service"] = compute_subpath_service(
-        all_data[size][run_index]["data"], 
-        all_data[size][run_index]["cg_subpaths"],
-    )
-    (
-        all_data[size][run_index]["cg_lpip_results"],
-        all_data[size][run_index]["cg_lpip_params"],
-    ) = subpath_formulation(
-        all_data[size][run_index]["data"],
-        all_data[size][run_index]["cg_subpaths"],
-        all_data[size][run_index]["cg_subpath_costs"],
-        all_data[size][run_index]["cg_subpath_service"],
-        all_data[size][run_index]["T_range"],
-        all_data[size][run_index]["B_range"],
-        ;
-        integral = true,
-        charging_in_subpath = true,
-    )
-    delete!(all_data[size][run_index], "cg_subpaths")
 end
 
 ## Subpath generation -- integrated CG
 include("subpath_formulation.jl")
-for (size, run_index) in Iterators.product(
-    [
-        "xs",
-        "s",
-        # "m",
-    ],
-    collect(1:10),
-)
-    (
-        all_data[size][run_index]["cgi_results"],
-        all_data[size][run_index]["cgi_params"],
-        all_data[size][run_index]["cgi_printlist"],
-        all_data[size][run_index]["cgi_subpaths"],
-    ) = subpath_formulation_column_generation_integrated_from_paths(
-        all_data[size][run_index]["G"],
-        all_data[size][run_index]["data"], 
-        all_data[size][run_index]["T_range"],
-        all_data[size][run_index]["B_range"],
-        ;
-        verbose = true,
-    );
-    all_data[size][run_index]["cgi_number_of_subpaths"] = sum(
-        length(v) for v in values(all_data[size][run_index]["cgi_subpaths"])
+begin
+    datestr = Dates.format(Dates.now(), "yyyymmdd_HHMMSS")
+    for (size, run_index) in Iterators.product(
+        [
+            "xs",
+            "s",
+            # "m",
+        ],
+        collect(1:10),
     )
-    filename = "cgi_lp_$(size)_$(run_index)_$(Dates.format(Dates.now(), "yyyymmdd_HHMMSS"))"
-    open("$(@__DIR__)/../logs/$filename.txt", "w") do io
-        for message in all_data[size][run_index]["cgi_printlist"]
-            write(io, message)
+        dirname = "$(@__DIR__)/../logs/$datestr/cgi/$size/$run_index"
+        mkpath(dirname)
+        (
+            all_data[size][run_index]["cgi_results"],
+            all_data[size][run_index]["cgi_params"],
+            all_data[size][run_index]["cgi_printlist"],
+            all_data[size][run_index]["cgi_subpaths"],
+        ) = subpath_formulation_column_generation_integrated_from_paths(
+            all_data[size][run_index]["G"],
+            all_data[size][run_index]["data"], 
+            all_data[size][run_index]["T_range"],
+            all_data[size][run_index]["B_range"],
+            ;
+            verbose = true,
+        );
+        all_data[size][run_index]["cgi_number_of_subpaths"] = sum(
+            length(v) for v in values(all_data[size][run_index]["cgi_subpaths"])
+        )
+        open(joinpath(dirname, "log.txt"), "w") do io
+            for message in all_data[size][run_index]["cgi_printlist"]
+                write(io, message)
+            end
         end
+        groupedbar(
+            hcat(
+                all_data[size][run_index]["cgi_params"]["lp_relaxation_time_taken"],
+                all_data[size][run_index]["cgi_params"]["sp_total_time_taken"],
+            ),
+            group = repeat(
+                ["LP relaxation solve time", "Subproblem solve time"], 
+                inner = length(all_data[size][run_index]["cgi_params"]["sp_total_time_taken"]),
+            ),
+            bar_position = :stack,
+            framestyle = :box,
+            xlabel = "Iteration",
+            xticks = 2:length(all_data[size][run_index]["cgi_params"]["sp_total_time_taken"]),
+            ylabel = "Time (s)",
+            title = """
+            Time of LP relaxation and subproblem, with artificial starting subpaths
+            ($(all_data[size][run_index]["data"]["n_customers"]) customers, $(all_data[size][run_index]["data"]["n_vehicles"]) vehicles, $(all_data[size][run_index]["data"]["n_depots"]) depots, $(all_data[size][run_index]["data"]["n_charging"]) charging stations)
+            """,
+            size = (800, 600),
+        )
+        savefig(joinpath(dirname, "barplot.png"))
+        all_data[size][run_index]["cgi_subpath_costs"] = compute_subpath_costs(
+            all_data[size][run_index]["data"], 
+            all_data[size][run_index]["cgi_subpaths"],
+        )
+        all_data[size][run_index]["cgi_subpath_service"] = compute_subpath_service(
+            all_data[size][run_index]["data"], 
+            all_data[size][run_index]["cgi_subpaths"],
+        )
+        (
+            all_data[size][run_index]["cgi_lpip_results"],
+            all_data[size][run_index]["cgi_lpip_params"],
+        ) = subpath_formulation(
+            all_data[size][run_index]["data"],
+            all_data[size][run_index]["cgi_subpaths"],
+            all_data[size][run_index]["cgi_subpath_costs"],
+            all_data[size][run_index]["cgi_subpath_service"],
+            all_data[size][run_index]["T_range"],
+            all_data[size][run_index]["B_range"],
+            ;
+            integral = true,
+            charging_in_subpath = true,
+        )
+        delete!(all_data[size][run_index], "cgi_subpaths")
     end
-    groupedbar(
-        hcat(
-            all_data[size][run_index]["cgi_params"]["lp_relaxation_time_taken"],
-            all_data[size][run_index]["cgi_params"]["sp_total_time_taken"],
-        ),
-        group = repeat(
-            ["LP relaxation solve time", "Subproblem solve time"], 
-            inner = length(all_data[size][run_index]["cgi_params"]["sp_total_time_taken"]),
-        ),
-        bar_position = :stack,
-        framestyle = :box,
-        xlabel = "Iteration",
-        xticks = 2:length(all_data[size][run_index]["cgi_params"]["sp_total_time_taken"]),
-        ylabel = "Time (s)",
-        title = """
-        Time of LP relaxation and subproblem, with artificial starting subpaths
-        ($(all_data[size][run_index]["data"]["n_customers"]) customers, $(all_data[size][run_index]["data"]["n_vehicles"]) vehicles, $(all_data[size][run_index]["data"]["n_depots"]) depots, $(all_data[size][run_index]["data"]["n_charging"]) charging stations)
-        """,
-        size = (800, 600),
-    )
-    savefig("$(@__DIR__)/../plots/$filename.png")
-    all_data[size][run_index]["cgi_subpath_costs"] = compute_subpath_costs(
-        all_data[size][run_index]["data"], 
-        all_data[size][run_index]["cgi_subpaths"],
-    )
-    all_data[size][run_index]["cgi_subpath_service"] = compute_subpath_service(
-        all_data[size][run_index]["data"], 
-        all_data[size][run_index]["cgi_subpaths"],
-    )
-    (
-        all_data[size][run_index]["cgi_lpip_results"],
-        all_data[size][run_index]["cgi_lpip_params"],
-    ) = subpath_formulation(
-        all_data[size][run_index]["data"],
-        all_data[size][run_index]["cgi_subpaths"],
-        all_data[size][run_index]["cgi_subpath_costs"],
-        all_data[size][run_index]["cgi_subpath_service"],
-        all_data[size][run_index]["T_range"],
-        all_data[size][run_index]["B_range"],
-        ;
-        integral = true,
-        charging_in_subpath = true,
-    )
-    delete!(all_data[size][run_index], "cgi_subpaths")
 end
 
 ## Subpath enumeration
