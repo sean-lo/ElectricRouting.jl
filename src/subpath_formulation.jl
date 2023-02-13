@@ -764,14 +764,16 @@ function generate_subpaths_withcharge_from_paths(
                         for s in path.subpaths
                     ]
                 )
-                for (ind, s) in enumerate(path.subpaths)
+                for (ind, swc) in enumerate(path.subpaths)
                     state_pair = (states[ind], states[ind+1])
+                    s = Subpath(swc)
                     if state_pair in keys(generated_subpaths_withcharge)
-                        push!(generated_subpaths_withcharge[state_pair], Subpath(s))
+                        if !any(isequal(s, s1) for s1 in generated_subpaths_withcharge[state_pair])
+                            push!(generated_subpaths_withcharge[state_pair], s)
+                        end
                     else
-                        generated_subpaths_withcharge[state_pair] = [Subpath(s)]
+                        generated_subpaths_withcharge[state_pair] = [s]
                     end
-                    # generated_subpaths_withcharge[state_pair] = [Subpath(s)]
                 end
             end
         end
