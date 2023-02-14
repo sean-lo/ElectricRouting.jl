@@ -1412,18 +1412,16 @@ function subpath_formulation_column_generation_from_paths(
     params = Dict()
     params["number_of_subpaths"] = [sum(length(v) for v in values(some_subpaths))]
     params["number_of_keys"] = [length(some_subpaths)]
-    params["objective"] = []
-    params["κ"] = []
-    params["λ"] = []
-    params["μ"] = []
-    params["ν"] = []
-    # params["ξ"] = []
-    params["lp_relaxation_time_taken"] = []
-    params["lp_relaxation_solution_time_taken"] = []
-    params["lp_relaxation_constraint_time_taken"] = []
-    params["sp_total_time_taken"] = []
-    params["sp_max_time_taken"] = []
-    params["number_of_current_subpaths"] = []
+    params["objective"] = Float64[]
+    params["κ"] = Vector{Dict{Int, Float64}}[]
+    params["μ"] = Vector{Dict{Int, Float64}}[]
+    params["ν"] = Vector{Vector{Float64}}[]
+    params["lp_relaxation_time_taken"] = Float64[]
+    params["lp_relaxation_solution_time_taken"] = Float64[]
+    params["lp_relaxation_constraint_time_taken"] = Float64[]
+    params["sp_total_time_taken"] = Float64[]
+    params["sp_max_time_taken"] = Float64[]
+    params["number_of_current_subpaths"] = Int[]
     printlist = []
 
     counter = 0
@@ -1478,7 +1476,6 @@ function subpath_formulation_column_generation_from_paths(
 
         push!(params["objective"], mp_results["objective"])
         push!(params["κ"], mp_results["κ"])
-        push!(params["λ"], mp_results["λ"])
         push!(params["μ"], mp_results["μ"])
         push!(params["ν"], mp_results["ν"])
         push!(params["lp_relaxation_time_taken"], mp_params["time_taken"])
@@ -1594,21 +1591,21 @@ function subpath_formulation_column_generation(
     params = Dict()
     params["number_of_subpaths"] = [sum(length(v) for v in values(some_subpaths))]
     params["number_of_keys"] = [length(some_subpaths)]
-    params["objective"] = []
-    params["κ"] = []
+    params["objective"] = Float64[]
+    params["κ"] = Vector{Dict{Int, Float64}}[]
     params["λ"] = []
-    params["μ"] = []
-    params["ν"] = []
-    # params["ξ"] = []
-    params["lp_relaxation_time_taken"] = []
-    params["sp_total_time_taken"] = []
-    params["sp_max_time_taken"] = []
-    params["number_of_current_subpaths"] = []
-    params["smallest_reduced_costs"] = []
-    printlist = []
-
+    params["μ"] = Vector{Dict{Int, Float64}}[]
+    params["ν"] = Vector{Vector{Float64}}[]
+    params["lp_relaxation_time_taken"] = Float64[]
+    params["sp_total_time_taken"] = Float64[]
+    params["sp_max_time_taken"] = Float64[]
+    params["number_of_current_subpaths"] = Int[]
+    params["smallest_reduced_costs"] = Float64[]
+    
+    printlist = String[]
     counter = 0
     converged = false
+
     add_message!(
         printlist,
         @sprintf(
@@ -1780,11 +1777,10 @@ function subpath_formulation_column_generation_integrated_from_paths(
     mp_results = Dict()
     params = Dict()
     params["number_of_subpaths"] = [sum(length(v) for v in values(some_subpaths))]
-    params["number_of_keys"] = [length(some_subpaths)]
     params["objective"] = Float64[]
-    params["κ"] = []
-    params["μ"] = []
-    params["ν"] = []
+    params["κ"] = Vector{Dict{Int, Float64}}[]
+    params["μ"] = Vector{Dict{Int, Float64}}[]
+    params["ν"] = Vector{Vector{Float64}}[]
     params["lp_relaxation_solution_time_taken"] = Float64[]
     params["sp_total_time_taken"] = Float64[]
     params["sp_max_time_taken"] = Float64[]
@@ -1794,7 +1790,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
     params["number_of_charging_states"] = Int[]
     charging_states = Set()
 
-    printlist = []
+    printlist = String[]
     counter = 0
     converged = false
 

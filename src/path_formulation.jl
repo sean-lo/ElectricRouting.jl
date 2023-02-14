@@ -285,18 +285,18 @@ function path_formulation_column_generation(
     params = Dict()
     params["number_of_paths"] = [sum(length(v) for v in values(some_paths))]
     params["number_of_keys"] = [length(some_paths)]
-    params["objective"] = []
-    params["κ"] = []
-    params["μ"] = []
-    params["ν"] = []
-    params["lp_relaxation_time_taken"] = []
-    params["lp_relaxation_constraint_time_taken"] = []
-    params["lp_relaxation_solution_time_taken"] = []
-    params["sp_total_time_taken"] = []
-    params["sp_max_time_taken"] = []
-    params["number_of_current_paths"] = []
-    printlist = []
-
+    params["objective"] = Float64[]
+    params["κ"] = Vector{Dict{Int, Float64}}[]
+    params["μ"] = Vector{Dict{Int, Float64}}[]
+    params["ν"] = Vector{Vector{Float64}}[]
+    params["lp_relaxation_time_taken"] = Float64[]
+    params["lp_relaxation_constraint_time_taken"] = Float64[]
+    params["lp_relaxation_solution_time_taken"] = Float64[]
+    params["sp_total_time_taken"] = Float64[]
+    params["sp_max_time_taken"] = Float64[]
+    params["number_of_current_paths"] = Int[]
+    
+    printlist = String[]
     counter = 0
     converged = false
     add_message!(
