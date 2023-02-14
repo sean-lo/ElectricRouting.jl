@@ -35,6 +35,21 @@ function compute_path_reduced_cost(
     )
 end
 
+function compute_path_cost(
+    data,
+    p::Path,
+    M::Float64 = 1e6,
+)
+    return sum(
+        s.artificial ? M : (
+            length(s.arcs) == 0 ? 0 : (
+                sum(data["c"][a...] for a in s.arcs)
+            )
+        )
+        for s in p.subpaths
+    )
+end
+
 function compute_path_costs(
     data,
     all_paths,
@@ -42,14 +57,7 @@ function compute_path_costs(
 )
     path_costs = Dict(
         key => [
-            sum(
-                s.artificial ? M : (
-                    length(s.arcs) == 0 ? 0 : (
-                        sum(data["c"][a...] for a in s.arcs)
-                    )
-                )
-                for s in p.subpaths
-            )
+            compute_path_cost(data, p, M)
             for p in all_paths[key]
         ]
         for key in keys(all_paths)
@@ -58,12 +66,20 @@ function compute_path_costs(
 end
 
 function compute_path_service(
+    data,
+    p::Path,
+    i::Int,
+)
+    return sum(s.served[i] for s in p.subpaths)
+end
+
+function compute_path_services(
     data, 
     all_paths,
 )
     path_service = Dict(
         (key, i) => [
-            sum(s.served[i] for s in p.subpaths)
+            compute_path_service(data, p, i)
             for p in all_paths[key]
         ]
         for key in keys(all_paths), i in 1:data["n_customers"]
@@ -315,7 +331,7 @@ function path_formulation_column_generation(
             data, 
             some_paths,
         )
-        path_service = compute_path_service(
+        path_service = compute_path_services(
             data, 
             some_paths,
         )
