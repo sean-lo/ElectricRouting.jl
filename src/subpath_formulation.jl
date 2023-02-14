@@ -1824,8 +1824,9 @@ function subpath_formulation_column_generation_integrated_from_paths(
     )
 
     mp_model = @suppress Model(Gurobi.Optimizer)
+    JuMP.set_string_names_on_creation(mp_model, false)
     z = Dict{Tuple{Tuple{Tuple{Int, Float64, Float64}, Tuple{Int, Float64, Float64}}, Int}, VariableRef}(
-        (key, p) => @variable(mp_model, lower_bound = 0, base_name = "z[($(key), $(p))]")
+        (key, p) => @variable(mp_model, lower_bound = 0)
         for key in keys(some_subpaths)
             for p in 1:length(some_subpaths[key])
     )
@@ -1838,7 +1839,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
                 for p in 1:length(some_subpaths[((i,0,data["B"]),state2)])
             )        
             for (state1, state2) in keys(some_subpaths)
-                if state1[1] == i
+                if state1[1] == i && state1[2] == 0 && state1[3] == data["B"]
         )
         == data["v_start"][findfirst(x -> (x == i), data["N_depots"])]
     )
@@ -1966,7 +1967,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
                     end
                     # 4: create variable
                     count += 1
-                    z[(key, count)] = @variable(mp_model, lower_bound = 0, base_name = "z[($(key), $(count))]")
+                    z[(key, count)] = @variable(mp_model, lower_bound = 0)
                     # 5: modify constraints starting from depot, ending at depot, and flow conservation
                     if key[1][1] in data["N_depots"] && key[1][2] == 0.0 && key[1][3] == data["B"]
                         set_normalized_coefficient(κ[key[1][1]], z[key,count], 1)
