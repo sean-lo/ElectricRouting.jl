@@ -1411,7 +1411,6 @@ function subpath_formulation_column_generation_from_paths(
     mp_results = Dict()
     params = Dict()
     params["number_of_subpaths"] = [sum(length(v) for v in values(some_subpaths))]
-    params["number_of_keys"] = [length(some_subpaths)]
     params["objective"] = Float64[]
     params["κ"] = Dict{Int, Float64}[]
     params["μ"] = Dict{Int, Float64}[]
@@ -1520,10 +1519,6 @@ function subpath_formulation_column_generation_from_paths(
             end
         end
         push!(
-            params["number_of_keys"],
-            length(some_subpaths)
-        )
-        push!(
             params["number_of_subpaths"], 
             sum(length(v) for v in values(some_subpaths))
         )
@@ -1590,7 +1585,6 @@ function subpath_formulation_column_generation(
     mp_results = Dict()
     params = Dict()
     params["number_of_subpaths"] = [sum(length(v) for v in values(some_subpaths))]
-    params["number_of_keys"] = [length(some_subpaths)]
     params["objective"] = Float64[]
     params["κ"] = Dict{Int, Float64}[]
     params["λ"] = []
@@ -1699,10 +1693,6 @@ function subpath_formulation_column_generation(
                 end
             end
         end
-        push!(
-            params["number_of_keys"],
-            length(some_subpaths)
-        )
         push!(
             params["number_of_subpaths"], 
             sum(length(v) for v in values(some_subpaths))
@@ -2026,10 +2016,6 @@ function subpath_formulation_column_generation_integrated_from_paths(
         push!(
             params["number_of_charging_states"],
             length(charging_states)
-        )
-        push!(
-            params["number_of_keys"],
-            length(some_subpaths)
         )
         push!(
             params["number_of_subpaths"], 
