@@ -417,7 +417,7 @@ function path_formulation_column_generation(
     )
     params["counter"] = counter
     end_time = time()
-    time_taken = end_time - start_time
+    time_taken = round(end_time - start_time, digits = 3)
     params["time_taken"] = time_taken
     params["time_limit_reached"] = (time_taken > time_limit)
 
