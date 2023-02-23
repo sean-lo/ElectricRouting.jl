@@ -958,7 +958,9 @@ all_time_metrics |>
     x -> select(x, Not([:size, :run_index])) |>
     x -> describe(x, :detailed)
 
-time_taken_df = all_time_metrics |>
+# Experiment 1: comparing different formulations
+all_metrics_df = CSV.read("$(@__DIR__)/../logs/20230216_105009/all_metrics.csv", DataFrame)
+time_taken_df = all_metrics_df |>
     x -> select(x, [:size, :run_index, :cg_time_taken, :cgi_time_taken, :path_cg_time_taken]) |>
     x -> stack(x, [:cg_time_taken, :cgi_time_taken, :path_cg_time_taken])
 
@@ -966,17 +968,23 @@ time_taken_df = all_time_metrics |>
     string.(:variable),
     :value,
     fill_alpha = 0.5,
+    title = "Running time of different algorithms (smallest, n = 9)",
+    ylabel = "Time (s)",
+    legend = :topleft,
 )
 @df filter(r -> (r.size == "xs"), time_taken_df) dotplot!(
     string.(:variable),
     :value,
-    marker=(:black, stroke(0))
+    marker=(:black, stroke(0)),
 )
 
 @df filter(r -> (r.size == "s"), time_taken_df) boxplot(
     string.(:variable),
     :value,
     fill_alpha = 0.5,
+    title = "Running time of different algorithms (small, n = 12)",
+    ylabel = "Time (s)",
+    legend = :topleft,
 )
 @df filter(r -> (r.size == "s"), time_taken_df) dotplot!(
     string.(:variable),
