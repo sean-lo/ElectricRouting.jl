@@ -202,6 +202,12 @@ function compare_formulations!(
                 charging_in_subpath = true,
             )
             delete!(all_data[size][run_index], "cg_subpaths")
+            delete!(all_data[size][run_index], "cg_subpath_costs")
+            delete!(all_data[size][run_index], "cg_subpath_service")
+            delete!(all_data[size][run_index], "cg_printlist")
+            delete!(all_data[size][run_index]["cg_results"], "z")
+            delete!(all_data[size][run_index]["cg_lpip_results"], "λ")
+            delete!(all_data[size][run_index]["cg_lpip_results"], "z")
         end
     end
 
@@ -274,6 +280,12 @@ function compare_formulations!(
                 charging_in_subpath = true,
             )
             delete!(all_data[size][run_index], "cgi_subpaths")
+            delete!(all_data[size][run_index], "cgi_subpath_costs")
+            delete!(all_data[size][run_index], "cgi_subpath_service")
+            delete!(all_data[size][run_index], "cgi_printlist")
+            delete!(all_data[size][run_index]["cgi_results"], "z")
+            delete!(all_data[size][run_index]["cgi_lpip_results"], "λ")
+            delete!(all_data[size][run_index]["cgi_lpip_results"], "z")
         end
     end
 
@@ -333,6 +345,13 @@ function compare_formulations!(
             @printf("Time taken:\t\t\t%7.1f s\n", all_data[size][run_index]["enumerate_all_subpaths_time_taken"])
             @printf("Objective: \t\t\t%6.1f\n", all_data[size][run_index]["enum_ip_results"]["objective"])
             @printf("LP Objective:\t\t\t%6.1f\n", all_data[size][run_index]["enum_lp_results"]["objective"])
+            delete!(all_data[size][run_index], "all_subpaths")
+            delete!(all_data[size][run_index], "all_subpath_costs")
+            delete!(all_data[size][run_index], "all_subpath_service")
+            delete!(all_data[size][run_index]["enum_ip_results"], "λ")
+            delete!(all_data[size][run_index]["enum_ip_results"], "z")
+            delete!(all_data[size][run_index]["enum_lp_results"], "λ")
+            delete!(all_data[size][run_index]["enum_lp_results"], "z")
         end
     end
 
@@ -404,6 +423,11 @@ function compare_formulations!(
                 integral = true,
             )
             delete!(all_data[size][run_index], "path_cg_paths")
+            delete!(all_data[size][run_index], "path_cg_path_costs")
+            delete!(all_data[size][run_index], "path_cg_path_service")
+            delete!(all_data[size][run_index], "path_cg_printlist")
+            delete!(all_data[size][run_index]["path_cg_results"], "y")
+            delete!(all_data[size][run_index]["path_cg_lpip_results"], "y")
         end
     end
 
@@ -475,6 +499,11 @@ function compare_formulations!(
                 integral = true,
             )
             delete!(all_data[size][run_index], "path_cgi_paths")
+            delete!(all_data[size][run_index], "path_cgi_path_costs")
+            delete!(all_data[size][run_index], "path_cgi_path_service")
+            delete!(all_data[size][run_index], "path_cgi_printlist")
+            delete!(all_data[size][run_index]["path_cgi_results"], "y")
+            delete!(all_data[size][run_index]["path_cgi_lpip_results"], "y")
         end
     end
 
