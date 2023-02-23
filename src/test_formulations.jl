@@ -1027,4 +1027,45 @@ all_metrics_df = CSV.read("$(@__DIR__)/../logs/20230216_130511/all_metrics.csv",
     marker=(:black, stroke(0))
 )
 
+# Experiment 4: adding medium-sized entries
+all_metrics_df = CSV.read("$(@__DIR__)/../logs/20230221_204918/all_metrics.csv", DataFrame)
+all_metrics_df |>
+    x -> filter(r -> (r.size == "m"), x) |>
+    x -> select(x, [:cg_time_taken, :cgi_time_taken, :path_cg_time_taken]) |>
+    x -> describe(x, :detailed)
+
+time_taken_df = all_metrics_df |>
+    x -> select(x, [:size, :run_index, :cg_time_taken, :cgi_time_taken, :path_cg_time_taken]) |>
+    x -> stack(x, [:cg_time_taken, :cgi_time_taken, :path_cg_time_taken])
+
+@df filter(r -> (r.size == "m"), time_taken_df) boxplot(
+    string.(:variable),
+    :value,
+    fill_alpha = 0.5,
+    title = "Running time of different algorithms (medium, n = 15)",
+    ylabel = "Time (s)",
+    legend = :topleft,
+    label = false,
+)
+@df filter(r -> (r.size == "m"), time_taken_df) dotplot!(
+    string.(:variable),
+    :value,
+    marker = (:black, stroke(0)),
+    label = false,
+)
+
+@df time_taken_df groupedboxplot(
+    string.(:variable),
+    :value,
+    group = :size,
+    title = "Comparing different algorithms for n = 9, 12, 15",
+    ylabel = "Time (s)",
+)
+@df time_taken_df groupeddotplot!(
+    string.(:variable),
+    :value,
+    group = :size,
+    marker = (:black, stroke(0)),
+    label = false,
+)
 ### Scratch work
