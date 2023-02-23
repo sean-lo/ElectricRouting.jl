@@ -14,18 +14,44 @@ all_data = Dict(
     "m" => Dict(),
     "l" => Dict(),
 )
+for ind in 1:5
+    all_data["xs_B$ind"] = Dict()
+    all_data["s_B$ind"] = Dict()
+end
+for ind in 1:4
+    all_data["xs_TW$ind"] = Dict()
+    all_data["s_TW$ind"] = Dict()
+end
 
 params = [
-    ("xs", 2, 9, 2, 3, 1500.0, 1050.0, 3),
-    ("s", 2, 12, 2, 3, 1900.0, 1550.0, 4),
-    ("m", 2, 15, 2, 3, 2250.0, 1850.0, 5),
-    ("l", 2, 18, 2, 3, 2550.0, 2050.0, 6),
+    ("xs", 2, 9, 2, 3, 1500.0, 1050.0, 3, 0.4),
+    ("xs_B1", 2, 9, 2, 3, 1500.0, 1100.0, 3, 0.4),
+    ("xs_B2", 2, 9, 2, 3, 1500.0, 1150.0, 3, 0.4),
+    ("xs_B3", 2, 9, 2, 3, 1500.0, 1200.0, 3, 0.4),
+    ("xs_B4", 2, 9, 2, 3, 1500.0, 1250.0, 3, 0.4),
+    ("xs_B5", 2, 9, 2, 3, 1500.0, 1300.0, 3, 0.4),
+    ("xs_TW1", 2, 9, 2, 3, 1500.0, 1050.0, 3, 0.45),
+    ("xs_TW2", 2, 9, 2, 3, 1500.0, 1050.0, 3, 0.5),
+    ("xs_TW3", 2, 9, 2, 3, 1500.0, 1050.0, 3, 0.55),
+    ("xs_TW4", 2, 9, 2, 3, 1500.0, 1050.0, 3, 0.6),
+    ("s", 2, 12, 2, 3, 1900.0, 1550.0, 4, 0.65),
+    ("s_B1", 2, 12, 2, 3, 1900.0, 1600.0, 4, 0.4),
+    ("s_B2", 2, 12, 2, 3, 1900.0, 1650.0, 4, 0.4),
+    ("s_B3", 2, 12, 2, 3, 1900.0, 1700.0, 4, 0.4),
+    ("s_B4", 2, 12, 2, 3, 1900.0, 1750.0, 4, 0.4),
+    ("s_B5", 2, 12, 2, 3, 1900.0, 1800.0, 4, 0.4),
+    ("s_TW1", 2, 12, 2, 3, 1900.0, 1550.0, 4, 0.45),
+    ("s_TW2", 2, 12, 2, 3, 1900.0, 1550.0, 4, 0.5),
+    ("s_TW3", 2, 12, 2, 3, 1900.0, 1550.0, 4, 0.55),
+    ("s_TW4", 2, 12, 2, 3, 1900.0, 1550.0, 4, 0.6),
+    ("m", 2, 15, 2, 3, 2250.0, 1850.0, 5, 0.4),
+    ("l", 2, 18, 2, 3, 2550.0, 2050.0, 6, 0.4),
 ]
 
 for (
     size,
     n_depots, n_customers, n_charging, n_vehicles,
-    T, B, batch,
+    T, B, batch, permissiveness,
 ) in params, seed in 1:10
     run_index = seed
     _, data = generate_instance_pair(
@@ -41,6 +67,7 @@ for (
         B = B,
         μ = 5.0,
         batch = batch,
+        permissiveness = permissiveness,
     )
     data = preprocess_arcs(data, true, false)
     G = construct_graph(data)
@@ -359,7 +386,7 @@ function compare_formulations!(
                 all_data[size][run_index]["data"], 
                 all_data[size][run_index]["path_cg_paths"],
             )
-            all_data[size][run_index]["path_cg_path_service"] = compute_path_service(
+            all_data[size][run_index]["path_cg_path_service"] = compute_path_services(
                 all_data[size][run_index]["data"], 
                 all_data[size][run_index]["path_cg_paths"],
             )
@@ -430,7 +457,7 @@ function compare_formulations!(
                 all_data[size][run_index]["data"], 
                 all_data[size][run_index]["path_cgi_paths"],
             )
-            all_data[size][run_index]["path_cgi_path_service"] = compute_path_service(
+            all_data[size][run_index]["path_cgi_path_service"] = compute_path_services(
                 all_data[size][run_index]["data"], 
                 all_data[size][run_index]["path_cgi_paths"],
             )
