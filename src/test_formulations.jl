@@ -1009,4 +1009,22 @@ all_metrics_df = CSV.read("$(@__DIR__)/../logs/20230216_121329/all_metrics.csv",
     marker=(:black, stroke(0))
 )
 
+# Experiment 3: varying length of time windows
+all_metrics_df = CSV.read("$(@__DIR__)/../logs/20230216_130511/all_metrics.csv", DataFrame)
+
+@df all_metrics_df boxplot(
+    string.(:size),
+    :cgi_time_taken,
+    fill_alpha = 0.5,
+    title = "Running time, varying time windows (smallest, n = 9)",
+    ylabel = "Time (s)",
+    xlabel = "Time window size",
+    legend = :topleft,
+)
+@df all_metrics_df dotplot!(
+    string.(:size),
+    :cgi_time_taken,
+    marker=(:black, stroke(0))
+)
+
 ### Scratch work
