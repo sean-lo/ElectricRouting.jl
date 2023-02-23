@@ -1356,10 +1356,8 @@ function subpath_formulation(
         "solution_time_taken" => round(solution_time_taken, digits=3),
     )
     results = Dict(
-        "model" => model,
         "objective" => objective_value(model),
         "z" => value.(z),
-        "flow_conservation_constrs" => flow_conservation_constrs,
     )
     if !integral
         # retrieve dual solutions
@@ -1539,6 +1537,9 @@ function subpath_formulation_column_generation_from_paths(
     results = Dict(
         "objective" => mp_results["objective"],
         "z" => mp_results["z"],
+        "κ" => mp_results["κ"],
+        "μ" => mp_results["μ"],
+        "ν" => mp_results["ν"],
     )
     params["counter"] = counter
     end_time = time()

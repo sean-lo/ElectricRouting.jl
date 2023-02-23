@@ -198,7 +198,6 @@ function path_formulation(
         "solution_time_taken" => round(solution_time_taken, digits=3),
     )
     results = Dict(
-        "model" => model,
         "objective" => objective_value(model),
         "y" => value.(y),
     )
