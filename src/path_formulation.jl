@@ -219,6 +219,7 @@ function generate_paths(
     μ, 
     ν,
     ;
+    charge_to_full_only::Bool = false,
 )
     generated_paths = Dict{
         Tuple{Tuple{Int, Float64, Float64}, Tuple{Int, Float64, Float64}}, 
@@ -230,6 +231,8 @@ function generate_paths(
             starting_node, 
             G, data, T_range, B_range, 
             κ, μ, ν, 
+            ;
+            charge_to_full_only = charge_to_full_only,
         )
         labels = r.value
         if sp_max_time_taken < r.time
@@ -262,6 +265,7 @@ function path_formulation_column_generation(
     T_range,
     B_range,
     ;
+    charge_to_full_only::Bool = false,
     verbose::Bool = false,
     time_limit::Float64 = Inf,
 )
@@ -357,6 +361,8 @@ function path_formulation_column_generation(
         generate_paths_result = @timed generate_paths(
             G, data, T_range, B_range, 
             mp_results["κ"], mp_results["μ"], mp_results["ν"]
+            ;
+            charge_to_full_only = charge_to_full_only,
         )
         (current_paths, sp_max_time_taken) = generate_paths_result.value
 
