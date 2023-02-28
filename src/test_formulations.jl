@@ -86,6 +86,7 @@ function compare_formulations!(
     sizes,
     run_indexes,
     ;
+    cg_charge_to_full_only::Bool = false,
     arc::Bool = false,
     arc_sizes::Vector = sizes,
     arc_run_indexes::Vector = run_indexes,
@@ -148,6 +149,7 @@ function compare_formulations!(
                 all_data[size][run_index]["B_range"],
                 ;
                 charging_in_subpath = true,
+                charge_to_full_only = cg_charge_to_full_only,
                 verbose = true,
             );
             all_data[size][run_index]["cg_number_of_subpaths"] = sum(
@@ -226,6 +228,7 @@ function compare_formulations!(
                 all_data[size][run_index]["T_range"],
                 all_data[size][run_index]["B_range"],
                 ;
+                charge_to_full_only = cg_charge_to_full_only,
                 verbose = true,
             );
             all_data[size][run_index]["cgi_number_of_subpaths"] = sum(
@@ -370,6 +373,7 @@ function compare_formulations!(
                 all_data[size][run_index]["T_range"],
                 all_data[size][run_index]["B_range"],
                 ;
+                charge_to_full_only = cg_charge_to_full_only,
                 verbose = true,
             );
             all_data[size][run_index]["path_cg_number_of_paths"] = sum(
@@ -431,83 +435,6 @@ function compare_formulations!(
         end
     end
 
-    if path_cgi
-        for (size, run_index) in Iterators.product(path_cgi_sizes, path_cgi_run_indexes)
-            dirname = joinpath(dir, "path_cgi/$size/$run_index")
-            mkpath(dirname)
-            (
-                all_data[size][run_index]["path_cgi_results"],
-                all_data[size][run_index]["path_cgi_params"],
-                all_data[size][run_index]["path_cgi_printlist"],
-                all_data[size][run_index]["path_cgi_paths"],
-            ) = path_formulation_column_generation(
-                all_data[size][run_index]["G"],
-                all_data[size][run_index]["data"], 
-                all_data[size][run_index]["T_range"],
-                all_data[size][run_index]["B_range"],
-                ;
-                verbose = true,
-            );
-            all_data[size][run_index]["path_cgi_number_of_paths"] = sum(
-                length(v) for v in values(all_data[size][run_index]["path_cgi_paths"])
-            )
-            open(joinpath(dirname, "log.txt"), "w") do io
-                for message in all_data[size][run_index]["path_cgi_printlist"]
-                    write(io, message)
-                end
-            end
-            groupedbar(
-                hcat(
-                    all_data[size][run_index]["path_cgi_params"]["lp_relaxation_time_taken"],
-                    all_data[size][run_index]["path_cgi_params"]["sp_total_time_taken"],
-                ),
-                group = repeat(
-                    ["LP relaxation solve time", "Subproblem solve time"], 
-                    inner = length(all_data[size][run_index]["path_cgi_params"]["sp_total_time_taken"]),
-                ),
-                bar_position = :stack,
-                framestyle = :box,
-                xlabel = "Iteration",
-                xticks = 2:length(all_data[size][run_index]["path_cgi_params"]["sp_total_time_taken"]),
-                ylabel = "Time (s)",
-                title = """
-                Time of LP relaxation and subproblem, with artificial starting paths
-                ($(all_data[size][run_index]["data"]["n_customers"]) customers, $(all_data[size][run_index]["data"]["n_vehicles"]) vehicles, $(all_data[size][run_index]["data"]["n_depots"]) depots, $(all_data[size][run_index]["data"]["n_charging"]) charging stations)
-                """,
-                size = (800, 600),
-            )
-            savefig(joinpath(dirname, "barplot.png"))
-            all_data[size][run_index]["path_cgi_path_costs"] = compute_path_costs(
-                all_data[size][run_index]["data"], 
-                all_data[size][run_index]["path_cgi_paths"],
-            )
-            all_data[size][run_index]["path_cgi_path_service"] = compute_path_services(
-                all_data[size][run_index]["data"], 
-                all_data[size][run_index]["path_cgi_paths"],
-            )
-            (
-                all_data[size][run_index]["path_cgi_lpip_results"],
-                all_data[size][run_index]["path_cgi_lpip_params"],
-            ) = path_formulation(
-                all_data[size][run_index]["data"],
-                all_data[size][run_index]["path_cgi_paths"],
-                all_data[size][run_index]["path_cgi_path_costs"],
-                all_data[size][run_index]["path_cgi_path_service"],
-                all_data[size][run_index]["T_range"],
-                all_data[size][run_index]["B_range"],
-                ;
-                integral = true,
-            )
-            delete!(all_data[size][run_index], "path_cgi_paths")
-            delete!(all_data[size][run_index], "path_cgi_path_costs")
-            delete!(all_data[size][run_index], "path_cgi_path_service")
-            delete!(all_data[size][run_index], "path_cgi_printlist")
-            delete!(all_data[size][run_index]["path_cgi_results"], "y")
-            delete!(all_data[size][run_index]["path_cgi_lpip_results"], "y")
-        end
-    end
-
-
     metrics = [
         :size,
         :run_index,
@@ -564,19 +491,6 @@ function compare_formulations!(
         :path_cg_lpip_time_taken,
         :path_cg_lpip_solution_time_taken,
         :path_cg_lpip_constraint_time_taken,
-        :path_cgi_number_of_paths,
-        :path_cgi_time_taken,
-        :path_cgi_mp_total_time_taken,
-        :path_cgi_mp_total_constraint_time_taken,
-        :path_cgi_mp_total_solution_time_taken,
-        :path_cgi_sp_total_time_taken,
-        :path_cgi_mp_mean_time_taken,
-        :path_cgi_mp_mean_constraint_time_taken,
-        :path_cgi_mp_mean_solution_time_taken,
-        :path_cgi_sp_mean_time_taken,
-        :path_cgi_lpip_time_taken,
-        :path_cgi_lpip_solution_time_taken,
-        :path_cgi_lpip_constraint_time_taken,
         :enum_number_of_subpaths,
         :enumerate_all_subpaths_time_taken,
         :enum_ip_objective, 
@@ -755,38 +669,6 @@ function compare_formulations!(
             d[:path_cg_lpip_solution_time_taken] = missing
             d[:path_cg_lpip_constraint_time_taken] = missing
         end
-        if "path_cgi_params" in keys(all_data[size][run_index])
-            d[:path_cgi_number_of_paths] = all_data[size][run_index]["path_cgi_params"]["number_of_paths"][end]
-            d[:path_cgi_time_taken] = all_data[size][run_index]["path_cgi_params"]["time_taken"]
-            d[:path_cgi_mp_total_time_taken] = sum(all_data[size][run_index]["path_cgi_params"]["lp_relaxation_time_taken"])
-            d[:path_cgi_mp_total_constraint_time_taken] = sum(all_data[size][run_index]["path_cgi_params"]["lp_relaxation_constraint_time_taken"])
-            d[:path_cgi_mp_total_solution_time_taken] = sum(all_data[size][run_index]["path_cgi_params"]["lp_relaxation_solution_time_taken"])
-            d[:path_cgi_sp_total_time_taken] = sum(all_data[size][run_index]["path_cgi_params"]["sp_total_time_taken"])
-            d[:path_cgi_mp_mean_time_taken] = mean(all_data[size][run_index]["path_cgi_params"]["lp_relaxation_time_taken"])
-            d[:path_cgi_mp_mean_constraint_time_taken] = mean(all_data[size][run_index]["path_cgi_params"]["lp_relaxation_constraint_time_taken"])
-            d[:path_cgi_mp_mean_solution_time_taken] = mean(all_data[size][run_index]["path_cgi_params"]["lp_relaxation_solution_time_taken"])
-            d[:path_cgi_sp_mean_time_taken] = mean(all_data[size][run_index]["path_cgi_params"]["sp_total_time_taken"])
-        else
-            d[:path_cgi_number_of_paths] = missing
-            d[:path_cgi_time_taken] = missing
-            d[:path_cgi_mp_total_time_taken] = missing
-            d[:path_cgi_mp_total_constraint_time_taken] = missing
-            d[:path_cgi_mp_total_solution_time_taken] = missing
-            d[:path_cgi_sp_total_time_taken] = missing
-            d[:path_cgi_mp_mean_time_taken] = missing
-            d[:path_cgi_mp_mean_constraint_time_taken] = missing
-            d[:path_cgi_mp_mean_solution_time_taken] = missing
-            d[:path_cgi_sp_mean_time_taken] = missing
-        end
-        if "path_cgi_lpip_params" in keys(all_data[size][run_index])
-            d[:path_cgi_lpip_time_taken] = all_data[size][run_index]["path_cgi_lpip_params"]["time_taken"]
-            d[:path_cgi_lpip_solution_time_taken] = all_data[size][run_index]["path_cgi_lpip_params"]["solution_time_taken"]
-            d[:path_cgi_lpip_constraint_time_taken] = all_data[size][run_index]["path_cgi_lpip_params"]["constraint_time_taken"]
-        else
-            d[:path_cgi_lpip_time_taken] = missing
-            d[:path_cgi_lpip_solution_time_taken] = missing
-            d[:path_cgi_lpip_constraint_time_taken] = missing
-        end
         if "all_subpaths" in keys(all_data[size][run_index])
             d[:enum_number_of_subpaths] = sum(length(v) for v in values(all_data[size][run_index]["all_subpaths"]))
         else
@@ -828,14 +710,12 @@ compare_formulations!(
     subpath_cg = true, 
     subpath_cgi = true, 
     path_cg = true,
-    path_cgi = true,
 )
 compare_formulations!(
     all_data, ["xs", "s"], collect(1:10),
     subpath_cg = true, 
     subpath_cgi = true, 
     path_cg = true,
-    path_cgi = true,
 )
 
 all_metrics_df = CSV.read("$(@__DIR__)/../logs/20230216_105009/all_metrics.csv", DataFrame)
