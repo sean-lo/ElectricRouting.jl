@@ -758,6 +758,40 @@ function find_smallest_reduced_cost_paths(
     return labels
 end
 
+function update_generated_subpaths_withcharge_from_path!(
+    generated_subpaths_withcharge,
+    path::PathWithCost,
+)
+    ## VERSION 1: include all subpaths in path if cumulative cost is negative
+    if path.cost ≥ -1e-6
+        return generated_subpaths_withcharge
+    end
+    ## VERSION 2: include all subpaths if any r.c. is negative
+    # if all(s.cost ≥ -1e-6 for s in path.subpaths)
+    #     return generated_subpaths_withcharge
+    # end
+    states = vcat(
+        [(path.subpaths[1].starting_node, path.subpaths[1].starting_time, path.subpaths[1].starting_charge)],
+        [
+            (s.current_node, s.round_time, s.round_charge)
+            for s in path.subpaths
+        ]
+    )
+    for (ind, swc) in enumerate(path.subpaths)
+        state_pair = (states[ind], states[ind+1])
+        s = Subpath(swc)
+        if state_pair in keys(generated_subpaths_withcharge)
+            if !any(isequal(s, s1) for s1 in generated_subpaths_withcharge[state_pair])
+                push!(generated_subpaths_withcharge[state_pair], s)
+            end
+        else
+            generated_subpaths_withcharge[state_pair] = [s]
+        end
+    end
+    
+    return generated_subpaths_withcharge
+end
+
 function generate_subpaths_withcharge_from_paths(
     G,
     data,
@@ -792,34 +826,9 @@ function generate_subpaths_withcharge_from_paths(
         # remove those corresponding to positive reduced cost
         for (end_node, path_dict) in pairs(labels)
             for path in values(path_dict)
-                ## VERSION 1: include all subpaths in path if cumulative cost is negative
-                if path.cost ≥ -1e-6
-                    continue
-                end
-                ## VERSION 2: include all subpaths if any r.c. is negative
-                # if all(s.cost ≥ -1e-6 for s in path.subpaths)
-                #     continue
-                # end
-                states = vcat(
-                    [(starting_node, 0.0, data["B"])],
-                    [
-                        (
-                            s.current_node, s.round_time, s.round_charge
-                        )
-                        for s in path.subpaths
-                    ]
+                update_generated_subpaths_withcharge_from_path!(
+                    generated_subpaths_withcharge, path, 
                 )
-                for (ind, swc) in enumerate(path.subpaths)
-                    state_pair = (states[ind], states[ind+1])
-                    s = Subpath(swc)
-                    if state_pair in keys(generated_subpaths_withcharge)
-                        if !any(isequal(s, s1) for s1 in generated_subpaths_withcharge[state_pair])
-                            push!(generated_subpaths_withcharge[state_pair], s)
-                        end
-                    else
-                        generated_subpaths_withcharge[state_pair] = [s]
-                    end
-                end
             end
         end
     end
