@@ -812,7 +812,6 @@ function generate_subpaths_withcharge_from_paths(
         Vector{Subpath},
     }()
     generated_paths_withcharge = Dict{Int, Any}()
-    sp_max_time_taken = 0.0
     for starting_node in data["N_depots"]
         r = @timed find_smallest_reduced_cost_paths(
             starting_node, G, data, T_range, B_range, 
@@ -822,9 +821,6 @@ function generate_subpaths_withcharge_from_paths(
         )
         labels = r.value
         generated_paths_withcharge[starting_node] = labels
-        if r.time > sp_max_time_taken
-            sp_max_time_taken = r.time
-        end
         # remove those corresponding to positive reduced cost
         for (end_node, path_dict) in pairs(labels)
             for path in values(path_dict)
@@ -834,7 +830,8 @@ function generate_subpaths_withcharge_from_paths(
             end
         end
     end
-    return generated_subpaths_withcharge, nothing, sp_max_time_taken, generated_paths_withcharge
+    return generated_subpaths_withcharge, nothing, nothing, generated_paths_withcharge
+end
 end
 
 function find_smallest_reduced_cost_subpaths(
@@ -1038,7 +1035,6 @@ function generate_subpaths_withcharge(
         Vector{Subpath},
     }()
     smallest_reduced_costs = Dict{Tuple, Float64}()
-    sp_max_time_taken = 0.0
     for (starting_node, starting_time, starting_charge) in Iterators.flatten((
         Iterators.product(
             data["N_charging"],
@@ -1061,9 +1057,6 @@ function generate_subpaths_withcharge(
             charge_to_full_only = charge_to_full_only,
         )
         labels = r.value
-        if r.time > sp_max_time_taken
-            sp_max_time_taken = r.time
-        end
         # remove those corresponding to positive reduced cost
         smallest_reduced_cost = Inf
         for (end_node, subpath_dict) in pairs(labels)
@@ -1089,7 +1082,7 @@ function generate_subpaths_withcharge(
         end
         smallest_reduced_costs[state1] = smallest_reduced_cost
     end
-    return generated_subpaths_withcharge, smallest_reduced_costs, sp_max_time_taken
+    return generated_subpaths_withcharge, smallest_reduced_costs, nothing
 end
 
 function compute_subpath_cost(
@@ -1490,7 +1483,6 @@ function subpath_formulation_column_generation_from_paths(
     params["lp_relaxation_solution_time_taken"] = Float64[]
     params["lp_relaxation_constraint_time_taken"] = Float64[]
     params["sp_total_time_taken"] = Float64[]
-    params["sp_max_time_taken"] = Float64[]
     params["number_of_current_subpaths"] = Int[]
     printlist = []
 
@@ -1560,15 +1552,11 @@ function subpath_formulation_column_generation_from_paths(
             charging_in_subpath = charging_in_subpath,
             charge_to_full_only = charge_to_full_only,
         )
-        (current_subpaths, _, sp_max_time_taken) = generate_subpaths_result.value
+        (current_subpaths, _, _) = generate_subpaths_result.value
 
         push!(
             params["sp_total_time_taken"],
             round(generate_subpaths_result.time, digits=3)
-        )
-        push!(
-            params["sp_max_time_taken"],
-            round(sp_max_time_taken, digits=3)
         )
         if length(current_subpaths) == 0
             push!(params["number_of_current_subpaths"], 0)
@@ -1668,7 +1656,6 @@ function subpath_formulation_column_generation(
     params["ν"] = Vector{Float64}[]
     params["lp_relaxation_time_taken"] = Float64[]
     params["sp_total_time_taken"] = Float64[]
-    params["sp_max_time_taken"] = Float64[]
     params["number_of_current_subpaths"] = Int[]
     params["smallest_reduced_costs"] = Float64[]
     
@@ -1736,15 +1723,11 @@ function subpath_formulation_column_generation(
             charging_in_subpath = charging_in_subpath,
             charge_to_full_only = charge_to_full_only,
         )
-        (current_subpaths, smallest_reduced_costs, sp_max_time_taken) = generate_subpaths_result.value
+        (current_subpaths, smallest_reduced_costs, _) = generate_subpaths_result.value
 
         push!(
             params["sp_total_time_taken"],
             round(generate_subpaths_result.time, digits=3)
-        )
-        push!(
-            params["sp_max_time_taken"],
-            round(sp_max_time_taken, digits=3)
         )
         if length(current_subpaths) == 0
             push!(params["number_of_current_subpaths"], 0)
@@ -1851,7 +1834,6 @@ function subpath_formulation_column_generation_integrated_from_paths(
     params["ν"] = Vector{Float64}[]
     params["lp_relaxation_solution_time_taken"] = Float64[]
     params["sp_total_time_taken"] = Float64[]
-    params["sp_max_time_taken"] = Float64[]
     params["lp_relaxation_constraint_time_taken"] = Float64[]
     params["number_of_current_subpaths"] = Int[]
     params["number_of_new_charging_states"] = Int[]
