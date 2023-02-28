@@ -811,6 +811,7 @@ function generate_subpaths_withcharge_from_paths(
         Tuple{Tuple{Int, Float64, Float64}, Tuple{Int, Float64, Float64}}, 
         Vector{Subpath},
     }()
+    generated_paths_withcharge = Dict{Int, Any}()
     sp_max_time_taken = 0.0
     for starting_node in data["N_depots"]
         r = @timed find_smallest_reduced_cost_paths(
@@ -820,6 +821,7 @@ function generate_subpaths_withcharge_from_paths(
             charge_to_full_only = charge_to_full_only,
         )
         labels = r.value
+        generated_paths_withcharge[starting_node] = labels
         if r.time > sp_max_time_taken
             sp_max_time_taken = r.time
         end
@@ -832,7 +834,7 @@ function generate_subpaths_withcharge_from_paths(
             end
         end
     end
-    return generated_subpaths_withcharge, nothing, sp_max_time_taken
+    return generated_subpaths_withcharge, nothing, sp_max_time_taken, generated_paths_withcharge
 end
 
 function find_smallest_reduced_cost_subpaths(
