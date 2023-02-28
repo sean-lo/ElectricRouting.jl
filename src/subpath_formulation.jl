@@ -235,6 +235,40 @@ function generate_charging_options(
     ))
 end
 
+function generate_full_charging_option(
+    starting_time,
+    starting_charge,
+    data,
+    T_range,
+    B_range,
+)
+    # If maximum time reached, charge to maximum time and get the corresponding charge
+    # If maximum charge reached, charge to the next higher time (in T_range) and get to max charge
+    end_time_unbounded = starting_time + (data["B"] - starting_charge) / data["μ"]
+    if end_time_unbounded > data["T"]
+        end_time = data["T"]
+        round_time = end_time
+        delta_time = end_time - starting_time
+        delta_charge = delta_time * data["μ"]
+        end_charge = starting_charge + delta_charge
+        round_charge = dfloor(end_charge, B_range)
+    else
+        # This dceil means that if you charge to full charge,
+        # you have to wait until the next discretized time
+        end_time = end_time_unbounded
+        round_time = dceil(end_time, T_range)
+        delta_time = end_time - starting_time
+        end_charge = data["B"]
+        round_charge = data["B"]
+        delta_charge = data["B"] - starting_charge
+    end
+    return [(
+        delta_time, delta_charge,
+        end_time, end_charge,
+        round_time, round_charge,
+    )]
+end
+
 function enumerate_subpaths_withcharge(
     starting_node, 
     starting_time, 
@@ -506,6 +540,7 @@ function find_smallest_reduced_cost_paths(
     # dual values associated with customer service constraints
     ν,
     ;
+    charge_to_full_only::Bool = false,
     verbose::Bool = false,
 )
 
@@ -605,12 +640,19 @@ function find_smallest_reduced_cost_paths(
                 end
 
                 if j in data["N_charging"]
-                    charging_options = generate_charging_options(
-                        current_time, current_charge, 
-                        data, T_range, B_range,
-                    )
-                    if length(charging_options) == 0
-                        continue
+                    if charge_to_full_only
+                        charging_options = generate_full_charging_option(
+                            current_time, current_charge, 
+                            data, T_range, B_range,
+                        )
+                    else
+                        charging_options = generate_charging_options(
+                            current_time, current_charge, 
+                            data, T_range, B_range,
+                        )
+                        if length(charging_options) == 0
+                            continue
+                        end
                     end
                 else
                     charging_options = [(
@@ -726,6 +768,7 @@ function generate_subpaths_withcharge_from_paths(
     ν,
     ;
     charging_in_subpath::Bool = true,
+    charge_to_full_only::Bool = false,
 )
     if !charging_in_subpath
         error()
@@ -739,6 +782,8 @@ function generate_subpaths_withcharge_from_paths(
         r = @timed find_smallest_reduced_cost_paths(
             starting_node, G, data, T_range, B_range, 
             κ, μ, ν,
+            ;
+            charge_to_full_only = charge_to_full_only,
         )
         labels = r.value
         if r.time > sp_max_time_taken
@@ -795,6 +840,8 @@ function find_smallest_reduced_cost_subpaths(
     μ,
     # dual values associated with customer service constraints
     ν,
+    ;
+    charge_to_full_only::Bool = false,
 )
     """
     Generates feasible subpaths from a state 
@@ -861,13 +908,21 @@ function find_smallest_reduced_cost_subpaths(
                 end
                 current_cost = s.cost + modified_costs[i,j]
                 if j in data["N_charging"]
-                    charging_options = generate_charging_options(
-                        current_time, current_charge, 
-                        data, T_range, B_range,
-                    )
-                    if length(charging_options) == 0
-                        continue
+                    if charge_to_full_only
+                        charging_options = generate_full_charging_option(
+                            current_time, current_charge, 
+                            data, T_range, B_range,
+                        )
+                    else
+                        charging_options = generate_charging_options(
+                            current_time, current_charge, 
+                            data, T_range, B_range,
+                        )
+                        if length(charging_options) == 0
+                            continue
+                        end
                     end
+                    # FIXME: this looks wrong; I should not be restricting myself to the "cheapest charging option"
                     (val, ind) = findmin(
                         λ[(j, rt, rc)]
                         for (_, _, _, _, rt, rc) in charging_options
@@ -956,6 +1011,7 @@ function generate_subpaths_withcharge(
     ν,
     ;
     charging_in_subpath::Bool = true,
+    charge_to_full_only::Bool = false,
 )
     """
     Generates subpaths (inclusive of charging) with 
@@ -966,7 +1022,10 @@ function generate_subpaths_withcharge(
     if !charging_in_subpath
         error()
     end
-    generated_subpaths_withcharge = Dict{Tuple, Vector}()
+    generated_subpaths_withcharge = Dict{
+        Tuple{Tuple{Int, Float64, Float64}, Tuple{Int, Float64, Float64}}, 
+        Vector{Subpath},
+    }()
     smallest_reduced_costs = Dict{Tuple, Float64}()
     sp_max_time_taken = 0.0
     for (starting_node, starting_time, starting_charge) in Iterators.flatten((
@@ -987,6 +1046,8 @@ function generate_subpaths_withcharge(
             starting_node, starting_time, starting_charge,
             G, data, T_range, B_range,
             κ, λ, μ, ν,
+            ;
+            charge_to_full_only = charge_to_full_only,
         )
         labels = r.value
         if r.time > sp_max_time_taken
@@ -1388,6 +1449,7 @@ function subpath_formulation_column_generation_from_paths(
     B_range,
     ;
     charging_in_subpath::Bool = true,
+    charge_to_full_only::Bool = false,
     verbose::Bool = false,
     time_limit::Float64 = Inf,
 )
@@ -1485,6 +1547,7 @@ function subpath_formulation_column_generation_from_paths(
             mp_results["κ"], mp_results["μ"], mp_results["ν"],
             ;
             charging_in_subpath = charging_in_subpath,
+            charge_to_full_only = charge_to_full_only,
         )
         (current_subpaths, _, sp_max_time_taken) = generate_subpaths_result.value
 
@@ -1566,6 +1629,7 @@ function subpath_formulation_column_generation(
     B_range,
     ;
     charging_in_subpath::Bool = true,
+    charge_to_full_only::Bool = false,
     verbose::Bool = false,
 )
     function add_message!(
@@ -1659,6 +1723,7 @@ function subpath_formulation_column_generation(
             mp_results["κ"], mp_results["λ"], mp_results["μ"], mp_results["ν"],
             ;
             charging_in_subpath = charging_in_subpath,
+            charge_to_full_only = charge_to_full_only,
         )
         (current_subpaths, smallest_reduced_costs, sp_max_time_taken) = generate_subpaths_result.value
 
@@ -1740,6 +1805,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
     T_range,
     B_range,
     ;
+    charge_to_full_only::Bool = false,
     verbose::Bool = true,
     time_limit::Float64 = Inf,
 )
@@ -1907,6 +1973,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
             mp_results["ν"],
             ;
             charging_in_subpath = true,
+            charge_to_full_only = charge_to_full_only,
         )
         (current_subpaths, _, sp_max_time_taken) = generate_subpaths_result.value
 
