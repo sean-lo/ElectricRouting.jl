@@ -105,9 +105,6 @@ function compare_formulations!(
     path_cg::Bool = false,
     path_cg_sizes::Vector = sizes,
     path_cg_run_indexes::Vector = run_indexes,
-    path_cgi::Bool = false,
-    path_cgi_sizes::Vector = sizes,
-    path_cgi_run_indexes::Vector = run_indexes,
 )
     datestr = Dates.format(Dates.now(), "yyyymmdd_HHMMSS")
     dir = "$(@__DIR__)/../logs/$datestr/"
