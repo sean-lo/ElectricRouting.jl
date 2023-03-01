@@ -97,6 +97,8 @@ function compare_formulations!(
     subpath_cgi::Bool = false,
     subpath_cgi_sizes::Vector = sizes,
     subpath_cgi_run_indexes::Vector = run_indexes,    
+    subpath_cgi_time_windows::Bool = true,
+    subpath_cgi_no_time_windows_naive::Bool = true,
     subpath_enum::Bool = false,
     subpath_enum_sizes::Vector = sizes,
     subpath_enum_run_indexes::Vector = run_indexes,
@@ -219,20 +221,66 @@ function compare_formulations!(
         for (size, run_index) in Iterators.product(subpath_cgi_sizes, subpath_cgi_run_indexes)
             dirname = joinpath(dir, "cgi/$size/$run_index")
             mkpath(dirname)
-            (
-                all_data[size][run_index]["cgi_results"],
-                all_data[size][run_index]["cgi_params"],
-                all_data[size][run_index]["cgi_printlist"],
-                all_data[size][run_index]["cgi_subpaths"],
-            ) = subpath_formulation_column_generation_integrated_from_paths(
-                all_data[size][run_index]["G"],
-                all_data[size][run_index]["data"], 
-                all_data[size][run_index]["T_range"],
-                all_data[size][run_index]["B_range"],
-                ;
-                charge_to_full_only = cg_charge_to_full_only,
-                verbose = true,
-            );
+
+            data_ntw = deepcopy(all_data[size][run_index]["data"])
+            data_ntw["α"] .= 0.0
+            data_ntw["β"] .= data_ntw["T"]
+
+            if subpath_cgi_time_windows
+                (
+                    all_data[size][run_index]["cgi_results"],
+                    all_data[size][run_index]["cgi_params"],
+                    all_data[size][run_index]["cgi_printlist"],
+                    all_data[size][run_index]["cgi_subpaths"],
+                ) = subpath_formulation_column_generation_integrated_from_paths(
+                    all_data[size][run_index]["G"],
+                    all_data[size][run_index]["data"], 
+                    all_data[size][run_index]["T_range"],
+                    all_data[size][run_index]["B_range"],
+                    ;
+                    charge_bounded = cg_charge_bounded,
+                    charge_to_full_only = cg_charge_to_full_only,
+                    time_windows = true,
+                    verbose = true,
+                )
+            else
+                if subpath_cgi_no_time_windows_naive
+                    
+                    (
+                        all_data[size][run_index]["cgi_results"],
+                        all_data[size][run_index]["cgi_params"],
+                        all_data[size][run_index]["cgi_printlist"],
+                        all_data[size][run_index]["cgi_subpaths"],
+                    ) = subpath_formulation_column_generation_integrated_from_paths(
+                        all_data[size][run_index]["G"],
+                        data_ntw, 
+                        all_data[size][run_index]["T_range"],
+                        all_data[size][run_index]["B_range"],
+                        ;
+                        charge_bounded = cg_charge_bounded,
+                        charge_to_full_only = cg_charge_to_full_only,
+                        time_windows = true,
+                        verbose = true,
+                    )
+                else
+                    (
+                        all_data[size][run_index]["cgi_results"],
+                        all_data[size][run_index]["cgi_params"],
+                        all_data[size][run_index]["cgi_printlist"],
+                        all_data[size][run_index]["cgi_subpaths"],
+                    ) = subpath_formulation_column_generation_integrated_from_paths(
+                        all_data[size][run_index]["G"],
+                        all_data[size][run_index]["data"], 
+                        all_data[size][run_index]["T_range"],
+                        all_data[size][run_index]["B_range"],
+                        ;
+                        charge_bounded = cg_charge_bounded,
+                        charge_to_full_only = cg_charge_to_full_only,
+                        time_windows = false,
+                        verbose = true,
+                    )
+                end
+            end
             all_data[size][run_index]["cgi_number_of_subpaths"] = sum(
                 length(v) for v in values(all_data[size][run_index]["cgi_subpaths"])
             )
@@ -262,28 +310,54 @@ function compare_formulations!(
                 size = (800, 600),
             )
             savefig(joinpath(dirname, "barplot.png"))
-            all_data[size][run_index]["cgi_subpath_costs"] = compute_subpath_costs(
-                all_data[size][run_index]["data"], 
-                all_data[size][run_index]["cgi_subpaths"],
-            )
-            all_data[size][run_index]["cgi_subpath_service"] = compute_subpath_service(
-                all_data[size][run_index]["data"], 
-                all_data[size][run_index]["cgi_subpaths"],
-            )
-            (
-                all_data[size][run_index]["cgi_lpip_results"],
-                all_data[size][run_index]["cgi_lpip_params"],
-            ) = subpath_formulation(
-                all_data[size][run_index]["data"],
-                all_data[size][run_index]["cgi_subpaths"],
-                all_data[size][run_index]["cgi_subpath_costs"],
-                all_data[size][run_index]["cgi_subpath_service"],
-                all_data[size][run_index]["T_range"],
-                all_data[size][run_index]["B_range"],
-                ;
-                integral = true,
-                charging_in_subpath = true,
-            )
+            if subpath_cgi_time_windows || !subpath_cgi_no_time_windows_naive
+                    all_data[size][run_index]["cgi_subpath_costs"] = compute_subpath_costs(
+                    all_data[size][run_index]["data"], 
+                    all_data[size][run_index]["cgi_subpaths"],
+                )
+                all_data[size][run_index]["cgi_subpath_service"] = compute_subpath_service(
+                    all_data[size][run_index]["data"], 
+                    all_data[size][run_index]["cgi_subpaths"],
+                )
+                (
+                    all_data[size][run_index]["cgi_lpip_results"],
+                    all_data[size][run_index]["cgi_lpip_params"],
+                ) = subpath_formulation(
+                    all_data[size][run_index]["data"],
+                    all_data[size][run_index]["cgi_subpaths"],
+                    all_data[size][run_index]["cgi_subpath_costs"],
+                    all_data[size][run_index]["cgi_subpath_service"],
+                    all_data[size][run_index]["T_range"],
+                    all_data[size][run_index]["B_range"],
+                    ;
+                    integral = true,
+                    charging_in_subpath = true,
+                )
+            else
+                all_data[size][run_index]["cgi_subpath_costs"] = compute_subpath_costs(
+                    data_ntw, 
+                    all_data[size][run_index]["cgi_subpaths"],
+                )
+                all_data[size][run_index]["cgi_subpath_service"] = compute_subpath_service(
+                    data_ntw, 
+                    all_data[size][run_index]["cgi_subpaths"],
+                )
+                (
+                    all_data[size][run_index]["cgi_lpip_results"],
+                    all_data[size][run_index]["cgi_lpip_params"],
+                ) = subpath_formulation(
+                    data_ntw,
+                    all_data[size][run_index]["cgi_subpaths"],
+                    all_data[size][run_index]["cgi_subpath_costs"],
+                    all_data[size][run_index]["cgi_subpath_service"],
+                    all_data[size][run_index]["T_range"],
+                    all_data[size][run_index]["B_range"],
+                    ;
+                    integral = true,
+                    charging_in_subpath = true,
+                )
+            end
+
             delete!(all_data[size][run_index], "cgi_subpaths")
             delete!(all_data[size][run_index], "cgi_subpath_costs")
             delete!(all_data[size][run_index], "cgi_subpath_service")

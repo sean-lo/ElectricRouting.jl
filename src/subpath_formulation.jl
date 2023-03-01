@@ -1951,17 +1951,30 @@ function subpath_formulation_column_generation_integrated_from_paths(
         push!(params["ν"], mp_results["ν"])
         push!(params["lp_relaxation_solution_time_taken"], mp_results["solution_time_taken"])
 
-        generate_subpaths_result = @timed generate_subpaths_withcharge_from_paths(
-            G, data, T_range, B_range,
-            mp_results["κ"],
-            mp_results["μ"], 
-            mp_results["ν"],
-            ;
-            charging_in_subpath = true,
-            charge_bounded = charge_bounded,
-            charge_to_full_only = charge_to_full_only,
-        )
-        (current_subpaths, _, sp_max_time_taken) = generate_subpaths_result.value
+        if time_windows
+            generate_subpaths_result = @timed generate_subpaths_withcharge_from_paths(
+                G, data, T_range, B_range,
+                mp_results["κ"],
+                mp_results["μ"], 
+                mp_results["ν"],
+                ;
+                charging_in_subpath = true,
+                charge_bounded = charge_bounded,
+                charge_to_full_only = charge_to_full_only,
+            )
+        else
+            generate_subpaths_result = @timed generate_subpaths_withcharge_from_paths_notimewindows(
+                G, data, T_range, B_range,
+                mp_results["κ"],
+                mp_results["μ"], 
+                mp_results["ν"],
+                ;
+                charge_bounded = charge_bounded,
+                charge_to_full_only = charge_to_full_only,
+            )
+        end
+        (current_subpaths, _, _) = generate_subpaths_result.value
+
 
         push!(
             params["sp_total_time_taken"],
