@@ -86,16 +86,17 @@ function compare_formulations!(
     sizes,
     run_indexes,
     ;
-    cg_charge_to_full_only::Bool = false,
     arc::Bool = false,
     arc_sizes::Vector = sizes,
     arc_run_indexes::Vector = run_indexes,
+    cg_charge_bounded::Bool = true,
+    cg_charge_to_full_only::Bool = false,
     subpath_cg::Bool = false,
     subpath_cg_sizes::Vector = sizes,
     subpath_cg_run_indexes::Vector = run_indexes,
     subpath_cgi::Bool = false,
     subpath_cgi_sizes::Vector = sizes,
-    subpath_cgi_run_indexes::Vector = run_indexes,
+    subpath_cgi_run_indexes::Vector = run_indexes,    
     subpath_enum::Bool = false,
     subpath_enum_sizes::Vector = sizes,
     subpath_enum_run_indexes::Vector = run_indexes,
@@ -149,6 +150,7 @@ function compare_formulations!(
                 all_data[size][run_index]["B_range"],
                 ;
                 charging_in_subpath = true,
+                charge_bounded = cg_charge_bounded,
                 charge_to_full_only = cg_charge_to_full_only,
                 verbose = true,
             );
@@ -373,6 +375,7 @@ function compare_formulations!(
                 all_data[size][run_index]["T_range"],
                 all_data[size][run_index]["B_range"],
                 ;
+                charge_bounded = cg_charge_bounded,
                 charge_to_full_only = cg_charge_to_full_only,
                 verbose = true,
             );
