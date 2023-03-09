@@ -90,6 +90,7 @@ end
 @composite Base.@kwdef mutable struct SubpathWithCost 
     Subpath...
     cost::Float64 = 0.0
+    explored::Bool = false
 end
 
 Base.show(io::IO, s::SubpathWithCost) = begin 
