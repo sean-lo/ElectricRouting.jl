@@ -13,8 +13,12 @@ struct DoubleStateOrdering <: Base.Order.Ordering
 end
 
 import Base.Order.lt
+import DataStructures.eq
 lt(o::TripleStateOrdering, a, b) = isless((a[2], -a[3], a[1]), (b[2], -b[3], b[1]))
 lt(o::DoubleStateOrdering, a, b) = isless((a[1], -a[2]), (b[1], -b[2]))
+eq(o::TripleStateOrdering, a, b) = isequal(a, b)
+eq(o::DoubleStateOrdering, a, b) = isequal(a, b)
+
 
 function enumerate_subpaths(
     starting_node, 
@@ -997,7 +1001,36 @@ function find_smallest_reduced_cost_subpaths_notimewindows(
     return labels, new_labels
 end
 
-function generate_subpaths_withcharge_from_paths_notimewindows(
+function remove_dominated_subpaths_paths_withcharge!(
+    collection::SortedDict{
+        Tuple{Float64, Float64}, 
+        Union{PathWithCost, SubpathWithCost},
+        DoubleStateOrdering
+    },
+)
+    st1 = beforestartsemitoken(collection)
+    # while deleted
+    while true
+        st1 = advance((collection, st1))
+        if status((collection, st1)) == 3 # past-end token
+            break
+        end
+        k1, v1 = deref((collection, st1))
+        for (st2, k2, v2) in semitokens(inclusive(collection, st1, lastindex(collection)))
+            if (
+                lt(dso, k1, k2)
+                && v1.cost ≤ v2.cost
+            )
+                # println("$(k1[1]), $(k1[2]), $(v1.cost) dominates $(k2[1]), $(k2[2]), $(v2.cost)")
+                if status((collection, st2)) == 1
+                    delete!((collection, st2))
+                end
+            end
+        end
+    end
+end
+
+function generate_subpaths_withcharge_from_paths_notimewindows_V2(
     G,
     data, 
     T_range, 
@@ -1008,10 +1041,56 @@ function generate_subpaths_withcharge_from_paths_notimewindows(
     ;
     charge_bounded::Bool = true,
     charge_to_full_only::Bool = false,
+    rough::Bool = true,
 )
+
+    function add_subpath_path_withcost_to_collection!(
+        collection::Union{
+            SortedDict{
+                Tuple{Float64, Float64}, 
+                PathWithCost,
+                DoubleStateOrdering
+            },
+            SortedDict{
+                Tuple{Float64, Float64}, 
+                SubpathWithCost,
+                DoubleStateOrdering
+            },
+        },
+        k1::Tuple{Float64, Float64}, 
+        v1::Union{PathWithCost, SubpathWithCost},
+    )
+        added = true
+        for (k2, v2) in collection
+            # check if v2 dominates v1
+            if (
+                lt(dso, k2, k1)
+                && v2.cost ≤ v1.cost
+            )
+                added = false
+                # println("$(k1[1]), $(k1[2]), $(v1.cost) dominated by $(k2[1]), $(k2[2]), $(v2.cost)")
+                break
+            # check if v1 dominates v2
+            elseif (
+                lt(dso, k1, k2)
+                && v1.cost ≤ v2.cost
+            )
+                # println("$(k1[1]), $(k1[2]), $(v1.cost) dominates $(k2[1]), $(k2[2]), $(v2.cost)")
+                pop!(collection, k2)
+            end
+        end
+        if added
+            # println("$(k1[1]), $(k1[2]), $(v1.cost) added!")
+            insert!(collection, k1, v1)
+        end
+        return added
+    end
+
     start_time = time()
 
-    base_labels = Dict()
+    tso = TripleStateOrdering()
+    dso = DoubleStateOrdering()
+    base_labels = Dict{Int, Dict{Int64, SortedDict{Tuple{Float64, Float64}, SubpathWithCost}}}()
     for node in union(data["N_depots"], data["N_charging"])   
         _, base_labels[node] = find_smallest_reduced_cost_subpaths_notimewindows(
             node, G, data, T_range, B_range, κ, μ, ν,
@@ -1020,13 +1099,39 @@ function generate_subpaths_withcharge_from_paths_notimewindows(
             charge_to_full_only = charge_to_full_only,
         )
     end
+    time1 = time()
+
+    if rough
+        nondom_base_labels = Dict(
+            node1 => Dict(
+                node2 => SortedDict{Tuple{Float64, Float64}, SubpathWithCost}(dso)
+                for node2 in union(data["N_depots"], data["N_charging"])
+            )
+            for node1 in union(data["N_depots"], data["N_charging"])
+        )
+        for node1 in union(data["N_depots"], data["N_charging"]), node2 in data["N_depots"]
+            nondom_base_labels[node1][node2] = base_labels[node1][node2]
+        end
+        for node1 in union(data["N_depots"], data["N_charging"]), node2 in data["N_charging"]
+            for (k1, v1) in base_labels[node1][node2]
+                # 1. check if v1 is not dominated
+                # 2. check if v1 dominates anyone
+                add_subpath_path_withcost_to_collection!(
+                    nondom_base_labels[node1][node2],
+                    k1, v1
+                )
+            end
+        end
+    else
+        nondom_base_labels = base_labels
+    end
+
+    time2 = time()
     full_labels = Dict(
         # starting depot
         starting_node => Dict(
             # current state
-            current_node => SortedDict{Tuple{Float64, Float64}, PathWithCost}(
-                DoubleStateOrdering(),
-            )
+            current_node => SortedDict{Tuple{Float64, Float64}, PathWithCost}(dso)
             for current_node in union(data["N_charging"], data["N_depots"])
         )
         for starting_node in data["N_depots"]
@@ -1037,20 +1142,20 @@ function generate_subpaths_withcharge_from_paths_notimewindows(
         )
     end
     unexplored_states = SortedSet(
-        TripleStateOrdering(), 
+        tso, 
         [
             (depot, 0.0, data["B"]) 
             for depot in data["N_depots"]
         ]
     )
-    time1 = time()
+    time3 = time()
 
     while length(unexplored_states) > 0
         state = pop!(unexplored_states)
         # where do you want to go next
         for next_node in union(data["N_depots"], data["N_charging"])
             # what subpaths bring you there
-            for s in values(base_labels[state[1]][next_node])
+            for s in values(nondom_base_labels[state[1]][next_node])
                 if !(
                     # time required + time you start at ≤ time horizon
                     s.round_time + state[2] ≤ data["T"]
@@ -1060,6 +1165,13 @@ function generate_subpaths_withcharge_from_paths_notimewindows(
                 )
                     # our list of subpaths is sorted by increasing time and decreasing charge
                     break
+                end
+                if ( # empty subpath
+                    s.current_node in data["N_depots"] 
+                    && s.round_time == 0.0
+                    && s.round_charge == data["B"]
+                )
+                    continue
                 end
                 s_new = copy(s)
                 s_new.starting_time = state[2]
@@ -1082,24 +1194,54 @@ function generate_subpaths_withcharge_from_paths_notimewindows(
                         continue
                     end
                     current_cost = full_labels[starting_node][state[1]][(state[2], state[3])].cost + s_new.cost
-                    if key in keys(full_labels[starting_node][next_node])
-                        if current_cost ≥ full_labels[starting_node][next_node][key].cost
-                            continue
-                        end
-                    end
-                    full_labels[starting_node][next_node][key] = PathWithCost(
-                        subpaths = vcat(full_labels[starting_node][state[1]][(state[2], state[3])].subpaths, [s_new]),
+                    new_path = PathWithCost(
+                        subpaths = vcat(
+                            full_labels[starting_node][state[1]][(state[2], state[3])].subpaths, 
+                            [s_new],
+                        ),
                         cost = current_cost,
                     )
-                    add_next_state = true
+                    if rough
+                        if add_subpath_path_withcost_to_collection!(
+                            full_labels[starting_node][next_node],
+                            key,
+                            new_path,
+                        )
+                            # println("Extending: $(starting_node) -> $(state[1]), $(state[2]), $(state[3]) along $(state[1]) -> $(next_node), $(key[1]), $(key[2])")
+                            add_next_state = true
+                        end
+                    else
+                        if key in keys(full_labels[starting_node][next_node])
+                            if current_cost ≥ full_labels[starting_node][next_node][key].cost
+                                continue
+                            end
+                        end
+                        full_labels[starting_node][next_node][key] = new_path
+                        add_next_state = true
+                    end
                 end
                 next_state = (next_node, key[1], key[2])
-                if add_next_state && next_node in data["N_charging"] && !(next_state in unexplored_states)
+                if (
+                    add_next_state  
+                    && next_node in data["N_charging"] 
+                    && !(next_state in unexplored_states)
+                )
                     insert!(unexplored_states, next_state)
                 end
             end
         end
         # TODO: prevent long number of redundant operations by sorting states.
+    end
+    for depot in data["N_depots"]
+        push!(
+            full_labels[depot][depot], 
+            (0.0, data["B"]) => PathWithCost(
+                subpaths = [
+                    nondom_base_labels[depot][depot][(0.0, data["B"])]
+                ],
+                cost = nondom_base_labels[depot][depot][(0.0, data["B"])].cost,
+            )
+        )
     end
 
     for starting_node in data["N_depots"]
@@ -1108,7 +1250,7 @@ function generate_subpaths_withcharge_from_paths_notimewindows(
         end
     end
 
-    time2 = time()
+    time4 = time()
 
     generated_subpaths_withcharge = Dict{
         Tuple{Tuple{Int, Float64, Float64}, Tuple{Int, Float64, Float64}}, 
@@ -1122,9 +1264,170 @@ function generate_subpaths_withcharge_from_paths_notimewindows(
         end
     end
 
+    time5 = time()
+
+    return generated_subpaths_withcharge, nothing, (time1 - start_time, time2 - time1, time3 - time2, time4 - time3, time5 - time4), full_labels
+end
+
+function generate_subpaths_withcharge_from_paths_notimewindows(
+    G,
+    data, 
+    T_range, 
+    B_range,
+    κ, 
+    μ, 
+    ν, 
+    ;
+    charge_bounded::Bool = true,
+    charge_to_full_only::Bool = false,
+)
+    start_time = time()
+
+    tso = TripleStateOrdering()
+    dso = DoubleStateOrdering()
+    base_labels = Dict()
+    for node in union(data["N_depots"], data["N_charging"])   
+        _, base_labels[node] = find_smallest_reduced_cost_subpaths_notimewindows(
+            node, G, data, T_range, B_range, κ, μ, ν,
+            ;
+            charge_bounded = charge_bounded,
+            charge_to_full_only = charge_to_full_only,
+        )
+    end
+
+    time1 = time()
+    nondom_base_labels = base_labels
+    time2 = time()
+
+    full_labels = Dict(
+        # starting depot
+        starting_node => Dict(
+            # current state
+            current_node => SortedDict{Tuple{Float64, Float64}, PathWithCost}(dso)
+            for current_node in union(data["N_charging"], data["N_depots"])
+        )
+        for starting_node in data["N_depots"]
+    )
+    for depot in data["N_depots"]
+        full_labels[depot][depot][(0.0, data["B"])] = PathWithCost(
+            subpaths = [], cost = 0.0
+        )
+    end
+    unexplored_states = SortedSet(
+        tso, 
+        [
+            (depot, 0.0, data["B"]) 
+            for depot in data["N_depots"]
+        ]
+    )
     time3 = time()
 
-    return generated_subpaths_withcharge, nothing, (time1 - start_time, time2 - time1, time3 - time2), full_labels
+    while length(unexplored_states) > 0
+        state = pop!(unexplored_states)
+        # where do you want to go next
+        for next_node in union(data["N_depots"], data["N_charging"])
+            # what subpaths bring you there
+            for s in values(nondom_base_labels[state[1]][next_node])
+                if !(
+                    # time required + time you start at ≤ time horizon
+                    s.round_time + state[2] ≤ data["T"]
+                    # charge required (note: this is different from charge taken)
+                    # ≤ charge you start at
+                    && (data["B"]) - s.charge ≤ state[3]
+                )
+                    # our list of subpaths is sorted by increasing time and decreasing charge
+                    break
+                end
+                if ( # empty subpath
+                    s.current_node in data["N_depots"] 
+                    && s.round_time == 0.0
+                    && s.round_charge == data["B"]
+                )
+                    continue
+                end
+                s_new = copy(s)
+                s_new.starting_time = state[2]
+                s_new.starting_charge = state[3]
+                s_new.time = s.time + state[2]
+                s_new.charge = s.charge + (state[3] - data["B"])
+                s_new.end_time = s.end_time + state[2]
+                s_new.end_charge = s.end_charge + (state[3] - data["B"])
+                s_new.round_time = s.round_time + state[2]
+                s_new.round_charge = s.round_charge + (state[3] - data["B"])
+    
+                if next_node in data["N_depots"]
+                    key = (s_new.end_time, s_new.end_charge)
+                else
+                    key = (s_new.round_time, s_new.round_charge)
+                end
+                add_next_state = false
+                for starting_node in data["N_depots"]
+                    if !((state[2], state[3]) in keys(full_labels[starting_node][state[1]]))
+                        continue
+                    end
+                    current_cost = full_labels[starting_node][state[1]][(state[2], state[3])].cost + s_new.cost
+                    new_path = PathWithCost(
+                        subpaths = vcat(
+                            full_labels[starting_node][state[1]][(state[2], state[3])].subpaths, 
+                            [s_new],
+                        ),
+                        cost = current_cost,
+                    )
+                    if key in keys(full_labels[starting_node][next_node])
+                        if current_cost ≥ full_labels[starting_node][next_node][key].cost
+                            continue
+                        end
+                    end
+                    full_labels[starting_node][next_node][key] = new_path
+                    add_next_state = true
+                end
+                next_state = (next_node, key[1], key[2])
+                if (
+                    add_next_state 
+                    && next_node in data["N_charging"] 
+                    && !(next_state in unexplored_states)
+                )
+                    insert!(unexplored_states, next_state)
+                end
+            end
+        end
+        # TODO: prevent long number of redundant operations by sorting states.
+    end
+    for depot in data["N_depots"]
+        push!(
+            full_labels[depot][depot], 
+            (0.0, data["B"]) => PathWithCost(
+                subpaths = [
+                    nondom_base_labels[depot][depot][(0.0, data["B"])]
+                ],
+                cost = nondom_base_labels[depot][depot][(0.0, data["B"])].cost,
+            )
+        )
+    end
+
+    for starting_node in data["N_depots"]
+        for end_node in data["N_charging"]
+            delete!(full_labels[starting_node], end_node)
+        end
+    end
+
+    time4 = time()
+
+    generated_subpaths_withcharge = Dict{
+        Tuple{Tuple{Int, Float64, Float64}, Tuple{Int, Float64, Float64}}, 
+        Vector{Subpath},
+    }()
+    for starting_node in data["N_depots"], end_node in data["N_depots"]
+        for path in values(full_labels[starting_node][end_node])
+            update_generated_subpaths_withcharge_from_path!(
+                generated_subpaths_withcharge, path,
+            )
+        end
+    end
+
+    time5 = time()
+
+    return generated_subpaths_withcharge, nothing, (time1 - start_time, time2 - time1, time3 - time2, time4 - time3, time5 - time4), full_labels
 end
 
 function find_smallest_reduced_cost_subpaths(
@@ -2235,6 +2538,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
     )
     @objective(mp_model, Min, subpath_costs_expr)
 
+    rough = true
     while (
         !converged
         && time_limit ≥ (time() - start_time)
@@ -2273,7 +2577,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
                 charge_to_full_only = charge_to_full_only,
             )
         else
-            generate_subpaths_result = @timed generate_subpaths_withcharge_from_paths_notimewindows(
+            generate_subpaths_result = @timed generate_subpaths_withcharge_from_paths_notimewindows_V2(
                 G, data, T_range, B_range,
                 mp_results["κ"],
                 mp_results["μ"], 
@@ -2281,7 +2585,21 @@ function subpath_formulation_column_generation_integrated_from_paths(
                 ;
                 charge_bounded = charge_bounded,
                 charge_to_full_only = charge_to_full_only,
+                rough = rough,
             )
+            if length(generate_subpaths_result.value[1]) == 0
+                rough = false
+                generate_subpaths_result = @timed generate_subpaths_withcharge_from_paths_notimewindows_V2(
+                    G, data, T_range, B_range,
+                    mp_results["κ"],
+                    mp_results["μ"], 
+                    mp_results["ν"],
+                    ;
+                    charge_bounded = charge_bounded,
+                    charge_to_full_only = charge_to_full_only,
+                    rough = rough,
+                )
+            end
         end
         (current_subpaths, _, _) = generate_subpaths_result.value
 
