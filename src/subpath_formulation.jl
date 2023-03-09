@@ -500,6 +500,8 @@ function compute_subpath_reduced_cost(
     λ,
     μ,
     ν,
+    ; 
+    with_lambda::Bool = true
 )
     reduced_cost = sum(data["c"][a...] for a in s.arcs)
 
@@ -513,13 +515,13 @@ function compute_subpath_reduced_cost(
         if s.starting_time == 0.0 && s.starting_charge == data["B"]
             reduced_cost = reduced_cost - κ[s.starting_node]
         end
-    elseif s.starting_node in data["N_charging"]
+    elseif s.starting_node in data["N_charging"] && with_lambda
         reduced_cost = reduced_cost - λ[(s.starting_node, s.starting_time, s.starting_charge)]
     end
 
     if s.current_node in data["N_depots"]
         reduced_cost = reduced_cost - μ[s.current_node]
-    elseif s.current_node in data["N_charging"]
+    elseif s.current_node in data["N_charging"] && with_lambda
         reduced_cost = reduced_cost + λ[(s.current_node, s.round_time, s.round_charge)]
     end
 
