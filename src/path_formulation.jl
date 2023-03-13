@@ -26,12 +26,20 @@ function compute_path_reduced_cost(
     κ,
     μ, 
     ν,
+    ;
+    with_charging_cost::Bool = false,
+    with_customer_delay_cost::Bool = false,
+    time_windows::Bool = true,
 )
-    return (
-        sum(data["c"][a...] for s in p.subpaths for a in s.arcs)
-        - κ[p.subpaths[1].starting_node]
-        - μ[p.subpaths[end].current_node]
-        - sum(ν[l] for s in p.subpaths, l in data["N_pickups"] if s.served[l])
+    return sum(
+        compute_subpath_reduced_cost(
+            s, data, κ, nothing, μ, ν; 
+            with_lambda = false,
+            with_charging_cost = with_charging_cost,
+            with_customer_delay_cost = with_customer_delay_cost,
+            time_windows = time_windows,
+        )
+        for s in p.subpaths
     )
 end
 
@@ -39,12 +47,18 @@ function compute_path_cost(
     data,
     p::Path,
     M::Float64 = 1e6,
+    ;
+    with_charging_cost::Bool = false,
+    with_customer_delay_cost::Bool = false,
+    time_windows::Bool = true,
 )
     return sum(
-        s.artificial ? M : (
-            length(s.arcs) == 0 ? 0 : (
-                sum(data["c"][a...] for a in s.arcs)
-            )
+        compute_subpath_cost(
+            data, s,
+            ;
+            with_charging_cost = with_charging_cost,
+            with_customer_delay_cost = with_customer_delay_cost,
+            time_windows = time_windows,
         )
         for s in p.subpaths
     )
@@ -54,10 +68,20 @@ function compute_path_costs(
     data,
     all_paths,
     M::Float64 = 1e6,
+    ;
+    with_charging_cost::Bool = false,
+    with_customer_delay_cost::Bool = false,
+    time_windows::Bool = true,
 )
     path_costs = Dict(
         key => [
-            compute_path_cost(data, p, M)
+            compute_path_cost(
+                data, p, M,
+                ;
+                with_charging_cost = with_charging_cost,
+                with_customer_delay_cost = with_customer_delay_cost,
+                time_windows = time_windows,
+            )
             for p in all_paths[key]
         ]
         for key in keys(all_paths)
