@@ -582,6 +582,7 @@ function find_smallest_reduced_cost_paths(
     charge_bounded::Bool = true,
     charge_to_full_only::Bool = false,
     time_windows::Bool = true,
+    with_customer_delay_cost::Bool = false,
     verbose::Bool = false,
 )
 
@@ -685,6 +686,15 @@ function find_smallest_reduced_cost_paths(
                 if j in data["N_pickups"]
                     current_cost = current_cost + modified_costs[j, current_node]
                     cumulative_cost = cumulative_cost + modified_costs[j, current_node]
+                    if with_customer_delay_cost
+                        if time_windows
+                            current_cost = current_cost + data["customer_delay_cost_coeff"] * (current_time - data["α"][j])
+                            cumulative_cost = cumulative_cost + data["customer_delay_cost_coeff"] * (current_time - data["α"][j])
+                        else
+                            current_cost = current_cost + data["customer_delay_cost_coeff"] * current_time
+                            cumulative_cost = cumulative_cost + data["customer_delay_cost_coeff"] * current_time
+                        end
+                    end
                 elseif j in data["N_depots"]
                     current_cost = current_cost - μ[j]
                     cumulative_cost = cumulative_cost - μ[j]
@@ -853,6 +863,7 @@ function generate_subpaths_withcharge_from_paths(
     charge_bounded::Bool = true,
     charge_to_full_only::Bool = false,
     time_windows::Bool = true,
+    with_customer_delay_cost::Bool = false,
 )
     if !charging_in_subpath
         error()
@@ -870,6 +881,7 @@ function generate_subpaths_withcharge_from_paths(
             charge_bounded = charge_bounded,
             charge_to_full_only = charge_to_full_only,
             time_windows = time_windows,
+            with_customer_delay_cost = with_customer_delay_cost,
         )
         labels = r.value
         generated_paths_withcharge[starting_node] = labels
@@ -897,6 +909,7 @@ function find_smallest_reduced_cost_subpaths_notimewindows(
     ;
     charge_bounded::Bool = true,
     charge_to_full_only::Bool = false,
+    with_customer_delay_cost::Bool = false,
     verbose::Bool = false,
 )
     modified_costs = data["travel_cost_coeff"] * Float64.(copy(data["c"]))
@@ -960,10 +973,14 @@ function find_smallest_reduced_cost_subpaths_notimewindows(
                 if !feasible
                     continue
                 end
-                current_cost = s.cost + modified_costs[i,j]
 
-                if j in data["N_depots"]
-                    current_cost = current_cost - μ[j]
+                current_cost = s.cost + modified_costs[i,j]
+                if j in data["N_dropoffs"]
+                    if with_customer_delay_cost
+                        current_cost += data["customer_delay_cost_coeff"] * current_time
+                    end
+                elseif j in data["N_depots"]
+                    current_cost += - μ[j]
                 end
                
                 add_subpath = true
@@ -1098,6 +1115,7 @@ function generate_subpaths_withcharge_from_paths_notimewindows_V2(
     charge_bounded::Bool = true,
     charge_to_full_only::Bool = false,
     rough::Bool = true,
+    with_customer_delay_cost::Bool = false,
 )
 
     function add_subpath_path_withcost_to_collection!(
@@ -1153,6 +1171,7 @@ function generate_subpaths_withcharge_from_paths_notimewindows_V2(
             ;
             charge_bounded = charge_bounded,
             charge_to_full_only = charge_to_full_only,
+            with_customer_delay_cost = with_customer_delay_cost,
         )
     end
     time1 = time()
@@ -1229,7 +1248,11 @@ function generate_subpaths_withcharge_from_paths_notimewindows_V2(
                 )
                     continue
                 end
+                # translate subpath
                 s_new = copy(s)
+                if with_customer_delay_cost
+                    s_new.cost = s.cost + data["customer_delay_cost_coeff"] * (state[2] * sum(s.served))
+                end
                 s_new.starting_time = state[2]
                 s_new.starting_charge = state[3]
                 s_new.time = s.time + state[2]
@@ -1337,6 +1360,7 @@ function generate_subpaths_withcharge_from_paths_notimewindows(
     ;
     charge_bounded::Bool = true,
     charge_to_full_only::Bool = false,
+    with_customer_delay_cost::Bool = false,
 )
     start_time = time()
 
@@ -1349,6 +1373,7 @@ function generate_subpaths_withcharge_from_paths_notimewindows(
             ;
             charge_bounded = charge_bounded,
             charge_to_full_only = charge_to_full_only,
+            with_customer_delay_cost = with_customer_delay_cost,
         )
     end
 
@@ -1402,7 +1427,11 @@ function generate_subpaths_withcharge_from_paths_notimewindows(
                 )
                     continue
                 end
+                # translate subpath
                 s_new = copy(s)
+                if with_customer_delay_cost
+                    s_new.cost = s.cost + data["customer_delay_cost_coeff"] * (state[2] * sum(s.served))
+                end
                 s_new.starting_time = state[2]
                 s_new.starting_charge = state[3]
                 s_new.time = s.time + state[2]
@@ -1506,6 +1535,7 @@ function find_smallest_reduced_cost_subpaths(
     charge_bounded::Bool = true,
     charge_to_full_only::Bool = false,
     time_windows::Bool = true,
+    with_customer_delay_cost::Bool = false,
 )
     """
     Generates feasible subpaths from a state 
@@ -1680,6 +1710,7 @@ function generate_subpaths_withcharge(
     charge_bounded::Bool = true,
     charge_to_full_only::Bool = false,
     time_windows::Bool = true,
+    with_customer_delay_cost::Bool = false,
 )
     """
     Generates subpaths (inclusive of charging) with 
@@ -1717,6 +1748,7 @@ function generate_subpaths_withcharge(
             charge_bounded = charge_bounded,
             charge_to_full_only = charge_to_full_only,
             time_windows = time_windows,
+            with_customer_delay_cost = with_customer_delay_cost,
         )
         labels = r.value
         # remove those corresponding to positive reduced cost
@@ -2266,6 +2298,7 @@ function subpath_formulation_column_generation_from_paths(
             charge_bounded = charge_bounded,
             charge_to_full_only = charge_to_full_only,
             time_windows = time_windows,
+            with_customer_delay_cost = with_customer_delay_cost,
         )
         (current_subpaths, _, _) = generate_subpaths_result.value
 
@@ -2445,6 +2478,7 @@ function subpath_formulation_column_generation(
             charging_in_subpath = charging_in_subpath,
             charge_to_full_only = charge_to_full_only,
             time_windows = time_windows,
+            with_customer_delay_cost = with_customer_delay_cost,
         )
         (current_subpaths, smallest_reduced_costs, _) = generate_subpaths_result.value
 
@@ -2702,6 +2736,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
                 charge_bounded = charge_bounded,
                 charge_to_full_only = charge_to_full_only,
                 time_windows = time_windows,
+                with_customer_delay_cost = with_customer_delay_cost,
             )
         else
             generate_subpaths_result = @timed generate_subpaths_withcharge_from_paths_notimewindows_V2(
@@ -2713,6 +2748,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
                 charge_bounded = charge_bounded,
                 charge_to_full_only = charge_to_full_only,
                 rough = rough,
+                with_customer_delay_cost = with_customer_delay_cost,
             )
             if length(generate_subpaths_result.value[1]) == 0
                 rough = false
@@ -2725,6 +2761,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
                     charge_bounded = charge_bounded,
                     charge_to_full_only = charge_to_full_only,
                     rough = rough,
+                    with_customer_delay_cost = with_customer_delay_cost,
                 )
             end
         end
