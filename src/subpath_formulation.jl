@@ -582,6 +582,7 @@ function find_smallest_reduced_cost_paths(
     charge_bounded::Bool = true,
     charge_to_full_only::Bool = false,
     time_windows::Bool = true,
+    with_charging_cost::Bool = false,
     with_customer_delay_cost::Bool = false,
     verbose::Bool = false,
 )
@@ -721,9 +722,16 @@ function find_smallest_reduced_cost_paths(
                 
                 for (delta_time, delta_charge, end_time, end_charge, store_time, store_charge) in charging_options
                     # determine if label ought to be updated
+                    this_current_cost = current_cost
+                    this_cumulative_cost = cumulative_cost 
+                    if with_charging_cost
+                        this_current_cost += data["charge_cost_coeff"] * delta_time
+                        this_cumulative_cost += data["charge_cost_coeff"] * delta_time
+                    end
+
                     if current_node in keys(labels)
                         if (store_time, store_charge) in keys(labels[current_node])
-                            if labels[current_node][(store_time, store_charge)].cost ≤ cumulative_cost
+                            if labels[current_node][(store_time, store_charge)].cost ≤ this_cumulative_cost
                                 if verbose
                                     println("$i, $now_time, $now_charge dominated by $current_node, $store_time, $store_charge")
                                 end
@@ -735,7 +743,7 @@ function find_smallest_reduced_cost_paths(
                     # update labels
                     add_to_queue = true
                     s_j = copy(path.subpaths[end])
-                    s_j.cost = current_cost
+                    s_j.cost = this_current_cost
                     s_j.current_node = current_node
                     if j in data["N_pickups"]
                         push!(s_j.arcs, (i, j))
@@ -770,19 +778,14 @@ function find_smallest_reduced_cost_paths(
                             )
                         )
                     end
-                    if current_node in keys(labels)
-                        labels[current_node][(store_time, store_charge)] = PathWithCost(
-                            subpaths = s_list_new,
-                            cost = cumulative_cost,
-                        )
-                    else
-                        labels[current_node] = Dict(
-                            (store_time, store_charge) => PathWithCost(
-                                subpaths = s_list_new,
-                                cost = cumulative_cost,
-                            )
-                        )
+                    if !(current_node in keys(labels))
+                        labels[current_node] = Dict{Tuple{Float64, Float64}, PathWithCost}()
                     end
+
+                    labels[current_node][(store_time, store_charge)] = PathWithCost(
+                        subpaths = s_list_new,
+                        cost = this_cumulative_cost,
+                    )
                     if verbose
                         println("Added $current_node, $store_time, $store_charge from $i, $now_time, $now_charge")
                     end
@@ -863,6 +866,7 @@ function generate_subpaths_withcharge_from_paths(
     charge_bounded::Bool = true,
     charge_to_full_only::Bool = false,
     time_windows::Bool = true,
+    with_charging_cost::Bool = false,
     with_customer_delay_cost::Bool = false,
 )
     if !charging_in_subpath
@@ -881,6 +885,7 @@ function generate_subpaths_withcharge_from_paths(
             charge_bounded = charge_bounded,
             charge_to_full_only = charge_to_full_only,
             time_windows = time_windows,
+            with_charging_cost = with_charging_cost,
             with_customer_delay_cost = with_customer_delay_cost,
         )
         labels = r.value
@@ -909,6 +914,7 @@ function find_smallest_reduced_cost_subpaths_notimewindows(
     ;
     charge_bounded::Bool = true,
     charge_to_full_only::Bool = false,
+    with_charging_cost::Bool = false,
     with_customer_delay_cost::Bool = false,
     verbose::Bool = false,
 )
@@ -1043,12 +1049,18 @@ function find_smallest_reduced_cost_subpaths_notimewindows(
                 charge_to_full_only = charge_to_full_only,
             )
                 key = (rt, rb)
+                new_cost = (
+                    with_charging_cost ?
+                        s.cost + data["charge_cost_coeff"] * dt :
+                        s.cost 
+                )
                 if key in keys(new_labels[node])
-                    if new_labels[node][key].cost ≤ s.cost
+                    if new_labels[node][key].cost ≤ new_cost
                         continue
                     end
                 end
                 s_copy = copy(s)
+                s_copy.cost = new_cost
                 s_copy.delta_time = dt
                 s_copy.delta_charge = db
                 s_copy.end_time = et
@@ -1115,6 +1127,7 @@ function generate_subpaths_withcharge_from_paths_notimewindows_V2(
     charge_bounded::Bool = true,
     charge_to_full_only::Bool = false,
     rough::Bool = true,
+    with_charging_cost::Bool = false,
     with_customer_delay_cost::Bool = false,
 )
 
@@ -1171,6 +1184,7 @@ function generate_subpaths_withcharge_from_paths_notimewindows_V2(
             ;
             charge_bounded = charge_bounded,
             charge_to_full_only = charge_to_full_only,
+            with_charging_cost = with_charging_cost,
             with_customer_delay_cost = with_customer_delay_cost,
         )
     end
@@ -1360,6 +1374,7 @@ function generate_subpaths_withcharge_from_paths_notimewindows(
     ;
     charge_bounded::Bool = true,
     charge_to_full_only::Bool = false,
+    with_charging_cost::Bool = false,
     with_customer_delay_cost::Bool = false,
 )
     start_time = time()
@@ -1373,6 +1388,7 @@ function generate_subpaths_withcharge_from_paths_notimewindows(
             ;
             charge_bounded = charge_bounded,
             charge_to_full_only = charge_to_full_only,
+            with_charging_cost = with_charging_cost,
             with_customer_delay_cost = with_customer_delay_cost,
         )
     end
@@ -1535,6 +1551,7 @@ function find_smallest_reduced_cost_subpaths(
     charge_bounded::Bool = true,
     charge_to_full_only::Bool = false,
     time_windows::Bool = true,
+    with_charging_cost::Bool = false,
     with_customer_delay_cost::Bool = false,
 )
     """
@@ -1710,6 +1727,7 @@ function generate_subpaths_withcharge(
     charge_bounded::Bool = true,
     charge_to_full_only::Bool = false,
     time_windows::Bool = true,
+    with_charging_cost::Bool = false,
     with_customer_delay_cost::Bool = false,
 )
     """
@@ -1748,6 +1766,7 @@ function generate_subpaths_withcharge(
             charge_bounded = charge_bounded,
             charge_to_full_only = charge_to_full_only,
             time_windows = time_windows,
+            with_charging_cost = with_charging_cost,
             with_customer_delay_cost = with_customer_delay_cost,
         )
         labels = r.value
@@ -2298,6 +2317,7 @@ function subpath_formulation_column_generation_from_paths(
             charge_bounded = charge_bounded,
             charge_to_full_only = charge_to_full_only,
             time_windows = time_windows,
+            with_charging_cost = with_charging_cost,
             with_customer_delay_cost = with_customer_delay_cost,
         )
         (current_subpaths, _, _) = generate_subpaths_result.value
@@ -2478,6 +2498,7 @@ function subpath_formulation_column_generation(
             charging_in_subpath = charging_in_subpath,
             charge_to_full_only = charge_to_full_only,
             time_windows = time_windows,
+            with_charging_cost = with_charging_cost,
             with_customer_delay_cost = with_customer_delay_cost,
         )
         (current_subpaths, smallest_reduced_costs, _) = generate_subpaths_result.value
@@ -2736,6 +2757,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
                 charge_bounded = charge_bounded,
                 charge_to_full_only = charge_to_full_only,
                 time_windows = time_windows,
+                with_charging_cost = with_charging_cost,
                 with_customer_delay_cost = with_customer_delay_cost,
             )
         else
@@ -2748,6 +2770,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
                 charge_bounded = charge_bounded,
                 charge_to_full_only = charge_to_full_only,
                 rough = rough,
+                with_charging_cost = with_charging_cost,
                 with_customer_delay_cost = with_customer_delay_cost,
             )
             if length(generate_subpaths_result.value[1]) == 0
@@ -2761,6 +2784,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
                     charge_bounded = charge_bounded,
                     charge_to_full_only = charge_to_full_only,
                     rough = rough,
+                    with_charging_cost = with_charging_cost,
                     with_customer_delay_cost = with_customer_delay_cost,
                 )
             end
