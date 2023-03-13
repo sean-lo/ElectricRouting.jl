@@ -501,16 +501,25 @@ function compute_subpath_reduced_cost(
     μ,
     ν,
     ; 
-    with_lambda::Bool = true
+    with_lambda::Bool = true,
+    with_charging_cost::Bool = false,
+    with_customer_delay_cost::Bool = false,
+    time_windows::Bool = true,
+    verbose::Bool = false,
 )
-    reduced_cost = sum(data["c"][a...] for a in s.arcs)
+    reduced_cost = compute_subpath_cost(
+        data, s,
+        ;
+        with_charging_cost = with_charging_cost,
+        with_customer_delay_cost = with_customer_delay_cost,
+        time_windows = time_windows,
+        verbose = verbose,
+    )
 
-    for j in data["N_pickups"]
-        if s.served[j]
-            reduced_cost = reduced_cost - ν[j]
-        end
+    for j in findall(s.served)
+        reduced_cost = reduced_cost - ν[j]
     end
-    
+
     if s.starting_node in data["N_depots"]
         if s.starting_time == 0.0 && s.starting_charge == data["B"]
             reduced_cost = reduced_cost - κ[s.starting_node]
@@ -1685,27 +1694,64 @@ end
 function compute_subpath_cost(
     data,
     s::Subpath,
-    M::Float64 = 1e6,
+    M::Float64 = 1e8,
+    ;
+    with_charging_cost::Bool = false,
+    with_customer_delay_cost::Bool = false,
+    time_windows::Bool = true,
+    verbose::Bool = false,
 )
     if s.artificial 
         return M
     elseif length(s.arcs) == 0
         return 0
-    else
-        return sum(
-            data["c"][a...] for a in s.arcs
-        )
     end
+
+    travel_cost = data["travel_cost_coeff"] * sum(
+        data["c"][a...] for a in s.arcs
+    )
+    charge_cost = 0.0
+    if with_charging_cost
+        charge_cost += data["charge_cost_coeff"] * s.delta_time
+    end
+    customer_delay_cost = 0.0
+    if with_customer_delay_cost        
+        if time_windows
+            for customer in findall(s.served)
+                customer_delay_cost += data["customer_delay_cost_coeff"] * (s.serve_times[customer] - data["α"][customer + data["n_customers"]])
+            end
+        else
+            for customer in findall(s.served)
+                customer_delay_cost += data["customer_delay_cost_coeff"] * (s.serve_times[customer])
+            end
+        end
+    end
+    if verbose
+        println("Travel cost:          $(travel_cost)")
+        println("Charge cost:          $(charge_cost)")
+        println("Customer delay cost:  $(customer_delay_cost)")
+    end
+    return travel_cost + charge_cost + customer_delay_cost
 end
 
 function compute_subpath_costs(
     data,
     all_subpaths,
-    M::Float64 = 1e6,
+    M::Float64 = 1e8,
+    ;
+    with_charging_cost::Bool = false,
+    with_customer_delay_cost::Bool = false,
+    time_windows::Bool = true,
 )
     subpath_costs = Dict(
         key => [
-            compute_subpath_cost(data, s, M)
+            compute_subpath_cost(
+                data, s, M
+                ;
+                with_charging_cost = with_charging_cost,
+                with_customer_delay_cost = with_customer_delay_cost,
+                time_windows = time_windows,
+            )
             for s in all_subpaths[key]
         ]
         for key in keys(all_subpaths)
@@ -2058,6 +2104,9 @@ function subpath_formulation_column_generation_from_paths(
     charging_in_subpath::Bool = true,
     charge_bounded::Bool = true,
     charge_to_full_only::Bool = false,
+    time_windows::Bool = true,
+    with_charging_cost::Bool = false,
+    with_customer_delay_cost::Bool = false,
     verbose::Bool = false,
     time_limit::Float64 = Inf,
 )
@@ -2123,6 +2172,10 @@ function subpath_formulation_column_generation_from_paths(
         subpath_costs = compute_subpath_costs(
             data, 
             some_subpaths,
+            ;
+            with_charging_cost = with_charging_cost,
+            with_customer_delay_cost = with_customer_delay_cost,
+            time_windows = time_windows,
         )
         subpath_service = compute_subpath_service(
             data, 
@@ -2234,6 +2287,9 @@ function subpath_formulation_column_generation(
     ;
     charging_in_subpath::Bool = true,
     charge_to_full_only::Bool = false,
+    time_windows::Bool = true,
+    with_charging_cost::Bool = false,
+    with_customer_delay_cost::Bool = false,
     verbose::Bool = false,
 )
     function add_message!(
@@ -2296,6 +2352,10 @@ function subpath_formulation_column_generation(
         subpath_costs = compute_subpath_costs(
             data, 
             some_subpaths,
+            ;
+            with_charging_cost = with_charging_cost,
+            with_customer_delay_cost = with_customer_delay_cost,
+            time_windows = time_windows,
         )
         subpath_service = compute_subpath_service(
             data, 
@@ -2407,6 +2467,8 @@ function subpath_formulation_column_generation_integrated_from_paths(
     charge_bounded::Bool = true,
     charge_to_full_only::Bool = false,
     time_windows::Bool = true,
+    with_charging_cost::Bool = false,
+    with_customer_delay_cost::Bool = false,
     verbose::Bool = true,
     time_limit::Float64 = Inf,
 )
@@ -2427,6 +2489,10 @@ function subpath_formulation_column_generation_integrated_from_paths(
     subpath_costs = compute_subpath_costs(
         data, 
         some_subpaths,
+        ;
+        with_charging_cost = with_charging_cost,
+        with_customer_delay_cost = with_customer_delay_cost,
+        time_windows = time_windows,
     )
     subpath_service = compute_subpath_service(
         data, 
@@ -2643,7 +2709,16 @@ function subpath_formulation_column_generation_integrated_from_paths(
                     # 1: include in some_subpaths
                     push!(some_subpaths[key], s_new)
                     # 2: add subpath cost
-                    push!(subpath_costs[key], compute_subpath_cost(data, s_new))
+                    push!(
+                        subpath_costs[key], 
+                        compute_subpath_cost(
+                            data, s_new,
+                            ;
+                            with_charging_cost = with_charging_cost,
+                            with_customer_delay_cost = with_customer_delay_cost,
+                            time_windows = time_windows,
+                        )
+                    )
                     # 3: add subpath service
                     for i in 1:data["n_customers"]
                         push!(subpath_service[(key, i)], s_new.served[i])
