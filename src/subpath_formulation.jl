@@ -26,6 +26,8 @@ function enumerate_subpaths(
     starting_charge,
     G,
     data,
+    ;
+    time_windows::Bool = true,
 )
     """
     Enumerates all subpaths starting from `starting_node`
@@ -78,33 +80,44 @@ function enumerate_subpaths(
             if j in data["N_pickups"]
                 new_node = j + data["n_customers"]
                 # two-step lookahead if j is a pickup
-                new_time_1 = max(
-                    s.time + data["t"][s.current_node,j],
-                    data["α"][j],
-                )
-                feasible_timewindow = (new_time_1 ≤ data["β"][j])
-                new_time = max(
-                    new_time_1 + data["t"][j,new_node],
-                    data["α"][new_node],
-                )
-                feasible_timewindow = feasible_timewindow && (new_time ≤ data["β"][new_node])
+                if time_windows
+                    current_time = max(
+                        s.time + data["t"][s.current_node,j],
+                        data["α"][j],
+                    )
+                    feasible_timewindow = (current_time ≤ data["β"][j])
+                    current_time = max(
+                        current_time + data["t"][j,new_node],
+                        data["α"][new_node],
+                    )
+                    feasible_timewindow = feasible_timewindow && (current_time ≤ data["β"][new_node])
+                else
+                    current_time = s.time + data["t"][s.current_node,j] + data["t"][j,new_node]
+                    feasible_timewindow = (current_time ≤ data["T"])
+                end
                 new_charge = s.charge - data["q"][s.current_node,j] - data["q"][j,new_node]
                 feasible_charge = (new_charge ≥ qmin[new_node])
             else
                 new_node = j
-                new_time = max(
-                    s.time + data["t"][s.current_node,new_node],
-                    data["α"][new_node],
-                )
-                feasible_timewindow = (new_time ≤ data["β"][new_node])
+                if time_windows
+                    current_time = max(
+                        s.time + data["t"][s.current_node,new_node],
+                        data["α"][new_node],
+                    )
+                    feasible_timewindow = (current_time ≤ data["β"][new_node])
+                else
+                    current_time = s.time + data["t"][s.current_node,new_node]
+                    feasible_timewindow = (current_time ≤ data["T"])
+                end
                 new_charge = s.charge - data["q"][s.current_node,new_node]
                 feasible_charge = (new_charge ≥ qmin[new_node])
             end
 
-            if !feasible_timewindow
-                continue
-            end
-            if !feasible_charge
+            feasible = (
+                feasible_timewindow
+                && feasible_charge
+            )
+            if !feasible
                 continue
             end
 
@@ -113,10 +126,11 @@ function enumerate_subpaths(
             if j in data["N_pickups"]
                 push!(s_j.arcs, (s.current_node, j), (j, new_node))
                 s_j.served[j] = true
+                s_j.serve_times[j] = current_time
             else 
                 push!(s_j.arcs, (s.current_node, new_node))
             end
-            s_j.time = new_time
+            s_j.time = current_time
             s_j.charge = new_charge
             push!(subpaths, s_j)
         end
@@ -262,12 +276,16 @@ function enumerate_subpaths_withcharge(
     ;
     charge_bounded::Bool = true,
     charge_to_full_only::Bool = false,
+    time_windows::Bool = true,
 )
     """
     `nondominated_subpaths_withcharge`: Vector{Subpath}, 
     generated from a single Subpath with additional discretized charging options
     """
-    _, nondominated_subpaths = enumerate_subpaths(starting_node, starting_time, starting_charge, G, data)
+    _, nondominated_subpaths = enumerate_subpaths(
+        starting_node, starting_time, starting_charge, G, data;
+        time_windows = time_windows,
+    )
     
     nondominated_subpaths_withcharge = []
     for s in nondominated_subpaths
@@ -288,6 +306,7 @@ function enumerate_subpaths_withcharge(
                         time = s.time,
                         charge = s.charge,
                         served = copy(s.served),
+                        serve_times = copy(s.serve_times),
                         delta_time = delta_time,
                         delta_charge = delta_charge,
                         end_time = end_time,
@@ -319,6 +338,7 @@ function enumerate_all_subpaths(
     charging_in_subpath::Bool = false,
     charge_bounded::Bool = true,
     charge_to_full_only::Bool = false,
+    time_windows::Bool = true,
 )
     """
     `all_subpaths`: Dictionary mapping (I,J)-pairs of states
@@ -345,11 +365,14 @@ function enumerate_all_subpaths(
                 ;
                 charge_bounded = charge_bounded,
                 charge_to_full_only = charge_to_full_only,
+                time_windows = time_windows,
             )
         else
             _, subpaths = @suppress enumerate_subpaths(
                 starting_node, starting_time, starting_charge,
                 G, data,
+                ;
+                time_windows = time_windows,
             )
             for s in subpaths
                 # perform rounding here
@@ -381,6 +404,7 @@ function enumerate_all_subpaths_faster(
     charging_in_subpath::Bool = false,
     charge_bounded::Bool = true,
     charge_to_full_only::Bool = false,
+    time_windows::Bool = true,
 )
     """
     `all_subpaths`: Dictionary mapping (I,J)-pairs of states
@@ -407,11 +431,14 @@ function enumerate_all_subpaths_faster(
                     ;
                     charge_bounded = charge_bounded,
                     charge_to_full_only = charge_to_full_only,
+                    time_windows = time_windows,
                 )
             else
                 _, subpaths = @suppress enumerate_subpaths(
                     starting_node, starting_time, starting_charge,
                     G, data,
+                    ;
+                    time_windows = time_windows,
                 )
                 for s in subpaths
                     # perform rounding here
@@ -468,9 +495,11 @@ function generate_artificial_subpaths(data)
         )
         # initialise a proportion of the customers to be served
         served = falses(data["n_customers"])
+        serve_times = zeros(data["n_customers"])
         for i in 1:length(served)
             if mod1(i, data["n_vehicles"]) == v
                 served[i] = true
+                serve_times[i] = data["α"][i + data["n_customers"]]
             end
         end
         s = Subpath(
@@ -483,6 +512,7 @@ function generate_artificial_subpaths(data)
             time = ending_time,
             charge = ending_charge,
             served = served,
+            serve_times = serve_times,
             artificial = true,
         )
         if !(key in keys(artificial_subpaths))
@@ -501,16 +531,25 @@ function compute_subpath_reduced_cost(
     μ,
     ν,
     ; 
-    with_lambda::Bool = true
+    with_lambda::Bool = true,
+    with_charging_cost::Bool = false,
+    with_customer_delay_cost::Bool = false,
+    time_windows::Bool = true,
+    verbose::Bool = false,
 )
-    reduced_cost = sum(data["c"][a...] for a in s.arcs)
+    reduced_cost = compute_subpath_cost(
+        data, s,
+        ;
+        with_charging_cost = with_charging_cost,
+        with_customer_delay_cost = with_customer_delay_cost,
+        time_windows = time_windows,
+        verbose = verbose,
+    )
 
-    for j in data["N_pickups"]
-        if s.served[j]
-            reduced_cost = reduced_cost - ν[j]
-        end
+    for j in findall(s.served)
+        reduced_cost = reduced_cost - ν[j]
     end
-    
+
     if s.starting_node in data["N_depots"]
         if s.starting_time == 0.0 && s.starting_charge == data["B"]
             reduced_cost = reduced_cost - κ[s.starting_node]
@@ -542,11 +581,14 @@ function find_smallest_reduced_cost_paths(
     ;
     charge_bounded::Bool = true,
     charge_to_full_only::Bool = false,
+    time_windows::Bool = true,
+    with_charging_cost::Bool = false,
+    with_customer_delay_cost::Bool = false,
     verbose::Bool = false,
 )
 
     # initialize modified arc costs, subtracting values of dual variables
-    modified_costs = Float64.(copy(data["c"]))
+    modified_costs = data["travel_cost_coeff"] * Float64.(copy(data["c"]))
     for i in 1:data["n_customers"]
         j = data["n_customers"] + i
         modified_costs[i,j] -= ν[i]
@@ -595,27 +637,37 @@ function find_smallest_reduced_cost_paths(
 
                 if j in data["N_pickups"]
                     current_node = j + data["n_customers"]
-                    current_time = max(
-                        data["α"][j], 
-                        now_time + data["t"][i,j],
-                    )
-                    feasible_timewindow = (current_time ≤ data["β"][j])
-                    current_time = max(
-                        data["α"][current_node], 
-                        current_time + data["t"][j, current_node],
-                    )
-                    feasible_timewindow = feasible_timewindow && (current_time ≤ data["β"][current_node])
+                    if time_windows
+                        current_time = max(
+                            data["α"][j], 
+                            now_time + data["t"][i,j],
+                        )
+                        feasible_timewindow = (current_time ≤ data["β"][j])
+                        current_time = max(
+                            data["α"][current_node], 
+                            current_time + data["t"][j, current_node],
+                        )
+                        feasible_timewindow = feasible_timewindow && (current_time ≤ data["β"][current_node])
+                    else
+                        current_time = now_time + data["t"][i,j] + data["t"][j, current_node]
+                        feasible_timewindow = (current_time ≤ data["T"])
+                    end
                     current_charge = now_charge - data["q"][i,j]
                     feasible_charge = (current_charge ≥ 0.0)
                     current_charge = current_charge - data["q"][j, current_node]
                     feasible_charge = feasible_charge && (current_charge ≥ 0.0)
                 else
                     current_node = j
-                    current_time = max(
-                        data["α"][j], 
-                        now_time + data["t"][i,j],
-                    )
-                    feasible_timewindow = (current_time ≤ data["β"][j])
+                    if time_windows
+                        current_time = max(
+                            data["α"][j], 
+                            now_time + data["t"][i,j],
+                        )
+                        feasible_timewindow = (current_time ≤ data["β"][j])
+                    else
+                        current_time = now_time + data["t"][i,j]
+                        feasible_timewindow = (current_time ≤ data["T"])
+                    end
                     current_charge = now_charge - data["q"][i,j]
                     feasible_charge = (current_charge ≥ 0.0)
                 end
@@ -635,6 +687,15 @@ function find_smallest_reduced_cost_paths(
                 if j in data["N_pickups"]
                     current_cost = current_cost + modified_costs[j, current_node]
                     cumulative_cost = cumulative_cost + modified_costs[j, current_node]
+                    if with_customer_delay_cost
+                        if time_windows
+                            current_cost = current_cost + data["customer_delay_cost_coeff"] * (current_time - data["α"][j])
+                            cumulative_cost = cumulative_cost + data["customer_delay_cost_coeff"] * (current_time - data["α"][j])
+                        else
+                            current_cost = current_cost + data["customer_delay_cost_coeff"] * current_time
+                            cumulative_cost = cumulative_cost + data["customer_delay_cost_coeff"] * current_time
+                        end
+                    end
                 elseif j in data["N_depots"]
                     current_cost = current_cost - μ[j]
                     cumulative_cost = cumulative_cost - μ[j]
@@ -661,9 +722,16 @@ function find_smallest_reduced_cost_paths(
                 
                 for (delta_time, delta_charge, end_time, end_charge, store_time, store_charge) in charging_options
                     # determine if label ought to be updated
+                    this_current_cost = current_cost
+                    this_cumulative_cost = cumulative_cost 
+                    if with_charging_cost
+                        this_current_cost += data["charge_cost_coeff"] * delta_time
+                        this_cumulative_cost += data["charge_cost_coeff"] * delta_time
+                    end
+
                     if current_node in keys(labels)
                         if (store_time, store_charge) in keys(labels[current_node])
-                            if labels[current_node][(store_time, store_charge)].cost ≤ cumulative_cost
+                            if labels[current_node][(store_time, store_charge)].cost ≤ this_cumulative_cost
                                 if verbose
                                     println("$i, $now_time, $now_charge dominated by $current_node, $store_time, $store_charge")
                                 end
@@ -675,7 +743,7 @@ function find_smallest_reduced_cost_paths(
                     # update labels
                     add_to_queue = true
                     s_j = copy(path.subpaths[end])
-                    s_j.cost = current_cost
+                    s_j.cost = this_current_cost
                     s_j.current_node = current_node
                     if j in data["N_pickups"]
                         push!(s_j.arcs, (i, j))
@@ -687,6 +755,7 @@ function find_smallest_reduced_cost_paths(
                     s_j.charge = current_charge
                     if current_node in data["N_dropoffs"]
                         s_j.served[j] = true
+                        s_j.serve_times[j] = current_time
                     end
                     s_j.delta_time = delta_time
                     s_j.delta_charge = delta_charge
@@ -709,19 +778,14 @@ function find_smallest_reduced_cost_paths(
                             )
                         )
                     end
-                    if current_node in keys(labels)
-                        labels[current_node][(store_time, store_charge)] = PathWithCost(
-                            subpaths = s_list_new,
-                            cost = cumulative_cost,
-                        )
-                    else
-                        labels[current_node] = Dict(
-                            (store_time, store_charge) => PathWithCost(
-                                subpaths = s_list_new,
-                                cost = cumulative_cost,
-                            )
-                        )
+                    if !(current_node in keys(labels))
+                        labels[current_node] = Dict{Tuple{Float64, Float64}, PathWithCost}()
                     end
+
+                    labels[current_node][(store_time, store_charge)] = PathWithCost(
+                        subpaths = s_list_new,
+                        cost = this_cumulative_cost,
+                    )
                     if verbose
                         println("Added $current_node, $store_time, $store_charge from $i, $now_time, $now_charge")
                     end
@@ -801,6 +865,9 @@ function generate_subpaths_withcharge_from_paths(
     charging_in_subpath::Bool = true,
     charge_bounded::Bool = true,
     charge_to_full_only::Bool = false,
+    time_windows::Bool = true,
+    with_charging_cost::Bool = false,
+    with_customer_delay_cost::Bool = false,
 )
     if !charging_in_subpath
         error()
@@ -817,6 +884,9 @@ function generate_subpaths_withcharge_from_paths(
             ;
             charge_bounded = charge_bounded,
             charge_to_full_only = charge_to_full_only,
+            time_windows = time_windows,
+            with_charging_cost = with_charging_cost,
+            with_customer_delay_cost = with_customer_delay_cost,
         )
         labels = r.value
         generated_paths_withcharge[starting_node] = labels
@@ -844,9 +914,11 @@ function find_smallest_reduced_cost_subpaths_notimewindows(
     ;
     charge_bounded::Bool = true,
     charge_to_full_only::Bool = false,
+    with_charging_cost::Bool = false,
+    with_customer_delay_cost::Bool = false,
     verbose::Bool = false,
 )
-    modified_costs = Float64.(copy(data["c"]))
+    modified_costs = data["travel_cost_coeff"] * Float64.(copy(data["c"]))
     for i in 1:data["n_customers"]
         j = data["n_customers"] + i
         modified_costs[i,j] -= ν[i]
@@ -907,10 +979,14 @@ function find_smallest_reduced_cost_subpaths_notimewindows(
                 if !feasible
                     continue
                 end
-                current_cost = s.cost + modified_costs[i,j]
 
-                if j in data["N_depots"]
-                    current_cost = current_cost - μ[j]
+                current_cost = s.cost + modified_costs[i,j]
+                if j in data["N_dropoffs"]
+                    if with_customer_delay_cost
+                        current_cost += data["customer_delay_cost_coeff"] * current_time
+                    end
+                elseif j in data["N_depots"]
+                    current_cost += - μ[j]
                 end
                
                 add_subpath = true
@@ -930,6 +1006,7 @@ function find_smallest_reduced_cost_subpaths_notimewindows(
                     s_j.charge = current_charge
                     if j in data["N_dropoffs"]
                         s_j.served[j-data["n_customers"]] = true
+                        s_j.serve_times[j-data["n_customers"]] = current_time
                     end
                     s_j.delta_time = 0.0
                     s_j.delta_charge = 0.0
@@ -972,12 +1049,18 @@ function find_smallest_reduced_cost_subpaths_notimewindows(
                 charge_to_full_only = charge_to_full_only,
             )
                 key = (rt, rb)
+                new_cost = (
+                    with_charging_cost ?
+                        s.cost + data["charge_cost_coeff"] * dt :
+                        s.cost 
+                )
                 if key in keys(new_labels[node])
-                    if new_labels[node][key].cost ≤ s.cost
+                    if new_labels[node][key].cost ≤ new_cost
                         continue
                     end
                 end
                 s_copy = copy(s)
+                s_copy.cost = new_cost
                 s_copy.delta_time = dt
                 s_copy.delta_charge = db
                 s_copy.end_time = et
@@ -1044,6 +1127,8 @@ function generate_subpaths_withcharge_from_paths_notimewindows_V2(
     charge_bounded::Bool = true,
     charge_to_full_only::Bool = false,
     rough::Bool = true,
+    with_charging_cost::Bool = false,
+    with_customer_delay_cost::Bool = false,
 )
 
     function add_subpath_path_withcost_to_collection!(
@@ -1066,7 +1151,8 @@ function generate_subpaths_withcharge_from_paths_notimewindows_V2(
         for (k2, v2) in collection
             # check if v2 dominates v1
             if (
-                lt(dso, k2, k1)
+                k2[1] ≤ k1[1] 
+                && k2[2] ≥ k1[2]
                 && v2.cost ≤ v1.cost
             )
                 added = false
@@ -1074,7 +1160,8 @@ function generate_subpaths_withcharge_from_paths_notimewindows_V2(
                 break
             # check if v1 dominates v2
             elseif (
-                lt(dso, k1, k2)
+                k1[1] ≤ k2[1] 
+                && k1[2] ≥ k2[2]
                 && v1.cost ≤ v2.cost
             )
                 # println("$(k1[1]), $(k1[2]), $(v1.cost) dominates $(k2[1]), $(k2[2]), $(v2.cost)")
@@ -1099,6 +1186,8 @@ function generate_subpaths_withcharge_from_paths_notimewindows_V2(
             ;
             charge_bounded = charge_bounded,
             charge_to_full_only = charge_to_full_only,
+            with_charging_cost = with_charging_cost,
+            with_customer_delay_cost = with_customer_delay_cost,
         )
     end
     time1 = time()
@@ -1175,11 +1264,16 @@ function generate_subpaths_withcharge_from_paths_notimewindows_V2(
                 )
                     continue
                 end
+                # translate subpath
                 s_new = copy(s)
+                if with_customer_delay_cost
+                    s_new.cost = s.cost + data["customer_delay_cost_coeff"] * (state[2] * sum(s.served))
+                end
                 s_new.starting_time = state[2]
                 s_new.starting_charge = state[3]
                 s_new.time = s.time + state[2]
                 s_new.charge = s.charge + (state[3] - data["B"])
+                s_new.serve_times = s.serve_times .+ (state[2] .* s.served)
                 s_new.end_time = s.end_time + state[2]
                 s_new.end_charge = s.end_charge + (state[3] - data["B"])
                 s_new.round_time = s.round_time + state[2]
@@ -1282,6 +1376,8 @@ function generate_subpaths_withcharge_from_paths_notimewindows(
     ;
     charge_bounded::Bool = true,
     charge_to_full_only::Bool = false,
+    with_charging_cost::Bool = false,
+    with_customer_delay_cost::Bool = false,
 )
     start_time = time()
 
@@ -1294,6 +1390,8 @@ function generate_subpaths_withcharge_from_paths_notimewindows(
             ;
             charge_bounded = charge_bounded,
             charge_to_full_only = charge_to_full_only,
+            with_charging_cost = with_charging_cost,
+            with_customer_delay_cost = with_customer_delay_cost,
         )
     end
 
@@ -1347,11 +1445,16 @@ function generate_subpaths_withcharge_from_paths_notimewindows(
                 )
                     continue
                 end
+                # translate subpath
                 s_new = copy(s)
+                if with_customer_delay_cost
+                    s_new.cost = s.cost + data["customer_delay_cost_coeff"] * (state[2] * sum(s.served))
+                end
                 s_new.starting_time = state[2]
                 s_new.starting_charge = state[3]
                 s_new.time = s.time + state[2]
                 s_new.charge = s.charge + (state[3] - data["B"])
+                s_new.serve_times = s.serve_times .+ (state[2] .* s.served)
                 s_new.end_time = s.end_time + state[2]
                 s_new.end_charge = s.end_charge + (state[3] - data["B"])
                 s_new.round_time = s.round_time + state[2]
@@ -1449,6 +1552,9 @@ function find_smallest_reduced_cost_subpaths(
     ;
     charge_bounded::Bool = true,
     charge_to_full_only::Bool = false,
+    time_windows::Bool = true,
+    with_charging_cost::Bool = false,
+    with_customer_delay_cost::Bool = false,
 )
     """
     Generates feasible subpaths from a state 
@@ -1457,7 +1563,7 @@ function find_smallest_reduced_cost_subpaths(
     based on the reduced costs (from the dual variables).
     """
     # initialize modified arc costs, subtracting values of dual variables
-    modified_costs = Float64.(copy(data["c"]))
+    modified_costs = data["travel_cost_coeff"] * Float64.(copy(data["c"]))
     for i in 1:data["n_customers"]
         j = data["n_customers"] + i
         modified_costs[i,j] -= ν[i]
@@ -1488,8 +1594,14 @@ function find_smallest_reduced_cost_subpaths(
     while !isempty(Q)
         i = popfirst!(Q)
         # iterate over all out-neighbors of i
-        for j in setdiff(outneighbors(G, i), i)
-            for ((now_time, now_charge), s) in pairs(labels[i])
+        for ((now_time, now_charge), s) in pairs(labels[i])
+            if s.explored
+                continue
+            else 
+                s.explored = true
+            end
+            for j in setdiff(outneighbors(G, i), i)
+                add_to_queue = false
                 # feasibility check
                 if j in data["N_pickups"]
                     feasible_service = !(s.served[j])
@@ -1499,12 +1611,17 @@ function find_smallest_reduced_cost_subpaths(
                 if !feasible_service 
                     continue
                 end
-                current_time = max(
-                    data["α"][j], 
-                    now_time + data["t"][i,j],
-                )
+                if time_windows
+                    current_time = max(
+                        data["α"][j], 
+                        now_time + data["t"][i,j],
+                    )
+                    feasible_timewindow = (current_time ≤ data["β"][j])
+                else
+                    current_time = now_time + data["t"][i,j]
+                    feasible_timewindow = (current_time ≤ data["T"])
+                end
                 current_charge = now_charge - data["q"][i,j]
-                feasible_timewindow = (current_time ≤ data["β"][j])
                 feasible_charge = (current_charge ≥ 0.0)
                 feasible = (
                     feasible_timewindow
@@ -1514,6 +1631,7 @@ function find_smallest_reduced_cost_subpaths(
                     continue
                 end
                 current_cost = s.cost + modified_costs[i,j]
+
                 if j in data["N_charging"]
                     charging_options = generate_charging_options(
                         current_time, current_charge, 
@@ -1525,54 +1643,66 @@ function find_smallest_reduced_cost_subpaths(
                     if length(charging_options) == 0
                         continue
                     end
-                    # FIXME: this looks wrong; I should not be restricting myself to the "cheapest charging option"
-                    (val, ind) = findmin(
-                        λ[(j, rt, rc)]
-                        for (_, _, _, _, rt, rc) in charging_options
-                    )
-                    (delta_time, delta_charge, end_time, end_charge, round_time, round_charge) = charging_options[ind]
-                    current_cost = current_cost + val
                 else
                     if j in data["N_depots"]
                         current_cost = current_cost - μ[j]
-                    end
-                    delta_time = 0
-                    delta_charge = 0
-                    end_time = current_time
-                    end_charge = current_charge
-                    round_time = dceil(end_time, T_range)
-                    round_charge = dceil(end_charge, B_range)
-                end
-        
-                if j in keys(labels)
-                    if (current_time, current_charge) in keys(labels[j])
-                        if labels[j][(current_time, current_charge)].cost ≤ current_cost
-                            continue
+                    elseif j in data["N_dropoffs"]
+                        if with_customer_delay_cost
+                            if time_windows
+                                current_cost += data["customer_delay_cost_coeff"] * (current_time - data["α"][j])
+                            else
+                                current_cost += data["customer_delay_cost_coeff"] * current_time
+                            end
                         end
                     end
+                    charging_options = [(
+                        0, 0, current_time, current_charge, 
+                        current_time, current_charge
+                    )]
                 end
-                # update labels
-                s_j = copy(s)
-                s_j.cost = current_cost
-                s_j.current_node = j
-                push!(s_j.arcs, (i, j))
-                s_j.time = current_time
-                s_j.charge = current_charge
-                if j in data["N_dropoffs"]
-                    s_j.served[j-data["n_customers"]] = true
+
+                for (delta_time, delta_charge, end_time, end_charge, store_time, store_charge) in charging_options
+                    # determine if label ought to be updated
+                    this_subpath_cost = current_cost 
+                    if j in data["N_charging"]
+                        this_subpath_cost += λ[(j, store_time, store_charge)]
+                        if with_charging_cost
+                            this_subpath_cost += data["charge_cost_coeff"] * delta_time
+                        end
+                    end
+                    
+                    if j in keys(labels)
+                        if (store_time, store_charge) in keys(labels[j])
+                            if labels[j][(store_time, store_charge)].cost ≤ this_subpath_cost
+                                continue
+                            end
+                        end
+                    end
+                    # update labels 
+                    add_to_queue = true
+                    s_j = copy(s)
+                    s_j.cost = this_subpath_cost
+                    s_j.current_node = j
+                    push!(s_j.arcs, (i, j))
+                    s_j.time = current_time
+                    s_j.charge = current_charge
+                    if j in data["N_dropoffs"]
+                        s_j.served[j-data["n_customers"]] = true
+                        s_j.serve_times[j-data["n_customers"]] = current_time
+                    end
+                    s_j.delta_time = delta_time
+                    s_j.delta_charge = delta_charge
+                    s_j.end_time = end_time
+                    s_j.end_charge = end_charge
+                    s_j.round_time = dceil(end_time, T_range)
+                    s_j.round_charge = dfloor(end_charge, B_range)
+                    if !(j in keys(labels))
+                        labels[j] = Dict{Tuple{Float64, Float64}, SubpathWithCost}()
+                    end
+                    labels[j][(store_time, store_charge)] = s_j
                 end
-                s_j.delta_time = delta_time
-                s_j.delta_charge = delta_charge
-                s_j.end_time = end_time
-                s_j.end_charge = end_charge
-                s_j.round_time = round_time
-                s_j.round_charge = round_charge
-                if !(j in keys(labels))
-                    labels[j] = Dict{Tuple{Float64, Float64}, SubpathWithCost}()
-                end
-                labels[j][(current_time, current_charge)] = s_j
                 # add node j to the list of unexplored nodes
-                if !(j in Q) && !(j in union(data["N_charging"], data["N_depots"]))
+                if add_to_queue && !(j in Q) && !(j in union(data["N_charging"], data["N_depots"]))
                     push!(Q, j)
                 end
             end
@@ -1616,6 +1746,9 @@ function generate_subpaths_withcharge(
     charging_in_subpath::Bool = true,
     charge_bounded::Bool = true,
     charge_to_full_only::Bool = false,
+    time_windows::Bool = true,
+    with_charging_cost::Bool = false,
+    with_customer_delay_cost::Bool = false,
 )
     """
     Generates subpaths (inclusive of charging) with 
@@ -1652,6 +1785,9 @@ function generate_subpaths_withcharge(
             ;
             charge_bounded = charge_bounded,
             charge_to_full_only = charge_to_full_only,
+            time_windows = time_windows,
+            with_charging_cost = with_charging_cost,
+            with_customer_delay_cost = with_customer_delay_cost,
         )
         labels = r.value
         # remove those corresponding to positive reduced cost
@@ -1685,27 +1821,64 @@ end
 function compute_subpath_cost(
     data,
     s::Subpath,
-    M::Float64 = 1e6,
+    M::Float64 = 1e8,
+    ;
+    with_charging_cost::Bool = false,
+    with_customer_delay_cost::Bool = false,
+    time_windows::Bool = true,
+    verbose::Bool = false,
 )
     if s.artificial 
         return M
     elseif length(s.arcs) == 0
         return 0
-    else
-        return sum(
-            data["c"][a...] for a in s.arcs
-        )
     end
+
+    travel_cost = data["travel_cost_coeff"] * sum(
+        data["c"][a...] for a in s.arcs
+    )
+    charge_cost = 0.0
+    if with_charging_cost
+        charge_cost += data["charge_cost_coeff"] * s.delta_time
+    end
+    customer_delay_cost = 0.0
+    if with_customer_delay_cost        
+        if time_windows
+            for customer in findall(s.served)
+                customer_delay_cost += data["customer_delay_cost_coeff"] * (s.serve_times[customer] - data["α"][customer + data["n_customers"]])
+            end
+        else
+            for customer in findall(s.served)
+                customer_delay_cost += data["customer_delay_cost_coeff"] * (s.serve_times[customer])
+            end
+        end
+    end
+    if verbose
+        println("Travel cost:          $(travel_cost)")
+        println("Charge cost:          $(charge_cost)")
+        println("Customer delay cost:  $(customer_delay_cost)")
+    end
+    return travel_cost + charge_cost + customer_delay_cost
 end
 
 function compute_subpath_costs(
     data,
     all_subpaths,
-    M::Float64 = 1e6,
+    M::Float64 = 1e8,
+    ;
+    with_charging_cost::Bool = false,
+    with_customer_delay_cost::Bool = false,
+    time_windows::Bool = true,
 )
     subpath_costs = Dict(
         key => [
-            compute_subpath_cost(data, s, M)
+            compute_subpath_cost(
+                data, s, M
+                ;
+                with_charging_cost = with_charging_cost,
+                with_customer_delay_cost = with_customer_delay_cost,
+                time_windows = time_windows,
+            )
             for s in all_subpaths[key]
         ]
         for key in keys(all_subpaths)
@@ -2058,6 +2231,9 @@ function subpath_formulation_column_generation_from_paths(
     charging_in_subpath::Bool = true,
     charge_bounded::Bool = true,
     charge_to_full_only::Bool = false,
+    time_windows::Bool = true,
+    with_charging_cost::Bool = false,
+    with_customer_delay_cost::Bool = false,
     verbose::Bool = false,
     time_limit::Float64 = Inf,
 )
@@ -2123,6 +2299,10 @@ function subpath_formulation_column_generation_from_paths(
         subpath_costs = compute_subpath_costs(
             data, 
             some_subpaths,
+            ;
+            with_charging_cost = with_charging_cost,
+            with_customer_delay_cost = with_customer_delay_cost,
+            time_windows = time_windows,
         )
         subpath_service = compute_subpath_service(
             data, 
@@ -2156,6 +2336,9 @@ function subpath_formulation_column_generation_from_paths(
             charging_in_subpath = charging_in_subpath,
             charge_bounded = charge_bounded,
             charge_to_full_only = charge_to_full_only,
+            time_windows = time_windows,
+            with_charging_cost = with_charging_cost,
+            with_customer_delay_cost = with_customer_delay_cost,
         )
         (current_subpaths, _, _) = generate_subpaths_result.value
 
@@ -2200,6 +2383,11 @@ function subpath_formulation_column_generation_from_paths(
             ),
             verbose,
         )
+        if length(params["number_of_subpaths"]) > 1
+            if params["number_of_subpaths"][end-1] == params["number_of_subpaths"][end]
+                break
+            end
+        end
     end
     results = Dict(
         "objective" => mp_results["objective"],
@@ -2209,6 +2397,7 @@ function subpath_formulation_column_generation_from_paths(
         "ν" => mp_results["ν"],
     )
     params["counter"] = counter
+    params["converged"] = converged
     end_time = time()
     time_taken = round(end_time - start_time, digits=3)
     params["time_taken"] = time_taken
@@ -2234,6 +2423,9 @@ function subpath_formulation_column_generation(
     ;
     charging_in_subpath::Bool = true,
     charge_to_full_only::Bool = false,
+    time_windows::Bool = true,
+    with_charging_cost::Bool = false,
+    with_customer_delay_cost::Bool = false,
     verbose::Bool = false,
 )
     function add_message!(
@@ -2296,6 +2488,10 @@ function subpath_formulation_column_generation(
         subpath_costs = compute_subpath_costs(
             data, 
             some_subpaths,
+            ;
+            with_charging_cost = with_charging_cost,
+            with_customer_delay_cost = with_customer_delay_cost,
+            time_windows = time_windows,
         )
         subpath_service = compute_subpath_service(
             data, 
@@ -2327,6 +2523,9 @@ function subpath_formulation_column_generation(
             ;
             charging_in_subpath = charging_in_subpath,
             charge_to_full_only = charge_to_full_only,
+            time_windows = time_windows,
+            with_charging_cost = with_charging_cost,
+            with_customer_delay_cost = with_customer_delay_cost,
         )
         (current_subpaths, smallest_reduced_costs, _) = generate_subpaths_result.value
 
@@ -2376,12 +2575,18 @@ function subpath_formulation_column_generation(
             ),
             verbose,
         )
+        if length(params["number_of_subpaths"]) > 1
+            if params["number_of_subpaths"][end-1] == params["number_of_subpaths"][end]
+                break
+            end
+        end
     end
     results = Dict(
         "objective" => mp_results["objective"],
         "z" => mp_results["z"],
     )
     params["counter"] = counter
+    params["converged"] = converged
     end_time = time()
     time_taken = round(end_time - start_time, digits = 3)
     params["time_taken"] = time_taken
@@ -2407,6 +2612,8 @@ function subpath_formulation_column_generation_integrated_from_paths(
     charge_bounded::Bool = true,
     charge_to_full_only::Bool = false,
     time_windows::Bool = true,
+    with_charging_cost::Bool = false,
+    with_customer_delay_cost::Bool = false,
     verbose::Bool = true,
     time_limit::Float64 = Inf,
 )
@@ -2427,6 +2634,10 @@ function subpath_formulation_column_generation_integrated_from_paths(
     subpath_costs = compute_subpath_costs(
         data, 
         some_subpaths,
+        ;
+        with_charging_cost = with_charging_cost,
+        with_customer_delay_cost = with_customer_delay_cost,
+        time_windows = time_windows,
     )
     subpath_service = compute_subpath_service(
         data, 
@@ -2577,6 +2788,9 @@ function subpath_formulation_column_generation_integrated_from_paths(
                 charging_in_subpath = true,
                 charge_bounded = charge_bounded,
                 charge_to_full_only = charge_to_full_only,
+                time_windows = time_windows,
+                with_charging_cost = with_charging_cost,
+                with_customer_delay_cost = with_customer_delay_cost,
             )
         else
             generate_subpaths_result = @timed generate_subpaths_withcharge_from_paths_notimewindows_V2(
@@ -2588,6 +2802,8 @@ function subpath_formulation_column_generation_integrated_from_paths(
                 charge_bounded = charge_bounded,
                 charge_to_full_only = charge_to_full_only,
                 rough = rough,
+                with_charging_cost = with_charging_cost,
+                with_customer_delay_cost = with_customer_delay_cost,
             )
             if length(generate_subpaths_result.value[1]) == 0
                 rough = false
@@ -2600,6 +2816,8 @@ function subpath_formulation_column_generation_integrated_from_paths(
                     charge_bounded = charge_bounded,
                     charge_to_full_only = charge_to_full_only,
                     rough = rough,
+                    with_charging_cost = with_charging_cost,
+                    with_customer_delay_cost = with_customer_delay_cost,
                 )
             end
         end
@@ -2643,7 +2861,16 @@ function subpath_formulation_column_generation_integrated_from_paths(
                     # 1: include in some_subpaths
                     push!(some_subpaths[key], s_new)
                     # 2: add subpath cost
-                    push!(subpath_costs[key], compute_subpath_cost(data, s_new))
+                    push!(
+                        subpath_costs[key], 
+                        compute_subpath_cost(
+                            data, s_new,
+                            ;
+                            with_charging_cost = with_charging_cost,
+                            with_customer_delay_cost = with_customer_delay_cost,
+                            time_windows = time_windows,
+                        )
+                    )
                     # 3: add subpath service
                     for i in 1:data["n_customers"]
                         push!(subpath_service[(key, i)], s_new.served[i])
@@ -2732,6 +2959,15 @@ function subpath_formulation_column_generation_integrated_from_paths(
             ),
             verbose,
         )
+        if length(params["number_of_subpaths"]) > 1
+            if params["number_of_subpaths"][end-1] == params["number_of_subpaths"][end]
+                if rough
+                    rough = false
+                else
+                    break
+                end
+            end
+        end
     end
 
     results = Dict(
@@ -2741,6 +2977,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
         "μ" => mp_results["μ"],
         "ν" => mp_results["ν"],
     )
+    params["converged"] = converged
     params["counter"] = counter
     end_time = time() 
     time_taken = round(end_time - start_time, digits = 3)

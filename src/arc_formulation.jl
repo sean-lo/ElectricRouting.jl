@@ -7,6 +7,8 @@ function arc_formulation(
     with_charging::Bool = false,
     with_charging_separate::Bool = false,
     ;
+    with_charging_cost::Bool = false,
+    with_customer_delay_cost::Bool = false,
     integral::Bool = true,
     paths::Union{Dict, Nothing} = nothing,
     exclude_arcs::Vector = [],
@@ -270,28 +272,46 @@ function arc_formulation(
         total_vehicle_time, # Total journey time of vehicles
         sum(τ_reach[i,k] for i in N_depots, k in N_vehicles)
     )
+    @expression(
+        model,
+        total_customer_delay_cost,
+        sum(τ_reach[i,k] - α[i] for i in N_dropoffs, k in N_vehicles)
+    )
     if with_charging
         @expression(
             model,
-            total_charge_required, # Total journey time of vehicles
-            sum(b_end[i,k] - b_start[i,k] for i in N_depots, k in N_vehicles)
-            + μ * sum(δ[i,k] for i in N_charging, k in N_vehicles)
+            total_charge_cost, 
+            sum(δ[i,k] for i in N_charging, k in N_vehicles)
         )
     end
 
-    if with_charging
+    if (with_charging && with_charging_cost) && with_customer_delay_cost
         @objective(
             model,
             Min,
-            total_travel_cost 
-            # + total_vehicle_time + 0.9 * total_charge_required
+            data["travel_cost_coeff"] * total_travel_cost 
+            + data["charge_cost_coeff"] * total_charge_cost
+            + data["customer_delay_cost_coeff"] * total_customer_delay_cost
+        ); # (1a): objective
+    elseif (with_charging && with_charging_cost)
+        @objective(
+            model,
+            Min,
+            data["travel_cost_coeff"] * total_travel_cost 
+            + data["charge_cost_coeff"] * total_charge_cost
+        ); # (1a): objective
+    elseif with_customer_delay_cost
+        @objective(
+            model,
+            Min,
+            data["travel_cost_coeff"] * total_travel_cost 
+            + data["customer_delay_cost_coeff"] * total_customer_delay_cost
         ); # (1a): objective
     else
         @objective(
             model,
             Min,
-            total_travel_cost 
-            # + total_vehicle_time 
+            data["travel_cost_coeff"] * total_travel_cost
         ); # (1a): objective
     end
 
@@ -330,12 +350,13 @@ function arc_formulation(
         results["objective"] = objective_value(model)
         results["total_travel_cost"] = value(total_travel_cost)
         results["total_vehicle_time"] = value(total_vehicle_time)
+        results["total_customer_delay_cost"] = value(total_customer_delay_cost)
         results["x"] = value.(x[:,:])
         results["τ_reach"] = value.(τ_reach[:,:])
         results["τ_leave"] = value.(τ_leave[:,:])
         results["l"] = value.(l[:,:])
         if with_charging
-            results["total_charge_required"] = value.(total_charge_required)
+            results["total_charge_cost"] = value.(total_charge_cost)
             results["b_start"] = value.(b_start)
             results["b_end"] = value.(b_end)
             results["δ"] = value.(δ)
@@ -385,23 +406,49 @@ function arc_results_printout(
     data,
     with_charging::Bool = false,
 )
-    @printf("Objective:                 %7.1f\n", results["objective"])
-    @printf("Total travel cost:         %7.1f\n", results["total_travel_cost"])
-    @printf("Total vehicle time:        %7.1f\n", results["total_vehicle_time"])
+
+    printlist = [
+        @sprintf("Objective:                 %7.1f\n", results["objective"]),
+        @sprintf("Total travel cost:         %7.1f\n", results["total_travel_cost"]),
+        @sprintf("Total vehicle time:        %7.1f\n", results["total_vehicle_time"]),
+        @sprintf("Total customer delay cost: %7.1f\n", results["total_customer_delay_cost"]),
+    ]
     if with_charging
-        @printf("Total charge required:     %7.1f\n", results["total_charge_required"])
+        push!(
+            printlist, 
+            @sprintf("Total charge cost:     %7.1f\n", results["total_charge_cost"])
+        )
     end
-    @printf("Time taken:                %7.1f s\n", params["time_taken"])
-    @printf("Time taken (formulation):  %7.1f s\n", params["constraint_time_taken"])
-    @printf("Time taken (solving):      %7.1f s\n", params["solution_time_taken"])
-    println("")
+    append!(
+        printlist, 
+        [
+            @sprintf("Time taken:                %7.1f s\n", params["time_taken"]),
+            @sprintf("Time taken (formulation):  %7.1f s\n", params["constraint_time_taken"]),
+            @sprintf("Time taken (solving):      %7.1f s\n", params["solution_time_taken"]),
+            "\n",
+            @sprintf("Time taken:                %7.1f s\n", params["time_taken"]),
+            @sprintf("Time taken (formulation):  %7.1f s\n", params["constraint_time_taken"]),
+            @sprintf("Time taken (solving):      %7.1f s\n", params["solution_time_taken"]),
+            "\n",
+        ]
+    )
 
     if with_charging
-        println("Vehicles         From      time   charge             To      time   charge  |  arc_time |  arc_charge ")
-        println("----------------------------------------------------------------------------|-----------|-------------")
-    else
-        println("Vehicles         From      time             To      time  |  arc_time ")
-        println("----------------------------------------------------------|-----------")
+        append!(
+            printlist, 
+            [
+                "Vehicles         From      time   charge             To      time   charge  |  arc_time |  arc_charge \n",
+                "----------------------------------------------------------------------------|-----------|-------------\n",
+            ]
+        )
+        else
+        append!(
+            printlist, 
+            [
+                "Vehicles         From      time             To      time  |  arc_time \n",
+                "----------------------------------------------------------|-----------\n",
+            ]
+        )
     end
 
     paths = construct_paths_from_arc_solution(results, data)
@@ -410,56 +457,73 @@ function arc_results_printout(
         for a in paths[k]
             if with_charging
                 if a[2] in data["N_charging"]
-                    @printf(
-                        "Vehicle %s: %12s (%6.1f,  %6.1f) -> %12s (%6.1f,  %6.1f) | -  %6.1f | -    %6.1f \n", 
-                        k, 
-                        data["node_labels"][a[1]], 
-                        results["τ_leave"][a[1],k],
-                        results["b_end"][a[1],k],
-                        data["node_labels"][a[2]],
-                        results["τ_reach"][a[2],k],
-                        results["b_start"][a[2],k],
-                        data["t"][a[1],a[2]],
-                        data["q"][a[1],a[2]],
+                    push!(
+                        printlist, 
+                        @sprintf(
+                            "Vehicle %s: %12s (%6.1f,  %6.1f) -> %12s (%6.1f,  %6.1f) | -  %6.1f | -    %6.1f \n", 
+                            k, 
+                            data["node_labels"][a[1]], 
+                            results["τ_leave"][a[1],k],
+                            results["b_end"][a[1],k],
+                            data["node_labels"][a[2]],
+                            results["τ_reach"][a[2],k],
+                            results["b_start"][a[2],k],
+                            data["t"][a[1],a[2]],
+                            data["q"][a[1],a[2]],
+                        )
                     )
-                    @printf(
-                        "Vehicle %s: %12s (%6.1f,  %6.1f) -> %12s (%6.1f,  %6.1f) | -  %6.1f | +    %6.1f \n", 
-                        k, 
-                        data["node_labels"][a[2]], 
-                        results["τ_reach"][a[2],k],
-                        results["b_start"][a[2],k],
-                        data["node_labels"][a[2]], 
-                        results["τ_leave"][a[2],k],
-                        results["b_end"][a[2],k],
-                        results["δ"][a[2],k],
-                        results["δ"][a[2],k] * data["μ"],
+                    push!(
+                        printlist, 
+                        @sprintf(
+                            "Vehicle %s: %12s (%6.1f,  %6.1f) -> %12s (%6.1f,  %6.1f) | -  %6.1f | +    %6.1f \n", 
+                            k, 
+                            data["node_labels"][a[2]], 
+                            results["τ_reach"][a[2],k],
+                            results["b_start"][a[2],k],
+                            data["node_labels"][a[2]], 
+                            results["τ_leave"][a[2],k],
+                            results["b_end"][a[2],k],
+                            results["δ"][a[2],k],
+                            results["δ"][a[2],k] * data["μ"],
+                        )
                     )
                 else
-                    @printf(
-                        "Vehicle %s: %12s (%6.1f,  %6.1f) -> %12s (%6.1f,  %6.1f) | -  %6.1f | -    %6.1f \n", 
-                        k, 
-                        data["node_labels"][a[1]], 
-                        results["τ_leave"][a[1],k],
-                        results["b_end"][a[1],k],
-                        data["node_labels"][a[2]],
-                        results["τ_reach"][a[2],k],
-                        results["b_start"][a[2],k],
-                        data["t"][a[1],a[2]],
-                        data["q"][a[1],a[2]],
+                    push!(
+                        printlist, 
+                        @sprintf(
+                            "Vehicle %s: %12s (%6.1f,  %6.1f) -> %12s (%6.1f,  %6.1f) | -  %6.1f | -    %6.1f \n", 
+                            k, 
+                            data["node_labels"][a[1]], 
+                            results["τ_leave"][a[1],k],
+                            results["b_end"][a[1],k],
+                            data["node_labels"][a[2]],
+                            results["τ_reach"][a[2],k],
+                            results["b_start"][a[2],k],
+                            data["t"][a[1],a[2]],
+                            data["q"][a[1],a[2]],
+                        )
                     )
                 end
             else
-                @printf(
-                    "Vehicle %s: %12s (%6.1f) -> %12s (%6.1f) | -  %6.1f\n", 
-                    k, 
-                    data["node_labels"][a[1]], 
-                    results["τ_leave"][a[1],k],
-                    data["node_labels"][a[2]],
-                    results["τ_reach"][a[2],k],
-                    data["t"][a[1],a[2]],
+                push!(
+                    printlist,
+                    @printf(
+                        "Vehicle %s: %12s (%6.1f) -> %12s (%6.1f) | -  %6.1f\n", 
+                        k, 
+                        data["node_labels"][a[1]], 
+                        results["τ_leave"][a[1],k],
+                        data["node_labels"][a[2]],
+                        results["τ_reach"][a[2],k],
+                        data["t"][a[1],a[2]],
+                    )
                 )
             end
         end
-        println("")
+        push!(printlist, "\n")
     end
+
+    for message in printlist
+        print(message)
+    end
+    return printlist
 end

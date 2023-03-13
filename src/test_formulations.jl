@@ -7,6 +7,8 @@ using DataFrames
 using Dates
 using CSV, JLD2
 using Test
+using Plots
+using CairoMakie
 
 all_data = Dict(
     "xs" => Dict(),
@@ -60,7 +62,9 @@ params = [
 for (
     size,
     n_depots, n_customers, n_charging, n_vehicles,
-    T, B, batch, permissiveness,
+    T, B, 
+    travel_cost_coeff, charge_cost_coeff, customer_delay_cost_coeff, 
+    batch, permissiveness,
 ) in params, seed in 1:10
     run_index = seed
     _, data = generate_instance_pair(
@@ -75,6 +79,9 @@ for (
         seed = seed,
         B = B,
         μ = 5.0,
+        travel_cost_coeff = travel_cost_coeff,
+        charge_cost_coeff = charge_cost_coeff,
+        customer_delay_cost_coeff = customer_delay_cost_coeff,
         batch = batch,
         permissiveness = permissiveness,
     )
@@ -95,6 +102,9 @@ function compare_formulations!(
     sizes,
     run_indexes,
     ;
+    with_charging_cost::Bool = false,
+    with_customer_delay_cost::Bool = false,
+    time_windows::Bool = true,
     arc::Bool = false,
     arc_sizes::Vector = sizes,
     arc_run_indexes::Vector = run_indexes,
@@ -105,8 +115,7 @@ function compare_formulations!(
     subpath_cg_run_indexes::Vector = run_indexes,
     subpath_cgi::Bool = false,
     subpath_cgi_sizes::Vector = sizes,
-    subpath_cgi_run_indexes::Vector = run_indexes,    
-    subpath_cgi_time_windows::Bool = true,
+    subpath_cgi_run_indexes::Vector = run_indexes,
     subpath_cgi_no_time_windows_naive::Bool = true,
     subpath_enum::Bool = false,
     subpath_enum_sizes::Vector = sizes,
@@ -117,9 +126,12 @@ function compare_formulations!(
 )
     datestr = Dates.format(Dates.now(), "yyyymmdd_HHMMSS")
     dir = "$(@__DIR__)/../logs/$datestr/"
+    mkpath(dir)
 
     if arc
         for (size, run_index) in Iterators.product(arc_sizes, arc_run_indexes)
+            dirname = joinpath(dir, "arc/$size/$run_index")
+            mkpath(dirname)
             (
                 all_data[size][run_index]["arc_ip_results"], 
                 all_data[size][run_index]["arc_ip_params"],
@@ -127,8 +139,21 @@ function compare_formulations!(
                 all_data[size][run_index]["data"],
                 true,
                 ;
-                time_limit = 1200.0,
+                with_charging_cost = with_charging_cost,
+                with_customer_delay_cost = with_customer_delay_cost,
+                time_limit = 3600.0,
             )
+            all_data[size][run_index]["arc_ip_printlist"] = arc_results_printout(
+                all_data[size][run_index]["arc_ip_results"], 
+                all_data[size][run_index]["arc_ip_params"],
+                all_data[size][run_index]["data"],
+                true,
+            )
+            open(joinpath(dirname, "log.txt"), "w") do io
+                for message in all_data[size][run_index]["arc_ip_printlist"]
+                    write(io, message)
+                end
+            end
             (
                 all_data[size][run_index]["arc_lp_results"], 
                 all_data[size][run_index]["arc_lp_params"],
@@ -136,8 +161,10 @@ function compare_formulations!(
                 all_data[size][run_index]["data"],
                 true,
                 ;
+                with_charging_cost = with_charging_cost,
+                with_customer_delay_cost = with_customer_delay_cost,
                 integral = false,
-                time_limit = 1200.0,
+                time_limit = 120.0,
             )
         end
     end
@@ -160,6 +187,9 @@ function compare_formulations!(
                 charging_in_subpath = true,
                 charge_bounded = cg_charge_bounded,
                 charge_to_full_only = cg_charge_to_full_only,
+                time_windows = time_windows,
+                with_charging_cost = with_charging_cost,
+                with_customer_delay_cost = with_customer_delay_cost,
                 verbose = true,
             );
             all_data[size][run_index]["cg_number_of_subpaths"] = sum(
@@ -194,6 +224,10 @@ function compare_formulations!(
             all_data[size][run_index]["cg_subpath_costs"] = compute_subpath_costs(
                 all_data[size][run_index]["data"], 
                 all_data[size][run_index]["cg_subpaths"],
+                ;
+                with_charging_cost = with_charging_cost,
+                with_customer_delay_cost = with_customer_delay_cost,
+                time_windows = time_windows,
             )
             all_data[size][run_index]["cg_subpath_service"] = compute_subpath_service(
                 all_data[size][run_index]["data"], 
@@ -232,7 +266,7 @@ function compare_formulations!(
             data_ntw["α"] .= 0.0
             data_ntw["β"] .= data_ntw["T"]
 
-            if subpath_cgi_time_windows
+            if time_windows
                 (
                     all_data[size][run_index]["cgi_results"],
                     all_data[size][run_index]["cgi_params"],
@@ -247,6 +281,8 @@ function compare_formulations!(
                     charge_bounded = cg_charge_bounded,
                     charge_to_full_only = cg_charge_to_full_only,
                     time_windows = true,
+                    with_charging_cost = with_charging_cost,
+                    with_customer_delay_cost = with_customer_delay_cost,
                     verbose = true,
                 )
             else
@@ -266,6 +302,8 @@ function compare_formulations!(
                         charge_bounded = cg_charge_bounded,
                         charge_to_full_only = cg_charge_to_full_only,
                         time_windows = true,
+                        with_charging_cost = with_charging_cost,
+                        with_customer_delay_cost = with_customer_delay_cost,
                         verbose = true,
                     )
                 else
@@ -283,6 +321,8 @@ function compare_formulations!(
                         charge_bounded = cg_charge_bounded,
                         charge_to_full_only = cg_charge_to_full_only,
                         time_windows = false,
+                        with_charging_cost = with_charging_cost,
+                        with_customer_delay_cost = with_customer_delay_cost,
                         verbose = true,
                     )
                 end
@@ -316,10 +356,14 @@ function compare_formulations!(
                 size = (800, 600),
             )
             savefig(joinpath(dirname, "barplot.png"))
-            if subpath_cgi_time_windows || !subpath_cgi_no_time_windows_naive
+            if time_windows || !subpath_cgi_no_time_windows_naive
                     all_data[size][run_index]["cgi_subpath_costs"] = compute_subpath_costs(
                     all_data[size][run_index]["data"], 
                     all_data[size][run_index]["cgi_subpaths"],
+                    ;
+                    with_charging_cost = with_charging_cost,
+                    with_customer_delay_cost = with_customer_delay_cost,
+                    time_windows = time_windows,
                 )
                 all_data[size][run_index]["cgi_subpath_service"] = compute_subpath_service(
                     all_data[size][run_index]["data"], 
@@ -343,6 +387,10 @@ function compare_formulations!(
                 all_data[size][run_index]["cgi_subpath_costs"] = compute_subpath_costs(
                     data_ntw, 
                     all_data[size][run_index]["cgi_subpaths"],
+                    ;
+                    with_charging_cost = with_charging_cost,
+                    with_customer_delay_cost = with_customer_delay_cost,
+                    time_windows = time_windows,
                 )
                 all_data[size][run_index]["cgi_subpath_service"] = compute_subpath_service(
                     data_ntw, 
@@ -385,6 +433,9 @@ function compare_formulations!(
                 all_data[size][run_index]["T_range"], 
                 all_data[size][run_index]["B_range"]; 
                 charging_in_subpath = true,
+                charge_bounded = cg_charge_bounded,
+                charge_to_full_only = cg_charge_to_full_only,
+                time_windows = time_windows,
             )
             all_data[size][run_index]["enum_number_of_subpaths"] = sum(
                 length(v) for v in values(all_data[size][run_index]["all_subpaths"])
@@ -392,6 +443,10 @@ function compare_formulations!(
             all_data[size][run_index]["all_subpath_costs"] = compute_subpath_costs(
                 all_data[size][run_index]["data"], 
                 all_data[size][run_index]["all_subpaths"],
+                ;
+                with_charging_cost = with_charging_cost,
+                with_customer_delay_cost = with_customer_delay_cost,
+                time_windows = time_windows,
             )
             all_data[size][run_index]["all_subpath_service"] = compute_subpath_service(
                 all_data[size][run_index]["data"], 
@@ -457,6 +512,9 @@ function compare_formulations!(
                 ;
                 charge_bounded = cg_charge_bounded,
                 charge_to_full_only = cg_charge_to_full_only,
+                with_charging_cost = with_charging_cost,
+                with_customer_delay_cost = with_customer_delay_cost,
+                time_windows = time_windows,
                 verbose = true,
             );
             all_data[size][run_index]["path_cg_number_of_paths"] = sum(
@@ -491,6 +549,10 @@ function compare_formulations!(
             all_data[size][run_index]["path_cg_path_costs"] = compute_path_costs(
                 all_data[size][run_index]["data"], 
                 all_data[size][run_index]["path_cg_paths"],
+                ;
+                with_charging_cost = with_charging_cost,
+                with_customer_delay_cost = with_customer_delay_cost,
+                time_windows = time_windows,
             )
             all_data[size][run_index]["path_cg_path_service"] = compute_path_services(
                 all_data[size][run_index]["data"], 
@@ -531,6 +593,7 @@ function compare_formulations!(
         :arc_lp_constraint_time_taken,
         :cg_number_of_subpaths,
         :cg_objective, 
+        :cg_number_of_iterations,
         :cg_time_taken,
         :cg_mp_total_time_taken,
         :cg_mp_mean_time_taken,
@@ -546,6 +609,7 @@ function compare_formulations!(
         :cg_lpip_constraint_time_taken,
         :cgi_number_of_subpaths,
         :cgi_objective, 
+        :cgi_number_of_iterations,
         :cgi_time_taken,
         :cgi_mp_total_time_taken,
         :cgi_mp_mean_time_taken,
@@ -561,6 +625,7 @@ function compare_formulations!(
         :cgi_lpip_constraint_time_taken,
         :path_cg_number_of_paths,
         :path_cg_objective, 
+        :path_cg_number_of_iterations,
         :path_cg_time_taken,
         :path_cg_mp_total_time_taken,
         :path_cg_mp_mean_time_taken,
@@ -657,6 +722,7 @@ function compare_formulations!(
             d[:arc_lp_constraint_time_taken] = missing
         end
         if "cg_params" in keys(all_data[size][run_index])
+            d[:cg_number_of_iterations] = length(all_data[size][run_index]["cg_params"]["number_of_subpaths"])
             d[:cg_number_of_subpaths] = all_data[size][run_index]["cg_params"]["number_of_subpaths"][end]
             d[:cg_time_taken] = all_data[size][run_index]["cg_params"]["time_taken"]
             d[:cg_mp_total_time_taken] = sum(all_data[size][run_index]["cg_params"]["lp_relaxation_time_taken"])
@@ -668,6 +734,7 @@ function compare_formulations!(
             d[:cg_mp_mean_solution_time_taken] = mean(all_data[size][run_index]["cg_params"]["lp_relaxation_solution_time_taken"])
             d[:cg_sp_mean_time_taken] = mean(all_data[size][run_index]["cg_params"]["sp_total_time_taken"])
         else
+            d[:cg_number_of_iterations] = missing
             d[:cg_number_of_subpaths] = missing
             d[:cg_time_taken] = missing
             d[:cg_mp_total_time_taken] = missing
@@ -689,6 +756,7 @@ function compare_formulations!(
             d[:cg_lpip_constraint_time_taken] = missing
         end
         if "cgi_params" in keys(all_data[size][run_index])
+            d[:cgi_number_of_iterations] = length(all_data[size][run_index]["cgi_params"]["number_of_subpaths"])
             d[:cgi_number_of_subpaths] = all_data[size][run_index]["cgi_params"]["number_of_subpaths"][end]
             d[:cgi_time_taken] = all_data[size][run_index]["cgi_params"]["time_taken"]
             d[:cgi_mp_total_time_taken] = sum(all_data[size][run_index]["cgi_params"]["lp_relaxation_time_taken"])
@@ -700,6 +768,7 @@ function compare_formulations!(
             d[:cgi_mp_mean_solution_time_taken] = mean(all_data[size][run_index]["cgi_params"]["lp_relaxation_solution_time_taken"])
             d[:cgi_sp_mean_time_taken] = mean(all_data[size][run_index]["cgi_params"]["sp_total_time_taken"])
         else
+            d[:cgi_number_of_iterations] = missing
             d[:cgi_number_of_subpaths] = missing
             d[:cgi_time_taken] = missing
             d[:cgi_mp_total_time_taken] = missing
@@ -721,6 +790,7 @@ function compare_formulations!(
             d[:cgi_lpip_constraint_time_taken] = missing
         end
         if "path_cg_params" in keys(all_data[size][run_index])
+            d[:path_cg_number_of_iterations] = length(all_data[size][run_index]["path_cg_params"]["number_of_paths"])
             d[:path_cg_number_of_paths] = all_data[size][run_index]["path_cg_params"]["number_of_paths"][end]
             d[:path_cg_time_taken] = all_data[size][run_index]["path_cg_params"]["time_taken"]
             d[:path_cg_mp_total_time_taken] = sum(all_data[size][run_index]["path_cg_params"]["lp_relaxation_time_taken"])
@@ -732,6 +802,7 @@ function compare_formulations!(
             d[:path_cg_mp_mean_solution_time_taken] = mean(all_data[size][run_index]["path_cg_params"]["lp_relaxation_solution_time_taken"])
             d[:path_cg_sp_mean_time_taken] = mean(all_data[size][run_index]["path_cg_params"]["sp_total_time_taken"])
         else
+            d[:path_cg_number_of_iterations] = missing
             d[:path_cg_number_of_paths] = missing
             d[:path_cg_time_taken] = missing
             d[:path_cg_mp_total_time_taken] = missing
