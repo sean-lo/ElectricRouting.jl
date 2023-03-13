@@ -126,6 +126,7 @@ function enumerate_subpaths(
             if j in data["N_pickups"]
                 push!(s_j.arcs, (s.current_node, j), (j, new_node))
                 s_j.served[j] = true
+                s_j.serve_times[j] = current_time
             else 
                 push!(s_j.arcs, (s.current_node, new_node))
             end
@@ -305,6 +306,7 @@ function enumerate_subpaths_withcharge(
                         time = s.time,
                         charge = s.charge,
                         served = copy(s.served),
+                        serve_times = copy(s.serve_times),
                         delta_time = delta_time,
                         delta_charge = delta_charge,
                         end_time = end_time,
@@ -493,9 +495,11 @@ function generate_artificial_subpaths(data)
         )
         # initialise a proportion of the customers to be served
         served = falses(data["n_customers"])
+        serve_times = zeros(data["n_customers"])
         for i in 1:length(served)
             if mod1(i, data["n_vehicles"]) == v
                 served[i] = true
+                serve_times[i] = data["α"][i + data["n_customers"]]
             end
         end
         s = Subpath(
@@ -508,6 +512,7 @@ function generate_artificial_subpaths(data)
             time = ending_time,
             charge = ending_charge,
             served = served,
+            serve_times = serve_times,
             artificial = true,
         )
         if !(key in keys(artificial_subpaths))
@@ -721,6 +726,7 @@ function find_smallest_reduced_cost_paths(
                     s_j.charge = current_charge
                     if current_node in data["N_dropoffs"]
                         s_j.served[j] = true
+                        s_j.serve_times[j] = current_time
                     end
                     s_j.delta_time = delta_time
                     s_j.delta_charge = delta_charge
@@ -964,6 +970,7 @@ function find_smallest_reduced_cost_subpaths_notimewindows(
                     s_j.charge = current_charge
                     if j in data["N_dropoffs"]
                         s_j.served[j-data["n_customers"]] = true
+                        s_j.serve_times[j-data["n_customers"]] = current_time
                     end
                     s_j.delta_time = 0.0
                     s_j.delta_charge = 0.0
@@ -1214,6 +1221,7 @@ function generate_subpaths_withcharge_from_paths_notimewindows_V2(
                 s_new.starting_charge = state[3]
                 s_new.time = s.time + state[2]
                 s_new.charge = s.charge + (state[3] - data["B"])
+                s_new.serve_times = s.serve_times .+ (state[2] .* s.served)
                 s_new.end_time = s.end_time + state[2]
                 s_new.end_charge = s.end_charge + (state[3] - data["B"])
                 s_new.round_time = s.round_time + state[2]
@@ -1386,6 +1394,7 @@ function generate_subpaths_withcharge_from_paths_notimewindows(
                 s_new.starting_charge = state[3]
                 s_new.time = s.time + state[2]
                 s_new.charge = s.charge + (state[3] - data["B"])
+                s_new.serve_times = s.serve_times .+ (state[2] .* s.served)
                 s_new.end_time = s.end_time + state[2]
                 s_new.end_charge = s.end_charge + (state[3] - data["B"])
                 s_new.round_time = s.round_time + state[2]
