@@ -23,29 +23,38 @@ for ind in 1:4
     all_data["s_TW$ind"] = Dict()
 end
 
+all_data["xs2"] = Dict()
+all_data["s2"] = Dict()
+all_data["m2"] = Dict()
+all_data["l2"] = Dict()
+
 params = [
-    ("xs", 2, 9, 2, 3, 1500.0, 1050.0, 3, 0.4),
-    ("xs_B1", 2, 9, 2, 3, 1500.0, 1100.0, 3, 0.4),
-    ("xs_B2", 2, 9, 2, 3, 1500.0, 1150.0, 3, 0.4),
-    ("xs_B3", 2, 9, 2, 3, 1500.0, 1200.0, 3, 0.4),
-    ("xs_B4", 2, 9, 2, 3, 1500.0, 1250.0, 3, 0.4),
-    ("xs_B5", 2, 9, 2, 3, 1500.0, 1300.0, 3, 0.4),
-    ("xs_TW1", 2, 9, 2, 3, 1500.0, 1050.0, 3, 0.45),
-    ("xs_TW2", 2, 9, 2, 3, 1500.0, 1050.0, 3, 0.5),
-    ("xs_TW3", 2, 9, 2, 3, 1500.0, 1050.0, 3, 0.55),
-    ("xs_TW4", 2, 9, 2, 3, 1500.0, 1050.0, 3, 0.6),
-    ("s", 2, 12, 2, 3, 1900.0, 1550.0, 4, 0.65),
-    ("s_B1", 2, 12, 2, 3, 1900.0, 1600.0, 4, 0.4),
-    ("s_B2", 2, 12, 2, 3, 1900.0, 1650.0, 4, 0.4),
-    ("s_B3", 2, 12, 2, 3, 1900.0, 1700.0, 4, 0.4),
-    ("s_B4", 2, 12, 2, 3, 1900.0, 1750.0, 4, 0.4),
-    ("s_B5", 2, 12, 2, 3, 1900.0, 1800.0, 4, 0.4),
-    ("s_TW1", 2, 12, 2, 3, 1900.0, 1550.0, 4, 0.45),
-    ("s_TW2", 2, 12, 2, 3, 1900.0, 1550.0, 4, 0.5),
-    ("s_TW3", 2, 12, 2, 3, 1900.0, 1550.0, 4, 0.55),
-    ("s_TW4", 2, 12, 2, 3, 1900.0, 1550.0, 4, 0.6),
-    ("m", 2, 15, 2, 3, 2250.0, 1850.0, 5, 0.4),
-    ("l", 2, 18, 2, 3, 2550.0, 2050.0, 6, 0.4),
+    ("xs", 2, 9, 2, 3, 1500.0, 1050.0, 10, 7, 3, 3, 0.4),
+    ("xs_B1", 2, 9, 2, 3, 1500.0, 1100.0, 10, 7, 3, 3, 0.4),
+    ("xs_B2", 2, 9, 2, 3, 1500.0, 1150.0, 10, 7, 3, 3, 0.4),
+    ("xs_B3", 2, 9, 2, 3, 1500.0, 1200.0, 10, 7, 3, 3, 0.4),
+    ("xs_B4", 2, 9, 2, 3, 1500.0, 1250.0, 10, 7, 3, 3, 0.4),
+    ("xs_B5", 2, 9, 2, 3, 1500.0, 1300.0, 10, 7, 3, 3, 0.4),
+    ("xs_TW1", 2, 9, 2, 3, 1500.0, 1050.0, 10, 7, 3, 3, 0.45),
+    ("xs_TW2", 2, 9, 2, 3, 1500.0, 1050.0, 10, 7, 3, 3, 0.5),
+    ("xs_TW3", 2, 9, 2, 3, 1500.0, 1050.0, 10, 7, 3, 3, 0.55),
+    ("xs_TW4", 2, 9, 2, 3, 1500.0, 1050.0, 10, 7, 3, 3, 0.6),
+    ("s", 2, 12, 2, 3, 1900.0, 1550.0, 10, 7, 3, 4, 0.4),
+    ("s_B1", 2, 12, 2, 3, 1900.0, 1600.0, 10, 7, 3, 4, 0.4),
+    ("s_B2", 2, 12, 2, 3, 1900.0, 1650.0, 10, 7, 3, 4, 0.4),
+    ("s_B3", 2, 12, 2, 3, 1900.0, 1700.0, 10, 7, 3, 4, 0.4),
+    ("s_B4", 2, 12, 2, 3, 1900.0, 1750.0, 10, 7, 3, 4, 0.4),
+    ("s_B5", 2, 12, 2, 3, 1900.0, 1800.0, 10, 7, 3, 4, 0.4),
+    ("s_TW1", 2, 12, 2, 3, 1900.0, 1550.0, 10, 7, 3, 4, 0.45),
+    ("s_TW2", 2, 12, 2, 3, 1900.0, 1550.0, 10, 7, 3, 4, 0.5),
+    ("s_TW3", 2, 12, 2, 3, 1900.0, 1550.0, 10, 7, 3, 4, 0.55),
+    ("s_TW4", 2, 12, 2, 3, 1900.0, 1550.0, 10, 7, 3, 4, 0.6),
+    ("m", 2, 15, 2, 3, 2250.0, 1850.0, 10, 7, 3, 5, 0.4),
+    ("l", 2, 18, 2, 3, 2550.0, 2050.0, 10, 7, 3, 6, 0.4),
+    ("xs2", 2, 9, 2, 3, 2400.0, 900.0, 10, 7, 3, 3, 0.4),
+    ("s2", 2, 12, 2, 3, 2700.0, 1100.0, 10, 7, 3, 4, 0.4),
+    ("m2", 2, 15, 2, 3, 2200.0, 900.0, 10, 7, 3, 5, 0.4),
+    ("l2", 2, 18, 2, 3, 2700.0, 1000.0, 10, 7, 3, 6, 0.4),
 ]
 
 for (
@@ -780,19 +789,222 @@ end
 
 compare_formulations!(
     all_data, ["xs"], [1], 
+    with_charging_cost = true,
+    with_customer_delay_cost = true,
+    cg_charge_bounded = false,
+    cg_charge_to_full_only = false,
+    time_windows = true,
     arc = true, 
     subpath_cg = true, 
     subpath_cgi = true, 
     path_cg = true,
 )
 compare_formulations!(
-    all_data, ["xs", "s"], collect(1:10),
+    all_data, ["xs"], [1], 
+    with_charging_cost = true,
+    with_customer_delay_cost = true,
+    cg_charge_bounded = false,
+    cg_charge_to_full_only = false,
+    time_windows = false,
+    subpath_cgi = true, 
+    subpath_cgi_no_time_windows_naive = true,
+)
+compare_formulations!(
+    all_data, ["xs"], [1], 
+    with_charging_cost = true,
+    with_customer_delay_cost = true,
+    cg_charge_bounded = false,
+    cg_charge_to_full_only = false,
+    time_windows = false,
+    subpath_cgi = true, 
+    subpath_cgi_no_time_windows_naive = false,
+)
+
+begin
+    Bmax_range = [750.0, 800.0, 850.0, 900.0, 950.0]
+    Tmul_range = [2.0, 2.5, 3.0]
+    for (iB, B) in enumerate(Bmax_range)
+        for (iT_mul, T_mul) in enumerate(Tmul_range)
+            T = floor(B * T_mul / 50.0) * 50.0
+            for seed in 1:10
+                run_index = seed
+                size = "xs2_$(iB)_$(iT_mul)"
+                _, data = generate_instance_pair(
+                    n_depots = 2, 
+                    n_customers = 9,
+                    n_charging = 2,
+                    charging_repeats = 1,
+                    n_vehicles = 3,
+                    shrinkage_depots = 1.4,
+                    shrinkage_charging = 0.6,
+                    T = T,
+                    seed = seed,
+                    B = B,
+                    μ = 5.0,
+                    travel_cost_coeff = 10,
+                    charge_cost_coeff = 7,
+                    customer_delay_cost_coeff = 3,
+                    batch = 3,
+                    permissiveness = 0.4,
+                )
+                data = preprocess_arcs(data, true, false)
+                G = construct_graph(data)
+                T_range = 0:50.0:data["T"]
+                B_range = 0:50.0:data["B"]
+                if !(size in keys(all_data))
+                    all_data[size] = Dict()
+                end
+                all_data[size][run_index] = Dict(
+                    "data" => data,
+                    "G" => G,
+                    "T_range" => T_range,
+                    "B_range" => B_range,
+                )
+            end
+        end
+    end
+    compare_formulations!(
+        all_data, 
+        vec(["xs2_$(i)_$(j)" for i in 1:5, j in 1:3]),
+        collect(1:10),
+        with_charging_cost = true,
+        with_customer_delay_cost = true,
+        cg_charge_bounded = false,
+        cg_charge_to_full_only = false,
+        time_windows = false,
+        subpath_cgi = true, 
+        subpath_cgi_no_time_windows_naive = false,
+    )
+end
+
+begin
+    Bmax_range = [1000.0, 1050.0, 1100.0, 1150.0, 1200.0]
+    Tmul_range = [2.0, 2.5, 3.0]
+    for (iB, B) in enumerate(Bmax_range)
+        for (iT_mul, T_mul) in enumerate(Tmul_range)
+            T = floor(B * T_mul / 50.0) * 50.0
+            for seed in 1:10
+                run_index = seed
+                size = "s2_$(iB)_$(iT_mul)"
+                _, data = generate_instance_pair(
+                    n_depots = 2, 
+                    n_customers = 12,
+                    n_charging = 2,
+                    charging_repeats = 1,
+                    n_vehicles = 3,
+                    shrinkage_depots = 1.4,
+                    shrinkage_charging = 0.6,
+                    T = T,
+                    seed = seed,
+                    B = B,
+                    μ = 5.0,
+                    travel_cost_coeff = 10,
+                    charge_cost_coeff = 7,
+                    customer_delay_cost_coeff = 3,
+                    batch = 4,
+                    permissiveness = 0.4,
+                )
+                data = preprocess_arcs(data, true, false)
+                G = construct_graph(data)
+                T_range = 0:50.0:data["T"]
+                B_range = 0:50.0:data["B"]
+                if !(size in keys(all_data))
+                    all_data[size] = Dict()
+                end
+                all_data[size][run_index] = Dict(
+                    "data" => data,
+                    "G" => G,
+                    "T_range" => T_range,
+                    "B_range" => B_range,
+                )
+            end
+        end
+    end
+    compare_formulations!(
+        all_data, 
+        vec(["s2_$(i)_$(j)" for i in 1:5, j in 1:3]),
+        collect(1:10),
+        with_charging_cost = true,
+        with_customer_delay_cost = true,
+        cg_charge_bounded = false,
+        cg_charge_to_full_only = false,
+        time_windows = false,
+        subpath_cgi = true, 
+        subpath_cgi_no_time_windows_naive = false,
+    )
+end
+
+all_metrics_df = compare_formulations!(
+    all_data,
+    [
+        "xs2",
+        "s2", 
+        # "m2",
+    ], 
+    collect(1:10),
+    cg_charge_bounded = false,
+    cg_charge_to_full_only = false,
+    subpath_cgi = true, 
+    time_windows = false,
+    subpath_cgi_no_time_windows_naive = false,
+)
+
+all_metrics_df = compare_formulations!(
+    all_data, 
+    ["xs", "s", "m"], collect(1:10),
+    cg_charge_bounded = false,
+    cg_charge_to_full_only = false,
+    subpath_cgi = true, 
+    time_windows = false,
+    subpath_cgi_no_time_windows_naive = true,
+)
+
+compare_formulations!(
+    all_data, 
+    ["xs", "s", "m"], collect(1:10),
+    arc = true,
+    cg_charge_bounded = false,
+    cg_charge_to_full_only = false,
+    subpath_cgi = true, 
+    subpath_cgi_time_windows = false,
+)
+
+
+compare_formulations!(
+    all_data, ["xs", "s", "m"], collect(1:10),
+    cg_charge_to_full_only = true,
     subpath_cg = true, 
     subpath_cgi = true, 
     path_cg = true,
 )
+all_metrics_df = compare_formulations!(
+    all_data, ["xs", "s", "m"], [2],
+    arc = true,
+    # subpath_cg = true, 
+    # subpath_cgi = true, 
+    # path_cg = true,
+)
 
-all_metrics_df = CSV.read("$(@__DIR__)/../logs/20230216_105009/all_metrics.csv", DataFrame)
+all_metrics_df = compare_formulations!(
+    all_data, 
+    # ["xs"], [1],
+    ["xs", "s"], collect(1:10),
+    subpath_cgi = true, 
+    subpath_cgi_time_windows = false,
+    subpath_cgi_no_time_windows_naive = true,
+    cg_charge_bounded = true,
+    cg_charge_to_full_only = true,
+)
+all_metrics_df = compare_formulations!(
+    all_data, 
+    # ["xs"], [1],
+    ["xs", "s"], collect(1:10),
+    subpath_cgi = true, 
+    subpath_cgi_time_windows = false,
+    subpath_cgi_no_time_windows_naive = false,
+    cg_charge_bounded = true,
+    cg_charge_to_full_only = true,
+)
 
 ## Testing
 @test all_data["xs"][1]["cg_results"]["objective"] ≈ all_data["xs"][1]["cgi_results"]["objective"] ≈ all_data["xs"][1]["path_cg_results"]["objective"] ≈ 2584.0
@@ -883,7 +1095,7 @@ all_time_metrics = all_metrics_df[!, [
 
 all_time_metrics
 all_time_metrics |>
-    # x -> filter(r -> (r.size == "s"), x) |>
+    x -> filter(r -> (r.size == "s"), x) |>
     x -> select(x, [
         :cgi_time_taken,     
         :cgi_mp_total_time_taken,
@@ -984,6 +1196,9 @@ all_metrics_df = CSV.read("$(@__DIR__)/../logs/20230216_130511/all_metrics.csv",
 # Experiment 4: adding medium-sized entries
 all_metrics_df = CSV.read("$(@__DIR__)/../logs/20230221_204918/all_metrics.csv", DataFrame)
 all_metrics_df |>
+    x -> filter(r -> (r.run_index == 2), x) |>
+    x -> select(x, [:cg_time_taken, :cgi_time_taken, :path_cg_time_taken])
+all_metrics_df |>
     x -> filter(r -> (r.size == "m"), x) |>
     x -> select(x, [:cg_time_taken, :cgi_time_taken, :path_cg_time_taken]) |>
     x -> describe(x, :detailed)
@@ -1022,4 +1237,305 @@ time_taken_df = all_metrics_df |>
     marker = (:black, stroke(0)),
     label = false,
 )
+
+# Experiment 6
+all_metrics_df = CSV.read("$(@__DIR__)/../logs/20230227_200940/all_metrics.csv", DataFrame)
+all_metrics_df |>
+    x -> groupby(x, :size) |>
+    x -> combine(x, 
+        :arc_ip_time_taken => mean,
+        :cg_time_taken => mean,
+        :cgi_time_taken => mean,
+        :path_cg_time_taken => mean,
+        :cg_mp_total_time_taken => mean,
+        :cgi_mp_total_time_taken => mean,
+        :path_cg_mp_total_time_taken => mean,
+        :cg_sp_mean_time_taken => mean,
+        :cgi_sp_mean_time_taken => mean,
+        :path_cg_sp_mean_time_taken => mean,
+    ) |>
+    x -> permutedims(x, "size")
+
+all_metrics_full_df = CSV.read("$(@__DIR__)/../logs/20230228_011832/all_metrics.csv", DataFrame)
+all_metrics_full_df |>
+    x -> groupby(x, :size) |>
+    x -> combine(x, 
+        :arc_ip_time_taken => mean,
+        :cg_time_taken => mean,
+        :cgi_time_taken => mean,
+        :path_cg_time_taken => mean,
+        :cg_mp_total_time_taken => mean,
+        :cgi_mp_total_time_taken => mean,
+        :path_cg_mp_total_time_taken => mean,
+        :cg_sp_mean_time_taken => mean,
+        :cgi_sp_mean_time_taken => mean,
+        :path_cg_sp_mean_time_taken => mean,
+    ) |>
+    x -> permutedims(x, "size")
+
+# Experiment 7: two different methods in the no-time-windows situation
+
+# naive
+all_metrics_df = CSV.read("$(@__DIR__)/../logs/20230228_182555/all_metrics.csv", DataFrame)
+all_metrics_df |>
+    x -> groupby(x, :size) |>
+    x -> combine(x, 
+        :arc_ip_time_taken => mean,
+        :cgi_time_taken => mean,
+        :cgi_mp_total_time_taken => mean,
+        :cgi_sp_mean_time_taken => mean,
+    ) |>
+    x -> permutedims(x, "size")
+
+# charge_bounded
+all_metrics_df_1 = CSV.read("$(@__DIR__)/../logs/20230301_114713/all_metrics.csv", DataFrame)
+all_metrics_df_1 |>
+    x -> groupby(x, :size) |>
+    x -> combine(x, 
+        :arc_ip_time_taken => mean,
+        :cgi_time_taken => mean,
+        :cgi_mp_total_time_taken => mean,
+        :cgi_sp_mean_time_taken => mean,
+    ) |>
+    x -> permutedims(x, "size")
+
+# charge_bounded, charge_to_full_only
+all_metrics_df_2 = CSV.read("$(@__DIR__)/../logs/20230303_143104/all_metrics.csv", DataFrame)
+all_metrics_df_2 |>
+    x -> groupby(x, :size) |>
+    x -> combine(x, 
+        :arc_ip_time_taken => mean,
+        :cgi_time_taken => mean,
+        :cgi_mp_total_time_taken => mean,
+        :cgi_sp_mean_time_taken => mean,
+    ) |>
+    x -> permutedims(x, "size")
+[
+    all_metrics_df_2[!, :cgi_objective]  all_metrics_df_1[!, :cgi_objective]
+]
+
+# Experiment 8: two different domination criteria
+# (20230303_192829) many subpaths, less iterations, correct convergence
+# (20230304_105525) far fewer subpaths, much faster subproblems, more iterations (tailing-off), investigate convergence
+# investigate: T:B ratio
+all_metrics_df_1 = CSV.read("$(@__DIR__)/../logs/20230303_192829/all_metrics.csv", DataFrame)
+all_metrics_df_1 |>
+    x -> groupby(x, :size) |>
+    x -> combine(x, 
+        :cgi_time_taken => geomean,
+        :cgi_mp_total_time_taken => mean,
+        :cgi_sp_mean_time_taken => mean,
+    ) |>
+    x -> permutedims(x, "size")
+
+all_metrics_df_2 = CSV.read("$(@__DIR__)/../logs/20230304_105525/all_metrics.csv", DataFrame)
+all_metrics_df_2 |>
+    x -> groupby(x, :size) |>
+    x -> combine(x, 
+        :cgi_time_taken => geomean,
+        :cgi_mp_total_time_taken => mean,
+        :cgi_sp_mean_time_taken => mean,
+    ) |>
+    x -> permutedims(x, "size")
+
+# Experimetn 11
+all_metrics_df_1 = CSV.read("$(@__DIR__)/../logs/20230307_135734/all_metrics.csv", DataFrame)
+all_metrics_df_1 |>
+    x -> groupby(x, :size) |>
+    x -> combine(x, 
+        :cgi_time_taken => geomean,
+        :cgi_mp_total_time_taken => mean,
+        :cgi_sp_mean_time_taken => mean,
+    ) |>
+    x -> permutedims(x, "size")
+all_metrics_df_2 = CSV.read("$(@__DIR__)/../logs/20230307_114101/all_metrics.csv", DataFrame)
+all_metrics_df_2 |>
+    x -> groupby(x, :size) |>
+    x -> combine(x, 
+        :cgi_time_taken => geomean,
+        :cgi_mp_total_time_taken => mean,
+        :cgi_sp_mean_time_taken => mean,
+    ) |>
+    x -> permutedims(x, "size")
+[all_metrics_df_1[!, :cgi_objective] all_metrics_df_2[!, :cgi_objective]]
+
+# Experiment 12: include charge time and customer delay in objective
+all_metrics_xs_df = CSV.read("$(@__DIR__)/../logs/20230313_110901/all_metrics.csv", DataFrame)
+all_metrics_xs_df |>
+    x -> filter(r -> r.size == "xs2_3_3", x) |>
+    x -> select(x, :cgi_objective)
+gdf_xs = all_metrics_xs_df |>
+    x -> groupby(x, :size) |>
+    x -> combine(x, 
+        :cgi_number_of_iterations => mean,
+        :cgi_number_of_subpaths => mean,
+        :cgi_time_taken => geomean,
+        :cgi_mp_total_time_taken => mean,
+        :cgi_sp_mean_time_taken => mean,
+    )
+Bmax_range_xs = [750.0, 800.0, 850.0, 900.0, 950.0]
+Tmul_range_xs = [2.0, 2.5, 3.0]
+gdf_xs[!, :B] .= repeat(Bmax_range_xs, outer = length(Tmul_range_xs))
+gdf_xs[!, :T_mul] .= repeat(Tmul_range_xs, inner = length(Bmax_range_xs))
+gdf_xs[!, :T] .= round.(gdf_xs[!, :B] .* gdf_xs[!, :T_mul] ./ 50.0) .* 50.0
+select!(gdf_xs, [:size, :B, :T_mul, :T], Not([:size, :B, :T_mul, :T]))
+
+
+begin
+    fig = Figure(resolution = (800, 500), fontsize = 18)
+    grid = fig[1,1] = GridLayout()
+    ax = Axis(
+        grid[1,1],
+        xticks = Bmax_range_xs, 
+        xlabel = "B",
+        yticks = Tmul_range_xs,
+        ylabel = "Ratio T : B",
+        title = "Running time of subproblem (mean over iterations)\n(9 customers, 2 depots, 2 CS)"
+    )
+    mat = Matrix(
+        unstack(gdf_xs, :B, :T_mul, :cgi_sp_mean_time_taken_mean)[:,2:end]
+    )
+    (cmin, cmax) = extrema(mat)
+    CairoMakie.heatmap!(
+        ax, Bmax_range_xs, Tmul_range_xs,
+        mat,
+        colorrange = (cmin, cmax),
+    )
+    for i in 1:length(Bmax_range_xs), j in 1:length(Tmul_range_xs)
+        textcolor = mat[i, j] < 0.3 ? :white : :black
+        text!(
+            ax, "$(round(mat[i,j], digits = 4))",
+            position = (Bmax_range_xs[i], Tmul_range_xs[j]),
+            color = textcolor, 
+            align = (:center, :center),
+            fontsize = 10,
+        )
+    end
+    Colorbar(grid[1,2], colorrange = (cmin, cmax))
+    display(fig)
+end
+
+begin
+    fig = Figure(resolution = (800, 500), fontsize = 18)
+    grid = fig[1,1] = GridLayout()
+    ax = Axis(
+        grid[1,1],
+        xticks = Bmax_range_xs, 
+        xlabel = "B",
+        yticks = Tmul_range_xs,
+        ylabel = "Ratio T : B",
+        title = "Total running time\n(9 customers, 2 depots, 2 CS)"
+    )
+    mat = Matrix(
+        unstack(gdf_xs, :B, :T_mul, :cgi_time_taken_geomean)[:,2:end]
+    )
+    (cmin, cmax) = extrema(mat)
+    CairoMakie.heatmap!(
+        ax, Bmax_range_xs, Tmul_range_xs,
+        mat,
+        colorrange = (cmin, cmax),
+    )
+    for i in 1:length(Bmax_range_xs), j in 1:length(Tmul_range_xs)
+        textcolor = mat[i, j] < 2.5 ? :white : :black
+        text!(
+            ax, "$(round(mat[i,j], digits = 4))",
+            position = (Bmax_range_xs[i], Tmul_range_xs[j]),
+            color = textcolor, 
+            align = (:center, :center),
+            fontsize = 10,
+        )
+    end
+    Colorbar(grid[1,2], colorrange = (cmin, cmax))
+    display(fig)
+end
+
+all_metrics_s_df = CSV.read("$(@__DIR__)/../logs/20230313_120650/all_metrics.csv", DataFrame)
+all_metrics_s_df |>
+    x -> filter(r -> r.size == "s2_1_1", x) |>
+    x -> select(x, :cgi_objective)
+gdf_s = all_metrics_s_df |>
+    x -> groupby(x, :size) |>
+    x -> combine(x, 
+        :cgi_number_of_iterations => mean,
+        :cgi_number_of_subpaths => mean,
+        :cgi_time_taken => geomean,
+        :cgi_mp_total_time_taken => mean,
+        :cgi_sp_mean_time_taken => mean,
+    )
+Bmax_range_s = [1000.0, 1050.0, 1100.0, 1150.0, 1200.0]
+Tmul_range_s = [2.0, 2.5, 3.0]
+gdf_s[!, :B] .= repeat(Bmax_range_s, outer = length(Tmul_range_s))
+gdf_s[!, :T_mul] .= repeat(Tmul_range_s, inner = length(Bmax_range_s))
+gdf_s[!, :T] .= round.(gdf_s[!, :B] .* gdf_s[!, :T_mul] ./ 50.0) .* 50.0
+select!(gdf_s, [:size, :B, :T_mul, :T], Not([:size, :B, :T_mul, :T]))
+
+begin
+    fig = Figure(resolution = (800, 500), fontsize = 18)
+    grid = fig[1,1] = GridLayout()
+    ax = Axis(
+        grid[1,1],
+        xticks = Bmax_range_s, 
+        xlabel = "B",
+        yticks = Tmul_range_s,
+        ylabel = "Ratio T : B",
+        title = "Running time of subproblem (mean over iterations)\n(12 customers, 2 depots, 2 CS)"
+    )
+    mat = Matrix(
+        unstack(gdf_s, :B, :T_mul, :cgi_sp_mean_time_taken_mean)[:,2:end]
+    )
+    (cmin, cmax) = extrema(mat)
+    CairoMakie.heatmap!(
+        ax, Bmax_range_s, Tmul_range_s,
+        mat,
+        colorrange = (cmin, cmax),
+    )
+    for i in 1:length(Bmax_range_s), j in 1:length(Tmul_range_s)
+        textcolor = mat[i, j] < 2.4 ? :white : :black
+        text!(
+            ax, "$(round(mat[i,j], digits = 4))",
+            position = (Bmax_range_s[i], Tmul_range_s[j]),
+            color = textcolor, 
+            align = (:center, :center),
+            fontsize = 10,
+        )
+    end
+    Colorbar(grid[1,2], colorrange = (cmin, cmax))
+    display(fig)
+end
+
+begin
+    fig = Figure(resolution = (800, 500), fontsize = 18)
+    grid = fig[1,1] = GridLayout()
+    ax = Axis(
+        grid[1,1],
+        xticks = Bmax_range_s, 
+        xlabel = "B",
+        yticks = Tmul_range_s,
+        ylabel = "Ratio T : B",
+        title = "Total running time\n(12 customers, 2 depots, 2 CS)"
+    )
+    mat = Matrix(
+        unstack(gdf_s, :B, :T_mul, :cgi_time_taken_geomean)[:,2:end]
+    )
+    (cmin, cmax) = extrema(mat)
+    CairoMakie.heatmap!(
+        ax, Bmax_range_s, Tmul_range_s,
+        mat,
+        colorrange = (cmin, cmax),
+    )
+    for i in 1:length(Bmax_range_s), j in 1:length(Tmul_range_s)
+        textcolor = mat[i, j] < 25 ? :white : :black
+        text!(
+            ax, "$(round(mat[i,j], digits = 4))",
+            position = (Bmax_range_s[i], Tmul_range_s[j]),
+            color = textcolor, 
+            align = (:center, :center),
+            fontsize = 10,
+        )
+    end
+    Colorbar(grid[1,2], colorrange = (cmin, cmax))
+    display(fig)
+end
+
+
 ### Scratch work
