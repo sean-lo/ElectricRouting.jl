@@ -581,6 +581,7 @@ function find_smallest_reduced_cost_paths(
     ;
     charge_bounded::Bool = true,
     charge_to_full_only::Bool = false,
+    time_windows::Bool = true,
     verbose::Bool = false,
 )
 
@@ -634,27 +635,37 @@ function find_smallest_reduced_cost_paths(
 
                 if j in data["N_pickups"]
                     current_node = j + data["n_customers"]
-                    current_time = max(
-                        data["α"][j], 
-                        now_time + data["t"][i,j],
-                    )
-                    feasible_timewindow = (current_time ≤ data["β"][j])
-                    current_time = max(
-                        data["α"][current_node], 
-                        current_time + data["t"][j, current_node],
-                    )
-                    feasible_timewindow = feasible_timewindow && (current_time ≤ data["β"][current_node])
+                    if time_windows
+                        current_time = max(
+                            data["α"][j], 
+                            now_time + data["t"][i,j],
+                        )
+                        feasible_timewindow = (current_time ≤ data["β"][j])
+                        current_time = max(
+                            data["α"][current_node], 
+                            current_time + data["t"][j, current_node],
+                        )
+                        feasible_timewindow = feasible_timewindow && (current_time ≤ data["β"][current_node])
+                    else
+                        current_time = now_time + data["t"][i,j] + data["t"][j, current_node]
+                        feasible_timewindow = (current_time ≤ data["T"])
+                    end
                     current_charge = now_charge - data["q"][i,j]
                     feasible_charge = (current_charge ≥ 0.0)
                     current_charge = current_charge - data["q"][j, current_node]
                     feasible_charge = feasible_charge && (current_charge ≥ 0.0)
                 else
                     current_node = j
-                    current_time = max(
-                        data["α"][j], 
-                        now_time + data["t"][i,j],
-                    )
-                    feasible_timewindow = (current_time ≤ data["β"][j])
+                    if time_windows
+                        current_time = max(
+                            data["α"][j], 
+                            now_time + data["t"][i,j],
+                        )
+                        feasible_timewindow = (current_time ≤ data["β"][j])
+                    else
+                        current_time = now_time + data["t"][i,j]
+                        feasible_timewindow = (current_time ≤ data["T"])
+                    end
                     current_charge = now_charge - data["q"][i,j]
                     feasible_charge = (current_charge ≥ 0.0)
                 end
@@ -841,6 +852,7 @@ function generate_subpaths_withcharge_from_paths(
     charging_in_subpath::Bool = true,
     charge_bounded::Bool = true,
     charge_to_full_only::Bool = false,
+    time_windows::Bool = true,
 )
     if !charging_in_subpath
         error()
@@ -857,6 +869,7 @@ function generate_subpaths_withcharge_from_paths(
             ;
             charge_bounded = charge_bounded,
             charge_to_full_only = charge_to_full_only,
+            time_windows = time_windows,
         )
         labels = r.value
         generated_paths_withcharge[starting_node] = labels
@@ -1492,6 +1505,7 @@ function find_smallest_reduced_cost_subpaths(
     ;
     charge_bounded::Bool = true,
     charge_to_full_only::Bool = false,
+    time_windows::Bool = true,
 )
     """
     Generates feasible subpaths from a state 
@@ -1542,12 +1556,17 @@ function find_smallest_reduced_cost_subpaths(
                 if !feasible_service 
                     continue
                 end
-                current_time = max(
-                    data["α"][j], 
-                    now_time + data["t"][i,j],
-                )
+                if time_windows
+                    current_time = max(
+                        data["α"][j], 
+                        now_time + data["t"][i,j],
+                    )
+                    feasible_timewindow = (current_time ≤ data["β"][j])
+                else
+                    current_time = now_time + data["t"][i,j]
+                    feasible_timewindow = (current_time ≤ data["T"])
+                end
                 current_charge = now_charge - data["q"][i,j]
-                feasible_timewindow = (current_time ≤ data["β"][j])
                 feasible_charge = (current_charge ≥ 0.0)
                 feasible = (
                     feasible_timewindow
@@ -1557,6 +1576,7 @@ function find_smallest_reduced_cost_subpaths(
                     continue
                 end
                 current_cost = s.cost + modified_costs[i,j]
+
                 if j in data["N_charging"]
                     charging_options = generate_charging_options(
                         current_time, current_charge, 
@@ -1659,6 +1679,7 @@ function generate_subpaths_withcharge(
     charging_in_subpath::Bool = true,
     charge_bounded::Bool = true,
     charge_to_full_only::Bool = false,
+    time_windows::Bool = true,
 )
     """
     Generates subpaths (inclusive of charging) with 
@@ -1695,6 +1716,7 @@ function generate_subpaths_withcharge(
             ;
             charge_bounded = charge_bounded,
             charge_to_full_only = charge_to_full_only,
+            time_windows = time_windows,
         )
         labels = r.value
         # remove those corresponding to positive reduced cost
@@ -2243,6 +2265,7 @@ function subpath_formulation_column_generation_from_paths(
             charging_in_subpath = charging_in_subpath,
             charge_bounded = charge_bounded,
             charge_to_full_only = charge_to_full_only,
+            time_windows = time_windows,
         )
         (current_subpaths, _, _) = generate_subpaths_result.value
 
@@ -2421,6 +2444,7 @@ function subpath_formulation_column_generation(
             ;
             charging_in_subpath = charging_in_subpath,
             charge_to_full_only = charge_to_full_only,
+            time_windows = time_windows,
         )
         (current_subpaths, smallest_reduced_costs, _) = generate_subpaths_result.value
 
@@ -2677,6 +2701,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
                 charging_in_subpath = true,
                 charge_bounded = charge_bounded,
                 charge_to_full_only = charge_to_full_only,
+                time_windows = time_windows,
             )
         else
             generate_subpaths_result = @timed generate_subpaths_withcharge_from_paths_notimewindows_V2(
