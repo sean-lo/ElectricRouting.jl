@@ -1151,7 +1151,8 @@ function generate_subpaths_withcharge_from_paths_notimewindows_V2(
         for (k2, v2) in collection
             # check if v2 dominates v1
             if (
-                lt(dso, k2, k1)
+                k2[1] ≤ k1[1] 
+                && k2[2] ≥ k1[2]
                 && v2.cost ≤ v1.cost
             )
                 added = false
@@ -1159,7 +1160,8 @@ function generate_subpaths_withcharge_from_paths_notimewindows_V2(
                 break
             # check if v1 dominates v2
             elseif (
-                lt(dso, k1, k2)
+                k1[1] ≤ k2[1] 
+                && k1[2] ≥ k2[2]
                 && v1.cost ≤ v2.cost
             )
                 # println("$(k1[1]), $(k1[2]), $(v1.cost) dominates $(k2[1]), $(k2[2]), $(v2.cost)")
