@@ -2383,6 +2383,11 @@ function subpath_formulation_column_generation_from_paths(
             ),
             verbose,
         )
+        if length(params["number_of_subpaths"]) > 1
+            if params["number_of_subpaths"][end-1] == params["number_of_subpaths"][end]
+                break
+            end
+        end
     end
     results = Dict(
         "objective" => mp_results["objective"],
@@ -2392,6 +2397,7 @@ function subpath_formulation_column_generation_from_paths(
         "ν" => mp_results["ν"],
     )
     params["counter"] = counter
+    params["converged"] = converged
     end_time = time()
     time_taken = round(end_time - start_time, digits=3)
     params["time_taken"] = time_taken
@@ -2569,12 +2575,18 @@ function subpath_formulation_column_generation(
             ),
             verbose,
         )
+        if length(params["number_of_subpaths"]) > 1
+            if params["number_of_subpaths"][end-1] == params["number_of_subpaths"][end]
+                break
+            end
+        end
     end
     results = Dict(
         "objective" => mp_results["objective"],
         "z" => mp_results["z"],
     )
     params["counter"] = counter
+    params["converged"] = converged
     end_time = time()
     time_taken = round(end_time - start_time, digits = 3)
     params["time_taken"] = time_taken
@@ -2947,6 +2959,15 @@ function subpath_formulation_column_generation_integrated_from_paths(
             ),
             verbose,
         )
+        if length(params["number_of_subpaths"]) > 1
+            if params["number_of_subpaths"][end-1] == params["number_of_subpaths"][end]
+                if rough
+                    rough = false
+                else
+                    break
+                end
+            end
+        end
     end
 
     results = Dict(
@@ -2956,6 +2977,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
         "μ" => mp_results["μ"],
         "ν" => mp_results["ν"],
     )
+    params["converged"] = converged
     params["counter"] = counter
     end_time = time() 
     time_taken = round(end_time - start_time, digits = 3)
