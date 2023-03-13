@@ -245,6 +245,8 @@ function generate_paths(
     ;
     charge_bounded::Bool = true,
     charge_to_full_only::Bool = false,
+    time_windows::Bool = true,
+    with_charging_cost::Bool = false,
     with_customer_delay_cost::Bool = false,
 )
     generated_paths = Dict{
@@ -260,6 +262,8 @@ function generate_paths(
             ;
             charge_bounded = charge_bounded,
             charge_to_full_only = charge_to_full_only,
+            time_windows = time_windows,
+            with_charging_cost = with_charging_cost,
             with_customer_delay_cost = with_customer_delay_cost,
         )
         labels = r.value
@@ -295,7 +299,9 @@ function path_formulation_column_generation(
     ;
     charge_bounded::Bool = true,
     charge_to_full_only::Bool = false,
+    with_charging_cost::Bool = false,
     with_customer_delay_cost::Bool = false,
+    time_windows::Bool = true,
     verbose::Bool = false,
     time_limit::Float64 = Inf,
 )
@@ -363,7 +369,10 @@ function path_formulation_column_generation(
         path_costs = compute_path_costs(
             data, 
             some_paths,
+            ;
+            with_charging_cost = with_charging_cost,
             with_customer_delay_cost = with_customer_delay_cost,
+            time_windows = time_windows,
         )
         path_service = compute_path_services(
             data, 
@@ -395,7 +404,9 @@ function path_formulation_column_generation(
             ;
             charge_bounded = charge_bounded,
             charge_to_full_only = charge_to_full_only,
+            with_charging_cost = with_charging_cost,
             with_customer_delay_cost = with_customer_delay_cost,
+            time_windows = time_windows,
         )
         (current_paths, sp_max_time_taken) = generate_paths_result.value
 
