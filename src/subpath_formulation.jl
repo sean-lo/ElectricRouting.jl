@@ -585,7 +585,7 @@ function find_smallest_reduced_cost_paths(
 )
 
     # initialize modified arc costs, subtracting values of dual variables
-    modified_costs = Float64.(copy(data["c"]))
+    modified_costs = data["travel_cost_coeff"] * Float64.(copy(data["c"]))
     for i in 1:data["n_customers"]
         j = data["n_customers"] + i
         modified_costs[i,j] -= ν[i]
@@ -886,7 +886,7 @@ function find_smallest_reduced_cost_subpaths_notimewindows(
     charge_to_full_only::Bool = false,
     verbose::Bool = false,
 )
-    modified_costs = Float64.(copy(data["c"]))
+    modified_costs = data["travel_cost_coeff"] * Float64.(copy(data["c"]))
     for i in 1:data["n_customers"]
         j = data["n_customers"] + i
         modified_costs[i,j] -= ν[i]
@@ -1500,7 +1500,7 @@ function find_smallest_reduced_cost_subpaths(
     based on the reduced costs (from the dual variables).
     """
     # initialize modified arc costs, subtracting values of dual variables
-    modified_costs = Float64.(copy(data["c"]))
+    modified_costs = data["travel_cost_coeff"] * Float64.(copy(data["c"]))
     for i in 1:data["n_customers"]
         j = data["n_customers"] + i
         modified_costs[i,j] -= ν[i]
