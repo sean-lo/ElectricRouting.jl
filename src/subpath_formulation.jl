@@ -26,6 +26,8 @@ function enumerate_subpaths(
     starting_charge,
     G,
     data,
+    ;
+    time_windows::Bool = true,
 )
     """
     Enumerates all subpaths starting from `starting_node`
@@ -78,33 +80,44 @@ function enumerate_subpaths(
             if j in data["N_pickups"]
                 new_node = j + data["n_customers"]
                 # two-step lookahead if j is a pickup
-                new_time_1 = max(
-                    s.time + data["t"][s.current_node,j],
-                    data["α"][j],
-                )
-                feasible_timewindow = (new_time_1 ≤ data["β"][j])
-                new_time = max(
-                    new_time_1 + data["t"][j,new_node],
-                    data["α"][new_node],
-                )
-                feasible_timewindow = feasible_timewindow && (new_time ≤ data["β"][new_node])
+                if time_windows
+                    current_time = max(
+                        s.time + data["t"][s.current_node,j],
+                        data["α"][j],
+                    )
+                    feasible_timewindow = (current_time ≤ data["β"][j])
+                    current_time = max(
+                        current_time + data["t"][j,new_node],
+                        data["α"][new_node],
+                    )
+                    feasible_timewindow = feasible_timewindow && (current_time ≤ data["β"][new_node])
+                else
+                    current_time = s.time + data["t"][s.current_node,j] + data["t"][j,new_node]
+                    feasible_timewindow = (current_time ≤ data["T"])
+                end
                 new_charge = s.charge - data["q"][s.current_node,j] - data["q"][j,new_node]
                 feasible_charge = (new_charge ≥ qmin[new_node])
             else
                 new_node = j
-                new_time = max(
-                    s.time + data["t"][s.current_node,new_node],
-                    data["α"][new_node],
-                )
-                feasible_timewindow = (new_time ≤ data["β"][new_node])
+                if time_windows
+                    current_time = max(
+                        s.time + data["t"][s.current_node,new_node],
+                        data["α"][new_node],
+                    )
+                    feasible_timewindow = (current_time ≤ data["β"][new_node])
+                else
+                    current_time = s.time + data["t"][s.current_node,new_node]
+                    feasible_timewindow = (current_time ≤ data["T"])
+                end
                 new_charge = s.charge - data["q"][s.current_node,new_node]
                 feasible_charge = (new_charge ≥ qmin[new_node])
             end
 
-            if !feasible_timewindow
-                continue
-            end
-            if !feasible_charge
+            feasible = (
+                feasible_timewindow
+                && feasible_charge
+            )
+            if !feasible
                 continue
             end
 
@@ -116,7 +129,7 @@ function enumerate_subpaths(
             else 
                 push!(s_j.arcs, (s.current_node, new_node))
             end
-            s_j.time = new_time
+            s_j.time = current_time
             s_j.charge = new_charge
             push!(subpaths, s_j)
         end
@@ -262,12 +275,16 @@ function enumerate_subpaths_withcharge(
     ;
     charge_bounded::Bool = true,
     charge_to_full_only::Bool = false,
+    time_windows::Bool = true,
 )
     """
     `nondominated_subpaths_withcharge`: Vector{Subpath}, 
     generated from a single Subpath with additional discretized charging options
     """
-    _, nondominated_subpaths = enumerate_subpaths(starting_node, starting_time, starting_charge, G, data)
+    _, nondominated_subpaths = enumerate_subpaths(
+        starting_node, starting_time, starting_charge, G, data;
+        time_windows = time_windows,
+    )
     
     nondominated_subpaths_withcharge = []
     for s in nondominated_subpaths
@@ -319,6 +336,7 @@ function enumerate_all_subpaths(
     charging_in_subpath::Bool = false,
     charge_bounded::Bool = true,
     charge_to_full_only::Bool = false,
+    time_windows::Bool = true,
 )
     """
     `all_subpaths`: Dictionary mapping (I,J)-pairs of states
@@ -345,11 +363,14 @@ function enumerate_all_subpaths(
                 ;
                 charge_bounded = charge_bounded,
                 charge_to_full_only = charge_to_full_only,
+                time_windows = time_windows,
             )
         else
             _, subpaths = @suppress enumerate_subpaths(
                 starting_node, starting_time, starting_charge,
                 G, data,
+                ;
+                time_windows = time_windows,
             )
             for s in subpaths
                 # perform rounding here
@@ -381,6 +402,7 @@ function enumerate_all_subpaths_faster(
     charging_in_subpath::Bool = false,
     charge_bounded::Bool = true,
     charge_to_full_only::Bool = false,
+    time_windows::Bool = true,
 )
     """
     `all_subpaths`: Dictionary mapping (I,J)-pairs of states
@@ -407,11 +429,14 @@ function enumerate_all_subpaths_faster(
                     ;
                     charge_bounded = charge_bounded,
                     charge_to_full_only = charge_to_full_only,
+                    time_windows = time_windows,
                 )
             else
                 _, subpaths = @suppress enumerate_subpaths(
                     starting_node, starting_time, starting_charge,
                     G, data,
+                    ;
+                    time_windows = time_windows,
                 )
                 for s in subpaths
                     # perform rounding here
