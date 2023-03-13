@@ -20,6 +20,7 @@ Base.@kwdef mutable struct Subpath
     time::Float64 = starting_time
     charge::Float64 = starting_charge
     served::BitVector = falses(n_customers)
+    serve_times::Vector{Float64} = zeros(n_customers)
     delta_time::Float64 = 0.0
     delta_charge::Float64 = 0.0
     end_time::Float64 = time
@@ -39,6 +40,7 @@ Base.copy(s::Subpath) = Subpath(
     time = s.time,
     charge = s.charge,
     served = copy(s.served),
+    serve_times = copy(s.serve_times),
     delta_time = s.delta_time,
     delta_charge = s.delta_charge,
     end_time = s.end_time,
@@ -56,12 +58,13 @@ Base.show(io::IO, s::Subpath) = begin
     else
         print(io, """Subpath:
         ($(s.starting_node), $(s.starting_time), $(s.starting_charge)) -> ($(s.current_node), $(s.round_time), $(s.round_charge))
-        arcs:   $(s.arcs)
-        served: $(s.served)
-        now:    ($(s.time), $(s.charge))
-        delta:  ($(s.delta_time), $(s.delta_charge))
-        end:    ($(s.end_time), $(s.end_charge))
-        round:  ($(s.round_time), $(s.round_charge))
+        arcs:           $(s.arcs)
+        served:         $(s.served)
+        serve_times:    $(s.serve_times)
+        now:            ($(s.time), $(s.charge))
+        delta:          ($(s.delta_time), $(s.delta_charge))
+        end:            ($(s.end_time), $(s.end_charge))
+        round:          ($(s.round_time), $(s.round_charge))
         """)
     end
 end
@@ -77,6 +80,7 @@ Base.isequal(s1::Subpath, s2::Subpath) = begin
         && s1.time == s2.time
         && s1.charge == s2.charge
         && s1.served == s2.served
+        && s1.serve_times == s2.serve_times
         && s1.delta_time == s2.delta_time
         && s1.delta_charge == s2.delta_charge
         && s1.end_time == s2.end_time
@@ -101,13 +105,14 @@ Base.show(io::IO, s::SubpathWithCost) = begin
     else
         print(io, """SubpathWithCost:
         ($(s.starting_node), $(s.starting_time), $(s.starting_charge)) -> ($(s.current_node), $(s.round_time), $(s.round_charge))
-        cost:   $(s.cost)
-        arcs:   $(s.arcs)
-        served: $(s.served)
-        now:    ($(s.time), $(s.charge))
-        delta:  ($(s.delta_time), $(s.delta_charge))
-        end:    ($(s.end_time), $(s.end_charge))
-        round:  ($(s.round_time), $(s.round_charge))
+        cost:           $(s.cost)
+        arcs:           $(s.arcs)
+        served:         $(s.served)
+        serve_times:    $(s.serve_times)
+        now:            ($(s.time), $(s.charge))
+        delta:          ($(s.delta_time), $(s.delta_charge))
+        end:            ($(s.end_time), $(s.end_charge))
+        round:          ($(s.round_time), $(s.round_charge))
         """)
     end
 end
@@ -123,6 +128,7 @@ Base.copy(s::SubpathWithCost) = SubpathWithCost(
     time = s.time,
     charge = s.charge,
     served = copy(s.served),
+    serve_times = copy(s.serve_times),
     delta_time = s.delta_time,
     delta_charge = s.delta_charge,
     end_time = s.end_time,
@@ -144,6 +150,7 @@ Base.isequal(s1::SubpathWithCost, s2::SubpathWithCost) = begin
         && s1.time == s2.time
         && s1.charge == s2.charge
         && s1.served == s2.served
+        && s1.serve_times == s2.serve_times
         && s1.delta_time == s2.delta_time
         && s1.delta_charge == s2.delta_charge
         && s1.end_time == s2.end_time
@@ -164,6 +171,7 @@ Subpath(s::SubpathWithCost) = Subpath(
     time = s.time,
     charge = s.charge,
     served = copy(s.served),
+    serve_times = copy(s.serve_times),
     delta_time = s.delta_time,
     delta_charge = s.delta_charge,
     end_time = s.end_time,
