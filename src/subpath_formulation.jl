@@ -1594,8 +1594,14 @@ function find_smallest_reduced_cost_subpaths(
     while !isempty(Q)
         i = popfirst!(Q)
         # iterate over all out-neighbors of i
-        for j in setdiff(outneighbors(G, i), i)
-            for ((now_time, now_charge), s) in pairs(labels[i])
+        for ((now_time, now_charge), s) in pairs(labels[i])
+            if s.explored
+                continue
+            else 
+                s.explored = true
+            end
+            for j in setdiff(outneighbors(G, i), i)
+                add_to_queue = false
                 # feasibility check
                 if j in data["N_pickups"]
                     feasible_service = !(s.served[j])
@@ -1637,54 +1643,66 @@ function find_smallest_reduced_cost_subpaths(
                     if length(charging_options) == 0
                         continue
                     end
-                    # FIXME: this looks wrong; I should not be restricting myself to the "cheapest charging option"
-                    (val, ind) = findmin(
-                        λ[(j, rt, rc)]
-                        for (_, _, _, _, rt, rc) in charging_options
-                    )
-                    (delta_time, delta_charge, end_time, end_charge, round_time, round_charge) = charging_options[ind]
-                    current_cost = current_cost + val
                 else
                     if j in data["N_depots"]
                         current_cost = current_cost - μ[j]
-                    end
-                    delta_time = 0
-                    delta_charge = 0
-                    end_time = current_time
-                    end_charge = current_charge
-                    round_time = dceil(end_time, T_range)
-                    round_charge = dceil(end_charge, B_range)
-                end
-        
-                if j in keys(labels)
-                    if (current_time, current_charge) in keys(labels[j])
-                        if labels[j][(current_time, current_charge)].cost ≤ current_cost
-                            continue
+                    elseif j in data["N_dropoffs"]
+                        if with_customer_delay_cost
+                            if time_windows
+                                current_cost += data["customer_delay_cost_coeff"] * (current_time - data["α"][j])
+                            else
+                                current_cost += data["customer_delay_cost_coeff"] * current_time
+                            end
                         end
                     end
+                    charging_options = [(
+                        0, 0, current_time, current_charge, 
+                        current_time, current_charge
+                    )]
                 end
-                # update labels
-                s_j = copy(s)
-                s_j.cost = current_cost
-                s_j.current_node = j
-                push!(s_j.arcs, (i, j))
-                s_j.time = current_time
-                s_j.charge = current_charge
-                if j in data["N_dropoffs"]
-                    s_j.served[j-data["n_customers"]] = true
+
+                for (delta_time, delta_charge, end_time, end_charge, store_time, store_charge) in charging_options
+                    # determine if label ought to be updated
+                    this_subpath_cost = current_cost 
+                    if j in data["N_charging"]
+                        this_subpath_cost += λ[(j, store_time, store_charge)]
+                        if with_charging_cost
+                            this_subpath_cost += data["charge_cost_coeff"] * delta_time
+                        end
+                    end
+                    
+                    if j in keys(labels)
+                        if (store_time, store_charge) in keys(labels[j])
+                            if labels[j][(store_time, store_charge)].cost ≤ this_subpath_cost
+                                continue
+                            end
+                        end
+                    end
+                    # update labels 
+                    add_to_queue = true
+                    s_j = copy(s)
+                    s_j.cost = this_subpath_cost
+                    s_j.current_node = j
+                    push!(s_j.arcs, (i, j))
+                    s_j.time = current_time
+                    s_j.charge = current_charge
+                    if j in data["N_dropoffs"]
+                        s_j.served[j-data["n_customers"]] = true
+                        s_j.serve_times[j-data["n_customers"]] = current_time
+                    end
+                    s_j.delta_time = delta_time
+                    s_j.delta_charge = delta_charge
+                    s_j.end_time = end_time
+                    s_j.end_charge = end_charge
+                    s_j.round_time = dceil(end_time, T_range)
+                    s_j.round_charge = dfloor(end_charge, B_range)
+                    if !(j in keys(labels))
+                        labels[j] = Dict{Tuple{Float64, Float64}, SubpathWithCost}()
+                    end
+                    labels[j][(store_time, store_charge)] = s_j
                 end
-                s_j.delta_time = delta_time
-                s_j.delta_charge = delta_charge
-                s_j.end_time = end_time
-                s_j.end_charge = end_charge
-                s_j.round_time = round_time
-                s_j.round_charge = round_charge
-                if !(j in keys(labels))
-                    labels[j] = Dict{Tuple{Float64, Float64}, SubpathWithCost}()
-                end
-                labels[j][(current_time, current_charge)] = s_j
                 # add node j to the list of unexplored nodes
-                if !(j in Q) && !(j in union(data["N_charging"], data["N_depots"]))
+                if add_to_queue && !(j in Q) && !(j in union(data["N_charging"], data["N_depots"]))
                     push!(Q, j)
                 end
             end
