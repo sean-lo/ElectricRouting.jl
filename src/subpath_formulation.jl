@@ -1229,7 +1229,7 @@ function generate_subpaths_withcharge_from_paths_notimewindows_V2(
     )
     for depot in data["N_depots"]
         full_labels[depot][depot][(0.0, data["B"])] = PathWithCost(
-            subpaths = [], cost = 0.0
+            subpaths = [], served = zeros(Int, data["n_customers"]), cost = 0.0
         )
     end
     unexplored_states = SortedSet(
@@ -1410,7 +1410,7 @@ function generate_subpaths_withcharge_from_paths_notimewindows(
     )
     for depot in data["N_depots"]
         full_labels[depot][depot][(0.0, data["B"])] = PathWithCost(
-            subpaths = [], cost = 0.0
+            subpaths = [], served = zeros(Int, data["n_customers"]), cost = 0.0
         )
     end
     unexplored_states = SortedSet(
