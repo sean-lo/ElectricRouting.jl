@@ -1146,6 +1146,8 @@ function generate_subpaths_withcharge_from_paths_notimewindows_V2(
         },
         k1::Tuple{Float64, Float64}, 
         v1::Union{PathWithCost, SubpathWithCost},
+        ;
+        on_service::Bool = false
     )
         added = true
         for (k2, v2) in collection
@@ -1155,17 +1157,21 @@ function generate_subpaths_withcharge_from_paths_notimewindows_V2(
                 && k2[2] ≥ k1[2]
                 && v2.cost ≤ v1.cost
             )
-                added = false
-                # println("$(k1[1]), $(k1[2]), $(v1.cost) dominated by $(k2[1]), $(k2[2]), $(v2.cost)")
-                break
+                if !on_service || (on_service && sum(v2.served) ≤ sum(v1.served))
+                    added = false
+                    # println("$(k1[1]), $(k1[2]), $(v1.cost) dominated by $(k2[1]), $(k2[2]), $(v2.cost)")
+                    break
+                end
             # check if v1 dominates v2
             elseif (
                 k1[1] ≤ k2[1] 
                 && k1[2] ≥ k2[2]
                 && v1.cost ≤ v2.cost
             )
-                # println("$(k1[1]), $(k1[2]), $(v1.cost) dominates $(k2[1]), $(k2[2]), $(v2.cost)")
-                pop!(collection, k2)
+                if !on_service || (on_service && sum(v1.served) ≤ sum(v2.served))
+                    # println("$(k1[1]), $(k1[2]), $(v1.cost) dominates $(k2[1]), $(k2[2]), $(v2.cost)")
+                    pop!(collection, k2)
+                end
             end
         end
         if added
@@ -1209,7 +1215,9 @@ function generate_subpaths_withcharge_from_paths_notimewindows_V2(
                 # 2. check if v1 dominates anyone
                 add_subpath_path_withcost_to_collection!(
                     nondom_base_labels[node1][node2],
-                    k1, v1
+                    k1, v1,
+                    ;
+                    on_service = true,
                 )
             end
         end
