@@ -1206,10 +1206,7 @@ function generate_subpaths_withcharge_from_paths_notimewindows_V2(
             )
             for node1 in union(data["N_depots"], data["N_charging"])
         )
-        for node1 in union(data["N_depots"], data["N_charging"]), node2 in data["N_depots"]
-            nondom_base_labels[node1][node2] = base_labels[node1][node2]
-        end
-        for node1 in union(data["N_depots"], data["N_charging"]), node2 in data["N_charging"]
+        for node1 in union(data["N_depots"], data["N_charging"]), node2 in union(data["N_depots"], data["N_charging"])
             for (k1, v1) in base_labels[node1][node2]
                 # 1. check if v1 is not dominated
                 # 2. check if v1 dominates anyone
@@ -2813,21 +2810,21 @@ function subpath_formulation_column_generation_integrated_from_paths(
                 with_charging_cost = with_charging_cost,
                 with_customer_delay_cost = with_customer_delay_cost,
             )
-            if length(generate_subpaths_result.value[1]) == 0
-                rough = false
-                generate_subpaths_result = @timed generate_subpaths_withcharge_from_paths_notimewindows_V2(
-                    G, data, T_range, B_range,
-                    mp_results["κ"],
-                    mp_results["μ"], 
-                    mp_results["ν"],
-                    ;
-                    charge_bounded = charge_bounded,
-                    charge_to_full_only = charge_to_full_only,
-                    rough = rough,
-                    with_charging_cost = with_charging_cost,
-                    with_customer_delay_cost = with_customer_delay_cost,
-                )
-            end
+            # if length(generate_subpaths_result.value[1]) == 0
+            #     rough = false
+            #     generate_subpaths_result = @timed generate_subpaths_withcharge_from_paths_notimewindows_V2(
+            #         G, data, T_range, B_range,
+            #         mp_results["κ"],
+            #         mp_results["μ"], 
+            #         mp_results["ν"],
+            #         ;
+            #         charge_bounded = charge_bounded,
+            #         charge_to_full_only = charge_to_full_only,
+            #         rough = rough,
+            #         with_charging_cost = with_charging_cost,
+            #         with_customer_delay_cost = with_customer_delay_cost,
+            #     )
+            # end
         end
         (current_subpaths, _, _) = generate_subpaths_result.value
 
