@@ -299,6 +299,7 @@ function path_formulation_column_generation(
     with_charging_cost::Bool = false,
     with_customer_delay_cost::Bool = false,
     time_windows::Bool = true,
+    with_heuristic::Bool = true,
     verbose::Bool = false,
     time_limit::Float64 = Inf,
 )
@@ -316,7 +317,17 @@ function path_formulation_column_generation(
     start_time = time()
 
     artificial_paths = generate_artificial_paths(data)
-    some_paths = deepcopy(artificial_paths)
+    if with_heuristic
+        some_paths = construct_heuristic_paths(data, T_range, B_range)
+        for (key, artificial_path_list) in pairs(artificial_paths)
+            if !(key in keys(some_paths))
+                some_paths[key] = []
+            end
+            append!(some_paths[key], artificial_path_list)
+        end
+    else
+        some_paths = deepcopy(artificial_paths)
+    end
     mp_results = Dict()
     params = Dict()
     params["number_of_paths"] = [sum(length(v) for v in values(some_paths))]

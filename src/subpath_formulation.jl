@@ -19,6 +19,322 @@ lt(o::DoubleStateOrdering, a, b) = isless((a[1], -a[2]), (b[1], -b[2]))
 eq(o::TripleStateOrdering, a, b) = isequal(a, b)
 eq(o::DoubleStateOrdering, a, b) = isequal(a, b)
 
+function construct_heuristic_paths(
+    data, 
+    T_range, 
+    B_range,
+)
+    groups = sort(
+        Dict(
+            [i] => data["c"][i, i + data["n_customers"]]
+            for i in data["N_pickups"]
+        ),
+        byvalue = true,
+    )
+    arclist_cc = sort(
+        Dict(
+            (k1, k2) => (
+                groups[k1]
+                + data["c"][k1[end] + data["n_customers"], k2[1]]
+                + groups[k2]
+            )
+            for (k1, k2) in collect(permutations(collect(keys(groups)), 2))
+        ),
+        byvalue = true
+    )
+    nearest_charge = merge(
+        Dict(
+            (i, "in") => minimum(
+                data["c"][c,i] for c in data["N_charging"]
+            )
+            for i in data["N_pickups"]
+        ),
+        Dict(
+            (i - data["n_customers"], "out") => minimum(
+                data["c"][i,c] for c in data["N_charging"]
+            )
+            for i in data["N_dropoffs"]
+        ),
+    )
+
+    while true
+        myk1, myk2, myval = nothing, nothing, nothing
+        for ((k1, k2), val) in pairs(arclist_cc)
+            safety_cost = (
+                val 
+                + nearest_charge[(k1[1], "in")] 
+                + nearest_charge[(k2[end], "out")]
+            )
+            if safety_cost ≤ data["B"]
+                myk1, myk2, myval = k1, k2, val
+                break
+            end
+        end
+        if isnothing(myval)
+            break
+        end
+    
+        pop!(groups, myk1)
+        pop!(groups, myk2)
+        groups[vcat(myk1,myk2)] = myval
+        arclist_cc = sort(
+            Dict(
+                (k1, k2) => (
+                    groups[k1]
+                    + data["c"][k1[end] + data["n_customers"], k2[1]]
+                    + groups[k2]
+                )
+                for (k1, k2) in collect(permutations(collect(keys(groups)), 2))
+            ),
+            byvalue = true
+        )
+    end
+
+    base_labels = Dict(
+        start_node => Dict(
+            end_node => Dict{Tuple{Float64, Float64}, Vector{Subpath}}()
+            for end_node in union(data["N_depots"], data["N_charging"])
+        )
+        for start_node in union(data["N_depots"], data["N_charging"])
+    )
+    for k in keys(groups)
+        for start_node in union(data["N_depots"], data["N_charging"])
+            for end_node in union(data["N_depots"], data["N_charging"])
+                nodelist = vcat(
+                    start_node,
+                    reduce(vcat, [[i, i+data["n_customers"]] for i in k]),
+                    end_node,
+                )
+                arcs = collect(zip(nodelist[1:end-1], nodelist[2:end]))
+                
+                starting_time = 0.0
+                starting_charge = data["B"]
+                time_taken = sum(data["c"][a...] for a in arcs)
+                charge_taken = sum(data["q"][a...] for a in arcs)
+                
+                current_time = starting_time + time_taken
+                current_charge = starting_charge - charge_taken
+                if !(current_time ≤ data["T"])
+                    continue
+                end
+                if !(0.0 ≤ current_charge ≤ data["B"])
+                    continue
+                end
+                served = falses(data["n_customers"])
+                served[k] .= true
+                serve_times = zeros(data["n_customers"])
+                for i in 1:(length(arcs) ÷ 2)
+                    customer = nodelist[2*i]
+                    cumulative_time_taken = sum(data["c"][a...] for a in arcs[1:2*i])
+                    serve_times[customer] = starting_time + cumulative_time_taken
+                end
+                if end_node in data["N_charging"]
+                    (dt, db, et, eb, rt, rb) = generate_charging_options(
+                        starting_time + time_taken, 
+                        starting_charge - charge_taken, 
+                        data["μ"],
+                        T_range, B_range,
+                        charge_to_full_only = true,
+                    )[1]
+                    s = Subpath(
+                        n_customers = data["n_customers"],
+                        starting_node = start_node,
+                        starting_time = starting_time,
+                        starting_charge = starting_charge,
+                        current_node = end_node,
+                        arcs = arcs,
+                        time = current_time,
+                        charge = current_charge,
+                        served = served,
+                        serve_times = serve_times,
+                        delta_time = dt, 
+                        delta_charge = db,
+                        end_time = et, 
+                        end_charge = eb,
+                        round_time = rt, 
+                        round_charge = rb,
+                    )
+                    if !((rt, rb) in keys(base_labels[start_node][end_node]))
+                        base_labels[start_node][end_node][(rt, rb)] = []
+                    end
+                    push!(base_labels[start_node][end_node][(rt, rb)], s)
+                else
+                    s = Subpath(
+                        n_customers = data["n_customers"],
+                        starting_node = start_node,
+                        starting_time = starting_time,
+                        starting_charge = starting_charge,
+                        current_node = end_node,
+                        arcs = arcs,
+                        time = current_time,
+                        charge = current_charge,
+                        served = served,
+                        serve_times = serve_times,
+                        delta_time = 0.0, 
+                        delta_charge = 0.0,
+                        end_time = current_time, 
+                        end_charge = current_charge,
+                        round_time = current_time, 
+                        round_charge = current_charge,
+                    )
+                    if !((current_time, current_charge) in keys(base_labels[start_node][end_node]))
+                        base_labels[start_node][end_node][(current_time, current_charge)] = []
+                    end
+                    push!(base_labels[start_node][end_node][(current_time, current_charge)], s)
+                end
+            end
+        end
+    end
+
+    unexplored_states = SortedSet(
+        TripleStateOrdering(), 
+        [
+            (depot, 0.0, data["B"])
+            for depot in data["N_depots"]
+        ]
+    )
+
+    full_labels = Dict(
+        start_node => Dict(
+            end_node => Dict{Tuple{Float64, Float64}, Vector{Path}}()
+            for end_node in union(data["N_depots"], data["N_charging"])
+        )
+        for start_node in data["N_depots"]
+    )
+    for depot in data["N_depots"]
+        full_labels[depot][depot][(0.0, data["B"])] = [Path(
+            subpaths = [], served = zeros(Int, data["n_customers"])
+        )]
+    end
+
+    while length(unexplored_states) > 0
+        state = pop!(unexplored_states)
+        # where do you want to go next
+        for next_node in union(data["N_depots"], data["N_charging"])
+            # what subpaths bring you there
+            for s_list in values(base_labels[state[1]][next_node])
+                for s in s_list
+                    if !(
+                        s.round_time + state[2] ≤ data["T"]
+                    )
+                        continue
+                    end
+                    # translate subpath
+                    s_new = copy(s)
+                    s_new.starting_time = state[2]
+                    s_new.starting_charge = data["B"]
+                    s_new.time = s.time + state[2]
+                    s_new.charge = s.charge
+                    s_new.serve_times = s.serve_times .+ (state[2] .* s.served)
+                    s_new.end_time = s.end_time + state[2]
+                    s_new.end_charge = s.end_charge
+                    s_new.round_time = s.round_time + state[2]
+                    s_new.round_charge = s.round_charge
+                    if next_node in data["N_depots"]
+                        key = (s_new.end_time, s_new.end_charge)
+                    else
+                        key = (s_new.round_time, s_new.round_charge)
+                    end
+                    add_next_state = false
+                    for starting_node in data["N_depots"]
+                        if !((state[2], state[3]) in keys(full_labels[starting_node][state[1]]))
+                            continue
+                        end
+                        for current_path in full_labels[starting_node][state[1]][(state[2], state[3])]
+                            new_path = Path(
+                                subpaths = vcat(
+                                    current_path.subpaths, 
+                                    [s_new],
+                                ),
+                            )
+                            add_next_state = true
+                            if !(key in keys(full_labels[starting_node][next_node]))
+                                full_labels[starting_node][next_node][key] = []
+                            end
+                            push!(full_labels[starting_node][next_node][key], new_path)
+                        end
+                    end
+                    next_state = (next_node, key...)
+                    if (
+                        add_next_state  
+                        && next_node in data["N_charging"] 
+                        && !(next_state in unexplored_states)
+                    )
+                        insert!(unexplored_states, next_state)
+                    end
+                end
+            end
+        end
+    end
+
+    for depot in data["N_depots"]
+        full_labels[depot][depot][(0.0, data["B"])] = [Path(
+            subpaths = [Subpath(
+                n_customers = data["n_customers"],
+                starting_node = depot,
+                starting_time = 0.0,
+                starting_charge = data["B"],
+                arcs = [(depot, depot)],
+            )], 
+            served = zeros(Int, data["n_customers"])
+        )]
+    end
+
+    heuristic_paths = Dict{
+        Tuple{Tuple{Int, Float64, Float64}, Tuple{Int, Float64, Float64}}, 
+        Vector{Path},
+    }()
+    for start_node in data["N_depots"], end_node in data["N_depots"]
+        for ((end_time, end_charge), p_list) in pairs(full_labels[start_node][end_node])
+            for p in p_list
+                start_state = (start_node, 0.0, data["B"])
+                end_state = (end_node, end_time, end_charge)
+                state_pair = (start_state, end_state)
+                if !(state_pair in keys(heuristic_paths))
+                    heuristic_paths[state_pair] = []
+                end
+                if !any(isequal(p, p1) for p1 in heuristic_paths[state_pair])
+                    push!(heuristic_paths[state_pair], p)
+                end
+            end
+        end
+    end
+
+    return heuristic_paths
+
+end
+
+function construct_heuristic_subpaths(
+    data, 
+    T_range, 
+    B_range,
+)
+    
+    heuristic_paths = construct_heuristic_paths(data, T_range, B_range)
+
+    heuristic_subpaths = Dict{
+        Tuple{Tuple{Int, Float64, Float64}, Tuple{Int, Float64, Float64}}, 
+        Vector{Subpath},
+    }()
+
+    for path_list in values(heuristic_paths)
+        for path in path_list
+            for s in path.subpaths
+                state_pair = (
+                    (s.starting_node, s.starting_time, s.starting_charge),
+                    (s.current_node, s.round_time, s.round_charge),
+                )
+                if !(state_pair in keys(heuristic_subpaths))
+                    heuristic_subpaths[state_pair] = []
+                end
+                push!(heuristic_subpaths[state_pair], s)
+            end
+        end
+    end
+
+    return heuristic_subpaths
+
+end
 
 function enumerate_subpaths(
     starting_node, 
@@ -2219,6 +2535,7 @@ function subpath_formulation_column_generation_from_paths(
     time_windows::Bool = true,
     with_charging_cost::Bool = false,
     with_customer_delay_cost::Bool = false,
+    with_heuristic::Bool = true,
     verbose::Bool = false,
     time_limit::Float64 = Inf,
 )
@@ -2236,7 +2553,17 @@ function subpath_formulation_column_generation_from_paths(
     start_time = time()
 
     artificial_subpaths = generate_artificial_subpaths(data)
-    some_subpaths = deepcopy(artificial_subpaths)
+    if with_heuristic
+        some_subpaths = construct_heuristic_subpaths(data, T_range, B_range)
+        for (key, artificial_subpath_list) in pairs(artificial_subpaths)
+            if !(key in keys(some_subpaths))
+                some_subpaths[key] = []
+            end
+            append!(some_subpaths[key], artificial_subpath_list)
+        end
+    else
+        some_subpaths = deepcopy(artificial_subpaths)
+    end
     mp_results = Dict()
     params = Dict()
     params["number_of_subpaths"] = [sum(length(v) for v in values(some_subpaths))]
@@ -2411,6 +2738,7 @@ function subpath_formulation_column_generation(
     time_windows::Bool = true,
     with_charging_cost::Bool = false,
     with_customer_delay_cost::Bool = false,
+    with_heuristic::Bool = true,
     verbose::Bool = false,
 )
     function add_message!(
@@ -2427,6 +2755,17 @@ function subpath_formulation_column_generation(
     start_time = time()
 
     artificial_subpaths = generate_artificial_subpaths(data)
+    if with_heuristic
+        some_subpaths = construct_heuristic_subpaths(data, T_range, B_range)
+        for (key, artificial_subpath_list) in pairs(artificial_subpaths)
+            if !(key in keys(some_subpaths))
+                some_subpaths[key] = []
+            end
+            append!(some_subpaths[key], artificial_subpath_list)
+        end
+    else
+        some_subpaths = deepcopy(artificial_subpaths)
+    end
     some_subpaths = deepcopy(artificial_subpaths)
     mp_results = Dict()
     params = Dict()
@@ -2598,6 +2937,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
     time_windows::Bool = true,
     with_charging_cost::Bool = false,
     with_customer_delay_cost::Bool = false,
+    with_heuristic::Bool = true,
     verbose::Bool = true,
     time_limit::Float64 = Inf,
 )
@@ -2614,7 +2954,18 @@ function subpath_formulation_column_generation_integrated_from_paths(
 
     start_time = time()
 
-    some_subpaths = generate_artificial_subpaths(data)
+    artificial_subpaths = generate_artificial_subpaths(data)
+    if with_heuristic
+        some_subpaths = construct_heuristic_subpaths(data, T_range, B_range)
+        for (key, artificial_subpath_list) in pairs(artificial_subpaths)
+            if !(key in keys(some_subpaths))
+                some_subpaths[key] = []
+            end
+            append!(some_subpaths[key], artificial_subpath_list)
+        end
+    else
+        some_subpaths = deepcopy(artificial_subpaths)
+    end
     subpath_costs = compute_subpath_costs(
         data, 
         some_subpaths,
