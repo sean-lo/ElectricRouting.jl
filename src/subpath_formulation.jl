@@ -225,23 +225,15 @@ function generate_charging_options(
     T_range,
     B_range,
     ;
-    charge_bounded::Bool = true,
     charge_to_full_only::Bool = false,
 )
     # Version 2: charge by fixed time intervals inside T_range
     # If maximum time reached, charge to maximum time and get the corresponding charge
     # If maximum charge reached, charge to the next higher time (in T_range) and get to max charge
-    if charge_bounded
-        max_delta_time = min(
-            (B_range[end] - starting_charge) / charging_rate,
-            (T_range[end] - starting_time - starting_charge) / (charging_rate + 1)
-        )
-    else
-        max_delta_time = min(
-            (B_range[end] - starting_charge) / charging_rate,
-            T_range[end] - starting_time,
-        )
-    end
+    max_delta_time = min(
+        (B_range[end] - starting_charge) / charging_rate,
+        T_range[end] - starting_time,
+    )
     max_end_time = starting_time + max_delta_time
     max_end_time = dceil(max_end_time, T_range)
     if charge_to_full_only
@@ -274,7 +266,6 @@ function enumerate_subpaths_withcharge(
     T_range,
     B_range,
     ;
-    charge_bounded::Bool = true,
     charge_to_full_only::Bool = false,
     time_windows::Bool = true,
 )
@@ -319,7 +310,7 @@ function enumerate_subpaths_withcharge(
                         round_time, round_charge) in generate_charging_options(
                         s.time, s.charge, data["μ"], T_range, B_range,
                         ;
-                        charge_bounded = charge_bounded,
+                        
                         charge_to_full_only = charge_to_full_only,
                     )
                 ]
@@ -336,7 +327,6 @@ function enumerate_all_subpaths(
     B_range,
     ;
     charging_in_subpath::Bool = false,
-    charge_bounded::Bool = true,
     charge_to_full_only::Bool = false,
     time_windows::Bool = true,
 )
@@ -363,7 +353,7 @@ function enumerate_all_subpaths(
                 starting_node, starting_time, starting_charge,
                 G, data, T_range, B_range,
                 ;
-                charge_bounded = charge_bounded,
+                
                 charge_to_full_only = charge_to_full_only,
                 time_windows = time_windows,
             )
@@ -402,7 +392,6 @@ function enumerate_all_subpaths_faster(
     B_range,
     ;
     charging_in_subpath::Bool = false,
-    charge_bounded::Bool = true,
     charge_to_full_only::Bool = false,
     time_windows::Bool = true,
 )
@@ -429,7 +418,7 @@ function enumerate_all_subpaths_faster(
                     starting_node, starting_time, starting_charge,
                     G, data, T_range, B_range,
                     ;
-                    charge_bounded = charge_bounded,
+                    
                     charge_to_full_only = charge_to_full_only,
                     time_windows = time_windows,
                 )
@@ -579,7 +568,6 @@ function find_smallest_reduced_cost_paths(
     # dual values associated with customer service constraints
     ν,
     ;
-    charge_bounded::Bool = true,
     charge_to_full_only::Bool = false,
     time_windows::Bool = true,
     with_charging_cost::Bool = false,
@@ -706,7 +694,7 @@ function find_smallest_reduced_cost_paths(
                         current_time, current_charge, 
                         data["μ"], T_range, B_range,
                         ;
-                        charge_bounded = charge_bounded,
+                        
                         charge_to_full_only = charge_to_full_only,    
                     )
                     if length(charging_options) == 0
@@ -863,7 +851,6 @@ function generate_subpaths_withcharge_from_paths(
     ν,
     ;
     charging_in_subpath::Bool = true,
-    charge_bounded::Bool = true,
     charge_to_full_only::Bool = false,
     time_windows::Bool = true,
     with_charging_cost::Bool = false,
@@ -882,7 +869,7 @@ function generate_subpaths_withcharge_from_paths(
             starting_node, G, data, T_range, B_range, 
             κ, μ, ν,
             ;
-            charge_bounded = charge_bounded,
+            
             charge_to_full_only = charge_to_full_only,
             time_windows = time_windows,
             with_charging_cost = with_charging_cost,
@@ -912,7 +899,6 @@ function find_smallest_reduced_cost_subpaths_notimewindows(
     μ,
     ν,
     ;
-    charge_bounded::Bool = true,
     charge_to_full_only::Bool = false,
     with_charging_cost::Bool = false,
     with_customer_delay_cost::Bool = false,
@@ -1045,7 +1031,7 @@ function find_smallest_reduced_cost_subpaths_notimewindows(
             for (dt, db, et, eb, rt, rb) in generate_charging_options(
                 s.time, s.charge, data["μ"], T_range, B_range,
                 ;
-                charge_bounded = charge_bounded,
+                
                 charge_to_full_only = charge_to_full_only,
             )
                 key = (rt, rb)
@@ -1124,7 +1110,6 @@ function generate_subpaths_withcharge_from_paths_notimewindows_V2(
     μ, 
     ν, 
     ;
-    charge_bounded::Bool = true,
     charge_to_full_only::Bool = false,
     rough::Bool = true,
     with_charging_cost::Bool = false,
@@ -1190,7 +1175,7 @@ function generate_subpaths_withcharge_from_paths_notimewindows_V2(
         _, base_labels[node] = find_smallest_reduced_cost_subpaths_notimewindows(
             node, G, data, T_range, B_range, κ, μ, ν,
             ;
-            charge_bounded = charge_bounded,
+            
             charge_to_full_only = charge_to_full_only,
             with_charging_cost = with_charging_cost,
             with_customer_delay_cost = with_customer_delay_cost,
@@ -1379,7 +1364,6 @@ function generate_subpaths_withcharge_from_paths_notimewindows(
     μ, 
     ν, 
     ;
-    charge_bounded::Bool = true,
     charge_to_full_only::Bool = false,
     with_charging_cost::Bool = false,
     with_customer_delay_cost::Bool = false,
@@ -1393,7 +1377,7 @@ function generate_subpaths_withcharge_from_paths_notimewindows(
         _, base_labels[node] = find_smallest_reduced_cost_subpaths_notimewindows(
             node, G, data, T_range, B_range, κ, μ, ν,
             ;
-            charge_bounded = charge_bounded,
+            
             charge_to_full_only = charge_to_full_only,
             with_charging_cost = with_charging_cost,
             with_customer_delay_cost = with_customer_delay_cost,
@@ -1555,7 +1539,6 @@ function find_smallest_reduced_cost_subpaths(
     # dual values associated with customer service constraints
     ν,
     ;
-    charge_bounded::Bool = true,
     charge_to_full_only::Bool = false,
     time_windows::Bool = true,
     with_charging_cost::Bool = false,
@@ -1642,7 +1625,7 @@ function find_smallest_reduced_cost_subpaths(
                         current_time, current_charge, 
                         data["μ"], T_range, B_range,
                         ;
-                        charge_bounded = charge_bounded,
+                        
                         charge_to_full_only = charge_to_full_only,
                     )
                     if length(charging_options) == 0
@@ -1749,7 +1732,6 @@ function generate_subpaths_withcharge(
     ν,
     ;
     charging_in_subpath::Bool = true,
-    charge_bounded::Bool = true,
     charge_to_full_only::Bool = false,
     time_windows::Bool = true,
     with_charging_cost::Bool = false,
@@ -1788,7 +1770,7 @@ function generate_subpaths_withcharge(
             G, data, T_range, B_range,
             κ, λ, μ, ν,
             ;
-            charge_bounded = charge_bounded,
+            
             charge_to_full_only = charge_to_full_only,
             time_windows = time_windows,
             with_charging_cost = with_charging_cost,
@@ -1911,7 +1893,6 @@ function enumerate_all_charging_arcs(
     T_range,
     B_range,
     ;
-    charge_bounded::Bool = true,
     charge_to_full_only::Bool = false,
 )
     states = Set()
@@ -1936,7 +1917,7 @@ function enumerate_all_charging_arcs(
                             T_range,
                             B_range,
                             ;
-                            charge_bounded = charge_bounded,
+                            
                             charge_to_full_only = charge_to_full_only,    
                         )
                         if (starting_node, t2, b2) in states
@@ -2234,7 +2215,6 @@ function subpath_formulation_column_generation_from_paths(
     B_range,
     ;
     charging_in_subpath::Bool = true,
-    charge_bounded::Bool = true,
     charge_to_full_only::Bool = false,
     time_windows::Bool = true,
     with_charging_cost::Bool = false,
@@ -2339,7 +2319,7 @@ function subpath_formulation_column_generation_from_paths(
             mp_results["κ"], mp_results["μ"], mp_results["ν"],
             ;
             charging_in_subpath = charging_in_subpath,
-            charge_bounded = charge_bounded,
+            
             charge_to_full_only = charge_to_full_only,
             time_windows = time_windows,
             with_charging_cost = with_charging_cost,
@@ -2614,7 +2594,6 @@ function subpath_formulation_column_generation_integrated_from_paths(
     T_range,
     B_range,
     ;
-    charge_bounded::Bool = true,
     charge_to_full_only::Bool = false,
     time_windows::Bool = true,
     with_charging_cost::Bool = false,
@@ -2791,7 +2770,6 @@ function subpath_formulation_column_generation_integrated_from_paths(
                 mp_results["ν"],
                 ;
                 charging_in_subpath = true,
-                charge_bounded = charge_bounded,
                 charge_to_full_only = charge_to_full_only,
                 time_windows = time_windows,
                 with_charging_cost = with_charging_cost,
@@ -2804,7 +2782,6 @@ function subpath_formulation_column_generation_integrated_from_paths(
                 mp_results["μ"], 
                 mp_results["ν"],
                 ;
-                charge_bounded = charge_bounded,
                 charge_to_full_only = charge_to_full_only,
                 rough = rough,
                 with_charging_cost = with_charging_cost,
@@ -2818,7 +2795,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
             #         mp_results["μ"], 
             #         mp_results["ν"],
             #         ;
-            #         charge_bounded = charge_bounded,
+            #         
             #         charge_to_full_only = charge_to_full_only,
             #         rough = rough,
             #         with_charging_cost = with_charging_cost,

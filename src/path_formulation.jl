@@ -243,7 +243,6 @@ function generate_paths(
     μ, 
     ν,
     ;
-    charge_bounded::Bool = true,
     charge_to_full_only::Bool = false,
     time_windows::Bool = true,
     with_charging_cost::Bool = false,
@@ -260,7 +259,6 @@ function generate_paths(
             G, data, T_range, B_range, 
             κ, μ, ν, 
             ;
-            charge_bounded = charge_bounded,
             charge_to_full_only = charge_to_full_only,
             time_windows = time_windows,
             with_charging_cost = with_charging_cost,
@@ -297,7 +295,6 @@ function path_formulation_column_generation(
     T_range,
     B_range,
     ;
-    charge_bounded::Bool = true,
     charge_to_full_only::Bool = false,
     with_charging_cost::Bool = false,
     with_customer_delay_cost::Bool = false,
@@ -402,7 +399,6 @@ function path_formulation_column_generation(
             G, data, T_range, B_range, 
             mp_results["κ"], mp_results["μ"], mp_results["ν"]
             ;
-            charge_bounded = charge_bounded,
             charge_to_full_only = charge_to_full_only,
             with_charging_cost = with_charging_cost,
             with_customer_delay_cost = with_customer_delay_cost,
