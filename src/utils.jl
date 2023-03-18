@@ -183,6 +183,7 @@ Subpath(s::SubpathWithCost) = Subpath(
 
 Base.@kwdef mutable struct Path
     subpaths::Vector{Subpath}
+    served::Vector{Int} = sum(s.served for s in subpaths)
 end
 
 Base.isequal(p1::Path, p2::Path) = all(isequal(s1, s2) for (s1, s2) in zip(p1.subpaths, p2.subpaths))
@@ -190,11 +191,13 @@ Base.isequal(p1::Path, p2::Path) = all(isequal(s1, s2) for (s1, s2) in zip(p1.su
 Base.@kwdef mutable struct PathWithCost
     subpaths::Vector{SubpathWithCost}
     cost::Float64
+    served::Vector{Int} = sum(s.served for s in subpaths)
     explored::Bool = false
 end
 
 Path(p::PathWithCost) = Path(
     subpaths = [Subpath(s) for s in p.subpaths],
+    served = sum(s.served for s in p.subpaths)
 )
 
 function dceil(
