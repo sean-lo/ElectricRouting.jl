@@ -1205,20 +1205,15 @@ function generate_subpaths_withcharge_from_paths(
     return generated_subpaths_withcharge, nothing, nothing, generated_paths_withcharge
 end
 
-function find_smallest_reduced_cost_subpaths_notimewindows(
+function find_smallest_reduced_cost_subpaths_nocharge_notimewindows(
     starting_node, 
     G,
     data, 
-    T_range,
-    B_range, 
     κ,
     μ,
     ν,
     ;
-    charge_to_full_only::Bool = false,
-    with_charging_cost::Bool = false,
     with_customer_delay_cost::Bool = false,
-    verbose::Bool = false,
 )
     modified_costs = data["travel_cost_coeff"] * Float64.(copy(data["c"]))
     for i in 1:data["n_customers"]
@@ -1314,8 +1309,8 @@ function find_smallest_reduced_cost_subpaths_notimewindows(
                     s_j.delta_charge = 0.0
                     s_j.end_time = current_time
                     s_j.end_charge = current_charge
-                    s_j.round_time = dceil(current_time, T_range)
-                    s_j.round_charge = dfloor(current_charge, B_range)
+                    s_j.round_time = current_time
+                    s_j.round_charge = current_charge
 
                     labels[j][current_time] = s_j
                 end
@@ -1334,7 +1329,30 @@ function find_smallest_reduced_cost_subpaths_notimewindows(
         labels[node] = sort(labels[node])
     end
 
-    # return labels
+    return labels
+end
+
+function find_smallest_reduced_cost_subpaths_notimewindows(
+    starting_node, 
+    G,
+    data, 
+    T_range,
+    B_range, 
+    κ,
+    μ,
+    ν,
+    ;
+    charge_to_full_only::Bool = false,
+    with_charging_cost::Bool = false,
+    with_customer_delay_cost::Bool = false,
+)
+
+    labels = find_smallest_reduced_cost_subpaths_nocharge_notimewindows(
+        starting_node, G, data, 
+        κ, μ, ν,
+        ;
+        with_customer_delay_cost = with_customer_delay_cost,
+    )
 
     # generate charging options and perform dominance criteria
     new_labels = Dict{Int, SortedDict{Tuple{Float64, Float64}, SubpathWithCost}}(
@@ -1347,7 +1365,6 @@ function find_smallest_reduced_cost_subpaths_notimewindows(
             for (dt, db, et, eb, rt, rb) in generate_charging_options(
                 s.time, s.charge, data["μ"], T_range, B_range,
                 ;
-                
                 charge_to_full_only = charge_to_full_only,
             )
                 key = (rt, rb)
@@ -1385,7 +1402,7 @@ function find_smallest_reduced_cost_subpaths_notimewindows(
         end
     end
 
-    return labels, new_labels
+    return new_labels
 end
 
 function remove_dominated_subpaths_paths_withcharge!(
@@ -1488,7 +1505,7 @@ function generate_subpaths_withcharge_from_paths_notimewindows_V2(
     dso = DoubleStateOrdering()
     base_labels = Dict{Int, Dict{Int64, SortedDict{Tuple{Float64, Float64}, SubpathWithCost}}}()
     for node in union(data["N_depots"], data["N_charging"])   
-        _, base_labels[node] = find_smallest_reduced_cost_subpaths_notimewindows(
+        base_labels[node] = find_smallest_reduced_cost_subpaths_notimewindows(
             node, G, data, T_range, B_range, κ, μ, ν,
             ;
             
@@ -1690,7 +1707,7 @@ function generate_subpaths_withcharge_from_paths_notimewindows(
     dso = DoubleStateOrdering()
     base_labels = Dict()
     for node in union(data["N_depots"], data["N_charging"])   
-        _, base_labels[node] = find_smallest_reduced_cost_subpaths_notimewindows(
+        base_labels[node] = find_smallest_reduced_cost_subpaths_notimewindows(
             node, G, data, T_range, B_range, κ, μ, ν,
             ;
             
