@@ -1434,6 +1434,319 @@ function remove_dominated_subpaths_paths_withcharge!(
     end
 end
 
+function generate_subpaths_withcharge_from_paths_notimewindows_V3(
+    G,
+    data, 
+    T_range, 
+    B_range,
+    κ, 
+    μ, 
+    ν, 
+    ;
+    charge_to_full_only::Bool = false,
+    rough::Bool = true,
+    with_charging_cost::Bool = false,
+    with_customer_delay_cost::Bool = false,
+)
+
+    function charge_to_specified_level(start_charge, end_charge, start_time, charging_rate)
+        if end_charge ≤ start_charge
+            return (0, 0, start_time, start_charge)
+        end
+        delta_charge = (end_charge - start_charge)
+        delta_time = delta_charge / charging_rate
+        end_time = start_time + delta_time
+        return (
+            round(delta_time, digits = 1), 
+            delta_charge,
+            round(end_time, digits = 1), 
+            end_charge,
+        )
+    end
+
+    function add_subpath_path_withcost_to_collection!(
+        collection::Union{
+            SortedDict{
+                Tuple{Float64, Float64}, 
+                PathWithCost,
+                DoubleStateOrdering
+            },
+            SortedDict{
+                Tuple{Float64, Float64}, 
+                SubpathWithCost,
+                DoubleStateOrdering
+            },
+        },
+        k1::Tuple{Float64, Float64}, 
+        v1::Union{PathWithCost, SubpathWithCost},
+        ;
+        on_timecharge::Bool = true,
+        on_service::Bool = false,
+    )
+        added = true
+        for (k2, v2) in collection
+            # check if v2 dominates v1
+            if v2.cost ≤ v1.cost
+                if !on_timecharge || (on_timecharge && k2[1] ≤ k1[1] && k2[2] ≥ k1[2])
+                    if !on_service || (on_service && sum(v2.served) ≤ sum(v1.served))
+                        added = false
+                        # println("$(k1[1]), $(k1[2]), $(v1.cost) dominated by $(k2[1]), $(k2[2]), $(v2.cost)")
+                        break
+                    end
+                end
+            # check if v1 dominates v2
+            elseif v1.cost ≤ v2.cost
+                if !on_timecharge || (on_timecharge && k1[1] ≤ k2[1] && k1[2] ≥ k2[2])
+                    if !on_service || (on_service && sum(v1.served) ≤ sum(v2.served))
+                        # println("$(k1[1]), $(k1[2]), $(v1.cost) dominates $(k2[1]), $(k2[2]), $(v2.cost)")
+                        pop!(collection, k2)
+                    end
+                end
+            end
+        end
+        if added
+            # println("$(k1[1]), $(k1[2]), $(v1.cost) added!")
+            insert!(collection, k1, v1)
+        end
+        return added
+    end
+
+    start_time = time()
+
+    tso = TripleStateOrdering()
+    dso = DoubleStateOrdering()
+    base_labels = Dict{Int, Dict{Int64, Dict{Float64, SubpathWithCost}}}()
+    for node in union(data["N_depots"], data["N_charging"])   
+        base_labels[node] = find_smallest_reduced_cost_subpaths_nocharge_notimewindows(
+            node, G, data, 
+            κ, μ, ν,
+            ;
+            with_customer_delay_cost = with_customer_delay_cost,
+        )
+    end
+    base_labels_wc = Dict(
+        node1 => Dict(
+            node2 => SortedDict(
+                DoubleStateOrdering(),
+                (time, s.charge) => s
+                for (time, s) in pairs(base_labels[node1][node2])
+            )
+            for node2 in union(data["N_depots"], data["N_charging"])
+        )
+        for node1 in union(data["N_depots"], data["N_charging"])
+    )
+    time1 = time()
+
+    if rough
+        nondom_base_labels = Dict(
+            node1 => Dict(
+                node2 => SortedDict{Tuple{Float64, Float64}, SubpathWithCost}(dso)
+                for node2 in union(data["N_depots"], data["N_charging"])
+            )
+            for node1 in union(data["N_depots"], data["N_charging"])
+        )
+        for node1 in union(data["N_depots"], data["N_charging"]), 
+            node2 in union(data["N_depots"], data["N_charging"])
+            for (k1, v1) in base_labels_wc[node1][node2]
+                # 1. check if v1 is not dominated
+                # 2. check if v1 dominates anyone
+                add_subpath_path_withcost_to_collection!(
+                    nondom_base_labels[node1][node2],
+                    k1, v1,
+                    ;
+                    on_service = true,
+                )
+            end
+        end
+    else
+        nondom_base_labels = base_labels_wc
+    end
+
+    time2 = time()
+    full_labels = Dict(
+        # starting depot
+        starting_node => Dict(
+            # current state
+            current_node => SortedDict{Tuple{Float64, Float64}, PathWithCost}(dso)
+            for current_node in union(data["N_charging"], data["N_depots"])
+        )
+        for starting_node in data["N_depots"]
+    )
+    for depot in data["N_depots"]
+        full_labels[depot][depot][(0.0, data["B"])] = PathWithCost(
+            subpaths = [], served = zeros(Int, data["n_customers"]), cost = 0.0
+        )
+    end
+    unexplored_states = SortedSet(
+        tso, 
+        [
+            (depot, 0.0, data["B"]) 
+            for depot in data["N_depots"]
+        ]
+    )
+    time3 = time()
+
+    while length(unexplored_states) > 0
+        state = pop!(unexplored_states)
+        for starting_node in data["N_depots"]
+            if !((state[2], state[3]) in keys(full_labels[starting_node][state[1]]))
+                continue
+            end
+            current_path = full_labels[starting_node][state[1]][(state[2], state[3])]
+            # where do you want to go next
+            for next_node in union(data["N_depots"], data["N_charging"])
+                # what subpaths bring you there
+                for s in values(nondom_base_labels[state[1]][next_node])
+                    if ( # empty subpath
+                        s.current_node in data["N_depots"] 
+                        && s.round_time == 0.0
+                        && s.round_charge == data["B"]
+                    )
+                        continue
+                    end
+                    if ( # each customer served at most once
+                        any(s.served + current_path.served .> 1)
+                    )
+                        continue
+                    end
+                    # compute amount of charge required, charging required
+                    charge_required = data["B"] - s.charge 
+                    (
+                        delta_time, 
+                        delta_charge,
+                        end_time, 
+                        end_charge,
+                    ) = charge_to_specified_level(state[3], charge_required, state[2], data["μ"])
+                    if end_time + s.time > data["T"]
+                        continue
+                    end
+                    if end_charge - charge_required < 0
+                        continue
+                    end
+
+                    current_cost = current_path.cost
+                    if length(current_path.subpaths) > 0
+                        s_prev = copy(current_path.subpaths[end])
+                        if with_charging_cost
+                            s_prev.cost += data["charge_cost_coeff"] * delta_time
+                            current_cost += data["charge_cost_coeff"] * delta_time
+                        end
+                        s_prev.delta_time = delta_time
+                        s_prev.delta_charge = delta_charge
+                        s_prev.end_time = end_time
+                        s_prev.end_charge = end_charge
+                        s_prev.round_time = end_time
+                        s_prev.round_charge = end_charge
+                    end
+                    s_new = copy(s)
+                    if with_customer_delay_cost
+                        s_new.cost = s.cost + data["customer_delay_cost_coeff"] * (end_time * sum(s.served))
+                    end
+                    current_cost += s_new.cost
+                    s_new.starting_time = end_time
+                    s_new.starting_charge = end_charge
+                    s_new.time = s.time + end_time
+                    s_new.charge = end_charge - (data["B"] - s.charge)
+                    s_new.serve_times = s.serve_times .+ (end_time .* s.served)
+                    s_new.end_time = s.end_time + end_time
+                    s_new.end_charge = end_charge - (data["B"] - s.end_charge)
+                    s_new.round_time = s.end_time + end_time
+                    s_new.round_charge = end_charge - (data["B"] - s.end_charge)
+                    
+                    key = (s_new.end_time, s_new.end_charge)
+                    
+                    if length(current_path.subpaths) > 0
+                        new_path = PathWithCost(
+                            subpaths = vcat(
+                                current_path.subpaths[1:end-1], 
+                                [s_prev, s_new],
+                            ),
+                            cost = current_cost,
+                        )
+                    else 
+                        new_path = PathWithCost(
+                            subpaths = [s_new],
+                            cost = current_cost,
+                        )
+                    end
+    
+                    add_next_state = false
+                    if rough
+                        if add_subpath_path_withcost_to_collection!(
+                            full_labels[starting_node][next_node],
+                            key,
+                            new_path,
+                            on_timecharge = true,
+                            on_service = false,
+                        )
+                            # println("Extending: $(starting_node) -> $(state[1]), $(state[2]), $(state[3]) along $(state[1]) -> $(next_node), $(key[1]), $(key[2]); cost $(new_path.cost)")
+                            add_next_state = true
+                            # println()
+                        else
+                            # println("Dominated: $(starting_node) -> $(state[1]), $(state[2]), $(state[3]) along $(state[1]) -> $(next_node), $(key[1]), $(key[2]); cost $(new_path.cost)")
+                            nothing
+                        end
+                    else
+                        if key in keys(full_labels[starting_node][next_node])
+                            if current_cost ≥ full_labels[starting_node][next_node][key].cost
+                                # println("Dominated: $(starting_node) -> $(state[1]), $(state[2]), $(state[3]) along $(state[1]) -> $(next_node), $(key[1]), $(key[2]); cost $(new_path.cost)")
+                                continue
+                            end
+                        end
+                        # println("Extending: $(starting_node) -> $(state[1]), $(state[2]), $(state[3]) along $(state[1]) -> $(next_node), $(key[1]), $(key[2]); cost $(new_path.cost)")
+                        # println()
+                        full_labels[starting_node][next_node][key] = new_path
+                        add_next_state = true
+                    end
+                    next_state = (next_node, key[1], key[2])
+                    if (
+                        add_next_state  
+                        && next_node in data["N_charging"] 
+                        && !(next_state in unexplored_states)
+                    )
+                        insert!(unexplored_states, next_state)
+                    end
+                end
+            end
+        end
+    end
+    for depot in data["N_depots"]
+        push!(
+            full_labels[depot][depot], 
+            (0.0, data["B"]) => PathWithCost(
+                subpaths = [
+                    nondom_base_labels[depot][depot][(0.0, data["B"])]
+                ],
+                cost = nondom_base_labels[depot][depot][(0.0, data["B"])].cost,
+            )
+        )
+    end
+
+    for starting_node in data["N_depots"]
+        for end_node in data["N_charging"]
+            delete!(full_labels[starting_node], end_node)
+        end
+    end
+
+    time4 = time()
+
+    generated_subpaths_withcharge = Dict{
+        Tuple{Tuple{Int, Float64, Float64}, Tuple{Int, Float64, Float64}}, 
+        Vector{Subpath},
+    }()
+    for starting_node in data["N_depots"], end_node in data["N_depots"]
+        for path in values(full_labels[starting_node][end_node])
+            update_generated_subpaths_withcharge_from_path!(
+                generated_subpaths_withcharge, path,
+            )
+        end
+    end
+
+    time5 = time()
+
+    return generated_subpaths_withcharge, nothing, (time1 - start_time, time2 - time1, time3 - time2, time4 - time3, time5 - time4), full_labels
+end
+
 function generate_subpaths_withcharge_from_paths_notimewindows_V2(
     G,
     data, 
@@ -3144,7 +3457,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
                 with_customer_delay_cost = with_customer_delay_cost,
             )
         else
-            generate_subpaths_result = @timed generate_subpaths_withcharge_from_paths_notimewindows_V2(
+            generate_subpaths_result = @timed generate_subpaths_withcharge_from_paths_notimewindows_V3(
                 G, data, T_range, B_range,
                 mp_results["κ"],
                 mp_results["μ"], 
