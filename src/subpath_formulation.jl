@@ -1411,7 +1411,6 @@ function generate_subpaths_withcharge_from_paths_notimewindows_V3(
     ν, 
     ;
     charge_to_full_only::Bool = false,
-    rough::Bool = true,
     with_charging_cost::Bool = false,
 )
 
@@ -1483,6 +1482,7 @@ function generate_subpaths_withcharge_from_paths_notimewindows_V3(
 
     tso = TripleStateOrdering()
     dso = DoubleStateOrdering()
+
     base_labels = Dict{Int, Dict{Int64, Dict{Float64, SubpathWithCost}}}()
     for node in union(data["N_depots"], data["N_charging"])   
         base_labels[node] = find_smallest_reduced_cost_subpaths_nocharge_notimewindows(
@@ -1504,28 +1504,24 @@ function generate_subpaths_withcharge_from_paths_notimewindows_V3(
     )
     time1 = time()
 
-    if rough
-        nondom_base_labels = Dict(
-            node1 => Dict(
-                node2 => SortedDict{Tuple{Float64, Float64}, SubpathWithCost}(dso)
-                for node2 in union(data["N_depots"], data["N_charging"])
-            )
-            for node1 in union(data["N_depots"], data["N_charging"])
+    nondom_base_labels = Dict(
+        node1 => Dict(
+            node2 => SortedDict{Tuple{Float64, Float64}, SubpathWithCost}(dso)
+            for node2 in union(data["N_depots"], data["N_charging"])
         )
-        for node1 in union(data["N_depots"], data["N_charging"]), 
-            node2 in union(data["N_depots"], data["N_charging"])
-            for (k1, v1) in base_labels_wc[node1][node2]
-                # 1. check if v1 is not dominated
-                # 2. check if v1 dominates anyone
-                add_subpath_path_withcost_to_collection!(
-                    nondom_base_labels[node1][node2],
-                    k1, v1,
-                    ;
-                )
-            end
+        for node1 in union(data["N_depots"], data["N_charging"])
+    )
+    for node1 in union(data["N_depots"], data["N_charging"]), 
+        node2 in union(data["N_depots"], data["N_charging"])
+        for (k1, v1) in base_labels_wc[node1][node2]
+            # 1. check if v1 is not dominated
+            # 2. check if v1 dominates anyone
+            add_subpath_path_withcost_to_collection!(
+                nondom_base_labels[node1][node2],
+                k1, v1,
+                ;
+            )
         end
-    else
-        nondom_base_labels = base_labels_wc
     end
 
     time2 = time()
@@ -1633,32 +1629,20 @@ function generate_subpaths_withcharge_from_paths_notimewindows_V3(
                     end
     
                     add_next_state = false
-                    if rough
-                        if add_subpath_path_withcost_to_collection!(
-                            full_labels[starting_node][next_node],
-                            key, new_path,
-                            ;
-                            on_timecharge = true,
-                        )
-                            # println("Extending: $(starting_node) -> $(state[1]), $(state[2]), $(state[3]) along $(state[1]) -> $(next_node), $(key[1]), $(key[2]); cost $(new_path.cost)")
-                            add_next_state = true
-                            # println()
-                        else
-                            # println("Dominated: $(starting_node) -> $(state[1]), $(state[2]), $(state[3]) along $(state[1]) -> $(next_node), $(key[1]), $(key[2]); cost $(new_path.cost)")
-                            nothing
-                        end
-                    else
-                        if key in keys(full_labels[starting_node][next_node])
-                            if current_cost ≥ full_labels[starting_node][next_node][key].cost
-                                # println("Dominated: $(starting_node) -> $(state[1]), $(state[2]), $(state[3]) along $(state[1]) -> $(next_node), $(key[1]), $(key[2]); cost $(new_path.cost)")
-                                continue
-                            end
-                        end
+                    if add_subpath_path_withcost_to_collection!(
+                        full_labels[starting_node][next_node],
+                        key, new_path,
+                        ;
+                        on_timecharge = true,
+                    )
                         # println("Extending: $(starting_node) -> $(state[1]), $(state[2]), $(state[3]) along $(state[1]) -> $(next_node), $(key[1]), $(key[2]); cost $(new_path.cost)")
-                        # println()
-                        full_labels[starting_node][next_node][key] = new_path
                         add_next_state = true
+                        # println()
+                    else
+                        # println("Dominated: $(starting_node) -> $(state[1]), $(state[2]), $(state[3]) along $(state[1]) -> $(next_node), $(key[1]), $(key[2]); cost $(new_path.cost)")
+                        nothing
                     end
+                    
                     next_state = (next_node, key[1], key[2])
                     if (
                         add_next_state  
@@ -1718,7 +1702,6 @@ function generate_subpaths_withcharge_from_paths_notimewindows_V2(
     ν, 
     ;
     charge_to_full_only::Bool = false,
-    rough::Bool = true,
     with_charging_cost::Bool = false,
 )
 
@@ -1786,27 +1769,23 @@ function generate_subpaths_withcharge_from_paths_notimewindows_V2(
     end
     time1 = time()
 
-    if rough
-        nondom_base_labels = Dict(
-            node1 => Dict(
-                node2 => SortedDict{Tuple{Float64, Float64}, SubpathWithCost}(dso)
-                for node2 in union(data["N_depots"], data["N_charging"])
-            )
-            for node1 in union(data["N_depots"], data["N_charging"])
+    nondom_base_labels = Dict(
+        node1 => Dict(
+            node2 => SortedDict{Tuple{Float64, Float64}, SubpathWithCost}(dso)
+            for node2 in union(data["N_depots"], data["N_charging"])
         )
-        for node1 in union(data["N_depots"], data["N_charging"]), node2 in union(data["N_depots"], data["N_charging"])
-            for (k1, v1) in base_labels[node1][node2]
-                # 1. check if v1 is not dominated
-                # 2. check if v1 dominates anyone
-                add_subpath_path_withcost_to_collection!(
-                    nondom_base_labels[node1][node2],
-                    k1, v1,
-                    ;
-                )
-            end
+        for node1 in union(data["N_depots"], data["N_charging"])
+    )
+    for node1 in union(data["N_depots"], data["N_charging"]), node2 in union(data["N_depots"], data["N_charging"])
+        for (k1, v1) in base_labels[node1][node2]
+            # 1. check if v1 is not dominated
+            # 2. check if v1 dominates anyone
+            add_subpath_path_withcost_to_collection!(
+                nondom_base_labels[node1][node2],
+                k1, v1,
+                ;
+            )
         end
-    else
-        nondom_base_labels = base_labels
     end
 
     time2 = time()
@@ -1885,23 +1864,13 @@ function generate_subpaths_withcharge_from_paths_notimewindows_V2(
                         ),
                         cost = current_cost,
                     )
-                    if rough
-                        if add_subpath_path_withcost_to_collection!(
-                            full_labels[starting_node][next_node],
-                            key, new_path,
-                            ;
-                            on_timecharge = true,
-                        )
-                            # println("Extending: $(starting_node) -> $(state[1]), $(state[2]), $(state[3]) along $(state[1]) -> $(next_node), $(key[1]), $(key[2])")
-                            add_next_state = true
-                        end
-                    else
-                        if key in keys(full_labels[starting_node][next_node])
-                            if current_cost ≥ full_labels[starting_node][next_node][key].cost
-                                continue
-                            end
-                        end
-                        full_labels[starting_node][next_node][key] = new_path
+                    if add_subpath_path_withcost_to_collection!(
+                        full_labels[starting_node][next_node],
+                        key, new_path,
+                        ;
+                        on_timecharge = true,
+                    )
+                        # println("Extending: $(starting_node) -> $(state[1]), $(state[2]), $(state[3]) along $(state[1]) -> $(next_node), $(key[1]), $(key[2])")
                         add_next_state = true
                     end
                 end
@@ -3364,7 +3333,6 @@ function subpath_formulation_column_generation_integrated_from_paths(
     )
     @objective(mp_model, Min, subpath_costs_expr)
 
-    rough = true
     while (
         !converged
         && time_limit ≥ (time() - start_time)
@@ -3411,23 +3379,8 @@ function subpath_formulation_column_generation_integrated_from_paths(
                 mp_results["ν"],
                 ;
                 charge_to_full_only = charge_to_full_only,
-                rough = rough,
                 with_charging_cost = with_charging_cost,
             )
-            # if length(generate_subpaths_result.value[1]) == 0
-            #     rough = false
-            #     generate_subpaths_result = @timed generate_subpaths_withcharge_from_paths_notimewindows_V2(
-            #         G, data, T_range, B_range,
-            #         mp_results["κ"],
-            #         mp_results["μ"], 
-            #         mp_results["ν"],
-            #         ;
-            #         
-            #         charge_to_full_only = charge_to_full_only,
-            #         rough = rough,
-            #         with_charging_cost = with_charging_cost,
-            #     )
-            # end
         end
         (current_subpaths, _, _) = generate_subpaths_result.value
 
@@ -3566,15 +3519,6 @@ function subpath_formulation_column_generation_integrated_from_paths(
             ),
             verbose,
         )
-        if length(params["number_of_subpaths"]) > 1
-            if params["number_of_subpaths"][end-1] == params["number_of_subpaths"][end]
-                if rough
-                    rough = false
-                else
-                    break
-                end
-            end
-        end
     end
 
     results = Dict(
