@@ -28,7 +28,6 @@ function compute_path_reduced_cost(
     ν,
     ;
     with_charging_cost::Bool = false,
-    with_customer_delay_cost::Bool = false,
     time_windows::Bool = true,
 )
     return sum(
@@ -36,7 +35,6 @@ function compute_path_reduced_cost(
             s, data, κ, nothing, μ, ν; 
             with_lambda = false,
             with_charging_cost = with_charging_cost,
-            with_customer_delay_cost = with_customer_delay_cost,
             time_windows = time_windows,
         )
         for s in p.subpaths
@@ -49,7 +47,6 @@ function compute_path_cost(
     M::Float64 = 1e6,
     ;
     with_charging_cost::Bool = false,
-    with_customer_delay_cost::Bool = false,
     time_windows::Bool = true,
 )
     return sum(
@@ -57,7 +54,6 @@ function compute_path_cost(
             data, s,
             ;
             with_charging_cost = with_charging_cost,
-            with_customer_delay_cost = with_customer_delay_cost,
             time_windows = time_windows,
         )
         for s in p.subpaths
@@ -70,7 +66,6 @@ function compute_path_costs(
     M::Float64 = 1e6,
     ;
     with_charging_cost::Bool = false,
-    with_customer_delay_cost::Bool = false,
     time_windows::Bool = true,
 )
     path_costs = Dict(
@@ -79,7 +74,6 @@ function compute_path_costs(
                 data, p, M,
                 ;
                 with_charging_cost = with_charging_cost,
-                with_customer_delay_cost = with_customer_delay_cost,
                 time_windows = time_windows,
             )
             for p in all_paths[key]
@@ -246,7 +240,6 @@ function generate_paths(
     charge_to_full_only::Bool = false,
     time_windows::Bool = true,
     with_charging_cost::Bool = false,
-    with_customer_delay_cost::Bool = false,
 )
     generated_paths = Dict{
         Tuple{Tuple{Int, Float64, Float64}, Tuple{Int, Float64, Float64}}, 
@@ -262,7 +255,6 @@ function generate_paths(
             charge_to_full_only = charge_to_full_only,
             time_windows = time_windows,
             with_charging_cost = with_charging_cost,
-            with_customer_delay_cost = with_customer_delay_cost,
         )
         labels = r.value
         if sp_max_time_taken < r.time
@@ -297,7 +289,6 @@ function path_formulation_column_generation(
     ;
     charge_to_full_only::Bool = false,
     with_charging_cost::Bool = false,
-    with_customer_delay_cost::Bool = false,
     time_windows::Bool = true,
     with_heuristic::Bool = true,
     verbose::Bool = false,
@@ -379,7 +370,6 @@ function path_formulation_column_generation(
             some_paths,
             ;
             with_charging_cost = with_charging_cost,
-            with_customer_delay_cost = with_customer_delay_cost,
             time_windows = time_windows,
         )
         path_service = compute_path_services(
@@ -412,7 +402,6 @@ function path_formulation_column_generation(
             ;
             charge_to_full_only = charge_to_full_only,
             with_charging_cost = with_charging_cost,
-            with_customer_delay_cost = with_customer_delay_cost,
             time_windows = time_windows,
         )
         (current_paths, sp_max_time_taken) = generate_paths_result.value

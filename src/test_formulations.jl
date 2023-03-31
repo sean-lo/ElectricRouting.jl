@@ -31,39 +31,39 @@ all_data["m2"] = Dict()
 all_data["l2"] = Dict()
 
 params = [
-    ("xs", 2, 9, 2, 3, 1500.0, 1050.0, 10, 7, 3, 3, 0.4),
-    ("xs_B1", 2, 9, 2, 3, 1500.0, 1100.0, 10, 7, 3, 3, 0.4),
-    ("xs_B2", 2, 9, 2, 3, 1500.0, 1150.0, 10, 7, 3, 3, 0.4),
-    ("xs_B3", 2, 9, 2, 3, 1500.0, 1200.0, 10, 7, 3, 3, 0.4),
-    ("xs_B4", 2, 9, 2, 3, 1500.0, 1250.0, 10, 7, 3, 3, 0.4),
-    ("xs_B5", 2, 9, 2, 3, 1500.0, 1300.0, 10, 7, 3, 3, 0.4),
-    ("xs_TW1", 2, 9, 2, 3, 1500.0, 1050.0, 10, 7, 3, 3, 0.45),
-    ("xs_TW2", 2, 9, 2, 3, 1500.0, 1050.0, 10, 7, 3, 3, 0.5),
-    ("xs_TW3", 2, 9, 2, 3, 1500.0, 1050.0, 10, 7, 3, 3, 0.55),
-    ("xs_TW4", 2, 9, 2, 3, 1500.0, 1050.0, 10, 7, 3, 3, 0.6),
-    ("s", 2, 12, 2, 3, 1900.0, 1550.0, 10, 7, 3, 4, 0.4),
-    ("s_B1", 2, 12, 2, 3, 1900.0, 1600.0, 10, 7, 3, 4, 0.4),
-    ("s_B2", 2, 12, 2, 3, 1900.0, 1650.0, 10, 7, 3, 4, 0.4),
-    ("s_B3", 2, 12, 2, 3, 1900.0, 1700.0, 10, 7, 3, 4, 0.4),
-    ("s_B4", 2, 12, 2, 3, 1900.0, 1750.0, 10, 7, 3, 4, 0.4),
-    ("s_B5", 2, 12, 2, 3, 1900.0, 1800.0, 10, 7, 3, 4, 0.4),
-    ("s_TW1", 2, 12, 2, 3, 1900.0, 1550.0, 10, 7, 3, 4, 0.45),
-    ("s_TW2", 2, 12, 2, 3, 1900.0, 1550.0, 10, 7, 3, 4, 0.5),
-    ("s_TW3", 2, 12, 2, 3, 1900.0, 1550.0, 10, 7, 3, 4, 0.55),
-    ("s_TW4", 2, 12, 2, 3, 1900.0, 1550.0, 10, 7, 3, 4, 0.6),
-    ("m", 2, 15, 2, 3, 2250.0, 1850.0, 10, 7, 3, 5, 0.4),
-    ("l", 2, 18, 2, 3, 2550.0, 2050.0, 10, 7, 3, 6, 0.4),
-    ("xs2", 2, 9, 2, 3, 1500.0, 750.0, 10, 7, 3, 3, 0.4),
-    ("s2", 2, 12, 2, 3, 2000.0, 1000.0, 10, 7, 3, 4, 0.4),
-    ("m2", 2, 15, 2, 3, 2400.0, 1200.0, 10, 7, 3, 5, 0.4),
-    ("l2", 2, 18, 2, 3, 2700.0, 1350.0, 10, 7, 3, 6, 0.4),
+    ("xs", 2, 9, 2, 3, 1500.0, 1050.0, 10, 7, 3, 0.4),
+    ("xs_B1", 2, 9, 2, 3, 1500.0, 1100.0, 10, 7, 3, 0.4),
+    ("xs_B2", 2, 9, 2, 3, 1500.0, 1150.0, 10, 7, 3, 0.4),
+    ("xs_B3", 2, 9, 2, 3, 1500.0, 1200.0, 10, 7, 3, 0.4),
+    ("xs_B4", 2, 9, 2, 3, 1500.0, 1250.0, 10, 7, 3, 0.4),
+    ("xs_B5", 2, 9, 2, 3, 1500.0, 1300.0, 10, 7, 3, 0.4),
+    ("xs_TW1", 2, 9, 2, 3, 1500.0, 1050.0, 10, 7, 3, 0.45),
+    ("xs_TW2", 2, 9, 2, 3, 1500.0, 1050.0, 10, 7, 3, 0.5),
+    ("xs_TW3", 2, 9, 2, 3, 1500.0, 1050.0, 10, 7, 3, 0.55),
+    ("xs_TW4", 2, 9, 2, 3, 1500.0, 1050.0, 10, 7, 3, 0.6),
+    ("s", 2, 12, 2, 3, 1900.0, 1550.0, 10, 7, 4, 0.4),
+    ("s_B1", 2, 12, 2, 3, 1900.0, 1600.0, 10, 7, 4, 0.4),
+    ("s_B2", 2, 12, 2, 3, 1900.0, 1650.0, 10, 7, 4, 0.4),
+    ("s_B3", 2, 12, 2, 3, 1900.0, 1700.0, 10, 7, 4, 0.4),
+    ("s_B4", 2, 12, 2, 3, 1900.0, 1750.0, 10, 7, 4, 0.4),
+    ("s_B5", 2, 12, 2, 3, 1900.0, 1800.0, 10, 7, 4, 0.4),
+    ("s_TW1", 2, 12, 2, 3, 1900.0, 1550.0, 10, 7, 4, 0.45),
+    ("s_TW2", 2, 12, 2, 3, 1900.0, 1550.0, 10, 7, 4, 0.5),
+    ("s_TW3", 2, 12, 2, 3, 1900.0, 1550.0, 10, 7, 4, 0.55),
+    ("s_TW4", 2, 12, 2, 3, 1900.0, 1550.0, 10, 7, 4, 0.6),
+    ("m", 2, 15, 2, 3, 2250.0, 1850.0, 10, 7, 5, 0.4),
+    ("l", 2, 18, 2, 3, 2550.0, 2050.0, 10, 7, 6, 0.4),
+    ("xs2", 2, 9, 2, 3, 1500.0, 750.0, 10, 7, 3, 0.4),
+    ("s2", 2, 12, 2, 3, 2000.0, 1000.0, 10, 7, 4, 0.4),
+    ("m2", 2, 15, 2, 3, 2400.0, 1200.0, 10, 7, 5, 0.4),
+    ("l2", 2, 18, 2, 3, 2700.0, 1350.0, 10, 7, 6, 0.4),
 ]
 
 for (
     size,
     n_depots, n_customers, n_charging, n_vehicles,
     T, B, 
-    travel_cost_coeff, charge_cost_coeff, customer_delay_cost_coeff, 
+    travel_cost_coeff, charge_cost_coeff, 
     batch, permissiveness,
 ) in params, seed in 1:10
     run_index = seed
@@ -81,7 +81,6 @@ for (
         μ = 5.0,
         travel_cost_coeff = travel_cost_coeff,
         charge_cost_coeff = charge_cost_coeff,
-        customer_delay_cost_coeff = customer_delay_cost_coeff,
         batch = batch,
         permissiveness = permissiveness,
     )
@@ -103,7 +102,6 @@ function compare_formulations!(
     run_indexes,
     ;
     with_charging_cost::Bool = false,
-    with_customer_delay_cost::Bool = false,
     time_windows::Bool = true,
     arc::Bool = false,
     arc_sizes::Vector = sizes,
@@ -140,7 +138,6 @@ function compare_formulations!(
                 true,
                 ;
                 with_charging_cost = with_charging_cost,
-                with_customer_delay_cost = with_customer_delay_cost,
                 time_limit = 3600.0,
             )
             all_data[size][run_index]["arc_ip_printlist"] = arc_results_printout(
@@ -162,7 +159,6 @@ function compare_formulations!(
                 true,
                 ;
                 with_charging_cost = with_charging_cost,
-                with_customer_delay_cost = with_customer_delay_cost,
                 integral = false,
                 time_limit = 120.0,
             )
@@ -188,7 +184,6 @@ function compare_formulations!(
                 charge_to_full_only = cg_charge_to_full_only,
                 time_windows = time_windows,
                 with_charging_cost = with_charging_cost,
-                with_customer_delay_cost = with_customer_delay_cost,
                 with_heuristic = cg_with_heuristic,
                 verbose = true,
             );
@@ -226,7 +221,6 @@ function compare_formulations!(
                 all_data[size][run_index]["cg_subpaths"],
                 ;
                 with_charging_cost = with_charging_cost,
-                with_customer_delay_cost = with_customer_delay_cost,
                 time_windows = time_windows,
             )
             all_data[size][run_index]["cg_subpath_service"] = compute_subpath_service(
@@ -281,7 +275,6 @@ function compare_formulations!(
                     charge_to_full_only = cg_charge_to_full_only,
                     time_windows = true,
                     with_charging_cost = with_charging_cost,
-                    with_customer_delay_cost = with_customer_delay_cost,
                     with_heuristic = cg_with_heuristic,
                     verbose = true,
                 )
@@ -302,7 +295,6 @@ function compare_formulations!(
                         charge_to_full_only = cg_charge_to_full_only,
                         time_windows = true,
                         with_charging_cost = with_charging_cost,
-                        with_customer_delay_cost = with_customer_delay_cost,
                         verbose = true,
                     )
                 else
@@ -320,7 +312,6 @@ function compare_formulations!(
                         charge_to_full_only = cg_charge_to_full_only,
                         time_windows = false,
                         with_charging_cost = with_charging_cost,
-                        with_customer_delay_cost = with_customer_delay_cost,
                         verbose = true,
                     )
                 end
@@ -360,7 +351,6 @@ function compare_formulations!(
                     all_data[size][run_index]["cgi_subpaths"],
                     ;
                     with_charging_cost = with_charging_cost,
-                    with_customer_delay_cost = with_customer_delay_cost,
                     time_windows = time_windows,
                 )
                 all_data[size][run_index]["cgi_subpath_service"] = compute_subpath_service(
@@ -387,7 +377,6 @@ function compare_formulations!(
                     all_data[size][run_index]["cgi_subpaths"],
                     ;
                     with_charging_cost = with_charging_cost,
-                    with_customer_delay_cost = with_customer_delay_cost,
                     time_windows = time_windows,
                 )
                 all_data[size][run_index]["cgi_subpath_service"] = compute_subpath_service(
@@ -442,7 +431,6 @@ function compare_formulations!(
                 all_data[size][run_index]["all_subpaths"],
                 ;
                 with_charging_cost = with_charging_cost,
-                with_customer_delay_cost = with_customer_delay_cost,
                 time_windows = time_windows,
             )
             all_data[size][run_index]["all_subpath_service"] = compute_subpath_service(
@@ -509,7 +497,6 @@ function compare_formulations!(
                 ;
                 charge_to_full_only = cg_charge_to_full_only,
                 with_charging_cost = with_charging_cost,
-                with_customer_delay_cost = with_customer_delay_cost,
                 time_windows = time_windows,
                 with_heuristic = cg_with_heuristic,
                 verbose = true,
@@ -548,7 +535,6 @@ function compare_formulations!(
                 all_data[size][run_index]["path_cg_paths"],
                 ;
                 with_charging_cost = with_charging_cost,
-                with_customer_delay_cost = with_customer_delay_cost,
                 time_windows = time_windows,
             )
             all_data[size][run_index]["path_cg_path_service"] = compute_path_services(
@@ -858,7 +844,6 @@ end
 compare_formulations!(
     all_data, ["xs"], [1], 
     with_charging_cost = true,
-    with_customer_delay_cost = true,
     cg_charge_to_full_only = false,
     time_windows = true,
     arc = true, 
@@ -869,7 +854,6 @@ compare_formulations!(
 compare_formulations!(
     all_data, ["xs"], [1], 
     with_charging_cost = true,
-    with_customer_delay_cost = true,
     cg_charge_to_full_only = false,
     time_windows = false,
     subpath_cgi = true, 
@@ -878,7 +862,6 @@ compare_formulations!(
 compare_formulations!(
     all_data, ["xs"], [1], 
     with_charging_cost = true,
-    with_customer_delay_cost = true,
     cg_charge_to_full_only = false,
     time_windows = false,
     subpath_cgi = true, 
@@ -887,7 +870,6 @@ compare_formulations!(
 compare_formulations!(
     all_data, ["xs"], [1], 
     with_charging_cost = true,
-    with_customer_delay_cost = true,
     cg_charge_to_full_only = false,
     cg_with_heuristic = false,
     time_windows = true,
@@ -899,7 +881,6 @@ compare_formulations!(
 compare_formulations!(
     all_data, ["xs"], [1], 
     with_charging_cost = true,
-    with_customer_delay_cost = true,
     cg_charge_to_full_only = false,    
     cg_with_heuristic = false,
     time_windows = false,
@@ -909,7 +890,6 @@ compare_formulations!(
 compare_formulations!(
     all_data, ["xs"], [1], 
     with_charging_cost = true,
-    with_customer_delay_cost = true,
     cg_charge_to_full_only = false,
     cg_with_heuristic = false,
     time_windows = false,
@@ -941,7 +921,6 @@ begin
                     μ = 5.0,
                     travel_cost_coeff = 10,
                     charge_cost_coeff = 7,
-                    customer_delay_cost_coeff = 3,
                     batch = 3,
                     permissiveness = 0.4,
                 )
@@ -968,7 +947,6 @@ begin
         vec(["xs2_$(i)_$(j)" for i in 1:5, j in 1:3]),
         collect(1:10),
         with_charging_cost = true,
-        with_customer_delay_cost = true,
         cg_charge_to_full_only = false,
         time_windows = false,
         subpath_cgi = true, 
@@ -999,7 +977,6 @@ begin
                     μ = 5.0,
                     travel_cost_coeff = 10,
                     charge_cost_coeff = 7,
-                    customer_delay_cost_coeff = 3,
                     batch = 4,
                     permissiveness = 0.4,
                 )
@@ -1026,7 +1003,6 @@ begin
         vec(["s2_$(i)_$(j)" for i in 1:5, j in 1:3]),
         collect(1:10),
         with_charging_cost = true,
-        with_customer_delay_cost = true,
         cg_charge_to_full_only = false,
         time_windows = false,
         subpath_cgi = true, 
@@ -1044,7 +1020,6 @@ compare_formulations!(
     ], 
     collect(1:10),
     with_charging_cost = true,
-    with_customer_delay_cost = true,
     cg_charge_to_full_only = false,
     cg_with_heuristic = true,
     subpath_cgi = true, 

@@ -279,7 +279,6 @@ function generate_instance_pair(
     μ::Float64,
     travel_cost_coeff::Int,
     charge_cost_coeff::Int,
-    customer_delay_cost_coeff::Int,
     C::Int = 1,
     batch::Int = 1,
     permissiveness::Float64 = 0.4,
@@ -424,7 +423,6 @@ function generate_instance_pair(
         "β" => β_nocharge,
         "travel_cost_coeff" => travel_cost_coeff,
         "charge_cost_coeff" => charge_cost_coeff,
-        "customer_delay_cost_coeff" => customer_delay_cost_coeff,
     )
     charge_data = merge(nocharge_data, Dict(
         "n_charging" => n_charging,
