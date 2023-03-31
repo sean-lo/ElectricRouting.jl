@@ -1046,40 +1046,6 @@ compare_formulations!(
     with_charging_cost = true,
     with_customer_delay_cost = true,
     cg_charge_to_full_only = false,
-    cg_with_heuristic = false,
-    subpath_cgi = true, 
-    time_windows = false,
-    subpath_cgi_no_time_windows_naive = true,
-)
-compare_formulations!(
-    all_data,
-    [
-        "xs2",
-        "s2",
-        "m2",
-        "l2",
-    ], 
-    collect(1:10),
-    with_charging_cost = true,
-    with_customer_delay_cost = true,
-    cg_charge_to_full_only = false,
-    cg_with_heuristic = false,
-    subpath_cgi = true, 
-    time_windows = false,
-    subpath_cgi_no_time_windows_naive = false,
-)
-compare_formulations!(
-    all_data,
-    [
-        "xs2",
-        "s2",
-        "m2",
-        "l2",
-    ], 
-    collect(1:10),
-    with_charging_cost = true,
-    with_customer_delay_cost = true,
-    cg_charge_to_full_only = false,
     cg_with_heuristic = true,
     subpath_cgi = true, 
     time_windows = false,
@@ -1879,6 +1845,30 @@ gdf_h = all_metrics_df_h |>
     ) |>
     x -> permutedims(x, "size")
 
+## Experiment 15: removing discretization!
+all_metrics_df = CSV.read("$(@__DIR__)/../logs/20230315_171528/all_metrics.csv", DataFrame)
+gdf = all_metrics_df |>
+    x -> groupby(x, :size) |>
+    x -> combine(x, 
+        :cgi_number_of_iterations => mean,
+        :cgi_number_of_subpaths .=> mean,
+        :cgi_time_taken .=> [minimum, maximum, geomean],
+        :cgi_mp_total_time_taken => mean,
+        :cgi_sp_mean_time_taken .=> [minimum, maximum, mean],
+    ) |>
+    x -> permutedims(x, "size")
+
+all_metrics_df_new = CSV.read("$(@__DIR__)/../logs/20230320_212038/all_metrics.csv", DataFrame)
+gdf_new = all_metrics_df_new |>
+    x -> groupby(x, :size) |>
+    x -> combine(x, 
+        :cgi_number_of_iterations => mean,
+        :cgi_number_of_subpaths .=> mean,
+        :cgi_time_taken .=> [minimum, maximum, geomean],
+        :cgi_mp_total_time_taken => mean,
+        :cgi_sp_mean_time_taken .=> [minimum, maximum, mean],
+    ) |>
+    x -> permutedims(x, "size")
 
 
 ### Scratch work
