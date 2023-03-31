@@ -3380,6 +3380,44 @@ function subpath_formulation_column_generation_integrated_from_paths(
     flow_conservation_exprs_out = Dict{Tuple{Int, Float64, Float64}, AffExpr}()
     flow_conservation_exprs_in = Dict{Tuple{Int, Float64, Float64}, AffExpr}()
     flow_conservation_constrs = Dict{Tuple{Int, Float64, Float64}, ConstraintRef}()
+
+    if with_heuristic
+        for key in keys(some_subpaths)
+            for (ind, s_new) in enumerate(some_subpaths[key])
+                # modify flow conservation constraints
+                if key[1][1] in data["N_charging"]
+                    push!(charging_states, key[1])
+                    if !(key[1] in keys(flow_conservation_exprs_out))
+                        flow_conservation_exprs_out[key[1]] = @expression(mp_model, 0)
+                    end
+                    if !(key[1] in keys(flow_conservation_exprs_in))
+                        flow_conservation_exprs_in[key[1]] = @expression(mp_model, 0)
+                    end
+                    add_to_expression!(flow_conservation_exprs_out[key[1]], z[key, ind])
+                end
+                if key[2][1] in data["N_charging"]
+                    push!(charging_states, key[2])
+                    if !(key[2] in keys(flow_conservation_exprs_out))
+                        flow_conservation_exprs_out[key[2]] = @expression(mp_model, 0)
+                    end
+                    if !(key[2] in keys(flow_conservation_exprs_in))
+                        flow_conservation_exprs_in[key[2]] = @expression(mp_model, 0)
+                    end
+                    add_to_expression!(flow_conservation_exprs_in[key[2]], z[key, ind])
+                end
+            end
+        end
+        
+        for state in charging_states
+            flow_conservation_constrs[state] = @constraint(
+                mp_model,
+                flow_conservation_exprs_out[state]
+                == flow_conservation_exprs_in[state]
+            )
+        end
+    end
+
+
     @constraint(
         mp_model,
         μ[n2 in data["N_depots"]],
