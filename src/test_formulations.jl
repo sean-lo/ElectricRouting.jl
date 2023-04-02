@@ -106,7 +106,6 @@ function compare_formulations!(
     arc::Bool = false,
     arc_sizes::Vector = sizes,
     arc_run_indexes::Vector = run_indexes,
-    cg_charge_to_full_only::Bool = false,
     cg_with_heuristic::Bool = true,
     subpath_cg::Bool = false,
     subpath_cg_sizes::Vector = sizes,
@@ -181,7 +180,6 @@ function compare_formulations!(
                 all_data[size][run_index]["B_range"],
                 ;
                 charging_in_subpath = true,
-                charge_to_full_only = cg_charge_to_full_only,
                 time_windows = time_windows,
                 with_charging_cost = with_charging_cost,
                 with_heuristic = cg_with_heuristic,
@@ -272,7 +270,6 @@ function compare_formulations!(
                     all_data[size][run_index]["T_range"],
                     all_data[size][run_index]["B_range"],
                     ;
-                    charge_to_full_only = cg_charge_to_full_only,
                     time_windows = true,
                     with_charging_cost = with_charging_cost,
                     with_heuristic = cg_with_heuristic,
@@ -292,7 +289,6 @@ function compare_formulations!(
                         all_data[size][run_index]["T_range"],
                         all_data[size][run_index]["B_range"],
                         ;
-                        charge_to_full_only = cg_charge_to_full_only,
                         time_windows = true,
                         with_charging_cost = with_charging_cost,
                         verbose = true,
@@ -309,7 +305,6 @@ function compare_formulations!(
                         all_data[size][run_index]["T_range"],
                         all_data[size][run_index]["B_range"],
                         ;
-                        charge_to_full_only = cg_charge_to_full_only,
                         time_windows = false,
                         with_charging_cost = with_charging_cost,
                         verbose = true,
@@ -420,7 +415,6 @@ function compare_formulations!(
                 all_data[size][run_index]["T_range"], 
                 all_data[size][run_index]["B_range"]; 
                 charging_in_subpath = true,
-                charge_to_full_only = cg_charge_to_full_only,
                 time_windows = time_windows,
             )
             all_data[size][run_index]["enum_number_of_subpaths"] = sum(
@@ -495,7 +489,6 @@ function compare_formulations!(
                 all_data[size][run_index]["T_range"],
                 all_data[size][run_index]["B_range"],
                 ;
-                charge_to_full_only = cg_charge_to_full_only,
                 with_charging_cost = with_charging_cost,
                 time_windows = time_windows,
                 with_heuristic = cg_with_heuristic,
@@ -844,7 +837,6 @@ end
 compare_formulations!(
     all_data, ["xs"], [1], 
     with_charging_cost = true,
-    cg_charge_to_full_only = false,
     time_windows = true,
     arc = true, 
     subpath_cg = true, 
@@ -854,7 +846,6 @@ compare_formulations!(
 compare_formulations!(
     all_data, ["xs"], [1], 
     with_charging_cost = true,
-    cg_charge_to_full_only = false,
     time_windows = false,
     subpath_cgi = true, 
     subpath_cgi_no_time_windows_naive = true,
@@ -862,7 +853,6 @@ compare_formulations!(
 compare_formulations!(
     all_data, ["xs"], [1], 
     with_charging_cost = true,
-    cg_charge_to_full_only = false,
     time_windows = false,
     subpath_cgi = true, 
     subpath_cgi_no_time_windows_naive = false,
@@ -870,7 +860,6 @@ compare_formulations!(
 compare_formulations!(
     all_data, ["xs"], [1], 
     with_charging_cost = true,
-    cg_charge_to_full_only = false,
     cg_with_heuristic = false,
     time_windows = true,
     arc = true, 
@@ -890,7 +879,6 @@ compare_formulations!(
 compare_formulations!(
     all_data, ["xs"], [1], 
     with_charging_cost = true,
-    cg_charge_to_full_only = false,
     cg_with_heuristic = false,
     time_windows = false,
     subpath_cgi = true, 
@@ -947,8 +935,7 @@ begin
         vec(["xs2_$(i)_$(j)" for i in 1:5, j in 1:3]),
         collect(1:10),
         with_charging_cost = true,
-        cg_charge_to_full_only = false,
-        time_windows = false,
+            time_windows = false,
         subpath_cgi = true, 
         subpath_cgi_no_time_windows_naive = false,
     )
@@ -1003,8 +990,7 @@ begin
         vec(["s2_$(i)_$(j)" for i in 1:5, j in 1:3]),
         collect(1:10),
         with_charging_cost = true,
-        cg_charge_to_full_only = false,
-        time_windows = false,
+            time_windows = false,
         subpath_cgi = true, 
         subpath_cgi_no_time_windows_naive = false,
     )
@@ -1020,7 +1006,6 @@ compare_formulations!(
     ], 
     collect(1:10),
     with_charging_cost = true,
-    cg_charge_to_full_only = false,
     cg_with_heuristic = true,
     subpath_cgi = true, 
     time_windows = false,
@@ -1030,7 +1015,6 @@ compare_formulations!(
 all_metrics_df = compare_formulations!(
     all_data, 
     ["xs", "s", "m"], collect(1:10),
-    cg_charge_to_full_only = false,
     subpath_cgi = true, 
     time_windows = false,
     subpath_cgi_no_time_windows_naive = true,
@@ -1040,7 +1024,6 @@ compare_formulations!(
     all_data, 
     ["xs", "s", "m"], collect(1:10),
     arc = true,
-    cg_charge_to_full_only = false,
     subpath_cgi = true, 
     subpath_cgi_time_windows = false,
 )
@@ -1048,7 +1031,6 @@ compare_formulations!(
 
 compare_formulations!(
     all_data, ["xs", "s", "m"], collect(1:10),
-    cg_charge_to_full_only = true,
     subpath_cg = true, 
     subpath_cgi = true, 
     path_cg = true,
@@ -1068,7 +1050,6 @@ all_metrics_df = compare_formulations!(
     subpath_cgi = true, 
     subpath_cgi_time_windows = false,
     subpath_cgi_no_time_windows_naive = true,
-    cg_charge_to_full_only = true,
 )
 all_metrics_df = compare_formulations!(
     all_data, 
@@ -1077,7 +1058,6 @@ all_metrics_df = compare_formulations!(
     subpath_cgi = true, 
     subpath_cgi_time_windows = false,
     subpath_cgi_no_time_windows_naive = false,
-    cg_charge_to_full_only = true,
 )
 
 ## Testing

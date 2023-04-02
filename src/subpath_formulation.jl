@@ -132,8 +132,7 @@ function construct_heuristic_paths(
                         starting_charge - charge_taken, 
                         data["μ"],
                         T_range, B_range,
-                        charge_to_full_only = true,
-                    )[1]
+                    )[end]
                     s = Subpath(
                         n_customers = data["n_customers"],
                         starting_node = start_node,
@@ -535,7 +534,6 @@ function generate_charging_options(
     T_range,
     B_range,
     ;
-    charge_to_full_only::Bool = false,
 )
     # Version 2: charge by fixed time intervals inside T_range
     # If maximum time reached, charge to maximum time and get the corresponding charge
@@ -546,14 +544,10 @@ function generate_charging_options(
     )
     max_end_time = starting_time + max_delta_time
     max_end_time = dceil(max_end_time, T_range)
-    if charge_to_full_only
-        end_times = [max_end_time]
-    else
-        end_times = [
-            t for t in T_range
-            if starting_time < t ≤ max_end_time
-        ]
-    end
+    end_times = [
+        t for t in T_range
+        if starting_time < t ≤ max_end_time
+    ]
     round_times = end_times
     delta_times = end_times .- starting_time
     delta_charges = delta_times .* charging_rate
@@ -576,7 +570,6 @@ function enumerate_subpaths_withcharge(
     T_range,
     B_range,
     ;
-    charge_to_full_only::Bool = false,
     time_windows::Bool = true,
 )
     """
@@ -619,8 +612,6 @@ function enumerate_subpaths_withcharge(
                         round_time, round_charge) in generate_charging_options(
                         s.time, s.charge, data["μ"], T_range, B_range,
                         ;
-                        
-                        charge_to_full_only = charge_to_full_only,
                     )
                 ]
             )
@@ -636,7 +627,6 @@ function enumerate_all_subpaths(
     B_range,
     ;
     charging_in_subpath::Bool = false,
-    charge_to_full_only::Bool = false,
     time_windows::Bool = true,
 )
     """
@@ -662,8 +652,6 @@ function enumerate_all_subpaths(
                 starting_node, starting_time, starting_charge,
                 G, data, T_range, B_range,
                 ;
-                
-                charge_to_full_only = charge_to_full_only,
                 time_windows = time_windows,
             )
         else
@@ -701,7 +689,6 @@ function enumerate_all_subpaths_faster(
     B_range,
     ;
     charging_in_subpath::Bool = false,
-    charge_to_full_only::Bool = false,
     time_windows::Bool = true,
 )
     """
@@ -727,8 +714,6 @@ function enumerate_all_subpaths_faster(
                     starting_node, starting_time, starting_charge,
                     G, data, T_range, B_range,
                     ;
-                    
-                    charge_to_full_only = charge_to_full_only,
                     time_windows = time_windows,
                 )
             else
@@ -872,7 +857,6 @@ function find_smallest_reduced_cost_paths(
     # dual values associated with customer service constraints
     ν,
     ;
-    charge_to_full_only::Bool = false,
     time_windows::Bool = true,
     with_charging_cost::Bool = false,
     verbose::Bool = false,
@@ -988,8 +972,6 @@ function find_smallest_reduced_cost_paths(
                         current_time, current_charge, 
                         data["μ"], T_range, B_range,
                         ;
-                        
-                        charge_to_full_only = charge_to_full_only,    
                     )
                     if length(charging_options) == 0
                         continue
@@ -1144,7 +1126,6 @@ function generate_subpaths_withcharge_from_paths(
     ν,
     ;
     charging_in_subpath::Bool = true,
-    charge_to_full_only::Bool = false,
     time_windows::Bool = true,
     with_charging_cost::Bool = false,
 )
@@ -1161,8 +1142,6 @@ function generate_subpaths_withcharge_from_paths(
             starting_node, G, data, T_range, B_range, 
             κ, μ, ν,
             ;
-            
-            charge_to_full_only = charge_to_full_only,
             time_windows = time_windows,
             with_charging_cost = with_charging_cost,
         )
@@ -1311,7 +1290,6 @@ function find_smallest_reduced_cost_subpaths_notimewindows(
     μ,
     ν,
     ;
-    charge_to_full_only::Bool = false,
     with_charging_cost::Bool = false,
 )
 
@@ -1332,7 +1310,6 @@ function find_smallest_reduced_cost_subpaths_notimewindows(
             for (dt, db, et, eb, rt, rb) in generate_charging_options(
                 s.time, s.charge, data["μ"], T_range, B_range,
                 ;
-                charge_to_full_only = charge_to_full_only,
             )
                 key = (rt, rb)
                 new_cost = (
@@ -1410,7 +1387,6 @@ function generate_subpaths_withcharge_from_paths_notimewindows_V3(
     μ, 
     ν, 
     ;
-    charge_to_full_only::Bool = false,
     with_charging_cost::Bool = false,
 )
 
@@ -1892,7 +1868,6 @@ function generate_subpaths_withcharge_from_paths_notimewindows_V2(
     μ, 
     ν, 
     ;
-    charge_to_full_only::Bool = false,
     with_charging_cost::Bool = false,
 )
 
@@ -1954,7 +1929,6 @@ function generate_subpaths_withcharge_from_paths_notimewindows_V2(
         base_labels[node] = find_smallest_reduced_cost_subpaths_notimewindows(
             node, G, data, T_range, B_range, κ, μ, ν,
             ;
-            charge_to_full_only = charge_to_full_only,
             with_charging_cost = with_charging_cost,
         )
     end
@@ -2123,7 +2097,6 @@ function generate_subpaths_withcharge_from_paths_notimewindows(
     μ, 
     ν, 
     ;
-    charge_to_full_only::Bool = false,
     with_charging_cost::Bool = false,
 )
     start_time = time()
@@ -2135,7 +2108,6 @@ function generate_subpaths_withcharge_from_paths_notimewindows(
         base_labels[node] = find_smallest_reduced_cost_subpaths_notimewindows(
             node, G, data, T_range, B_range, κ, μ, ν,
             ;
-            charge_to_full_only = charge_to_full_only,
             with_charging_cost = with_charging_cost,
         )
     end
@@ -2291,7 +2263,6 @@ function find_smallest_reduced_cost_subpaths(
     # dual values associated with customer service constraints
     ν,
     ;
-    charge_to_full_only::Bool = false,
     time_windows::Bool = true,
     with_charging_cost::Bool = false,
 )
@@ -2376,8 +2347,6 @@ function find_smallest_reduced_cost_subpaths(
                         current_time, current_charge, 
                         data["μ"], T_range, B_range,
                         ;
-                        
-                        charge_to_full_only = charge_to_full_only,
                     )
                     if length(charging_options) == 0
                         continue
@@ -2474,7 +2443,6 @@ function generate_subpaths_withcharge(
     ν,
     ;
     charging_in_subpath::Bool = true,
-    charge_to_full_only::Bool = false,
     time_windows::Bool = true,
     with_charging_cost::Bool = false,
 )
@@ -2511,8 +2479,6 @@ function generate_subpaths_withcharge(
             G, data, T_range, B_range,
             κ, λ, μ, ν,
             ;
-            
-            charge_to_full_only = charge_to_full_only,
             time_windows = time_windows,
             with_charging_cost = with_charging_cost,
         )
@@ -2617,7 +2583,6 @@ function enumerate_all_charging_arcs(
     T_range,
     B_range,
     ;
-    charge_to_full_only::Bool = false,
 )
     states = Set()
     for k in keys(all_subpaths)
@@ -2641,8 +2606,6 @@ function enumerate_all_charging_arcs(
                             T_range,
                             B_range,
                             ;
-                            
-                            charge_to_full_only = charge_to_full_only,    
                         )
                         if (starting_node, t2, b2) in states
                     ]
@@ -2939,7 +2902,6 @@ function subpath_formulation_column_generation_from_paths(
     B_range,
     ;
     charging_in_subpath::Bool = true,
-    charge_to_full_only::Bool = false,
     time_windows::Bool = true,
     with_charging_cost::Bool = false,
     with_heuristic::Bool = true,
@@ -3052,8 +3014,6 @@ function subpath_formulation_column_generation_from_paths(
             mp_results["κ"], mp_results["μ"], mp_results["ν"],
             ;
             charging_in_subpath = charging_in_subpath,
-            
-            charge_to_full_only = charge_to_full_only,
             time_windows = time_windows,
             with_charging_cost = with_charging_cost,
         )
@@ -3139,7 +3099,6 @@ function subpath_formulation_column_generation(
     B_range,
     ;
     charging_in_subpath::Bool = true,
-    charge_to_full_only::Bool = false,
     time_windows::Bool = true,
     with_charging_cost::Bool = false,
     with_heuristic::Bool = true,
@@ -3249,7 +3208,6 @@ function subpath_formulation_column_generation(
             mp_results["κ"], mp_results["λ"], mp_results["μ"], mp_results["ν"],
             ;
             charging_in_subpath = charging_in_subpath,
-            charge_to_full_only = charge_to_full_only,
             time_windows = time_windows,
             with_charging_cost = with_charging_cost,
         )
@@ -3335,7 +3293,6 @@ function subpath_formulation_column_generation_integrated_from_paths(
     T_range,
     B_range,
     ;
-    charge_to_full_only::Bool = false,
     time_windows::Bool = true,
     with_charging_cost::Bool = false,
     with_heuristic::Bool = true,
@@ -3558,7 +3515,6 @@ function subpath_formulation_column_generation_integrated_from_paths(
                 mp_results["ν"],
                 ;
                 charging_in_subpath = true,
-                charge_to_full_only = charge_to_full_only,
                 time_windows = time_windows,
                 with_charging_cost = with_charging_cost,
             )
@@ -3569,7 +3525,6 @@ function subpath_formulation_column_generation_integrated_from_paths(
                 mp_results["μ"], 
                 mp_results["ν"],
                 ;
-                charge_to_full_only = charge_to_full_only,
                 with_charging_cost = with_charging_cost,
             )
         end
