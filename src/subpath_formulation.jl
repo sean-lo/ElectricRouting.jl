@@ -1478,53 +1478,238 @@ function generate_subpaths_withcharge_from_paths_notimewindows_V3(
         return added
     end
 
+    function generate_base_subpaths_nocharge_V1(
+        G, data, 
+        κ, μ, ν,
+    )
+    
+        dso = DoubleStateOrdering()
+        base_labels = Dict{Int, Dict{Int64, Dict{Float64, SubpathWithCost}}}()
+        for node in union(data["N_depots"], data["N_charging"])   
+            base_labels[node] = find_smallest_reduced_cost_subpaths_nocharge_notimewindows(
+                node, G, data, 
+                κ, μ, ν,
+                ;
+            )
+        end
+        base_labels_wc = Dict(
+            node1 => Dict(
+                node2 => SortedDict(
+                    dso,
+                    (time, s.charge) => s
+                    for (time, s) in pairs(base_labels[node1][node2])
+                )
+                for node2 in union(data["N_depots"], data["N_charging"])
+            )
+            for node1 in union(data["N_depots"], data["N_charging"])
+        )
+    
+        nondom_base_labels = Dict(
+            node1 => Dict(
+                node2 => SortedDict{Tuple{Float64, Float64}, SubpathWithCost}(dso)
+                for node2 in union(data["N_depots"], data["N_charging"])
+            )
+            for node1 in union(data["N_depots"], data["N_charging"])
+        )
+        for node1 in union(data["N_depots"], data["N_charging"]), 
+            node2 in union(data["N_depots"], data["N_charging"])
+            for (k1, v1) in base_labels_wc[node1][node2]
+                # 1. check if v1 is not dominated
+                # 2. check if v1 dominates anyone
+                add_subpath_path_withcost_to_collection!(
+                    nondom_base_labels[node1][node2],
+                    k1, v1,
+                    ;
+                )
+            end
+        end
+        return nondom_base_labels
+    end
+
+    function generate_base_subpaths_nocharge_V2(
+        data,
+        κ, 
+        μ, 
+        ν,
+    )
+        function add_subpath_nocharge_to_collection!(
+            collection::SortedDict{
+                Float64,
+                SubpathWithCost,
+            },
+            k1::Float64,
+            v1::SubpathWithCost,
+            ;
+        )
+            added = true
+            for (k2, v2) in collection
+                if v2.cost ≤ v1.cost
+                    if k2 ≤ k1
+                        added = false
+                        break
+                    end
+                elseif v1.cost ≤ v2.cost
+                    if k1 ≤ k2
+                        pop!(collection, k2)
+                    end
+                end
+            end
+            if added
+                insert!(collection, k1, v1)
+            end
+            return added
+        end
+    
+        function connect(v1::SubpathWithCost, v2::SubpathWithCost, data)
+            if v1.current_node != v2.starting_node
+                return
+            end
+            if any(v1.served .&& v2.served)
+                return
+            end
+            new_end_time = v1.time + (v2.time - v2.starting_time)
+            if new_end_time > data["T"]
+                return
+            end
+            new_end_charge = v1.charge - v2.starting_charge + v2.charge
+            if new_end_charge < 0.0
+                return
+            end
+            v = SubpathWithCost(
+                cost = v1.cost + v2.cost,
+                n_customers = data["n_customers"],
+                starting_node = v1.starting_node,
+                starting_time = v1.starting_time, 
+                starting_charge = v1.starting_charge,
+                current_node = v2.current_node,
+                time = new_end_time,
+                charge = new_end_charge,
+                arcs = vcat(v1.arcs, v2.arcs),
+                served = v1.served .|| v2.served,
+            )
+            return v
+        end
+    
+        # Uses Floyd-Warshall
+    
+        modified_costs = data["travel_cost_coeff"] * Float64.(copy(data["c"]))
+        for i in 1:data["n_customers"]
+            j = data["n_customers"] + i
+            modified_costs[i,j] -= ν[i]
+            modified_costs[j,i] -= ν[i]
+        end
+    
+        base_labels = Dict(
+            start_node => Dict(
+                current_node => SortedDict{Float64, SubpathWithCost}()
+                for current_node in data["N_nodes"]
+            )
+            for start_node in data["N_nodes"]
+        )
+        for (start_node, current_node) in keys(data["A"])
+            current_time = data["t"][start_node, current_node]
+            current_charge = data["B"] - data["q"][start_node, current_node]
+            served = falses(data["n_customers"])
+            if start_node in data["N_pickups"] && current_node == start_node + data["n_customers"]
+                served[start_node] = true
+            end
+            base_labels[start_node][current_node][current_time] = SubpathWithCost(
+                cost = modified_costs[start_node, current_node],
+                n_customers = data["n_customers"],
+                starting_node = start_node,
+                starting_time = 0.0,
+                starting_charge = data["B"],
+                arcs = [(start_node, current_node)],
+                time = current_time,
+                current_node = current_node,
+                charge = current_charge,
+                served = served,
+            )
+        end
+    
+        for new_node in union(data["N_pickups"], data["N_dropoffs"])
+            for start_node in setdiff(data["N_nodes"], new_node), 
+                end_node in setdiff(data["N_nodes"], new_node)
+                if length(base_labels[start_node][new_node]) == 0
+                    continue
+                end
+                if length(base_labels[new_node][end_node]) == 0
+                    continue
+                end
+                # TODO: find a faster way to 
+                # update collection with pairwise sum of two collections
+                for (k1, v1) in pairs(base_labels[start_node][new_node])
+                    for (k2, v2) in pairs(base_labels[new_node][end_node])
+                        k = k1 + k2
+                        if k ≥ data["T"]
+                            continue
+                        end
+                        v = connect(v1, v2, data)
+                        if !isnothing(v)
+                            add_subpath_nocharge_to_collection!(
+                                base_labels[start_node][end_node],
+                                k, v,
+                            )
+                        end
+                    end
+                end
+            end
+        end
+    
+        for start_node in data["N_depots"]
+            for end_node in data["N_nodes"]
+                for (k, v) in pairs(base_labels[start_node][end_node])
+                    v.cost = v.cost - κ[start_node]
+                end
+            end
+        end
+        for end_node in data["N_depots"]
+            for start_node in data["N_nodes"]
+                for (k, v) in pairs(base_labels[start_node][end_node])
+                    v.cost = v.cost - μ[end_node]
+                end
+            end
+        end
+    
+        dso = DoubleStateOrdering()
+        nondom_base_labels = Dict(
+            start_node => Dict(
+                end_node => SortedDict(
+                    dso,
+                    (time, s.charge) => s
+                    for (time, s) in pairs(base_labels[start_node][end_node])
+                )
+                for end_node in union(data["N_depots"], data["N_charging"])
+            )
+            for start_node in union(data["N_depots"], data["N_charging"])
+        )
+    
+        # remove self-loops with nonnegative cost
+        for node in union(data["N_depots"], data["N_charging"])
+            for (k, v) in pairs(nondom_base_labels[node][node])
+                if v.cost ≥ 0.0
+                    pop!(nondom_base_labels[node][node], k)
+                end
+            end
+        end
+    
+        return nondom_base_labels
+    
+    end
+
     start_time = time()
 
     tso = TripleStateOrdering()
     dso = DoubleStateOrdering()
 
-    base_labels = Dict{Int, Dict{Int64, Dict{Float64, SubpathWithCost}}}()
-    for node in union(data["N_depots"], data["N_charging"])   
-        base_labels[node] = find_smallest_reduced_cost_subpaths_nocharge_notimewindows(
-            node, G, data, 
-            κ, μ, ν,
-            ;
-        )
-    end
-    base_labels_wc = Dict(
-        node1 => Dict(
-            node2 => SortedDict(
-                DoubleStateOrdering(),
-                (time, s.charge) => s
-                for (time, s) in pairs(base_labels[node1][node2])
-            )
-            for node2 in union(data["N_depots"], data["N_charging"])
-        )
-        for node1 in union(data["N_depots"], data["N_charging"])
+    # nondom_base_labels = generate_base_subpaths_nocharge_V1(
+    #     G, data, κ, μ, ν,
+    # )
+    nondom_base_labels = generate_base_subpaths_nocharge_V2(
+        data, κ, μ, ν,
     )
+
     time1 = time()
-
-    nondom_base_labels = Dict(
-        node1 => Dict(
-            node2 => SortedDict{Tuple{Float64, Float64}, SubpathWithCost}(dso)
-            for node2 in union(data["N_depots"], data["N_charging"])
-        )
-        for node1 in union(data["N_depots"], data["N_charging"])
-    )
-    for node1 in union(data["N_depots"], data["N_charging"]), 
-        node2 in union(data["N_depots"], data["N_charging"])
-        for (k1, v1) in base_labels_wc[node1][node2]
-            # 1. check if v1 is not dominated
-            # 2. check if v1 dominates anyone
-            add_subpath_path_withcost_to_collection!(
-                nondom_base_labels[node1][node2],
-                k1, v1,
-                ;
-            )
-        end
-    end
-
-    time2 = time()
     full_labels = Dict(
         # starting depot
         starting_node => Dict(
@@ -1546,7 +1731,7 @@ function generate_subpaths_withcharge_from_paths_notimewindows_V3(
             for depot in data["N_depots"]
         ]
     )
-    time3 = time()
+    time2 = time()
 
     while length(unexplored_states) > 0
         state = pop!(unexplored_states)
@@ -1660,9 +1845,15 @@ function generate_subpaths_withcharge_from_paths_notimewindows_V3(
             full_labels[depot][depot], 
             (0.0, data["B"]) => PathWithCost(
                 subpaths = [
-                    nondom_base_labels[depot][depot][(0.0, data["B"])]
+                    SubpathWithCost(
+                        cost = - κ[depot] - μ[depot],
+                        n_customers = data["n_customers"],
+                        starting_node = depot,
+                        starting_time = 0.0, 
+                        starting_charge = data["B"],
+                    )
                 ],
-                cost = nondom_base_labels[depot][depot][(0.0, data["B"])].cost,
+                cost = - κ[depot] - μ[depot],
             )
         )
     end
@@ -1673,7 +1864,7 @@ function generate_subpaths_withcharge_from_paths_notimewindows_V3(
         end
     end
 
-    time4 = time()
+    time3 = time()
 
     generated_subpaths_withcharge = Dict{
         Tuple{Tuple{Int, Float64, Float64}, Tuple{Int, Float64, Float64}}, 
@@ -1687,9 +1878,9 @@ function generate_subpaths_withcharge_from_paths_notimewindows_V3(
         end
     end
 
-    time5 = time()
+    time4 = time()
 
-    return generated_subpaths_withcharge, nothing, (time1 - start_time, time2 - time1, time3 - time2, time4 - time3, time5 - time4), full_labels
+    return generated_subpaths_withcharge, nothing, (time1 - start_time, time2 - time1, time3 - time2, time4 - time3), full_labels
 end
 
 function generate_subpaths_withcharge_from_paths_notimewindows_V2(
