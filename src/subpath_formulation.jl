@@ -2678,102 +2678,77 @@ function subpath_formulation(
 
     flow_conservation_exprs = Dict()
     flow_conservation_constrs = Dict()
-    for n1 in data["N_charging"]
-        for t1 in T_range
-            t1_floor = dfloorall(t1, T_range)
-            t1_ceil = dceilall(t1, T_range)
-            for b1 in B_range
-                state1 = (n1, t1, b1)
-                b1_floor = dfloorall(b1, B_range)
-                b1_ceil = dceilall(b1, B_range)
-                out_sp_neighbors = [state for state in states if (state1, state) in keys(all_subpaths)]
-                in_sp_neighbors = [state for state in states if (state, state1) in keys(all_subpaths)]
-                flow_conservation_exprs[(state1,"out_sp")] = @expression(
-                    model, 
-                    sum(
-                        sum(
-                            z[(state1, state2),p] 
-                            for p in 1:length(all_subpaths[(state1, state2)])
-                        )
-                        for state2 in out_sp_neighbors
-                    )
+    for state1 in states 
+        if !(state1[1] in data["N_charging"])
+            continue
+        end    
+        out_sp_neighbors = [state2 for state2 in states if (state1, state2) in keys(all_subpaths)]
+        in_sp_neighbors = [state2 for state2 in states if (state2, state1) in keys(all_subpaths)]
+        flow_conservation_exprs[(state1,"out_sp")] = @expression(
+            model, 
+            sum(
+                sum(
+                    z[(state1, state2),p] 
+                    for p in 1:length(all_subpaths[(state1, state2)])
                 )
-                flow_conservation_exprs[(state1,"in_sp")] = @expression(
-                    model, 
-                    sum(
-                        sum(
-                            z[(state2, state1),p] 
-                            for p in 1:length(all_subpaths[(state2, state1)])
-                        )
-                        for state2 in in_sp_neighbors
-                    )
+                for state2 in out_sp_neighbors
+            )
+        )
+        flow_conservation_exprs[(state1,"in_sp")] = @expression(
+            model, 
+            sum(
+                sum(
+                    z[(state2, state1),p] 
+                    for p in 1:length(all_subpaths[(state2, state1)])
                 )
-                if charging_in_subpath
-                    if monotonic
-                        # Constraint (19c) Relaxed flow conservation at charging stations
-                        # (here the other node can be either a depot or charging station)
-                        flow_conservation_constrs[state1] = @constraint(
-                            model,
-                            flow_conservation_exprs[(state1,"out_sp")]
-                            - flow_conservation_exprs[(state1,"in_sp")]
-                            + α_lower[n1,b1] - α_upper[n1,b1]
-                            + β_upper[n1,t1] - β_lower[n1,t1]
-                            == 0.0
-                        )
-                    else
-                        # Constraint (4c) Flow conservation at charging stations
-                        # (here the other node can be either a depot or charging station)
-                        flow_conservation_constrs[state1] = @constraint(
-                            model,
-                            flow_conservation_exprs[(state1,"out_sp")]
-                            == flow_conservation_exprs[(state1,"in_sp")]
-                        )
-                    end
-                else
-                    out_a_neighbors = [(n1, t2, b2) for t2 in t1_ceil, b2 in b1_ceil if (state1, (n1, t2, b2)) in all_charging_arcs]
-                    in_a_neighbors = [(n1, t2, b2) for t2 in t1_floor, b2 in b1_floor if ((n1, t2, b2), state1) in all_charging_arcs]
-                    flow_conservation_exprs[(state1,"out_a")] = @expression(
-                        model, 
-                        sum(y[(state1, state2)] for state2 in out_a_neighbors)
-                    )
-                    flow_conservation_exprs[(state1,"in_a")] = @expression(
-                        model, 
-                        sum(y[(state2, state1)] for state2 in in_a_neighbors)
-                    )
-                    if monotonic # FIXME: untested
-                        flow_conservation_constrs[state1] = @constraint(
-                            model,
-                            flow_conservation_exprs[(state1,"out_sp")]
-                            + flow_conservation_exprs[(state1,"out_a")]
-                            - flow_conservation_exprs[(state1,"in_sp")]
-                            - flow_conservation_exprs[(state1,"in_a")]
-                            + α_lower[n1,b1] - α_upper[n1,b1]
-                            + β_upper[n1,t1] - β_lower[n1,t1]
-                            == 0.0
-                        )
-                    else
-                        # FIXME: make more efficient
-                        # Constraint (7b) Flow conservation at charging stations
-                        # (here the other node can be either a depot or charging station)
-                        # (here the arcs can be subpaths or charging arcs)
-                        flow_conservation_constrs[state1] = @constraint(
-                            model,
-                            flow_conservation_exprs[(state1,"out_sp")]
-                            + flow_conservation_exprs[(state1,"out_a")]
-                            == flow_conservation_exprs[(state1,"in_sp")]
-                            + flow_conservation_exprs[(state1,"in_a")]
-                        )
-                    end
-                    # FIXME: make more efficient
-                    # Constraint (7c): having at most 1 charging arc incident to any charging node
-                    @constraint(
-                        model,
-                        flow_conservation_exprs[(state1,"out_a")]
-                        + flow_conservation_exprs[(state1,"in_a")]
-                        ≤ 1
-                    )
-                end
-            end
+                for state2 in in_sp_neighbors
+            )
+        )
+        if charging_in_subpath
+            # Constraint (4c) Flow conservation at charging stations
+            # (here the other node can be either a depot or charging station)
+            flow_conservation_constrs[state1] = @constraint(
+                model,
+                flow_conservation_exprs[(state1,"out_sp")]
+                == flow_conservation_exprs[(state1,"in_sp")]
+            )
+        else
+            out_a_neighbors = [
+                arc[2]
+                for arc in all_charging_arcs
+                    if arc[1] == state1
+            ]
+            in_a_neighbors = [
+                arc[1]
+                for arc in all_charging_arcs
+                    if arc[2] == state1
+            ]
+            flow_conservation_exprs[(state1,"out_a")] = @expression(
+                model, 
+                sum(y[(state1, state2)] for state2 in out_a_neighbors)
+            )
+            flow_conservation_exprs[(state1,"in_a")] = @expression(
+                model, 
+                sum(y[(state2, state1)] for state2 in in_a_neighbors)
+            )
+            # Constraint (7b) Flow conservation at charging stations
+            # (here the other node can be either a depot or charging station)
+            # (here the arcs can be subpaths or charging arcs)
+            flow_conservation_constrs[state1] = @constraint(
+                model,
+                flow_conservation_exprs[(state1,"out_sp")]
+                + flow_conservation_exprs[(state1,"out_a")]
+                == flow_conservation_exprs[(state1,"in_sp")]
+                + flow_conservation_exprs[(state1,"in_a")]
+            )
+            # FIXME: make more efficient
+            # Constraint (7c): having at most 1 charging arc incident to any charging node
+            @constraint(
+                model,
+                flow_conservation_exprs[(state1,"out_a")]
+                + flow_conservation_exprs[(state1,"in_a")]
+                ≤ 1
+            )
         end
     end
 
@@ -2784,13 +2759,11 @@ function subpath_formulation(
         μ[n2 in data["N_depots"]],
         sum(
             sum(
-                z[((n1,t1,b1),(n2,t2,b2)),p]
-                for p in 1:length(all_subpaths[((n1,t1,b1),(n2,t2,b2))])
+                z[(state1, state2),p]
+                for p in 1:length(all_subpaths[(state1, state2)])
             )
-            for (n1, t1, b1) in states,
-                t2 in dceilall(t1, T_range), 
-                b2 in dfloorall(b1, B_range)
-            if ((n1,t1,b1),(n2,t2,b2)) in keys(all_subpaths)
+            for (state1, state2) in keys(all_subpaths)
+                if state2[1] == n2
         ) ≥ data["v_end"][n2]
     )
 
