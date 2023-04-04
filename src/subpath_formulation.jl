@@ -2635,6 +2635,7 @@ function subpath_formulation(
     start_time = time()
 
     model = Model(Gurobi.Optimizer)
+    set_attribute(model, "MIPGap", 1e-10)
 
     states = Set()
     for k in keys(all_subpaths)
@@ -3331,6 +3332,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
     )
 
     mp_model = @suppress Model(Gurobi.Optimizer)
+    set_attribute(mp_model, "MIPGap", 1e-10)
     JuMP.set_string_names_on_creation(mp_model, false)
     z = Dict{Tuple{Tuple{Tuple{Int, Float64, Float64}, Tuple{Int, Float64, Float64}}, Int}, VariableRef}(
         (key, p) => @variable(mp_model, lower_bound = 0)
