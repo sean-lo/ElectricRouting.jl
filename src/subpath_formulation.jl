@@ -2627,7 +2627,6 @@ function subpath_formulation(
     ;
     integral::Bool = true,
     charging_in_subpath::Bool = false,
-    monotonic = false,
     all_charging_arcs = [],
     charging_arcs_costs = Dict(),
 )
@@ -2659,25 +2658,6 @@ function subpath_formulation(
         if !charging_in_subpath
             @variable(model, y[all_charging_arcs] ≥ 0)
         end
-    end
-
-    if monotonic
-        @variable(model, α_upper[
-            data["N_charging"],
-            B_range,
-        ] ≥ 0)
-        @variable(model, α_lower[
-            data["N_charging"],
-            B_range,
-        ] ≥ 0)
-        @variable(model, β_upper[
-            data["N_charging"],
-            T_range,
-        ] ≥ 0)
-        @variable(model, β_lower[
-            data["N_charging"],
-            T_range,
-        ] ≥ 0)
     end
 
     # Constraint (4b): number of subpaths starting at depot i
@@ -2885,12 +2865,6 @@ function subpath_formulation(
     end
     if !charging_in_subpath
         results["y"] = value.(y)
-    end
-    if monotonic
-        results["α_upper"] = value.(model[:α_upper]).data
-        results["α_lower"] = value.(model[:α_lower]).data
-        results["β_upper"] = value.(model[:β_upper]).data
-        results["β_lower"] = value.(model[:β_lower]).data
     end
     return results, params
 end
