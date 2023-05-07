@@ -256,12 +256,11 @@ function generate_times(
     return α, β
 end
 
-function generate_instance_pair(
+function generate_instance(
     ;
     n_depots::Int, 
     n_customers::Int,
     n_charging::Int,
-    charging_repeats::Int,
     n_vehicles::Int,
     shrinkage_depots::Float64,
     shrinkage_charging::Float64,
@@ -271,173 +270,102 @@ function generate_instance_pair(
     μ::Float64,
     travel_cost_coeff::Int,
     charge_cost_coeff::Int,
-    C::Int = 1,
-    batch::Int = 1,
-    permissiveness::Float64 = 0.4,
+    load_scale::Float64,
+    load_shape::Float64,
+    load_tolerance::Float64,
 )
-    n_nodes_charge = n_depots + 2 * n_customers + n_charging * charging_repeats
-    n_nodes_nocharge = n_depots + 2 * n_customers
+    n_nodes = n_depots + n_customers + n_charging
 
     seeds = abs.(rand(MersenneTwister(seed), Int, 6))
 
-    N_pickups = collect(1:n_customers)
-    N_dropoffs = collect(n_customers+1:2*n_customers)
-    N_depots = collect(2*n_customers+1:2*n_customers+n_depots)
+    N_customers = collect(1:n_customers)
+    N_depots = collect(n_customers+1:n_customers+n_depots)
     N_vehicles = collect(1:n_vehicles)
-    N_charging = collect(2*n_customers+n_depots+1:2*n_customers+n_depots+n_charging*charging_repeats)
-    N_nodes_nocharge = vcat(N_pickups, N_dropoffs, N_depots)
-    N_nodes_charge = vcat(N_pickups, N_dropoffs, N_depots, N_charging)
+    N_charging = collect(n_customers+n_depots+1:n_customers+n_depots+n_charging)
+    N_nodes = vcat(N_customers, N_depots, N_charging)
 
-    node_labels_nocharge = merge(Dict(
+    node_labels = merge(Dict(
         i => "Depot $ind" for (ind, i) in enumerate(N_depots)
     ), Dict(
-        i => "Pickup $ind" for (ind, i) in enumerate(N_pickups)
+        i => "Customer $ind" for (ind, i) in enumerate(N_customers)
     ), Dict(
-        i => "Dropoff $ind" for (ind, i) in enumerate(N_dropoffs)
+        i => "Charging $ind" for (ind, i) in enumerate(N_charging)
     ))
-    node_labels_charge = merge(
-        node_labels_nocharge, 
-        Dict(
-            i => "Charging $((ind+charging_repeats-1) ÷ charging_repeats)" for (ind, i) in enumerate(N_charging)
-        )
+
+    customer_coords = Random.randn(MersenneTwister(seeds[1]), Float64, (2, n_customers))
+    depot_coords = shrinkage_depots * Random.randn(MersenneTwister(seeds[2]), Float64, (2, n_depots))
+    charging_coords = shrinkage_charging * Random.randn(MersenneTwister(seeds[3]), Float64, (2, n_charging))
+    coords = hcat(
+        customer_coords,
+        depot_coords,
+        charging_coords,
     )
 
-    pickup_coords = Random.randn(MersenneTwister(seeds[1]), Float64, (2, n_customers))
-    dropoff_coords = Random.randn(MersenneTwister(seeds[2]), Float64, (2, n_customers))
-    depot_coords = shrinkage_depots * Random.randn(MersenneTwister(seeds[3]), Float64, (2, n_depots))
-    charging_coords = shrinkage_charging * Random.randn(MersenneTwister(seeds[4]), Float64, (2, n_charging))
-    coords_nocharge = hcat(
-        pickup_coords, 
-        dropoff_coords, 
-        depot_coords,  
-    )
-    coords_charge = hcat(
-        coords_nocharge,
-        repeat(
-            charging_coords, 
-            inner = (1, charging_repeats),
-        )
-    )
+    distances = Distances.pairwise(Euclidean(), coords, dims=2)
 
-    distances_nocharge = Distances.pairwise(Euclidean(), coords_nocharge, dims=2)
-    distances_charge = Distances.pairwise(Euclidean(), coords_charge, dims=2)
-
-    start_depots = StatsBase.sample(MersenneTwister(seeds[5]), N_depots, n_vehicles, replace = true)
+    start_depots = StatsBase.sample(MersenneTwister(seeds[4]), N_depots, n_vehicles, replace = true)
     V = Dict(i => findall(x -> x==i, start_depots) for i in N_depots)
     v_start = [length(V[i]) for i in N_depots]
     v_end_vec = repeat([1], n_depots)
     v_end  = Dict(i => v_end_vec[ind] for (ind, i) in enumerate(N_depots))
     
-    c_nocharge = Int.(round.(100 .* distances_nocharge))
-    c_charge = Int.(round.(100 .* distances_charge))
-    t_nocharge = Int.(round.(100 .* distances_nocharge)) # travel times are integer
-    t_charge = Int.(round.(100 .* distances_charge)) # travel times are integer
-    d_nocharge = vcat(
-        repeat([1], n_customers), 
-        repeat([-1], n_customers), 
-        repeat([0], n_depots),
+    c = Int.(round.(100 .* distances))
+    t = Int.(round.(100 .* distances)) # travel times are integer
+    q = Int.(round.(100 .* distances)) # charge costs are integer
+    d = vcat(
+        floor.(rand(Gamma(load_scale, load_shape), n_customers) ./ n_customers),
+        repeat([0], n_depots + n_charging),
     )
-    d_charge = vcat(
-        d_nocharge,
-        repeat([0], length(N_charging)),
-    )
-    q = Int.(round.(100 .* distances_charge)) # charge costs are integer
+    C = ceil(sum(d) * load_tolerance / n_vehicles)
 
-    A_nocharge = merge(
-        Dict(
-            (i,j) => t_nocharge[i,j] for (i,j) in combinations(N_nodes_nocharge, 2)
-        ), 
-        Dict(
-            (j,i) => t_nocharge[i,j] for (i,j) in combinations(N_nodes_nocharge, 2)
-        ), 
+    A = merge(
         Dict(
             (i,i) => 0 for i in N_depots # allow self-loops at depots
         ),
-    )
-    A_charge = merge(
         Dict(
-            (i,j) => t_charge[i,j] for (i,j) in combinations(vcat(N_pickups, N_dropoffs, N_depots), 2)
-        ), 
-        Dict(
-            (j,i) => t_charge[i,j] for (i,j) in combinations(vcat(N_pickups, N_dropoffs, N_depots), 2)
-        ), 
-        # prevent self-loops at charging stations and between its duplicates
-        Dict(
-            (i,j) => t_charge[i,j] for i in vcat(N_pickups, N_dropoffs, N_depots), j in N_charging
-        ), 
-        Dict(
-            (j,i) => t_charge[i,j] for i in vcat(N_pickups, N_dropoffs, N_depots), j in N_charging
-        ),
-        Dict(
-            (i,j) => t_charge[i,j] for (i,j) in combinations(N_charging, 2)
-        ),
-        Dict(
-            (j,i) => t_charge[i,j] for (i,j) in combinations(N_charging, 2)
-        ), # FIXME: what happens to duplicates of charging stations?
-        Dict(
-            (i,i) => 0 for i in N_depots # allow self-loops at depots
+            (i,j) => t[i,j] for (i,j) in permutations(vcat(N_customers, N_charging, N_depots), 2)
         ),
     )
-    
-    α, β = generate_times(T, n_customers, seeds[6], batch, permissiveness)
-    α_nocharge = vcat(α, repeat([0.0], n_depots))
-    β_nocharge = vcat(β, repeat([T], n_depots))
-    α_charge = vcat(α_nocharge, repeat([0.0], length(N_charging)))
-    β_charge = vcat(β_nocharge, repeat([T], length(N_charging)))
 
-    nocharge_data = Dict(
+    data = Dict(
         "n_depots" => n_depots,
         "n_customers" => n_customers,
         "n_vehicles" => n_vehicles,
-        "n_nodes" => n_nodes_nocharge,
-        "N_pickups" => N_pickups, 
-        "N_dropoffs" => N_dropoffs,
+        "n_charging" => n_charging,
+        "n_nodes" => n_nodes,
+
+        "N_customers" => N_customers,
         "N_depots" => N_depots,
         "N_vehicles" => N_vehicles,
-        "N_nodes" => N_nodes_nocharge,
-        "node_labels" => node_labels_nocharge,
+        "N_charging" => N_charging,
+        "N_nodes" => N_nodes,
+
+        "node_labels" => node_labels,
         "shrinkage_depots" => shrinkage_depots,
-        "pickup_coords" => pickup_coords,
-        "dropoff_coords" => dropoff_coords,
+        "shrinkage_charging" => shrinkage_charging,
+
+        "customer_coords" => customer_coords,
         "depot_coords" => depot_coords,
-        "coords" => coords_nocharge,
-        "distances" => distances_nocharge,
+        "charging_coords" => charging_coords,
+        "coords" => coords,
+        "distances" => distances,
+
         "V" => V,
         "v_start" => v_start,
         "v_end" => v_end,
-        "c" => c_nocharge,
-        "t" => t_nocharge,
+        "c" => c,
+        "t" => t,
+        "q" => q,
+        "d" => d,
         "C" => C,
-        "d" => d_nocharge,
         "T" => T,
-        "A" => A_nocharge,
-        "α" => α_nocharge,
-        "β" => β_nocharge,
+        "A" => A,
+        "μ" => μ,
+        "B" => B,
         "travel_cost_coeff" => travel_cost_coeff,
         "charge_cost_coeff" => charge_cost_coeff,
     )
-    charge_data = merge(nocharge_data, Dict(
-        "n_charging" => n_charging,
-        "charging_repeats" => charging_repeats,
-        "n_nodes" => n_nodes_charge,
-        "N_charging" => N_charging,
-        "N_nodes" => N_nodes_charge,
-        "node_labels" => node_labels_charge,
-        "shrinkage_charging" => shrinkage_charging,
-        "charging_coords" => charging_coords,
-        "coords" => coords_charge,
-        "distances" => distances_charge,
-        "c" => c_charge,
-        "t" => t_charge,
-        "d" => d_charge,
-        "A" => A_charge,
-        "α" => α_charge,
-        "β" => β_charge,
-        "q" => q,
-        "B" => B,
-        "μ" => μ,
-    ))
-    return nocharge_data, charge_data
+    return data
 end
 
 function construct_graph(data)
@@ -448,128 +376,23 @@ function construct_graph(data)
     return G
 end
 
-function preprocess_arcs(
-    in_data, 
-    with_charging::Bool = false,
-    allow_nonempty_at_charging::Bool = true,
-) 
-    data = deepcopy(in_data)
-    # Shrinking of time windows (Dumas 1991)
-    for j in data["N_dropoffs"]
-        data["β"][j] = min(
-            data["β"][j],
-            maximum(data["β"][data["N_depots"]] .- data["t"][j,data["N_depots"]])
-        )
-    end
-    for i in data["N_pickups"]
-        j = i + data["n_customers"]
-        data["β"][i] = min(
-            data["β"][i], 
-            data["β"][j] - data["t"][i,j],
-        )
-    end
-    for i in data["N_pickups"]
-        data["α"][i] = max(
-            data["α"][i],
-            minimum(data["α"][data["N_depots"]] + data["t"][data["N_depots"],i])
-        )
-    end
-    for j in data["N_dropoffs"]
-        i = j - data["n_customers"]
-        data["α"][j] = max(
-            data["α"][j],
-            data["α"][i] + data["t"][i,j],
-        )
-    end
-
-    for (i,j) in keys(data["A"])
-        # Remove going from a dropoff to its pickup
-        if i in data["N_dropoffs"] && j == i - data["n_customers"]
-            delete!(data["A"], (i,j))
-        end
-        # remove arcs due to time window infeasibility
-        if data["α"][i] + data["t"][i,j] > data["β"][j]
-            delete!(data["A"], (i,j))
-        end
-        if with_charging
-            # remove arcs due to charge infeasibility
-            if data["q"][i,j] > data["B"]
-                delete!(data["A"], (i,j))
-            end
-        end
-        # (depot, dropoff)-pair infeasible
-        if i in data["N_depots"] && j in data["N_dropoffs"]
-            delete!(data["A"], (i,j))
-        end
-        # (pickup, depot)-pair infeasible
-        if i in data["N_pickups"] && j in data["N_depots"]
-            delete!(data["A"], (i,j))
-        end
-        if with_charging 
-            if !allow_nonempty_at_charging
-                # (pickup, charging)-pair infeasible
-                if i in data["N_pickups"] && j in data["N_charging"]
-                    delete!(data["A"], (i,j))
-                end
-                # (charging, dropoff)-pair infeasible
-                if i in data["N_charging"] && j in data["N_dropoffs"]
-                    delete!(data["A"], (i,j))
-                end
-            end
-        end
-        if with_charging
-            # if C == 1: (pickup[i], j) infeasible if j != dropoff[i]
-            if (i in data["N_pickups"]) && (j != i + data["n_customers"]) && !(j in data["N_charging"])
-                delete!(data["A"], (i,j))
-            end
-            # if C == 1: (i, dropoff[j]) infeasible if i != pickup[j]
-            if (j in data["N_dropoffs"]) && (i != j - data["n_customers"]) && !(i in data["N_charging"])
-                delete!(data["A"], (i,j))
-            end
-        else
-            # if C == 1: (pickup[i], j) infeasible if j != dropoff[i]
-            if (i in data["N_pickups"]) && (j != i + data["n_customers"])
-                delete!(data["A"], (i,j))
-            end
-            # if C == 1: (i, dropoff[j]) infeasible if i != pickup[j]
-            if (j in data["N_dropoffs"]) && (i != j - data["n_customers"])
-                delete!(data["A"], (i,j))
-            end
-        end
-    end
-    return data
-end
-
-function plot_instance(data, with_charging::Bool = true)
+function plot_instance(data)
     p = plot(
         # xlim = (0, 1), ylim = (0, 1),
         aspect_ratio = :equal, 
         fmt = :png, 
     )
     plot!(
-        data["pickup_coords"][1,:], data["pickup_coords"][2,:],
+        data["customer_coords"][1,:], data["customer_coords"][2,:],
         seriestype = :scatter, 
-        label = "Pickup",
+        label = "Customer",
         color = :green
     )
     annotate!.(
-        data["pickup_coords"][1,:] .+ 0.01, data["pickup_coords"][2,:], 
+        data["customer_coords"][1,:] .+ 0.15, data["customer_coords"][2,:], 
         text.(
             collect(string(i) for i in 1:data["n_customers"]), 
             :green, :left, 11
-        )
-    )
-    plot!(
-        data["dropoff_coords"][1,:], data["dropoff_coords"][2,:],
-        seriestype = :scatter, 
-        label = "Dropoff",
-        color = :red
-    )
-    annotate!.(
-        data["dropoff_coords"][1,:] .+ 0.01, data["dropoff_coords"][2,:], 
-        text.(
-            collect(string(i) for i in 1:data["n_customers"]), 
-            :red, :left, 11
         )
     )
     plot!(
@@ -579,27 +402,26 @@ function plot_instance(data, with_charging::Bool = true)
         color = :black
     )
     annotate!.(
-        data["depot_coords"][1,:] .+ 0.01, data["depot_coords"][2,:], 
+        data["depot_coords"][1,:] .+ 0.15, data["depot_coords"][2,:], 
         text.(
             collect("M" * string(i) for i in 1:data["n_depots"]), 
             :black, :left, 11
         )
     )
-    if with_charging
-        plot!(
-            data["charging_coords"][1,:], data["charging_coords"][2,:],
-            seriestype = :scatter, 
-            label = "Recharging stations",
-            color = :grey
+    plot!(
+        data["charging_coords"][1,:], data["charging_coords"][2,:],
+        seriestype = :scatter, 
+        label = "Charging stations",
+        color = :grey
+    )
+    annotate!.(
+        data["charging_coords"][1,:] .+ 0.15, data["charging_coords"][2,:], 
+        text.(
+            collect("R" * string(i) for i in 1:data["n_charging"]), 
+            :grey, :left, 11
         )
-        annotate!.(
-            data["charging_coords"][1,:] .+ 0.01, data["charging_coords"][2,:], 
-            text.(
-                collect("R" * string(i) for i in 1:data["n_charging"]), 
-                :grey, :left, 11
-            )
-        )
-    end
+    )
 
     plot!(legend = :outerright)
+    return p
 end
