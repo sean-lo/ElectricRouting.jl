@@ -17,15 +17,9 @@ Base.@kwdef mutable struct Subpath
     starting_charge::Float64
     current_node::Int = starting_node
     arcs::Vector{Tuple} = []
-    time::Float64 = starting_time
-    charge::Float64 = starting_charge
+    current_time::Float64 = starting_time
+    current_charge::Float64 = starting_charge
     served::BitVector = falses(n_customers)
-    delta_time::Float64 = 0.0
-    delta_charge::Float64 = 0.0
-    end_time::Float64 = time
-    end_charge::Float64 = charge
-    round_time::Float64 = end_time
-    round_charge::Float64 = end_charge
     artificial::Bool = false
 end
 
@@ -36,34 +30,26 @@ Base.copy(s::Subpath) = Subpath(
     starting_charge = s.starting_charge,
     current_node = s.current_node,
     arcs = copy(s.arcs),
-    time = s.time,
-    charge = s.charge,
+    current_time = s.current_time,
+    current_charge = s.current_charge,
     served = copy(s.served),
-    delta_time = s.delta_time,
-    delta_charge = s.delta_charge,
-    end_time = s.end_time,
-    end_charge = s.end_charge,
-    round_time = s.round_time,
-    round_charge = s.round_charge,
     artificial = s.artificial
 )
 
 Base.show(io::IO, s::Subpath) = begin
     if s.artificial
-        print(io, """Subpath (artificial):
-        ($(s.starting_node), $(s.starting_time), $(s.starting_charge)) -> ($(s.current_node), $(s.round_time), $(s.round_charge))
-        """)
+        message = """Subpath (artificial):
+        """
     else
-        print(io, """Subpath:
-        ($(s.starting_node), $(s.starting_time), $(s.starting_charge)) -> ($(s.current_node), $(s.round_time), $(s.round_charge))
-        arcs:           $(s.arcs)
-        served:         $(s.served)
-        now:            ($(s.time), $(s.charge))
-        delta:          ($(s.delta_time), $(s.delta_charge))
-        end:            ($(s.end_time), $(s.end_charge))
-        round:          ($(s.round_time), $(s.round_charge))
-        """)
+        message = """Subpath:
+        """
     end
+    message = message * """
+    ($(s.starting_node), $(s.starting_time), $(s.starting_charge)) -> ($(s.current_node), $(s.current_time), $(s.current_charge))
+    arcs:           $(s.arcs)
+    served:         $(s.served)
+    """
+    print(io, message)
 end
 
 Base.isequal(s1::Subpath, s2::Subpath) = begin 
@@ -74,15 +60,9 @@ Base.isequal(s1::Subpath, s2::Subpath) = begin
         && s1.starting_charge == s2.starting_charge
         && s1.current_node == s2.current_node
         && s1.arcs == s2.arcs
-        && s1.time == s2.time
-        && s1.charge == s2.charge
+        && s1.current_time == s2.current_time
+        && s1.current_charge == s2.current_charge
         && s1.served == s2.served
-        && s1.delta_time == s2.delta_time
-        && s1.delta_charge == s2.delta_charge
-        && s1.end_time == s2.end_time
-        && s1.end_charge == s2.end_charge
-        && s1.round_time == s2.round_time
-        && s1.round_charge == s2.round_charge
         && s1.artificial == s2.artificial
     )
 end
@@ -93,23 +73,21 @@ end
     explored::Bool = false
 end
 
-Base.show(io::IO, s::SubpathWithCost) = begin 
+Base.show(io::IO, s::SubpathWithCost) = begin
     if s.artificial
-        print(io, """SubpathWithCost (artificial):
-        ($(s.starting_node), $(s.starting_time), $(s.starting_charge)) -> ($(s.current_node), $(s.round_time), $(s.round_charge))
-        """)
+        message = """SubpathWithCost (artificial):
+        """
     else
-        print(io, """SubpathWithCost:
-        ($(s.starting_node), $(s.starting_time), $(s.starting_charge)) -> ($(s.current_node), $(s.round_time), $(s.round_charge))
-        cost:           $(s.cost)
-        arcs:           $(s.arcs)
-        served:         $(s.served)
-        now:            ($(s.time), $(s.charge))
-        delta:          ($(s.delta_time), $(s.delta_charge))
-        end:            ($(s.end_time), $(s.end_charge))
-        round:          ($(s.round_time), $(s.round_charge))
-        """)
+        message = """SubpathWithCost:
+        """
     end
+    message = message * """
+    ($(s.starting_node), $(s.starting_time), $(s.starting_charge)) -> ($(s.current_node), $(s.current_time), $(s.current_charge))
+    cost:           $(s.cost)
+    arcs:           $(s.arcs)
+    served:         $(s.served)
+    """
+    print(io, message)
 end
 
 Base.copy(s::SubpathWithCost) = SubpathWithCost(
@@ -120,15 +98,9 @@ Base.copy(s::SubpathWithCost) = SubpathWithCost(
     starting_charge = s.starting_charge,
     current_node = s.current_node,
     arcs = copy(s.arcs),
-    time = s.time,
-    charge = s.charge,
+    current_time = s.current_time,
+    current_charge = s.current_charge,
     served = copy(s.served),
-    delta_time = s.delta_time,
-    delta_charge = s.delta_charge,
-    end_time = s.end_time,
-    end_charge = s.end_charge,
-    round_time = s.round_time,
-    round_charge = s.round_charge,
     artificial = s.artificial,
 )
 
@@ -141,15 +113,9 @@ Base.isequal(s1::SubpathWithCost, s2::SubpathWithCost) = begin
         && s1.starting_charge == s2.starting_charge
         && s1.current_node == s2.current_node
         && s1.arcs == s2.arcs
-        && s1.time == s2.time
-        && s1.charge == s2.charge
+        && s1.current_time == s2.current_time
+        && s1.current_charge == s2.current_charge
         && s1.served == s2.served
-        && s1.delta_time == s2.delta_time
-        && s1.delta_charge == s2.delta_charge
-        && s1.end_time == s2.end_time
-        && s1.end_charge == s2.end_charge
-        && s1.round_time == s2.round_time
-        && s1.round_charge == s2.round_charge
         && s1.artificial == s2.artificial
     )
 end
@@ -161,34 +127,87 @@ Subpath(s::SubpathWithCost) = Subpath(
     starting_charge = s.starting_charge,
     current_node = s.current_node,
     arcs = copy(s.arcs),
-    time = s.time,
-    charge = s.charge,
+    current_time = s.current_time,
+    current_charge = s.current_charge,
     served = copy(s.served),
-    delta_time = s.delta_time,
-    delta_charge = s.delta_charge,
-    end_time = s.end_time,
-    end_charge = s.end_charge,
-    round_time = s.round_time,
-    round_charge = s.round_charge,
     artificial = s.artificial,
+)
+
+Base.@kwdef mutable struct ChargingArc
+    starting_node::Int
+    starting_time::Float64
+    starting_charge::Float64
+    delta_time::Float64 = 0.0
+    delta_charge::Float64 = 0.0
+    current_time::Float64 = starting_time
+    current_charge::Float64 = starting_charge
+end
+
+Base.isequal(a1::ChargingArc, a2::ChargingArc) = (
+    a1.starting_node == a2.starting_node
+    && a1.starting_time == a2.starting_time
+    && a1.starting_charge == a2.starting_charge
+    && a1.delta_time == a2.delta_time
+    && a1.delta_charge == a2.delta_charge
+    && a1.current_time == a2.current_time
+    && a1.current_charge == a2.current_charge
+)
+
+Base.copy(a::ChargingArc) = ChargingArc(
+    starting_node = a.starting_node,
+    starting_time = a.starting_time,
+    starting_charge = a.starting_charge,
+    delta_time = a.delta_time,
+    delta_charge = a.delta_charge,
+    current_time = a.current_time,
+    current_charge = a.current_charge,
 )
 
 Base.@kwdef mutable struct Path
     subpaths::Vector{Subpath}
+    charging_arcs::Vector{ChargingArc}
     served::Vector{Int} = sum(s.served for s in subpaths)
 end
 
-Base.isequal(p1::Path, p2::Path) = all(isequal(s1, s2) for (s1, s2) in zip(p1.subpaths, p2.subpaths))
+Base.isequal(p1::Path, p2::Path) = (
+    all(isequal(s1, s2) for (s1, s2) in zip(p1.subpaths, p2.subpaths))
+    && all(isequal(a1, a2) for (a1, a2) in zip(p1.charging_arcs, p2.charging_arcs))
+    && p1.served == p2.served
+)
+
+Base.copy(p::Path) = Path(
+    subpaths = [copy(s) for s in p.subpaths],
+    charging_arcs = [copy(a) for a in p.charging_arcs],
+    served = copy(p.served),
+)
 
 Base.@kwdef mutable struct PathWithCost
     subpaths::Vector{SubpathWithCost}
+    charging_arcs::Vector{ChargingArc}
     cost::Float64
     served::Vector{Int} = sum(s.served for s in subpaths)
     explored::Bool = false
 end
 
+Base.isequal(p1::PathWithCost, p2::PathWithCost) = (
+    all(isequal(s1, s2) for (s1, s2) in zip(p1.subpaths, p2.subpaths))
+    && all(isequal(a1, a2) for (a1, a2) in zip(p1.charging_arcs, p2.charging_arcs))
+    && p1.served == p2.served
+    && p1.cost == p2.cost
+    && p1.explored == p2.explored
+)
+
+Base.copy(p::PathWithCost) = PathWithCost(
+    subpaths = [copy(s) for s in p.subpaths],
+    charging_arcs = [copy(a) for a in p.charging_arcs],
+    served = copy(p.served),
+    cost = p.cost,
+    explored = p.explored,
+)
+
 Path(p::PathWithCost) = Path(
     subpaths = [Subpath(s) for s in p.subpaths],
+    charging_arcs = p.charging_arcs,
     served = sum(s.served for s in p.subpaths)
 )
 
@@ -197,63 +216,6 @@ function dceil(
     points,
 )
     return points[searchsortedfirst(points, x)]
-end
-
-function dfloor(
-    x::Float64,
-    points,
-)
-    return points[searchsortedlast(points, x)]
-end
-
-function dceilall(
-    x::Float64,
-    points,
-)
-    return points[searchsortedfirst(points, x):end]
-end
-
-function dfloorall(
-    x::Float64,
-    points,
-)
-    return points[1:searchsortedlast(points, x)]
-end
-
-function generate_times(
-    T::Float64,
-    n_customers::Int,
-    seed::Int,
-    batch::Int,
-    permissiveness::Float64 = 0.4,
-)
-    if n_customers % batch != 0
-        error()
-    end
-    times_dist = Uniform(0.0, T)
-    α = zeros(2 * n_customers)
-    β = zeros(2 * n_customers)
-
-    Random.seed!(seed)
-    for batch_ind in 1:(n_customers ÷ batch)
-        pickup_inds = collect((batch_ind-1)*batch+1:batch_ind*batch)
-        dropoff_inds = collect(n_customers+(batch_ind-1)*batch+1:n_customers+batch_ind*batch)
-        while true
-            times = round.(sort(rand(times_dist, 4 * batch)))
-            start_times = times[1:end÷2]
-            end_times = times[end÷2+1:end]
-            if all(
-                (end_times .- start_times) ./ T .> permissiveness
-            )
-                α[pickup_inds] = start_times[1:end÷2]
-                α[dropoff_inds] = start_times[end÷2+1:end]
-                β[pickup_inds] = end_times[1:end÷2]
-                β[dropoff_inds] = end_times[end÷2+1:end]
-                break
-            end
-        end
-    end
-    return α, β
 end
 
 function generate_instance(

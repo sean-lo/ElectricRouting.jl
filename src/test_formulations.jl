@@ -1,1829 +1,483 @@
 include("arc_formulation.jl")
 include("subpath_formulation.jl")
-include("path_formulation.jl")
+# include("path_formulation.jl")
 include("utils.jl")
 
-using DataFrames
-using Dates
-using CSV, JLD2
-using Test
-using Plots
-using CairoMakie
+using Distributions
 
-all_data = Dict(
-    "xs" => Dict(),
-    "s" => Dict(),
-    "m" => Dict(),
-    "l" => Dict(),
-)
-for ind in 1:5
-    all_data["xs_B$ind"] = Dict()
-    all_data["s_B$ind"] = Dict()
-end
-for ind in 1:4
-    all_data["xs_TW$ind"] = Dict()
-    all_data["s_TW$ind"] = Dict()
-end
-
-all_data["xs2"] = Dict()
-all_data["s2"] = Dict()
-all_data["m2"] = Dict()
-all_data["l2"] = Dict()
-
-params = [
-    ("xs", 2, 9, 2, 3, 1500.0, 1050.0, 10, 7, 3, 0.4),
-    ("xs_B1", 2, 9, 2, 3, 1500.0, 1100.0, 10, 7, 3, 0.4),
-    ("xs_B2", 2, 9, 2, 3, 1500.0, 1150.0, 10, 7, 3, 0.4),
-    ("xs_B3", 2, 9, 2, 3, 1500.0, 1200.0, 10, 7, 3, 0.4),
-    ("xs_B4", 2, 9, 2, 3, 1500.0, 1250.0, 10, 7, 3, 0.4),
-    ("xs_B5", 2, 9, 2, 3, 1500.0, 1300.0, 10, 7, 3, 0.4),
-    ("xs_TW1", 2, 9, 2, 3, 1500.0, 1050.0, 10, 7, 3, 0.45),
-    ("xs_TW2", 2, 9, 2, 3, 1500.0, 1050.0, 10, 7, 3, 0.5),
-    ("xs_TW3", 2, 9, 2, 3, 1500.0, 1050.0, 10, 7, 3, 0.55),
-    ("xs_TW4", 2, 9, 2, 3, 1500.0, 1050.0, 10, 7, 3, 0.6),
-    ("s", 2, 12, 2, 3, 1900.0, 1550.0, 10, 7, 4, 0.4),
-    ("s_B1", 2, 12, 2, 3, 1900.0, 1600.0, 10, 7, 4, 0.4),
-    ("s_B2", 2, 12, 2, 3, 1900.0, 1650.0, 10, 7, 4, 0.4),
-    ("s_B3", 2, 12, 2, 3, 1900.0, 1700.0, 10, 7, 4, 0.4),
-    ("s_B4", 2, 12, 2, 3, 1900.0, 1750.0, 10, 7, 4, 0.4),
-    ("s_B5", 2, 12, 2, 3, 1900.0, 1800.0, 10, 7, 4, 0.4),
-    ("s_TW1", 2, 12, 2, 3, 1900.0, 1550.0, 10, 7, 4, 0.45),
-    ("s_TW2", 2, 12, 2, 3, 1900.0, 1550.0, 10, 7, 4, 0.5),
-    ("s_TW3", 2, 12, 2, 3, 1900.0, 1550.0, 10, 7, 4, 0.55),
-    ("s_TW4", 2, 12, 2, 3, 1900.0, 1550.0, 10, 7, 4, 0.6),
-    ("m", 2, 15, 2, 3, 2250.0, 1850.0, 10, 7, 5, 0.4),
-    ("l", 2, 18, 2, 3, 2550.0, 2050.0, 10, 7, 6, 0.4),
-    ("xs2", 2, 9, 2, 3, 1500.0, 750.0, 10, 7, 3, 0.4),
-    ("s2", 2, 12, 2, 3, 2000.0, 1000.0, 10, 7, 4, 0.4),
-    ("m2", 2, 15, 2, 3, 2400.0, 1200.0, 10, 7, 5, 0.4),
-    ("l2", 2, 18, 2, 3, 2700.0, 1350.0, 10, 7, 6, 0.4),
-]
-
-for (
-    size,
-    n_depots, n_customers, n_charging, n_vehicles,
-    T, B, 
-    travel_cost_coeff, charge_cost_coeff, 
-    batch, permissiveness,
-) in params, seed in 1:10
-    run_index = seed
-    _, data = generate_instance_pair(
-        n_depots = n_depots, 
-        n_customers = n_customers,
-        n_charging = n_charging,
-        charging_repeats = 1,
-        n_vehicles = n_vehicles,
-        shrinkage_depots = 1.4,
-        shrinkage_charging = 0.6,
-        T = T,
-        seed = seed,
-        B = B,
-        μ = 5.0,
-        travel_cost_coeff = travel_cost_coeff,
-        charge_cost_coeff = charge_cost_coeff,
-        batch = batch,
-        permissiveness = permissiveness,
-    )
-    data = preprocess_arcs(data, true, false)
-    G = construct_graph(data)
-    T_range = 0:50.0:data["T"]
-    B_range = 0:50.0:data["B"]
-    all_data[size][run_index] = Dict(
-        "data" => data,
-        "G" => G,
-        "T_range" => T_range,
-        "B_range" => B_range,
-    )
-end
-
-function compare_formulations!(
-    all_data,
-    sizes,
-    run_indexes,
+data = generate_instance(
     ;
-    with_charging_cost::Bool = false,
-    time_windows::Bool = true,
-    arc::Bool = false,
-    arc_sizes::Vector = sizes,
-    arc_run_indexes::Vector = run_indexes,
-    cg_with_heuristic::Bool = true,
-    subpath_cg::Bool = false,
-    subpath_cg_sizes::Vector = sizes,
-    subpath_cg_run_indexes::Vector = run_indexes,
-    subpath_cgi::Bool = false,
-    subpath_cgi_sizes::Vector = sizes,
-    subpath_cgi_run_indexes::Vector = run_indexes,
-    subpath_cgi_no_time_windows_naive::Bool = true,
-    subpath_enum::Bool = false,
-    subpath_enum_sizes::Vector = sizes,
-    subpath_enum_run_indexes::Vector = run_indexes,
-    path_cg::Bool = false,
-    path_cg_sizes::Vector = sizes,
-    path_cg_run_indexes::Vector = run_indexes,
+    n_depots = 2,
+    n_customers = 10,
+    n_charging = 2,
+    n_vehicles = 4,
+    shrinkage_depots = 1.4,
+    shrinkage_charging = 0.6,
+    T = 1200.0,
+    seed = 0,
+    B = 800.0,
+    μ = 5.0,
+    travel_cost_coeff = 7,
+    charge_cost_coeff = 3,
+    load_scale = 5.0,
+    load_shape = 20.0,
+    load_tolerance = 1.2,
 )
-    datestr = Dates.format(Dates.now(), "yyyymmdd_HHMMSS")
-    dir = "$(@__DIR__)/../logs/$datestr/"
-    mkpath(dir)
+plot_instance(data)
+data["N_customers"]
+data["l"]
+data["C"]
 
-    if arc
-        for (size, run_index) in Iterators.product(arc_sizes, arc_run_indexes)
-            dirname = joinpath(dir, "arc/$size/$run_index")
-            mkpath(dirname)
-            (
-                all_data[size][run_index]["arc_ip_results"], 
-                all_data[size][run_index]["arc_ip_params"],
-            ) = arc_formulation(
-                all_data[size][run_index]["data"],
-                true,
-                ;
-                with_charging_cost = with_charging_cost,
-                time_limit = 3600.0,
-            )
-            all_data[size][run_index]["arc_ip_printlist"] = arc_results_printout(
-                all_data[size][run_index]["arc_ip_results"], 
-                all_data[size][run_index]["arc_ip_params"],
-                all_data[size][run_index]["data"],
-                true,
-            )
-            open(joinpath(dirname, "log.txt"), "w") do io
-                for message in all_data[size][run_index]["arc_ip_printlist"]
-                    write(io, message)
-                end
-            end
-            (
-                all_data[size][run_index]["arc_lp_results"], 
-                all_data[size][run_index]["arc_lp_params"],
-            ) = arc_formulation(
-                all_data[size][run_index]["data"],
-                true,
-                ;
-                with_charging_cost = with_charging_cost,
-                integral = false,
-                time_limit = 120.0,
-            )
-        end
+arc_results["l_reach"]
+arc_results, arc_params = arc_formulation(data, with_charging = true, time_limit = 60)
+arc_paths = construct_paths_from_arc_solution(arc_results, data)
+arc_results_printout(
+    arc_results, 
+    arc_params,
+    data,
+    with_charging = true,
+)
+
+G = construct_graph(data)
+CGLP_results, CGIP_results, params, printlist, some_subpaths, some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data);
+subpath_results_printout(
+    CGLP_results,
+    params,
+    data,
+    some_subpaths,
+    some_charging_arcs,
+)
+
+subpath_results_printout(
+    CGIP_results,
+    params,
+    data,
+    some_subpaths,
+    some_charging_arcs,
+)
+
+
+data_large = generate_instance(
+    ;
+    n_depots = 2,
+    n_customers = 25,
+    n_charging = 2,
+    n_vehicles = 4,
+    shrinkage_depots = 1.4,
+    shrinkage_charging = 0.6,
+    T = 2000.0,
+    seed = 0,
+    B = 700.0,
+    μ = 5.0,
+    travel_cost_coeff = 7,
+    charge_cost_coeff = 3,
+    load_scale = 5.0,
+    load_shape = 20.0,
+    load_tolerance = 1.2,
+)
+plot_instance(data_large)
+G_large = construct_graph(data_large)
+(
+    CGLP_results_large, CGIP_results_large, params_large, printlist_large, some_subpaths_large, some_charging_arcs_large 
+) = subpath_formulation_column_generation_integrated_from_paths(G_large, data_large);
+subpath_results_printout(
+    CGLP_results_large,
+    params_large,
+    data_large,
+    some_subpaths_large,
+    some_charging_arcs_large,
+)
+### Scratch work
+
+some_subpaths
+
+CGLP_results, CGIP_results, params, printlist, some_subpaths, some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data);
+
+κ = params["κ"][6]
+μ = params["μ"][6]
+ν = params["ν"][6]
+
+modified_costs = data["travel_cost_coeff"] * Float64.(copy(data["c"]))
+for j in data["N_customers"]
+    for i in data["N_nodes"]
+        modified_costs[i,j] -= ν[j]
     end
-
-    if subpath_cg
-        for (size, run_index) in Iterators.product(subpath_cg_sizes, subpath_cg_run_indexes)
-            dirname = joinpath(dir, "cg/$size/$run_index")
-            mkpath(dirname)
-            (
-                all_data[size][run_index]["cg_results"],
-                all_data[size][run_index]["cg_params"],
-                all_data[size][run_index]["cg_printlist"],
-                all_data[size][run_index]["cg_subpaths"],
-            ) = subpath_formulation_column_generation_from_paths(
-                all_data[size][run_index]["G"],
-                all_data[size][run_index]["data"], 
-                all_data[size][run_index]["T_range"],
-                all_data[size][run_index]["B_range"],
-                ;
-                charging_in_subpath = true,
-                time_windows = time_windows,
-                with_charging_cost = with_charging_cost,
-                with_heuristic = cg_with_heuristic,
-                verbose = true,
-            );
-            all_data[size][run_index]["cg_number_of_subpaths"] = sum(
-                length(v) for v in values(all_data[size][run_index]["cg_subpaths"])
-            )
-            open(joinpath(dirname, "log.txt"), "w") do io
-                for message in all_data[size][run_index]["cg_printlist"]
-                    write(io, message)
-                end
-            end
-            groupedbar(
-                hcat(
-                    all_data[size][run_index]["cg_params"]["lp_relaxation_time_taken"],
-                    all_data[size][run_index]["cg_params"]["sp_total_time_taken"],
-                ),
-                group = repeat(
-                    ["LP relaxation solve time", "Subproblem solve time"], 
-                    inner = length(all_data[size][run_index]["cg_params"]["sp_total_time_taken"]),
-                ),
-                bar_position = :stack,
-                framestyle = :box,
-                xlabel = "Iteration",
-                xticks = 2:length(all_data[size][run_index]["cg_params"]["sp_total_time_taken"]),
-                ylabel = "Time (s)",
-                title = """
-                Time of LP relaxation and subproblem, with artificial starting subpaths
-                ($(all_data[size][run_index]["data"]["n_customers"]) customers, $(all_data[size][run_index]["data"]["n_vehicles"]) vehicles, $(all_data[size][run_index]["data"]["n_depots"]) depots, $(all_data[size][run_index]["data"]["n_charging"]) charging stations)
-                """,
-                size = (800, 600),
-            )
-            savefig(joinpath(dirname, "barplot.png"))
-            all_data[size][run_index]["cg_subpath_costs"] = compute_subpath_costs(
-                all_data[size][run_index]["data"], 
-                all_data[size][run_index]["cg_subpaths"],
-                ;
-                with_charging_cost = with_charging_cost,
-                time_windows = time_windows,
-            )
-            all_data[size][run_index]["cg_subpath_service"] = compute_subpath_service(
-                all_data[size][run_index]["data"], 
-                all_data[size][run_index]["cg_subpaths"],
-            )
-            (
-                all_data[size][run_index]["cg_lpip_results"],
-                all_data[size][run_index]["cg_lpip_params"],
-            ) = subpath_formulation(
-                all_data[size][run_index]["data"],
-                all_data[size][run_index]["cg_subpaths"],
-                all_data[size][run_index]["cg_subpath_costs"],
-                all_data[size][run_index]["cg_subpath_service"],
-                all_data[size][run_index]["T_range"],
-                all_data[size][run_index]["B_range"],
-                ;
-                integral = true,
-                charging_in_subpath = true,
-            )
-            delete!(all_data[size][run_index], "cg_subpaths")
-            delete!(all_data[size][run_index], "cg_subpath_costs")
-            delete!(all_data[size][run_index], "cg_subpath_service")
-            delete!(all_data[size][run_index], "cg_printlist")
-            delete!(all_data[size][run_index]["cg_results"], "z")
-            delete!(all_data[size][run_index]["cg_lpip_results"], "λ")
-            delete!(all_data[size][run_index]["cg_lpip_results"], "z")
-        end
-    end
-
-    if subpath_cgi
-        for (size, run_index) in Iterators.product(subpath_cgi_sizes, subpath_cgi_run_indexes)
-            dirname = joinpath(dir, "cgi/$size/$run_index")
-            mkpath(dirname)
-
-            data_ntw = deepcopy(all_data[size][run_index]["data"])
-            data_ntw["α"] .= 0.0
-            data_ntw["β"] .= data_ntw["T"]
-
-            if time_windows
-                (
-                    all_data[size][run_index]["cgi_results"],
-                    all_data[size][run_index]["cgi_params"],
-                    all_data[size][run_index]["cgi_printlist"],
-                    all_data[size][run_index]["cgi_subpaths"],
-                ) = subpath_formulation_column_generation_integrated_from_paths(
-                    all_data[size][run_index]["G"],
-                    all_data[size][run_index]["data"], 
-                    all_data[size][run_index]["T_range"],
-                    all_data[size][run_index]["B_range"],
-                    ;
-                    time_windows = true,
-                    with_charging_cost = with_charging_cost,
-                    with_heuristic = cg_with_heuristic,
-                    verbose = true,
-                )
-            else
-                if subpath_cgi_no_time_windows_naive
-                    
-                    (
-                        all_data[size][run_index]["cgi_results"],
-                        all_data[size][run_index]["cgi_params"],
-                        all_data[size][run_index]["cgi_printlist"],
-                        all_data[size][run_index]["cgi_subpaths"],
-                    ) = subpath_formulation_column_generation_integrated_from_paths(
-                        all_data[size][run_index]["G"],
-                        data_ntw, 
-                        all_data[size][run_index]["T_range"],
-                        all_data[size][run_index]["B_range"],
-                        ;
-                        time_windows = true,
-                        with_charging_cost = with_charging_cost,
-                        verbose = true,
-                    )
-                else
-                    (
-                        all_data[size][run_index]["cgi_results"],
-                        all_data[size][run_index]["cgi_params"],
-                        all_data[size][run_index]["cgi_printlist"],
-                        all_data[size][run_index]["cgi_subpaths"],
-                    ) = subpath_formulation_column_generation_integrated_from_paths(
-                        all_data[size][run_index]["G"],
-                        all_data[size][run_index]["data"], 
-                        all_data[size][run_index]["T_range"],
-                        all_data[size][run_index]["B_range"],
-                        ;
-                        time_windows = false,
-                        with_charging_cost = with_charging_cost,
-                        verbose = true,
-                    )
-                end
-            end
-            all_data[size][run_index]["cgi_number_of_subpaths"] = sum(
-                length(v) for v in values(all_data[size][run_index]["cgi_subpaths"])
-            )
-            open(joinpath(dirname, "log.txt"), "w") do io
-                for message in all_data[size][run_index]["cgi_printlist"]
-                    write(io, message)
-                end
-            end
-            groupedbar(
-                hcat(
-                    all_data[size][run_index]["cgi_params"]["lp_relaxation_time_taken"],
-                    all_data[size][run_index]["cgi_params"]["sp_total_time_taken"],
-                ),
-                group = repeat(
-                    ["LP relaxation solve time", "Subproblem solve time"], 
-                    inner = length(all_data[size][run_index]["cgi_params"]["sp_total_time_taken"]),
-                ),
-                bar_position = :stack,
-                framestyle = :box,
-                xlabel = "Iteration",
-                xticks = 2:length(all_data[size][run_index]["cgi_params"]["sp_total_time_taken"]),
-                ylabel = "Time (s)",
-                title = """
-                Time of LP relaxation and subproblem, with artificial starting subpaths
-                ($(all_data[size][run_index]["data"]["n_customers"]) customers, $(all_data[size][run_index]["data"]["n_vehicles"]) vehicles, $(all_data[size][run_index]["data"]["n_depots"]) depots, $(all_data[size][run_index]["data"]["n_charging"]) charging stations)
-                """,
-                size = (800, 600),
-            )
-            savefig(joinpath(dirname, "barplot.png"))
-            if time_windows || !subpath_cgi_no_time_windows_naive
-                    all_data[size][run_index]["cgi_subpath_costs"] = compute_subpath_costs(
-                    all_data[size][run_index]["data"], 
-                    all_data[size][run_index]["cgi_subpaths"],
-                    ;
-                    with_charging_cost = with_charging_cost,
-                    time_windows = time_windows,
-                )
-                all_data[size][run_index]["cgi_subpath_service"] = compute_subpath_service(
-                    all_data[size][run_index]["data"], 
-                    all_data[size][run_index]["cgi_subpaths"],
-                )
-                (
-                    all_data[size][run_index]["cgi_lpip_results"],
-                    all_data[size][run_index]["cgi_lpip_params"],
-                ) = subpath_formulation(
-                    all_data[size][run_index]["data"],
-                    all_data[size][run_index]["cgi_subpaths"],
-                    all_data[size][run_index]["cgi_subpath_costs"],
-                    all_data[size][run_index]["cgi_subpath_service"],
-                    all_data[size][run_index]["T_range"],
-                    all_data[size][run_index]["B_range"],
-                    ;
-                    integral = true,
-                    charging_in_subpath = true,
-                )
-            else
-                all_data[size][run_index]["cgi_subpath_costs"] = compute_subpath_costs(
-                    data_ntw, 
-                    all_data[size][run_index]["cgi_subpaths"],
-                    ;
-                    with_charging_cost = with_charging_cost,
-                    time_windows = time_windows,
-                )
-                all_data[size][run_index]["cgi_subpath_service"] = compute_subpath_service(
-                    data_ntw, 
-                    all_data[size][run_index]["cgi_subpaths"],
-                )
-                (
-                    all_data[size][run_index]["cgi_lpip_results"],
-                    all_data[size][run_index]["cgi_lpip_params"],
-                ) = subpath_formulation(
-                    data_ntw,
-                    all_data[size][run_index]["cgi_subpaths"],
-                    all_data[size][run_index]["cgi_subpath_costs"],
-                    all_data[size][run_index]["cgi_subpath_service"],
-                    all_data[size][run_index]["T_range"],
-                    all_data[size][run_index]["B_range"],
-                    ;
-                    integral = true,
-                    charging_in_subpath = true,
-                )
-            end
-
-            delete!(all_data[size][run_index], "cgi_subpaths")
-            delete!(all_data[size][run_index], "cgi_subpath_costs")
-            delete!(all_data[size][run_index], "cgi_subpath_service")
-            delete!(all_data[size][run_index], "cgi_printlist")
-            delete!(all_data[size][run_index]["cgi_results"], "z")
-            delete!(all_data[size][run_index]["cgi_lpip_results"], "λ")
-            delete!(all_data[size][run_index]["cgi_lpip_results"], "z")
-        end
-    end
-
-    if subpath_enum
-        for (size, run_index) in Iterators.product(subpath_enum_sizes, subpath_enum_run_indexes)
-            (
-                all_data[size][run_index]["all_subpaths"],
-                all_data[size][run_index]["enumerate_all_subpaths_time_taken"],    
-            ) = enumerate_all_subpaths(
-                all_data[size][run_index]["G"], 
-                all_data[size][run_index]["data"], 
-                all_data[size][run_index]["T_range"], 
-                all_data[size][run_index]["B_range"]; 
-                charging_in_subpath = true,
-                time_windows = time_windows,
-            )
-            all_data[size][run_index]["enum_number_of_subpaths"] = sum(
-                length(v) for v in values(all_data[size][run_index]["all_subpaths"])
-            )
-            all_data[size][run_index]["all_subpath_costs"] = compute_subpath_costs(
-                all_data[size][run_index]["data"], 
-                all_data[size][run_index]["all_subpaths"],
-                ;
-                with_charging_cost = with_charging_cost,
-                time_windows = time_windows,
-            )
-            all_data[size][run_index]["all_subpath_service"] = compute_subpath_service(
-                all_data[size][run_index]["data"], 
-                all_data[size][run_index]["all_subpaths"],
-            )
-            (
-                all_data[size][run_index]["enum_ip_results"],
-                all_data[size][run_index]["enum_ip_params"],
-            ) = subpath_formulation(
-                all_data[size][run_index]["data"], 
-                all_data[size][run_index]["all_subpaths"],
-                all_data[size][run_index]["all_subpath_costs"], 
-                all_data[size][run_index]["all_subpath_service"],
-                all_data[size][run_index]["T_range"],
-                all_data[size][run_index]["B_range"],
-                ;
-                charging_in_subpath = true,
-                integral = true,
-            )
-            (
-                all_data[size][run_index]["enum_lp_results"],
-                all_data[size][run_index]["enum_lp_params"],
-            ) = subpath_formulation(
-                all_data[size][run_index]["data"], 
-                all_data[size][run_index]["all_subpaths"],
-                all_data[size][run_index]["all_subpath_costs"], 
-                all_data[size][run_index]["all_subpath_service"],
-                all_data[size][run_index]["T_range"],
-                all_data[size][run_index]["B_range"],
-                ;
-                charging_in_subpath = true,
-                integral = false,
-            )
-            println("Number of starting states:\t$(length(all_data[size][run_index]["all_subpaths"],))")
-            println("Number of subpaths:\t\t$(all_data[size][run_index]["enum_number_of_subpaths"])")
-            @printf("Time taken:\t\t\t%7.1f s\n", all_data[size][run_index]["enumerate_all_subpaths_time_taken"])
-            @printf("Objective: \t\t\t%6.1f\n", all_data[size][run_index]["enum_ip_results"]["objective"])
-            @printf("LP Objective:\t\t\t%6.1f\n", all_data[size][run_index]["enum_lp_results"]["objective"])
-            delete!(all_data[size][run_index], "all_subpaths")
-            delete!(all_data[size][run_index], "all_subpath_costs")
-            delete!(all_data[size][run_index], "all_subpath_service")
-            delete!(all_data[size][run_index]["enum_ip_results"], "λ")
-            delete!(all_data[size][run_index]["enum_ip_results"], "z")
-            delete!(all_data[size][run_index]["enum_lp_results"], "λ")
-            delete!(all_data[size][run_index]["enum_lp_results"], "z")
-        end
-    end
-
-    if path_cg
-        for (size, run_index) in Iterators.product(path_cg_sizes, path_cg_run_indexes)
-            dirname = joinpath(dir, "path_cg/$size/$run_index")
-            mkpath(dirname)
-            (
-                all_data[size][run_index]["path_cg_results"],
-                all_data[size][run_index]["path_cg_params"],
-                all_data[size][run_index]["path_cg_printlist"],
-                all_data[size][run_index]["path_cg_paths"],
-            ) = path_formulation_column_generation(
-                all_data[size][run_index]["G"],
-                all_data[size][run_index]["data"], 
-                all_data[size][run_index]["T_range"],
-                all_data[size][run_index]["B_range"],
-                ;
-                with_charging_cost = with_charging_cost,
-                time_windows = time_windows,
-                with_heuristic = cg_with_heuristic,
-                verbose = true,
-            );
-            all_data[size][run_index]["path_cg_number_of_paths"] = sum(
-                length(v) for v in values(all_data[size][run_index]["path_cg_paths"])
-            )
-            open(joinpath(dirname, "log.txt"), "w") do io
-                for message in all_data[size][run_index]["path_cg_printlist"]
-                    write(io, message)
-                end
-            end
-            groupedbar(
-                hcat(
-                    all_data[size][run_index]["path_cg_params"]["lp_relaxation_time_taken"],
-                    all_data[size][run_index]["path_cg_params"]["sp_total_time_taken"],
-                ),
-                group = repeat(
-                    ["LP relaxation solve time", "Subproblem solve time"], 
-                    inner = length(all_data[size][run_index]["path_cg_params"]["sp_total_time_taken"]),
-                ),
-                bar_position = :stack,
-                framestyle = :box,
-                xlabel = "Iteration",
-                xticks = 2:length(all_data[size][run_index]["path_cg_params"]["sp_total_time_taken"]),
-                ylabel = "Time (s)",
-                title = """
-                Time of LP relaxation and subproblem, with artificial starting paths
-                ($(all_data[size][run_index]["data"]["n_customers"]) customers, $(all_data[size][run_index]["data"]["n_vehicles"]) vehicles, $(all_data[size][run_index]["data"]["n_depots"]) depots, $(all_data[size][run_index]["data"]["n_charging"]) charging stations)
-                """,
-                size = (800, 600),
-            )
-            savefig(joinpath(dirname, "barplot.png"))
-            all_data[size][run_index]["path_cg_path_costs"] = compute_path_costs(
-                all_data[size][run_index]["data"], 
-                all_data[size][run_index]["path_cg_paths"],
-                ;
-                with_charging_cost = with_charging_cost,
-                time_windows = time_windows,
-            )
-            all_data[size][run_index]["path_cg_path_service"] = compute_path_services(
-                all_data[size][run_index]["data"], 
-                all_data[size][run_index]["path_cg_paths"],
-            )
-            (
-                all_data[size][run_index]["path_cg_lpip_results"],
-                all_data[size][run_index]["path_cg_lpip_params"],
-            ) = path_formulation(
-                all_data[size][run_index]["data"],
-                all_data[size][run_index]["path_cg_paths"],
-                all_data[size][run_index]["path_cg_path_costs"],
-                all_data[size][run_index]["path_cg_path_service"],
-                all_data[size][run_index]["T_range"],
-                all_data[size][run_index]["B_range"],
-                ;
-                integral = true,
-            )
-            delete!(all_data[size][run_index], "path_cg_paths")
-            delete!(all_data[size][run_index], "path_cg_path_costs")
-            delete!(all_data[size][run_index], "path_cg_path_service")
-            delete!(all_data[size][run_index], "path_cg_printlist")
-            delete!(all_data[size][run_index]["path_cg_results"], "y")
-            delete!(all_data[size][run_index]["path_cg_lpip_results"], "y")
-        end
-    end
-
-    metrics = [
-        :size,
-        :run_index,
-        :arc_ip_objective, 
-        :arc_ip_time_taken,
-        :arc_ip_solution_time_taken,
-        :arc_ip_constraint_time_taken,
-        :arc_lp_objective,
-        :arc_lp_time_taken,
-        :arc_lp_solution_time_taken,
-        :arc_lp_constraint_time_taken,
-        :cg_number_of_subpaths,
-        :cg_objective, 
-        :cg_number_of_iterations,
-        :cg_time_taken,
-        :cg_mp_total_time_taken,
-        :cg_mp_mean_time_taken,
-        :cg_mp_total_constraint_time_taken,
-        :cg_mp_mean_constraint_time_taken,
-        :cg_mp_total_solution_time_taken,
-        :cg_mp_mean_solution_time_taken,
-        :cg_sp_total_time_taken,
-        :cg_sp_mean_time_taken,   
-        :cg_lpip_objective,
-        :cg_lpip_time_taken,
-        :cg_lpip_solution_time_taken,
-        :cg_lpip_constraint_time_taken,
-        :cgi_number_of_subpaths,
-        :cgi_objective, 
-        :cgi_number_of_iterations,
-        :cgi_time_taken,
-        :cgi_mp_total_time_taken,
-        :cgi_mp_mean_time_taken,
-        :cgi_mp_total_constraint_time_taken,
-        :cgi_mp_mean_constraint_time_taken,
-        :cgi_mp_total_solution_time_taken,
-        :cgi_mp_mean_solution_time_taken,
-        :cgi_sp_total_time_taken,
-        :cgi_sp_mean_time_taken,   
-        :cgi_lpip_objective,
-        :cgi_lpip_time_taken,
-        :cgi_lpip_solution_time_taken,
-        :cgi_lpip_constraint_time_taken,
-        :path_cg_number_of_paths,
-        :path_cg_objective, 
-        :path_cg_number_of_iterations,
-        :path_cg_time_taken,
-        :path_cg_mp_total_time_taken,
-        :path_cg_mp_mean_time_taken,
-        :path_cg_mp_total_constraint_time_taken,
-        :path_cg_mp_mean_constraint_time_taken,
-        :path_cg_mp_total_solution_time_taken,
-        :path_cg_mp_mean_solution_time_taken,
-        :path_cg_sp_total_time_taken,
-        :path_cg_sp_mean_time_taken,   
-        :path_cg_lpip_objective,
-        :path_cg_lpip_time_taken,
-        :path_cg_lpip_solution_time_taken,
-        :path_cg_lpip_constraint_time_taken,
-        :enum_number_of_subpaths,
-        :enumerate_all_subpaths_time_taken,
-        :enum_ip_objective, 
-        :enum_ip_time_taken,
-        :enum_ip_solution_time_taken,
-        :enum_ip_constraint_time_taken,
-        :enum_lp_objective,
-        :enum_lp_time_taken,
-        :enum_lp_solution_time_taken,
-        :enum_lp_constraint_time_taken,
-    ]
-    all_metrics_r = []
-    for (size, run_index) in Iterators.product(sizes, run_indexes)
-        d = Dict(:size => size, :run_index => run_index)
-        if "arc_ip_results" in keys(all_data[size][run_index])
-            d[:arc_ip_objective] = all_data[size][run_index]["arc_ip_results"]["objective"]
-        else
-            d[:arc_ip_objective] = missing
-        end
-        if "arc_lp_results" in keys(all_data[size][run_index])
-            d[:arc_lp_objective] = all_data[size][run_index]["arc_lp_results"]["objective"]
-        else
-            d[:arc_lp_objective] = missing
-        end
-        if "cg_results" in keys(all_data[size][run_index])
-            d[:cg_objective] = all_data[size][run_index]["cg_results"]["objective"]
-        else
-            d[:cg_objective] = missing
-        end
-        if "cg_lpip_results" in keys(all_data[size][run_index])
-            d[:cg_lpip_objective] = all_data[size][run_index]["cg_lpip_results"]["objective"]
-        else
-            d[:cg_lpip_objective] = missing
-        end
-        if "cgi_results" in keys(all_data[size][run_index])
-            d[:cgi_objective] = all_data[size][run_index]["cgi_results"]["objective"]
-        else
-            d[:cgi_objective] = missing
-        end
-        if "cgi_lpip_results" in keys(all_data[size][run_index])
-            d[:cgi_lpip_objective] = all_data[size][run_index]["cgi_lpip_results"]["objective"]
-        else
-            d[:cgi_lpip_objective] = missing
-        end
-        if "path_cg_results" in keys(all_data[size][run_index])
-            d[:path_cg_objective] = all_data[size][run_index]["path_cg_results"]["objective"]
-        else
-            d[:path_cg_objective] = missing
-        end
-        if "path_cg_lpip_results" in keys(all_data[size][run_index])
-            d[:path_cg_lpip_objective] = all_data[size][run_index]["path_cg_lpip_results"]["objective"]
-        else
-            d[:path_cg_lpip_objective] = missing
-        end
-        if "enum_ip_results" in keys(all_data[size][run_index])
-            d[:enum_ip_objective] = all_data[size][run_index]["enum_ip_results"]["objective"]
-        else
-            d[:enum_ip_objective] = missing
-        end
-        if "enum_lp_results" in keys(all_data[size][run_index])
-            d[:enum_lp_objective] = all_data[size][run_index]["enum_lp_results"]["objective"]
-        else
-            d[:enum_lp_objective] = missing
-        end
-        if "arc_ip_params" in keys(all_data[size][run_index])
-            d[:arc_ip_time_taken] = all_data[size][run_index]["arc_ip_params"]["time_taken"]
-            d[:arc_ip_solution_time_taken] = all_data[size][run_index]["arc_ip_params"]["solution_time_taken"]
-            d[:arc_ip_constraint_time_taken] = all_data[size][run_index]["arc_ip_params"]["constraint_time_taken"]
-        else
-            d[:arc_ip_time_taken] = missing
-            d[:arc_ip_solution_time_taken] = missing
-            d[:arc_ip_constraint_time_taken] = missing
-        end
-        if "arc_lp_params" in keys(all_data[size][run_index])
-            d[:arc_lp_time_taken] = all_data[size][run_index]["arc_lp_params"]["time_taken"]
-            d[:arc_lp_solution_time_taken] = all_data[size][run_index]["arc_lp_params"]["solution_time_taken"]
-            d[:arc_lp_constraint_time_taken] = all_data[size][run_index]["arc_lp_params"]["constraint_time_taken"]
-        else
-            d[:arc_lp_time_taken] = missing
-            d[:arc_lp_solution_time_taken] = missing
-            d[:arc_lp_constraint_time_taken] = missing
-        end
-        if "cg_params" in keys(all_data[size][run_index])
-            d[:cg_number_of_iterations] = length(all_data[size][run_index]["cg_params"]["number_of_subpaths"])
-            d[:cg_number_of_subpaths] = all_data[size][run_index]["cg_params"]["number_of_subpaths"][end]
-            d[:cg_time_taken] = all_data[size][run_index]["cg_params"]["time_taken"]
-            d[:cg_mp_total_time_taken] = sum(all_data[size][run_index]["cg_params"]["lp_relaxation_time_taken"])
-            d[:cg_mp_total_constraint_time_taken] = sum(all_data[size][run_index]["cg_params"]["lp_relaxation_constraint_time_taken"])
-            d[:cg_mp_total_solution_time_taken] = sum(all_data[size][run_index]["cg_params"]["lp_relaxation_solution_time_taken"])
-            d[:cg_sp_total_time_taken] = sum(all_data[size][run_index]["cg_params"]["sp_total_time_taken"])
-            d[:cg_mp_mean_time_taken] = mean(all_data[size][run_index]["cg_params"]["lp_relaxation_time_taken"])
-            d[:cg_mp_mean_constraint_time_taken] = mean(all_data[size][run_index]["cg_params"]["lp_relaxation_constraint_time_taken"])
-            d[:cg_mp_mean_solution_time_taken] = mean(all_data[size][run_index]["cg_params"]["lp_relaxation_solution_time_taken"])
-            d[:cg_sp_mean_time_taken] = mean(all_data[size][run_index]["cg_params"]["sp_total_time_taken"])
-        else
-            d[:cg_number_of_iterations] = missing
-            d[:cg_number_of_subpaths] = missing
-            d[:cg_time_taken] = missing
-            d[:cg_mp_total_time_taken] = missing
-            d[:cg_mp_total_constraint_time_taken] = missing
-            d[:cg_mp_total_solution_time_taken] = missing
-            d[:cg_sp_total_time_taken] = missing
-            d[:cg_mp_mean_time_taken] = missing
-            d[:cg_mp_mean_constraint_time_taken] = missing
-            d[:cg_mp_mean_solution_time_taken] = missing
-            d[:cg_sp_mean_time_taken] = missing
-        end
-        if "cg_lpip_params" in keys(all_data[size][run_index])
-            d[:cg_lpip_time_taken] = all_data[size][run_index]["cg_lpip_params"]["time_taken"]
-            d[:cg_lpip_solution_time_taken] = all_data[size][run_index]["cg_lpip_params"]["solution_time_taken"]
-            d[:cg_lpip_constraint_time_taken] = all_data[size][run_index]["cg_lpip_params"]["constraint_time_taken"]
-        else
-            d[:cg_lpip_time_taken] = missing
-            d[:cg_lpip_solution_time_taken] = missing
-            d[:cg_lpip_constraint_time_taken] = missing
-        end
-        if "cgi_params" in keys(all_data[size][run_index])
-            d[:cgi_number_of_iterations] = length(all_data[size][run_index]["cgi_params"]["number_of_subpaths"])
-            d[:cgi_number_of_subpaths] = all_data[size][run_index]["cgi_params"]["number_of_subpaths"][end]
-            d[:cgi_time_taken] = all_data[size][run_index]["cgi_params"]["time_taken"]
-            d[:cgi_mp_total_time_taken] = sum(all_data[size][run_index]["cgi_params"]["lp_relaxation_time_taken"])
-            d[:cgi_mp_total_constraint_time_taken] = sum(all_data[size][run_index]["cgi_params"]["lp_relaxation_constraint_time_taken"])
-            d[:cgi_mp_total_solution_time_taken] = sum(all_data[size][run_index]["cgi_params"]["lp_relaxation_solution_time_taken"])
-            d[:cgi_sp_total_time_taken] = sum(all_data[size][run_index]["cgi_params"]["sp_total_time_taken"])
-            d[:cgi_mp_mean_time_taken] = mean(all_data[size][run_index]["cgi_params"]["lp_relaxation_time_taken"])
-            d[:cgi_mp_mean_constraint_time_taken] = mean(all_data[size][run_index]["cgi_params"]["lp_relaxation_constraint_time_taken"])
-            d[:cgi_mp_mean_solution_time_taken] = mean(all_data[size][run_index]["cgi_params"]["lp_relaxation_solution_time_taken"])
-            d[:cgi_sp_mean_time_taken] = mean(all_data[size][run_index]["cgi_params"]["sp_total_time_taken"])
-        else
-            d[:cgi_number_of_iterations] = missing
-            d[:cgi_number_of_subpaths] = missing
-            d[:cgi_time_taken] = missing
-            d[:cgi_mp_total_time_taken] = missing
-            d[:cgi_mp_total_constraint_time_taken] = missing
-            d[:cgi_mp_total_solution_time_taken] = missing
-            d[:cgi_sp_total_time_taken] = missing
-            d[:cgi_mp_mean_time_taken] = missing
-            d[:cgi_mp_mean_constraint_time_taken] = missing
-            d[:cgi_mp_mean_solution_time_taken] = missing
-            d[:cgi_sp_mean_time_taken] = missing
-        end
-        if "cgi_lpip_params" in keys(all_data[size][run_index])
-            d[:cgi_lpip_time_taken] = all_data[size][run_index]["cgi_lpip_params"]["time_taken"]
-            d[:cgi_lpip_solution_time_taken] = all_data[size][run_index]["cgi_lpip_params"]["solution_time_taken"]
-            d[:cgi_lpip_constraint_time_taken] = all_data[size][run_index]["cgi_lpip_params"]["constraint_time_taken"]
-        else
-            d[:cgi_lpip_time_taken] = missing
-            d[:cgi_lpip_solution_time_taken] = missing
-            d[:cgi_lpip_constraint_time_taken] = missing
-        end
-        if "path_cg_params" in keys(all_data[size][run_index])
-            d[:path_cg_number_of_iterations] = length(all_data[size][run_index]["path_cg_params"]["number_of_paths"])
-            d[:path_cg_number_of_paths] = all_data[size][run_index]["path_cg_params"]["number_of_paths"][end]
-            d[:path_cg_time_taken] = all_data[size][run_index]["path_cg_params"]["time_taken"]
-            d[:path_cg_mp_total_time_taken] = sum(all_data[size][run_index]["path_cg_params"]["lp_relaxation_time_taken"])
-            d[:path_cg_mp_total_constraint_time_taken] = sum(all_data[size][run_index]["path_cg_params"]["lp_relaxation_constraint_time_taken"])
-            d[:path_cg_mp_total_solution_time_taken] = sum(all_data[size][run_index]["path_cg_params"]["lp_relaxation_solution_time_taken"])
-            d[:path_cg_sp_total_time_taken] = sum(all_data[size][run_index]["path_cg_params"]["sp_total_time_taken"])
-            d[:path_cg_mp_mean_time_taken] = mean(all_data[size][run_index]["path_cg_params"]["lp_relaxation_time_taken"])
-            d[:path_cg_mp_mean_constraint_time_taken] = mean(all_data[size][run_index]["path_cg_params"]["lp_relaxation_constraint_time_taken"])
-            d[:path_cg_mp_mean_solution_time_taken] = mean(all_data[size][run_index]["path_cg_params"]["lp_relaxation_solution_time_taken"])
-            d[:path_cg_sp_mean_time_taken] = mean(all_data[size][run_index]["path_cg_params"]["sp_total_time_taken"])
-        else
-            d[:path_cg_number_of_iterations] = missing
-            d[:path_cg_number_of_paths] = missing
-            d[:path_cg_time_taken] = missing
-            d[:path_cg_mp_total_time_taken] = missing
-            d[:path_cg_mp_total_constraint_time_taken] = missing
-            d[:path_cg_mp_total_solution_time_taken] = missing
-            d[:path_cg_sp_total_time_taken] = missing
-            d[:path_cg_mp_mean_time_taken] = missing
-            d[:path_cg_mp_mean_constraint_time_taken] = missing
-            d[:path_cg_mp_mean_solution_time_taken] = missing
-            d[:path_cg_sp_mean_time_taken] = missing
-        end
-        if "path_cg_lpip_params" in keys(all_data[size][run_index])
-            d[:path_cg_lpip_time_taken] = all_data[size][run_index]["path_cg_lpip_params"]["time_taken"]
-            d[:path_cg_lpip_solution_time_taken] = all_data[size][run_index]["path_cg_lpip_params"]["solution_time_taken"]
-            d[:path_cg_lpip_constraint_time_taken] = all_data[size][run_index]["path_cg_lpip_params"]["constraint_time_taken"]
-        else
-            d[:path_cg_lpip_time_taken] = missing
-            d[:path_cg_lpip_solution_time_taken] = missing
-            d[:path_cg_lpip_constraint_time_taken] = missing
-        end
-        if "all_subpaths" in keys(all_data[size][run_index])
-            d[:enum_number_of_subpaths] = sum(length(v) for v in values(all_data[size][run_index]["all_subpaths"]))
-        else
-            d[:enum_number_of_subpaths] = missing
-        end
-        d[:enumerate_all_subpaths_time_taken] = get(all_data[size][run_index], "enumerate_all_subpaths_time_taken", missing)
-        if "enum_ip_params" in keys(all_data[size][run_index])
-            d[:enum_ip_time_taken] = all_data[size][run_index]["enum_ip_params"]["time_taken"]
-            d[:enum_ip_solution_time_taken] = all_data[size][run_index]["enum_ip_params"]["solution_time_taken"]
-            d[:enum_ip_constraint_time_taken] = all_data[size][run_index]["enum_ip_params"]["constraint_time_taken"]
-        else
-            d[:enum_ip_time_taken] = missing
-            d[:enum_ip_solution_time_taken] = missing
-            d[:enum_ip_constraint_time_taken] = missing
-        end
-        if "enum_lp_params" in keys(all_data[size][run_index])
-            d[:enum_lp_time_taken] = all_data[size][run_index]["enum_lp_params"]["time_taken"]
-            d[:enum_lp_solution_time_taken] = all_data[size][run_index]["enum_lp_params"]["solution_time_taken"]
-            d[:enum_lp_constraint_time_taken] = all_data[size][run_index]["enum_lp_params"]["constraint_time_taken"]
-        else
-            d[:enum_lp_time_taken] = missing
-            d[:enum_lp_solution_time_taken] = missing
-            d[:enum_lp_constraint_time_taken] = missing
-        end
-        push!(all_metrics_r, NamedTuple(d))
-    end
-    all_metrics_df = DataFrame(all_metrics_r)[!,metrics]
-    all_metrics_df[!, :cg_objective_integral] = (
-        round.(all_metrics_df[!, :cg_objective], digits = 2)
-        .== round.(all_metrics_df[!, :cg_lpip_objective], digits = 2)
-    )
-    CSV.write(joinpath(dir, "all_metrics.csv"), all_metrics_df)
-    return all_metrics_df
 end
+modified_costs
 
-compare_formulations!(
-    all_data, ["xs"], [1], 
-    with_charging_cost = true,
-    time_windows = true,
-    arc = true, 
-    subpath_cg = true, 
-    subpath_cgi = true, 
-    path_cg = true,
+base_labels = Dict(
+    start_node => Dict(
+        current_node => SortedDict{Float64, SubpathWithCost}()
+        for current_node in data["N_nodes"]
+    )
+    for start_node in data["N_nodes"]
 )
-compare_formulations!(
-    all_data, ["xs"], [1], 
-    with_charging_cost = true,
-    time_windows = false,
-    subpath_cgi = true, 
-    subpath_cgi_no_time_windows_naive = true,
-)
-compare_formulations!(
-    all_data, ["xs"], [1], 
-    with_charging_cost = true,
-    time_windows = false,
-    subpath_cgi = true, 
-    subpath_cgi_no_time_windows_naive = false,
-)
-compare_formulations!(
-    all_data, ["xs"], [1], 
-    with_charging_cost = true,
-    cg_with_heuristic = false,
-    time_windows = true,
-    arc = true, 
-    subpath_cg = true, 
-    subpath_cgi = true, 
-    path_cg = true,
-)
-compare_formulations!(
-    all_data, ["xs"], [1], 
-    with_charging_cost = true,
-    cg_charge_to_full_only = false,    
-    cg_with_heuristic = false,
-    time_windows = false,
-    subpath_cgi = true, 
-    subpath_cgi_no_time_windows_naive = true,
-)
-compare_formulations!(
-    all_data, ["xs"], [1], 
-    with_charging_cost = true,
-    cg_with_heuristic = false,
-    time_windows = false,
-    subpath_cgi = true, 
-    subpath_cgi_no_time_windows_naive = false,
-)
-
-
-begin
-    Bmax_range = [750.0, 800.0, 850.0, 900.0, 950.0]
-    Tmul_range = [2.0, 2.5, 3.0]
-    for (iB, B) in enumerate(Bmax_range)
-        for (iT_mul, T_mul) in enumerate(Tmul_range)
-            T = floor(B * T_mul / 50.0) * 50.0
-            for seed in 1:10
-                run_index = seed
-                size = "xs2_$(iB)_$(iT_mul)"
-                _, data = generate_instance_pair(
-                    n_depots = 2, 
-                    n_customers = 9,
-                    n_charging = 2,
-                    charging_repeats = 1,
-                    n_vehicles = 3,
-                    shrinkage_depots = 1.4,
-                    shrinkage_charging = 0.6,
-                    T = T,
-                    seed = seed,
-                    B = B,
-                    μ = 5.0,
-                    travel_cost_coeff = 10,
-                    charge_cost_coeff = 7,
-                    batch = 3,
-                    permissiveness = 0.4,
-                )
-                data = preprocess_arcs(data, true, false)
-                G = construct_graph(data)
-                T_range = 0:50.0:data["T"]
-                B_range = 0:50.0:data["B"]
-                if !(size in keys(all_data))
-                    all_data[size] = Dict()
-                end
-                if !(run_index in keys(all_data[size]))
-                    all_data[size][run_index] = Dict(
-                        "data" => data,
-                        "G" => G,
-                        "T_range" => T_range,
-                        "B_range" => B_range,
-                    )
-                end
-            end
-        end
+for (start_node, current_node) in keys(data["A"])
+    current_time = data["t"][start_node, current_node]
+    current_charge = data["B"] - data["q"][start_node, current_node]
+    served = falses(data["n_customers"])
+    if current_node in data["N_customers"]
+        served[current_node] = true
     end
-    compare_formulations!(
-        all_data, 
-        vec(["xs2_$(i)_$(j)" for i in 1:5, j in 1:3]),
-        collect(1:10),
-        with_charging_cost = true,
-            time_windows = false,
-        subpath_cgi = true, 
-        subpath_cgi_no_time_windows_naive = false,
+    base_labels[start_node][current_node][current_time] = SubpathWithCost(
+        cost = modified_costs[start_node, current_node],
+        n_customers = data["n_customers"],
+        starting_node = start_node,
+        starting_time = 0.0,
+        starting_charge = data["B"],
+        arcs = [(start_node, current_node)],
+        current_node = current_node,
+        current_time = current_time,
+        current_charge = current_charge,
+        served = served,
     )
 end
 
-begin
-    Bmax_range = [1000.0, 1050.0, 1100.0, 1150.0, 1200.0]
-    Tmul_range = [2.0, 2.5, 3.0]
-    for (iB, B) in enumerate(Bmax_range)
-        for (iT_mul, T_mul) in enumerate(Tmul_range)
-            T = floor(B * T_mul / 50.0) * 50.0
-            for seed in 1:10
-                run_index = seed
-                size = "s2_$(iB)_$(iT_mul)"
-                _, data = generate_instance_pair(
-                    n_depots = 2, 
-                    n_customers = 12,
-                    n_charging = 2,
-                    charging_repeats = 1,
-                    n_vehicles = 3,
-                    shrinkage_depots = 1.4,
-                    shrinkage_charging = 0.6,
-                    T = T,
-                    seed = seed,
-                    B = B,
-                    μ = 5.0,
-                    travel_cost_coeff = 10,
-                    charge_cost_coeff = 7,
-                    batch = 4,
-                    permissiveness = 0.4,
-                )
-                data = preprocess_arcs(data, true, false)
-                G = construct_graph(data)
-                T_range = 0:50.0:data["T"]
-                B_range = 0:50.0:data["B"]
-                if !(size in keys(all_data))
-                    all_data[size] = Dict()
-                end
-                if !(run_index in keys(all_data[size]))
-                    all_data[size][run_index] = Dict(
-                        "data" => data,
-                        "G" => G,
-                        "T_range" => T_range,
-                        "B_range" => B_range,
-                    )
+function connect(v1::SubpathWithCost, v2::SubpathWithCost, data)
+    if v1.current_node != v2.starting_node
+        return
+    end
+    if any(v1.served .&& v2.served)
+        return
+    end
+    new_current_time = v1.current_time + (v2.current_time - v2.starting_time)
+    if new_current_time > data["T"]
+        return
+    end
+    new_current_charge = v1.current_charge - v2.starting_charge + v2.current_charge
+    if new_current_charge < 0.0
+        return
+    end
+    v = SubpathWithCost(
+        cost = v1.cost + v2.cost,
+        n_customers = data["n_customers"],
+        starting_node = v1.starting_node,
+        starting_time = v1.starting_time, 
+        starting_charge = v1.starting_charge,
+        current_node = v2.current_node,
+        current_time = new_current_time,
+        current_charge = new_current_charge,
+        arcs = vcat(v1.arcs, v2.arcs),
+        served = v1.served .|| v2.served,
+    )
+    return v
+end
+
+function add_subpath_to_collection!(
+    collection::SortedDict{
+        Float64,
+        SubpathWithCost,
+    },
+    k1::Float64,
+    v1::SubpathWithCost,
+    ;
+)
+    added = true
+    for (k2, v2) in collection
+        if v2.cost ≤ v1.cost
+            if k2 ≤ k1
+                added = false
+                break
+            end
+        elseif v1.cost ≤ v2.cost
+            if k1 ≤ k2
+                pop!(collection, k2)
+            end
+        end
+    end
+    if added
+        insert!(collection, k1, v1)
+    end
+    return added
+end
+
+for new_node in 1:5
+    for start_node in setdiff(data["N_nodes"], new_node)
+        if length(base_labels[start_node][new_node]) == 0
+            continue
+        end
+        for end_node in setdiff(data["N_nodes"], new_node)
+            if length(base_labels[new_node][end_node]) == 0
+                continue
+            end
+            ## TODO: find a better way to update collection with pairwise sum of two collections
+            for (k1, v1) in pairs(base_labels[start_node][new_node])
+                for (k2, v2) in pairs(base_labels[new_node][end_node])
+                    k = k1 + k2
+                    v = connect(v1, v2, data)
+                    if !isnothing(v)
+                        add_subpath_to_collection!(
+                            base_labels[start_node][end_node],
+                            k, v,
+                        )
+                    end
                 end
             end
         end
     end
-    compare_formulations!(
-        all_data, 
-        vec(["s2_$(i)_$(j)" for i in 1:5, j in 1:3]),
-        collect(1:10),
-        with_charging_cost = true,
-            time_windows = false,
-        subpath_cgi = true, 
-        subpath_cgi_no_time_windows_naive = false,
-    )
 end
 
-compare_formulations!(
-    all_data,
-    [
-        "xs2",
-        "s2",
-        "m2",
-        "l2",
-    ], 
-    collect(1:10),
-    with_charging_cost = true,
-    cg_with_heuristic = true,
-    subpath_cgi = true, 
-    time_windows = false,
-    subpath_cgi_no_time_windows_naive = false,
+function merge_collections(
+    labels1::SortedDict{Float64, SubpathWithCost},
+    labels2::SortedDict{Float64, SubpathWithCost},
 )
+    keys1 = collect(keys(labels1))
+    keys2 = collect(keys(labels2))
 
-all_metrics_df = compare_formulations!(
-    all_data, 
-    ["xs", "s", "m"], collect(1:10),
-    subpath_cgi = true, 
-    time_windows = false,
-    subpath_cgi_no_time_windows_naive = true,
-)
-
-compare_formulations!(
-    all_data, 
-    ["xs", "s", "m"], collect(1:10),
-    arc = true,
-    subpath_cgi = true, 
-    subpath_cgi_time_windows = false,
-)
-
-
-compare_formulations!(
-    all_data, ["xs", "s", "m"], collect(1:10),
-    subpath_cg = true, 
-    subpath_cgi = true, 
-    path_cg = true,
-)
-all_metrics_df = compare_formulations!(
-    all_data, ["xs", "s", "m"], [2],
-    arc = true,
-    # subpath_cg = true, 
-    # subpath_cgi = true, 
-    # path_cg = true,
-)
-
-all_metrics_df = compare_formulations!(
-    all_data, 
-    # ["xs"], [1],
-    ["xs", "s"], collect(1:10),
-    subpath_cgi = true, 
-    subpath_cgi_time_windows = false,
-    subpath_cgi_no_time_windows_naive = true,
-)
-all_metrics_df = compare_formulations!(
-    all_data, 
-    # ["xs"], [1],
-    ["xs", "s"], collect(1:10),
-    subpath_cgi = true, 
-    subpath_cgi_time_windows = false,
-    subpath_cgi_no_time_windows_naive = false,
-)
-
-## Testing
-@test all_data["xs"][1]["cg_results"]["objective"] ≈ all_data["xs"][1]["cgi_results"]["objective"] ≈ all_data["xs"][1]["path_cg_results"]["objective"] ≈ 2584.0
-@test all_data["xs"][2]["cg_results"]["objective"] ≈ all_data["xs"][2]["cgi_results"]["objective"] ≈ all_data["xs"][2]["path_cg_results"]["objective"] ≈ 2831.0
-@test all_data["xs"][3]["cg_results"]["objective"] ≈ all_data["xs"][3]["cgi_results"]["objective"] ≈ all_data["xs"][3]["path_cg_results"]["objective"] ≈ 2483.5
-@test all_data["xs"][4]["cg_results"]["objective"] ≈ all_data["xs"][4]["cgi_results"]["objective"] ≈ all_data["xs"][4]["path_cg_results"]["objective"] ≈ 3357.0
-@test all_data["xs"][5]["cg_results"]["objective"] ≈ all_data["xs"][5]["cgi_results"]["objective"] ≈ all_data["xs"][5]["path_cg_results"]["objective"] ≈ 2766.0
-@test all_data["xs"][6]["cg_results"]["objective"] ≈ all_data["xs"][6]["cgi_results"]["objective"] ≈ all_data["xs"][6]["path_cg_results"]["objective"] ≈ 2710.5
-@test all_data["xs"][7]["cg_results"]["objective"] ≈ all_data["xs"][7]["cgi_results"]["objective"] ≈ all_data["xs"][7]["path_cg_results"]["objective"] ≈ 3600 + 5 / 12
-@test all_data["xs"][8]["cg_results"]["objective"] ≈ all_data["xs"][8]["cgi_results"]["objective"] ≈ all_data["xs"][8]["path_cg_results"]["objective"] ≈ 2124.0
-@test all_data["xs"][9]["cg_results"]["objective"] ≈ all_data["xs"][9]["cgi_results"]["objective"] ≈ all_data["xs"][9]["path_cg_results"]["objective"] ≈ 3759.0
-@test all_data["xs"][10]["cg_results"]["objective"] ≈ all_data["xs"][10]["cgi_results"]["objective"] ≈ all_data["xs"][10]["path_cg_results"]["objective"] ≈ 4019.0
-
-@test all_data["s"][1]["cg_results"]["objective"] ≈ all_data["s"][1]["cgi_results"]["objective"] ≈ all_data["s"][1]["path_cg_results"]["objective"] ≈ 3878.0
-@test all_data["s"][2]["cg_results"]["objective"] ≈ all_data["s"][2]["cgi_results"]["objective"] ≈ all_data["s"][2]["path_cg_results"]["objective"] ≈ 3605.5
-@test all_data["s"][3]["cg_results"]["objective"] ≈ all_data["s"][3]["cgi_results"]["objective"] ≈ all_data["s"][3]["path_cg_results"]["objective"] ≈ 2941.0
-@test all_data["s"][4]["cg_results"]["objective"] ≈ all_data["s"][4]["cgi_results"]["objective"] ≈ all_data["s"][4]["path_cg_results"]["objective"] ≈ 3835.0
-@test all_data["s"][5]["cg_results"]["objective"] ≈ all_data["s"][5]["cgi_results"]["objective"] ≈ all_data["s"][5]["path_cg_results"]["objective"] ≈ 3749.0
-@test all_data["s"][6]["cg_results"]["objective"] ≈ all_data["s"][6]["cgi_results"]["objective"] ≈ all_data["s"][6]["path_cg_results"]["objective"] ≈ 3500 + 3 / 17
-@test all_data["s"][7]["cg_results"]["objective"] ≈ all_data["s"][7]["cgi_results"]["objective"] ≈ all_data["s"][7]["path_cg_results"]["objective"] ≈ 4342 + 2 / 5
-@test all_data["s"][8]["cg_results"]["objective"] ≈ all_data["s"][8]["cgi_results"]["objective"] ≈ all_data["s"][8]["path_cg_results"]["objective"] ≈ 3025 + 2 / 5
-@test all_data["s"][9]["cg_results"]["objective"] ≈ all_data["s"][9]["cgi_results"]["objective"] ≈ all_data["s"][9]["path_cg_results"]["objective"] ≈ 4199.5
-@test all_data["s"][10]["cg_results"]["objective"] ≈ all_data["s"][10]["cgi_results"]["objective"] ≈ all_data["s"][10]["path_cg_results"]["objective"] ≈ 4580.0
-
-## Comparison
-
-
-CSV.write("$(@__DIR__)/../data/all_metrics.csv", all_metrics_df)
-all_metrics_df = CSV.read("$(@__DIR__)/../data/all_metrics.csv", DataFrame)
-
-all_objective_metrics = all_metrics_df[!, [
-    :size, 
-    :run_index,
-    :arc_ip_objective, 
-    :arc_lp_objective,
-    :cg_objective,
-    :cg_lpip_objective,
-    :cgi_objective,
-    :cgi_lpip_objective,
-    :path_cg_objective,
-    :path_cg_lpip_objective,
-    :enum_ip_objective,
-    :enum_lp_objective,
-]]
-
-all_objective_metrics
-
-all_time_metrics = all_metrics_df[!, [
-    :size, 
-    :run_index,
-    # :arc_ip_time_taken, 
-    # :arc_lp_time_taken,
-    :cg_time_taken,
-    :cg_mp_total_time_taken,
-    :cg_mp_total_constraint_time_taken,
-    :cg_mp_total_solution_time_taken,
-    :cg_sp_total_time_taken,
-    # :cg_mp_mean_time_taken,
-    # :cg_mp_mean_constraint_time_taken,
-    # :cg_mp_mean_solution_time_taken,
-    # :cg_sp_mean_time_taken,
-    :cg_lpip_time_taken,
-    :cgi_time_taken,
-    :cgi_mp_total_time_taken,
-    :cgi_mp_total_constraint_time_taken,
-    :cgi_mp_total_solution_time_taken,
-    :cgi_sp_total_time_taken,
-    # :cgi_mp_mean_time_taken,
-    # :cgi_mp_mean_constraint_time_taken,
-    # :cgi_mp_mean_solution_time_taken,
-    # :cgi_sp_mean_time_taken,
-    :cgi_lpip_time_taken,
-    :path_cg_time_taken,
-    :path_cg_mp_total_time_taken,
-    :path_cg_mp_total_constraint_time_taken,
-    :path_cg_mp_total_solution_time_taken,
-    :path_cg_sp_total_time_taken,
-    # :path_cg_mp_mean_time_taken,
-    # :path_cg_mp_mean_constraint_time_taken,
-    # :path_cg_mp_mean_solution_time_taken,
-    # :path_cg_sp_mean_time_taken,
-    :path_cg_lpip_time_taken,
-    # :enumerate_all_subpaths_time_taken,
-    # :enum_ip_time_taken,
-    # :enum_lp_time_taken,
-]]
-
-
-all_time_metrics
-all_time_metrics |>
-    x -> filter(r -> (r.size == "s"), x) |>
-    x -> select(x, [
-        :cgi_time_taken,     
-        :cgi_mp_total_time_taken,
-        :cgi_mp_total_constraint_time_taken,
-        :cgi_mp_total_solution_time_taken,
-        :cgi_sp_total_time_taken,
+    new = []
+    for (t, cost, i, j) in sort([
+        (k1 + k2, s1.cost + s2.cost, i, j)
+        for (i, (k1, s1)) in enumerate(pairs(labels1)),
+            (j, (k2, s2)) in enumerate(pairs(labels2))
+            if k1 + k2 ≤ data["T"]
     ])
+        if length(new) == 0
+            push!(new, (t, cost, i, j))
+        elseif new[end][1] < t
+            if new[end][2] > cost
+                push!(new, (t, cost, i, j))
+            end
+        else
+            if new[end][2] > cost
+                new = new[1:end-1]
+                push!(new, (t, cost, i, j))
+            end
+        end
+    end
+    new_labels = SortedDict(
+        t => SubpathWithCost(
+            cost = cost,
+            n_customers = data["n_customers"],
+            starting_node = labels1[keys1[i]].starting_node,
+            starting_time = 0.0,
+            starting_charge = data["B"],
+            current_node = labels2[keys2[j]].current_node,
+            current_time = t,
+            current_charge = data["B"] - t,
+            arcs = vcat(labels1[keys1[i]].arcs, labels2[keys2[j]].arcs),
+            served = labels1[keys1[i]].served .|| labels2[keys2[j]].served,
+        )
+        for (t, cost, i, j) in new
+    )
+    return new_labels
+end
 
-all_time_metrics |>
-    x -> filter(r -> (r.size == "xs"), x) |>
-    x -> select(x, [:cg_time_taken, :cgi_time_taken, :path_cg_time_taken]) |>
-    x -> describe(x, :detailed)
-
-all_time_metrics |>
-    x -> filter(r -> (r.size == "xs"), x) |>
-    x -> select(x, Not([:size, :run_index])) |>
-    x -> describe(x, :detailed)
-
-all_time_metrics |>
-    x -> filter(r -> (r.size == "s"), x) |>
-    x -> select(x, [:cg_time_taken, :cgi_time_taken, :path_cg_time_taken]) |>
-    x -> describe(x, :detailed)
-
-all_time_metrics |>
-    x -> filter(r -> (r.size == "s"), x) |>
-    x -> select(x, Not([:size, :run_index])) |>
-    x -> describe(x, :detailed)
-
-# Experiment 1: comparing different formulations
-all_metrics_df = CSV.read("$(@__DIR__)/../logs/20230216_105009/all_metrics.csv", DataFrame)
-time_taken_df = all_metrics_df |>
-    x -> select(x, [:size, :run_index, :cg_time_taken, :cgi_time_taken, :path_cg_time_taken]) |>
-    x -> stack(x, [:cg_time_taken, :cgi_time_taken, :path_cg_time_taken])
-
-@df filter(r -> (r.size == "xs"), time_taken_df) boxplot(
-    string.(:variable),
-    :value,
-    fill_alpha = 0.5,
-    title = "Running time of different algorithms (smallest, n = 9)",
-    ylabel = "Time (s)",
-    legend = :topleft,
+function direct_sum_of_collections(
+    labels1::SortedDict{Float64, SubpathWithCost},
+    labels2::SortedDict{Float64, SubpathWithCost},
 )
-@df filter(r -> (r.size == "xs"), time_taken_df) dotplot!(
-    string.(:variable),
-    :value,
-    marker=(:black, stroke(0)),
-)
+    keys1 = collect(keys(labels1))
+    keys2 = collect(keys(labels2))
 
-@df filter(r -> (r.size == "s"), time_taken_df) boxplot(
-    string.(:variable),
-    :value,
-    fill_alpha = 0.5,
-    title = "Running time of different algorithms (small, n = 12)",
-    ylabel = "Time (s)",
-    legend = :topleft,
-)
-@df filter(r -> (r.size == "s"), time_taken_df) dotplot!(
-    string.(:variable),
-    :value,
-    marker=(:black, stroke(0))
-)
+    new = []
+    for (t, cost, i, j) in sort([
+        (k1 + k2, s1.cost + s2.cost, i, j)
+        for (i, (k1, s1)) in enumerate(pairs(labels1)),
+            (j, (k2, s2)) in enumerate(pairs(labels2))
+            if k1 + k2 ≤ data["T"]
+    ])
+        if length(new) == 0
+            push!(new, (t, cost, i, j))
+        elseif new[end][1] < t
+            if new[end][2] > cost
+                push!(new, (t, cost, i, j))
+            end
+        else
+            if new[end][2] > cost
+                new = new[1:end-1]
+                push!(new, (t, cost, i, j))
+            end
+        end
+    end
+    new_labels = SortedDict(
+        t => SubpathWithCost(
+            cost = cost,
+            n_customers = data["n_customers"],
+            starting_node = labels1[keys1[i]].starting_node,
+            starting_time = 0.0,
+            starting_charge = data["B"],
+            current_node = labels2[keys2[j]].current_node,
+            current_time = t,
+            current_charge = data["B"] - t,
+            arcs = vcat(labels1[keys1[i]].arcs, labels2[keys2[j]].arcs),
+            served = labels1[keys1[i]].served .|| labels2[keys2[j]].served,
+        )
+        for (t, cost, i, j) in new
+    )
+    return new_labels
+end
 
-# Experiment 2: varying battery
-all_metrics_df = CSV.read("$(@__DIR__)/../logs/20230216_121329/all_metrics.csv", DataFrame)
+other_labels = direct_sum_of_collections(base_labels[1][6], base_labels[6][2])
+old_labels = base_labels[1][2]
+keys1 = collect(keys(old_labels))
+left = popfirst!(keys1)
+keys2 = collect(keys(other_labels))
+right = popfirst!(keys2)
 
-@df all_metrics_df boxplot(
-    string.(:size),
-    :cgi_time_taken,
-    fill_alpha = 0.5,
-    title = "Running time, varying battery (smallest, n = 9)",
-    ylabel = "Time (s)",
-    xlabel = "Battery capacity"
-)
-@df all_metrics_df dotplot!(
-    string.(:size),
-    :cgi_time_taken,
-    marker=(:black, stroke(0))
-)
+new_pairs = []
+new_labels = []
+while length(keys1) > 0 || length(keys2) > 0
+    if left < right
+        time = left 
+        cost = old_labels[left].cost
+        println("left: $left")
+        if length(keys1) > 0
+            left = popfirst!(keys1)
+        else
+            left = Inf
+        end
+    else
+        time = right 
+        cost = other_labels[right].cost
+        println("right: $right")
+        if length(keys2) > 0
+            right = popfirst!(keys2)
+        else
+            right = Inf
+        end
+    end
+    if length(new_pairs) == 0
+        push!(new_pairs, (time, cost))
+    else
+        if new_pairs[end][2] > cost 
+            if new_pairs[end][1] < time
+                push!(new_pairs, (time, cost))
+            elseif new_pairs[end][1] == time_limit_sec
+                new_pairs = vcat(new_pairs[1:end-1], [(time, cost)])
+            end
+        end
+    end
+end
 
-# Experiment 3: varying length of time windows
-all_metrics_df = CSV.read("$(@__DIR__)/../logs/20230216_130511/all_metrics.csv", DataFrame)
-
-@df all_metrics_df boxplot(
-    string.(:size),
-    :cgi_time_taken,
-    fill_alpha = 0.5,
-    title = "Running time, varying time windows (smallest, n = 9)",
-    ylabel = "Time (s)",
-    xlabel = "Time window size",
-    legend = :topleft,
-)
-@df all_metrics_df dotplot!(
-    string.(:size),
-    :cgi_time_taken,
-    marker=(:black, stroke(0))
-)
-
-# Experiment 4: adding medium-sized entries
-all_metrics_df = CSV.read("$(@__DIR__)/../logs/20230221_204918/all_metrics.csv", DataFrame)
-all_metrics_df |>
-    x -> filter(r -> (r.run_index == 2), x) |>
-    x -> select(x, [:cg_time_taken, :cgi_time_taken, :path_cg_time_taken])
-all_metrics_df |>
-    x -> filter(r -> (r.size == "m"), x) |>
-    x -> select(x, [:cg_time_taken, :cgi_time_taken, :path_cg_time_taken]) |>
-    x -> describe(x, :detailed)
-
-time_taken_df = all_metrics_df |>
-    x -> select(x, [:size, :run_index, :cg_time_taken, :cgi_time_taken, :path_cg_time_taken]) |>
-    x -> stack(x, [:cg_time_taken, :cgi_time_taken, :path_cg_time_taken])
-
-@df filter(r -> (r.size == "m"), time_taken_df) boxplot(
-    string.(:variable),
-    :value,
-    fill_alpha = 0.5,
-    title = "Running time of different algorithms (medium, n = 15)",
-    ylabel = "Time (s)",
-    legend = :topleft,
-    label = false,
-)
-@df filter(r -> (r.size == "m"), time_taken_df) dotplot!(
-    string.(:variable),
-    :value,
-    marker = (:black, stroke(0)),
-    label = false,
-)
-
-@df time_taken_df groupedboxplot(
-    string.(:variable),
-    :value,
-    group = :size,
-    title = "Comparing different algorithms for n = 9, 12, 15",
-    ylabel = "Time (s)",
-)
-@df time_taken_df groupeddotplot!(
-    string.(:variable),
-    :value,
-    group = :size,
-    marker = (:black, stroke(0)),
-    label = false,
-)
-
-# Experiment 6
-all_metrics_df = CSV.read("$(@__DIR__)/../logs/20230227_200940/all_metrics.csv", DataFrame)
-all_metrics_df |>
-    x -> groupby(x, :size) |>
-    x -> combine(x, 
-        :arc_ip_time_taken => mean,
-        :cg_time_taken => mean,
-        :cgi_time_taken => mean,
-        :path_cg_time_taken => mean,
-        :cg_mp_total_time_taken => mean,
-        :cgi_mp_total_time_taken => mean,
-        :path_cg_mp_total_time_taken => mean,
-        :cg_sp_mean_time_taken => mean,
-        :cgi_sp_mean_time_taken => mean,
-        :path_cg_sp_mean_time_taken => mean,
-    ) |>
-    x -> permutedims(x, "size")
-
-all_metrics_full_df = CSV.read("$(@__DIR__)/../logs/20230228_011832/all_metrics.csv", DataFrame)
-all_metrics_full_df |>
-    x -> groupby(x, :size) |>
-    x -> combine(x, 
-        :arc_ip_time_taken => mean,
-        :cg_time_taken => mean,
-        :cgi_time_taken => mean,
-        :path_cg_time_taken => mean,
-        :cg_mp_total_time_taken => mean,
-        :cgi_mp_total_time_taken => mean,
-        :path_cg_mp_total_time_taken => mean,
-        :cg_sp_mean_time_taken => mean,
-        :cgi_sp_mean_time_taken => mean,
-        :path_cg_sp_mean_time_taken => mean,
-    ) |>
-    x -> permutedims(x, "size")
-
-# Experiment 7: two different methods in the no-time-windows situation
-
-# naive
-all_metrics_df = CSV.read("$(@__DIR__)/../logs/20230228_182555/all_metrics.csv", DataFrame)
-all_metrics_df |>
-    x -> groupby(x, :size) |>
-    x -> combine(x, 
-        :arc_ip_time_taken => mean,
-        :cgi_time_taken => mean,
-        :cgi_mp_total_time_taken => mean,
-        :cgi_sp_mean_time_taken => mean,
-    ) |>
-    x -> permutedims(x, "size")
-
-# charge_bounded
-all_metrics_df_1 = CSV.read("$(@__DIR__)/../logs/20230301_114713/all_metrics.csv", DataFrame)
-all_metrics_df_1 |>
-    x -> groupby(x, :size) |>
-    x -> combine(x, 
-        :arc_ip_time_taken => mean,
-        :cgi_time_taken => mean,
-        :cgi_mp_total_time_taken => mean,
-        :cgi_sp_mean_time_taken => mean,
-    ) |>
-    x -> permutedims(x, "size")
-
-# charge_bounded, charge_to_full_only
-all_metrics_df_2 = CSV.read("$(@__DIR__)/../logs/20230303_143104/all_metrics.csv", DataFrame)
-all_metrics_df_2 |>
-    x -> groupby(x, :size) |>
-    x -> combine(x, 
-        :arc_ip_time_taken => mean,
-        :cgi_time_taken => mean,
-        :cgi_mp_total_time_taken => mean,
-        :cgi_sp_mean_time_taken => mean,
-    ) |>
-    x -> permutedims(x, "size")
 [
-    all_metrics_df_2[!, :cgi_objective]  all_metrics_df_1[!, :cgi_objective]
+    (t, s.cost) 
+    for (t, s) in pairs(new_labels)
 ]
 
-# Experiment 8: two different domination criteria
-# (20230303_192829) many subpaths, less iterations, correct convergence
-# (20230304_105525) far fewer subpaths, much faster subproblems, more iterations (tailing-off), investigate convergence
-# investigate: T:B ratio
-all_metrics_df_1 = CSV.read("$(@__DIR__)/../logs/20230303_192829/all_metrics.csv", DataFrame)
-all_metrics_df_1 |>
-    x -> groupby(x, :size) |>
-    x -> combine(x, 
-        :cgi_time_taken => geomean,
-        :cgi_mp_total_time_taken => mean,
-        :cgi_sp_mean_time_taken => mean,
-    ) |>
-    x -> permutedims(x, "size")
-
-all_metrics_df_2 = CSV.read("$(@__DIR__)/../logs/20230304_105525/all_metrics.csv", DataFrame)
-all_metrics_df_2 |>
-    x -> groupby(x, :size) |>
-    x -> combine(x, 
-        :cgi_time_taken => geomean,
-        :cgi_mp_total_time_taken => mean,
-        :cgi_sp_mean_time_taken => mean,
-    ) |>
-    x -> permutedims(x, "size")
-
-# Experimetn 11
-all_metrics_df_1 = CSV.read("$(@__DIR__)/../logs/20230307_135734/all_metrics.csv", DataFrame)
-all_metrics_df_1 |>
-    x -> groupby(x, :size) |>
-    x -> combine(x, 
-        :cgi_time_taken => geomean,
-        :cgi_mp_total_time_taken => mean,
-        :cgi_sp_mean_time_taken => mean,
-    ) |>
-    x -> permutedims(x, "size")
-all_metrics_df_2 = CSV.read("$(@__DIR__)/../logs/20230307_114101/all_metrics.csv", DataFrame)
-all_metrics_df_2 |>
-    x -> groupby(x, :size) |>
-    x -> combine(x, 
-        :cgi_time_taken => geomean,
-        :cgi_mp_total_time_taken => mean,
-        :cgi_sp_mean_time_taken => mean,
-    ) |>
-    x -> permutedims(x, "size")
-[all_metrics_df_1[!, :cgi_objective] all_metrics_df_2[!, :cgi_objective]]
-
-# Experiment 12: include charge time and customer delay in objective
-all_metrics_xs_df = CSV.read("$(@__DIR__)/../logs/20230313_110901/all_metrics.csv", DataFrame)
-all_metrics_xs_df |>
-    x -> filter(r -> r.size == "xs2_3_3", x) |>
-    x -> select(x, :cgi_objective)
-gdf_xs = all_metrics_xs_df |>
-    x -> groupby(x, :size) |>
-    x -> combine(x, 
-        :cgi_number_of_iterations => mean,
-        :cgi_number_of_subpaths => mean,
-        :cgi_time_taken => geomean,
-        :cgi_mp_total_time_taken => mean,
-        :cgi_sp_mean_time_taken => mean,
+some_subpaths = generate_artificial_subpaths(data)
+subpath_costs = compute_subpath_costs(
+    data, 
+    some_subpaths,
+)
+subpath_service = compute_subpath_service(
+    data, 
+    some_subpaths,
+)
+mp_model = @suppress Model(Gurobi.Optimizer)
+set_attribute(mp_model, "MIPGap", 1e-10)
+JuMP.set_string_names_on_creation(mp_model, false)
+z = Dict{
+    Tuple{
+        Tuple{
+            Tuple{Int, Float64, Float64}, 
+            Tuple{Int, Float64, Float64}
+        }, 
+        Int
+    }, 
+    VariableRef
+}(
+    (key, p) => @variable(mp_model, lower_bound = 0)
+    for key in keys(some_subpaths)
+        for p in 1:length(some_subpaths[key])
+)
+@constraint(
+    mp_model,
+    κ[i in data["N_depots"]],
+    sum(
+        sum(
+            z[((i,0,data["B"]),state2),p]
+            for p in 1:length(some_subpaths[((i,0,data["B"]),state2)])
+        )        
+        for (state1, state2) in keys(some_subpaths)
+            if state1[1] == i && state1[2] == 0 && state1[3] == data["B"]
     )
-Bmax_range_xs = [750.0, 800.0, 850.0, 900.0, 950.0]
-Tmul_range_xs = [2.0, 2.5, 3.0]
-gdf_xs[!, :B] .= repeat(Bmax_range_xs, outer = length(Tmul_range_xs))
-gdf_xs[!, :T_mul] .= repeat(Tmul_range_xs, inner = length(Bmax_range_xs))
-gdf_xs[!, :T] .= round.(gdf_xs[!, :B] .* gdf_xs[!, :T_mul] ./ 50.0) .* 50.0
-select!(gdf_xs, [:size, :B, :T_mul, :T], Not([:size, :B, :T_mul, :T]))
+    == data["v_start"][findfirst(x -> (x == i), data["N_depots"])]
+)
 
+flow_conservation_exprs_out = Dict{Tuple{Int, Float64, Float64}, AffExpr}()
+flow_conservation_exprs_in = Dict{Tuple{Int, Float64, Float64}, AffExpr}()
+flow_conservation_constrs = Dict{Tuple{Int, Float64, Float64}, ConstraintRef}()
 
-begin
-    fig = Figure(resolution = (800, 500), fontsize = 18)
-    grid = fig[1,1] = GridLayout()
-    ax = Axis(
-        grid[1,1],
-        xticks = Bmax_range_xs, 
-        xlabel = "B",
-        yticks = Tmul_range_xs,
-        ylabel = "Ratio T : B",
-        title = "Running time of subproblem (mean over iterations)\n(9 customers, 2 depots, 2 CS)"
-    )
-    mat = Matrix(
-        unstack(gdf_xs, :B, :T_mul, :cgi_sp_mean_time_taken_mean)[:,2:end]
-    )
-    (cmin, cmax) = extrema(mat)
-    CairoMakie.heatmap!(
-        ax, Bmax_range_xs, Tmul_range_xs,
-        mat,
-        colorrange = (cmin, cmax),
-    )
-    for i in 1:length(Bmax_range_xs), j in 1:length(Tmul_range_xs)
-        textcolor = mat[i, j] < 0.3 ? :white : :black
-        text!(
-            ax, "$(round(mat[i,j], digits = 4))",
-            position = (Bmax_range_xs[i], Tmul_range_xs[j]),
-            color = textcolor, 
-            align = (:center, :center),
-            fontsize = 10,
+@constraint(
+    mp_model,
+    μ[n2 in data["N_depots"]],
+    sum(
+        sum(
+            z[(state1, state2),p]
+            for p in 1:length(some_subpaths[(state1, state2)])
         )
-    end
-    Colorbar(grid[1,2], colorrange = (cmin, cmax))
-    display(fig)
-end
-
-begin
-    fig = Figure(resolution = (800, 500), fontsize = 18)
-    grid = fig[1,1] = GridLayout()
-    ax = Axis(
-        grid[1,1],
-        xticks = Bmax_range_xs, 
-        xlabel = "B",
-        yticks = Tmul_range_xs,
-        ylabel = "Ratio T : B",
-        title = "Total running time\n(9 customers, 2 depots, 2 CS)"
-    )
-    mat = Matrix(
-        unstack(gdf_xs, :B, :T_mul, :cgi_time_taken_geomean)[:,2:end]
-    )
-    (cmin, cmax) = extrema(mat)
-    CairoMakie.heatmap!(
-        ax, Bmax_range_xs, Tmul_range_xs,
-        mat,
-        colorrange = (cmin, cmax),
-    )
-    for i in 1:length(Bmax_range_xs), j in 1:length(Tmul_range_xs)
-        textcolor = mat[i, j] < 2.5 ? :white : :black
-        text!(
-            ax, "$(round(mat[i,j], digits = 4))",
-            position = (Bmax_range_xs[i], Tmul_range_xs[j]),
-            color = textcolor, 
-            align = (:center, :center),
-            fontsize = 10,
+        for (state1, state2) in keys(some_subpaths)
+            if state2[1] == n2
+    ) ≥ data["v_end"][n2]
+)
+@constraint(
+    mp_model,
+    ν[j in data["N_customers"]],
+    sum(
+        sum(
+            subpath_service[((state1, state2),j)][p] * z[(state1, state2),p]
+            for p in 1:length(some_subpaths[(state1, state2)])
         )
-    end
-    Colorbar(grid[1,2], colorrange = (cmin, cmax))
-    display(fig)
-end
-
-all_metrics_xs_r_df = CSV.read("$(@__DIR__)/../logs/20230313_165734/all_metrics.csv", DataFrame)
-all_metrics_xs_r_df |>
-    x -> filter(r -> r.size == "xs2_5_3", x) |>
-    x -> select(x, :cgi_objective)
-gdf_xs_r = all_metrics_xs_r_df |>
-    x -> groupby(x, :size) |>
-    x -> combine(x, 
-        :cgi_number_of_iterations => mean,
-        :cgi_number_of_subpaths => mean,
-        :cgi_time_taken => geomean,
-        :cgi_mp_total_time_taken => mean,
-        :cgi_sp_mean_time_taken => mean,
-    )
-Bmax_range_xs = [750.0, 800.0, 850.0, 900.0, 950.0]
-Tmul_range_xs = [2.0, 2.5, 3.0]
-gdf_xs_r[!, :B] .= repeat(Bmax_range_xs, outer = length(Tmul_range_xs))
-gdf_xs_r[!, :T_mul] .= repeat(Tmul_range_xs, inner = length(Bmax_range_xs))
-gdf_xs_r[!, :T] .= round.(gdf_xs_r[!, :B] .* gdf_xs_r[!, :T_mul] ./ 50.0) .* 50.0
-select!(gdf_xs_r, [:size, :B, :T_mul, :T], Not([:size, :B, :T_mul, :T]))
-
-begin
-    mat_xs = Matrix(
-        unstack(gdf_xs, :B, :T_mul, :cgi_sp_mean_time_taken_mean)[:,2:end]
-    )
-    mat_xs_r = Matrix(
-        unstack(gdf_xs_r, :B, :T_mul, :cgi_sp_mean_time_taken_mean)[:,2:end]
-    )
-    fig = Figure(resolution = (1200, 500), fontsize = 18)
-    grid = fig[1,1] = GridLayout()
-    cmin = min(minimum(mat_xs), minimum(mat_xs_r))
-    cmax = max(maximum(mat_xs), maximum(mat_xs_r))
-    ax_xs = Axis(
-        grid[1,1],
-        xticks = Bmax_range_xs, 
-        xlabel = "B",
-        yticks = Tmul_range_xs,
-        ylabel = "Ratio T : B",
-        title = "Running time of subproblem (mean over iterations)\n(9 customers, 2 depots, 2 CS)"
-    )
-    CairoMakie.heatmap!(
-        ax_xs, Bmax_range_xs, Tmul_range_xs,
-        mat_xs,
-        colorrange = (cmin, cmax),
-    )
-    for i in 1:length(Bmax_range_xs), j in 1:length(Tmul_range_xs)
-        textcolor = mat_xs[i, j] < 0.3 ? :white : :black
-        text!(
-            ax_xs, "$(round(mat_xs[i,j], digits = 4))",
-            position = (Bmax_range_xs[i], Tmul_range_xs[j]),
-            color = textcolor, 
-            align = (:center, :center),
-            fontsize = 10,
+        for (state1, state2) in keys(some_subpaths)
+    ) == 1
+)
+@expression(
+    mp_model,
+    subpath_costs_expr,
+    sum(
+        sum(
+            subpath_costs[state_pair][p] * z[state_pair,p]
+            for p in 1:length(some_subpaths[state_pair])
         )
-    end
-    ax_xs_r = Axis(
-        grid[1,2],
-        xticks = Bmax_range_xs, 
-        xlabel = "B",
-        yticks = Tmul_range_xs,
-        ylabel = "Ratio T : B",
-        title = "Running time of subproblem (mean over iterations)\n(9 customers, 2 depots, 2 CS)\n(more aggressive domination)"
+        for state_pair in keys(some_subpaths)
     )
-    CairoMakie.heatmap!(
-        ax_xs_r, Bmax_range_xs, Tmul_range_xs,
-        mat_xs_r,
-        colorrange = (cmin, cmax),
-    )
-    for i in 1:length(Bmax_range_xs), j in 1:length(Tmul_range_xs)
-        textcolor = mat_xs_r[i, j] < 0.3 ? :white : :black
-        text!(
-            ax_xs_r, "$(round(mat_xs_r[i,j], digits = 4))",
-            position = (Bmax_range_xs[i], Tmul_range_xs[j]),
-            color = textcolor, 
-            align = (:center, :center),
-            fontsize = 10,
-        )
-    end
-    Colorbar(grid[1,3], colorrange = (cmin, cmax))
-    display(fig)
-end
-
-begin
-    mat_xs = Matrix(
-        unstack(gdf_xs, :B, :T_mul, :cgi_time_taken_geomean)[:,2:end]
-    )
-    mat_xs_r = Matrix(
-        unstack(gdf_xs_r, :B, :T_mul, :cgi_time_taken_geomean)[:,2:end]
-    )
-    fig = Figure(resolution = (1200, 500), fontsize = 18)
-    grid = fig[1,1] = GridLayout()
-    cmin = min(minimum(mat_xs), minimum(mat_xs_r))
-    cmax = max(maximum(mat_xs), maximum(mat_xs_r))
-    ax_xs = Axis(
-        grid[1,1],
-        xticks = Bmax_range_xs, 
-        xlabel = "B",
-        yticks = Tmul_range_xs,
-        ylabel = "Ratio T : B",
-        title = "Total running time\n(9 customers, 2 depots, 2 CS)"
-    )
-    CairoMakie.heatmap!(
-        ax_xs, Bmax_range_xs, Tmul_range_xs,
-        mat_xs,
-        colorrange = (cmin, cmax),
-    )
-    for i in 1:length(Bmax_range_xs), j in 1:length(Tmul_range_xs)
-        textcolor = mat_xs[i, j] < 2.5 ? :white : :black
-        text!(
-            ax_xs, "$(round(mat_xs[i,j], digits = 4))",
-            position = (Bmax_range_xs[i], Tmul_range_xs[j]),
-            color = textcolor, 
-            align = (:center, :center),
-            fontsize = 10,
-        )
-    end
-    ax_xs_r = Axis(
-        grid[1,2],
-        xticks = Bmax_range_xs, 
-        xlabel = "B",
-        yticks = Tmul_range_xs,
-        ylabel = "Ratio T : B",
-        title = "Total running time\n(9 customers, 2 depots, 2 CS)\n(more aggressive domination)"
-    )
-    CairoMakie.heatmap!(
-        ax_xs_r, Bmax_range_xs, Tmul_range_xs,
-        mat_xs_r,
-        colorrange = (cmin, cmax),
-    )
-    for i in 1:length(Bmax_range_xs), j in 1:length(Tmul_range_xs)
-        textcolor = mat_xs_r[i, j] < 2.5 ? :white : :black
-        text!(
-            ax_xs_r, "$(round(mat_xs_r[i,j], digits = 4))",
-            position = (Bmax_range_xs[i], Tmul_range_xs[j]),
-            color = textcolor, 
-            align = (:center, :center),
-            fontsize = 10,
-        )
-    end
-    Colorbar(grid[1,3], colorrange = (cmin, cmax))
-    display(fig)
-end
+)
+@objective(mp_model, Min, subpath_costs_expr)
 
 
-all_metrics_s_df = CSV.read("$(@__DIR__)/../logs/20230313_120650/all_metrics.csv", DataFrame)
-all_metrics_s_df |>
-    x -> filter(r -> r.size == "s2_1_1", x) |>
-    x -> select(x, :cgi_objective)
-gdf_s = all_metrics_s_df |>
-    x -> groupby(x, :size) |>
-    x -> combine(x, 
-        :cgi_number_of_iterations => mean,
-        :cgi_number_of_subpaths => mean,
-        :cgi_time_taken => geomean,
-        :cgi_mp_total_time_taken => mean,
-        :cgi_sp_mean_time_taken => mean,
-    )
-Bmax_range_s = [1000.0, 1050.0, 1100.0, 1150.0, 1200.0]
-Tmul_range_s = [2.0, 2.5, 3.0]
-gdf_s[!, :B] .= repeat(Bmax_range_s, outer = length(Tmul_range_s))
-gdf_s[!, :T_mul] .= repeat(Tmul_range_s, inner = length(Bmax_range_s))
-gdf_s[!, :T] .= round.(gdf_s[!, :B] .* gdf_s[!, :T_mul] ./ 50.0) .* 50.0
-select!(gdf_s, [:size, :B, :T_mul, :T], Not([:size, :B, :T_mul, :T]))
 
-begin
-    fig = Figure(resolution = (800, 500), fontsize = 18)
-    grid = fig[1,1] = GridLayout()
-    ax = Axis(
-        grid[1,1],
-        xticks = Bmax_range_s, 
-        xlabel = "B",
-        yticks = Tmul_range_s,
-        ylabel = "Ratio T : B",
-        title = "Running time of subproblem (mean over iterations)\n(12 customers, 2 depots, 2 CS)"
-    )
-    mat = Matrix(
-        unstack(gdf_s, :B, :T_mul, :cgi_sp_mean_time_taken_mean)[:,2:end]
-    )
-    (cmin, cmax) = extrema(mat)
-    CairoMakie.heatmap!(
-        ax, Bmax_range_s, Tmul_range_s,
-        mat,
-        colorrange = (cmin, cmax),
-    )
-    for i in 1:length(Bmax_range_s), j in 1:length(Tmul_range_s)
-        textcolor = mat[i, j] < 2.4 ? :white : :black
-        text!(
-            ax, "$(round(mat[i,j], digits = 4))",
-            position = (Bmax_range_s[i], Tmul_range_s[j]),
-            color = textcolor, 
-            align = (:center, :center),
-            fontsize = 10,
-        )
-    end
-    Colorbar(grid[1,2], colorrange = (cmin, cmax))
-    display(fig)
-end
-
-begin
-    fig = Figure(resolution = (800, 500), fontsize = 18)
-    grid = fig[1,1] = GridLayout()
-    ax = Axis(
-        grid[1,1],
-        xticks = Bmax_range_s, 
-        xlabel = "B",
-        yticks = Tmul_range_s,
-        ylabel = "Ratio T : B",
-        title = "Total running time\n(12 customers, 2 depots, 2 CS)"
-    )
-    mat = Matrix(
-        unstack(gdf_s, :B, :T_mul, :cgi_time_taken_geomean)[:,2:end]
-    )
-    (cmin, cmax) = extrema(mat)
-    CairoMakie.heatmap!(
-        ax, Bmax_range_s, Tmul_range_s,
-        mat,
-        colorrange = (cmin, cmax),
-    )
-    for i in 1:length(Bmax_range_s), j in 1:length(Tmul_range_s)
-        textcolor = mat[i, j] < 25 ? :white : :black
-        text!(
-            ax, "$(round(mat[i,j], digits = 4))",
-            position = (Bmax_range_s[i], Tmul_range_s[j]),
-            color = textcolor, 
-            align = (:center, :center),
-            fontsize = 10,
-        )
-    end
-    Colorbar(grid[1,2], colorrange = (cmin, cmax))
-    display(fig)
-end
-
-# Experiment 13: with rougher dominance
-# naive, not utilizing notimewindows structure
-all_metrics_1_df = CSV.read("$(@__DIR__)/../logs/20230313_203258/all_metrics.csv", DataFrame)
-gdf1 = all_metrics_1_df |>
-    x -> groupby(x, :size) |>
-    x -> combine(x, 
-        :cgi_number_of_iterations => mean,
-        :cgi_number_of_subpaths => mean,
-        :cgi_time_taken => geomean,
-        :cgi_mp_total_time_taken => mean,
-        :cgi_sp_mean_time_taken => mean,
-    ) |>
-    x -> permutedims(x, "size")
-
-# previous method utilizing notimewindows structure
-all_metrics_2_df = CSV.read("$(@__DIR__)/../logs/20230314_100637/all_metrics.csv", DataFrame)
-gdf2 = all_metrics_2_df |>
-    x -> groupby(x, :size) |>
-    x -> combine(x, 
-        :cgi_number_of_iterations => mean,
-        :cgi_number_of_subpaths => mean,
-        :cgi_time_taken => geomean,
-        :cgi_mp_total_time_taken => mean,
-        :cgi_sp_mean_time_taken => mean,
-    ) |>
-    x -> permutedims(x, "size")
-
-# method utilizing notimewindows structure, more aggressive dominance
-all_metrics_3_df = CSV.read("$(@__DIR__)/../logs/20230313_200031/all_metrics.csv", DataFrame)
-gdf3 = all_metrics_3_df |>
-    x -> groupby(x, :size) |>
-    x -> combine(x, 
-        :cgi_number_of_iterations => mean,
-        :cgi_number_of_subpaths => mean,
-        :cgi_time_taken => geomean,
-        :cgi_mp_total_time_taken => mean,
-        :cgi_sp_mean_time_taken => mean,
-    ) |>
-    x -> permutedims(x, "size")
+optimize!(mp_model)
+mp_results = Dict(
+    "model" => mp_model,
+    "objective" => objective_value(mp_model),
+    "z" => Dict(
+        (key, p) => value.(z[(key, p)])
+        for (key, p) in keys(z)
+    ),
+    "κ" => Dict(zip(data["N_depots"], dual.(mp_model[:κ]).data)),
+    "μ" => Dict(zip(data["N_depots"], dual.(mp_model[:μ]).data)),
+    "ν" => dual.(mp_model[:ν]).data,
+)
 
 
-## Experiment 14: heuristic 
-all_metrics_df = CSV.read("$(@__DIR__)/../logs/20230313_200031/all_metrics.csv", DataFrame)
-gdf = all_metrics_df |>
-    x -> groupby(x, :size) |>
-    x -> combine(x, 
-        :cgi_number_of_iterations => mean,
-        :cgi_number_of_subpaths => mean,
-        :cgi_time_taken .=> [minimum, maximum, geomean],
-        :cgi_mp_total_time_taken => mean,
-        :cgi_sp_mean_time_taken .=> [minimum, maximum, mean],
-    ) |>
-    x -> permutedims(x, "size")
-
-all_metrics_df_h = CSV.read("$(@__DIR__)/../logs/20230315_171528/all_metrics.csv", DataFrame)
-gdf_h = all_metrics_df_h |>
-    x -> groupby(x, :size) |>
-    x -> combine(x, 
-        :cgi_number_of_iterations => mean,
-        :cgi_number_of_subpaths .=> mean,
-        :cgi_time_taken .=> [minimum, maximum, geomean],
-        :cgi_mp_total_time_taken => mean,
-        :cgi_sp_mean_time_taken .=> [minimum, maximum, mean],
-    ) |>
-    x -> permutedims(x, "size")
-
-## Experiment 15: removing discretization!
-all_metrics_df = CSV.read("$(@__DIR__)/../logs/20230315_171528/all_metrics.csv", DataFrame)
-gdf = all_metrics_df |>
-    x -> groupby(x, :size) |>
-    x -> combine(x, 
-        :cgi_number_of_iterations => mean,
-        :cgi_number_of_subpaths .=> mean,
-        :cgi_time_taken .=> [minimum, maximum, geomean],
-        :cgi_mp_total_time_taken => mean,
-        :cgi_sp_mean_time_taken .=> [minimum, maximum, mean],
-    ) |>
-    x -> permutedims(x, "size")
-
-all_metrics_df_new = CSV.read("$(@__DIR__)/../logs/20230320_212038/all_metrics.csv", DataFrame)
-gdf_new = all_metrics_df_new |>
-    x -> groupby(x, :size) |>
-    x -> combine(x, 
-        :cgi_number_of_iterations => mean,
-        :cgi_number_of_subpaths .=> mean,
-        :cgi_time_taken .=> [minimum, maximum, geomean],
-        :cgi_mp_total_time_taken => mean,
-        :cgi_sp_mean_time_taken .=> [minimum, maximum, mean],
-    ) |>
-    x -> permutedims(x, "size")
 
 
-### Scratch work
+base_labels = @time generate_base_subpaths(
+    G, 
+    data,
+    mp_results["κ"],
+    mp_results["μ"],
+    mp_results["ν"],
+)
+
+full_labels = @time find_nondominated_paths(
+    data, base_labels,
+    mp_results["κ"],
+    mp_results["μ"],
+)
+
+(generated_subpaths, generated_charging_arcs) = @time get_subpaths_charging_arcs_from_negative_paths(
+    data,
+    full_labels,
+)
+sum(length(x) for x in generated_subpaths)
+sum(length(x) for x in generated_charging_arcs)
+
+some_subpaths
+full_labels[11][11]
+full_labels[11][12]
+full_labels[12][11]
+full_labels[12][12]
+
+full_labels[11][11][(0.0, 800.0)]
+full_labels[12][11][(292.0, 508.0)]
