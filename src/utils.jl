@@ -271,9 +271,12 @@ function generate_instance(
     v_end_vec = repeat([1], n_depots)
     v_end  = Dict(i => v_end_vec[ind] for (ind, i) in enumerate(N_depots))
     
-    c = Int.(round.(100 .* distances))
-    t = Int.(round.(100 .* distances)) # travel times are integer
-    q = Int.(round.(100 .* distances)) # charge costs are integer
+    # c = Int.(round.(100 .* distances))
+    # t = Int.(round.(100 .* distances)) # travel times are integer
+    # q = Int.(round.(100 .* distances)) # charge costs are integer
+    c = 100 .* distances
+    t = 100 .* distances
+    q = 100 .* distances
     d = vcat(
         floor.(rand(Gamma(load_scale, load_shape), n_customers) ./ n_customers),
         repeat([0], n_depots + n_charging),
