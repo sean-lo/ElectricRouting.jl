@@ -19,6 +19,27 @@ lt(o::DoubleStateOrdering, a, b) = isless((a[1], -a[2]), (b[1], -b[2]))
 eq(o::TripleStateOrdering, a, b) = isequal(a, b)
 eq(o::DoubleStateOrdering, a, b) = isequal(a, b)
 
+mutable struct BaseSubpathLabel
+    time_taken::Float64
+    cost::Float64
+    nodes::Vector{Int}
+    served::Vector{Int}
+end
+
+mutable struct PathLabel
+    cost::Float64
+    subpath_labels::Vector{BaseSubpathLabel}
+    charging_actions::Vector{Tuple{Float64, Float64}}
+    served::Vector{Int}
+end
+
+Base.copy(p::PathLabel) = PathLabel(
+    p.cost,
+    [s for s in p.subpath_labels],
+    [t for t in p.charging_actions],
+    copy(p.served),
+)
+
 function generate_artificial_subpaths(data)
     artificial_subpaths = Dict{
         Tuple{Tuple{Int, Float64, Float64}, Tuple{Int, Float64, Float64}},
@@ -157,69 +178,100 @@ function compute_charging_arc_cost(
     return data["charge_cost_coeff"] * a.delta_time
 end
 
-function generate_base_subpaths(
+function generate_base_labels(
     G, 
     data, 
     κ,
     μ,
     ν,
 )
-    function add_subpath_to_collection!(
-        collection::SortedDict{
-            Float64,
-            SubpathWithCost,
-        },
+    function add_subpath_label_to_collection!(
+        collection::SortedDict{Float64, BaseSubpathLabel},
         k1::Float64,
-        v1::SubpathWithCost,
+        v1::BaseSubpathLabel,
         ;
+        last::Float64 = 0.0,
     )
-        added = true
+        last_assigned = false
         for (k2, v2) in collection
-            if k2 ≤ k1
+            if k2 < last
+                continue
+            end
+            if k2 < k1
                 if v2.cost ≤ v1.cost
-                    added = false
-                    break
+                    return (false, k2)
                 end
-            elseif k1 ≤ k2
+            else
+                if !last_assigned
+                    last_assigned = true
+                    last = k2
+                end
                 if v1.cost ≤ v2.cost
                     pop!(collection, k2)
                 end
             end
         end
-        if added
-            insert!(collection, k1, v1)
-        end
-        return added
+        insert!(collection, k1, v1)
+        last = k1
+        return (true, k1)
     end
 
-    function connect(v1::SubpathWithCost, v2::SubpathWithCost, data)
-        if v1.current_node != v2.starting_node
-            return
-        end
-        if any(v1.served .&& v2.served)
-            return
-        end
-        new_current_time = v1.current_time + (v2.current_time - v2.starting_time)
-        if new_current_time > data["T"]
-            return
-        end
-        new_current_charge = v1.current_charge - v2.starting_charge + v2.current_charge
-        if new_current_charge < 0.0
-            return
-        end
-        v = SubpathWithCost(
-            cost = v1.cost + v2.cost,
-            n_customers = data["n_customers"],
-            starting_node = v1.starting_node,
-            starting_time = v1.starting_time, 
-            starting_charge = v1.starting_charge,
-            current_node = v2.current_node,
-            current_time = new_current_time,
-            current_charge = new_current_charge,
-            arcs = vcat(v1.arcs, v2.arcs),
-            served = v1.served .|| v2.served,
+    function direct_sum_of_collections(
+        labels1::SortedDict{Float64, BaseSubpathLabel},
+        labels2::SortedDict{Float64, BaseSubpathLabel},
+    )
+        keys1 = collect(keys(labels1))
+        keys2 = collect(keys(labels2))
+    
+        new = []
+        for (t, cost, i, j) in sort([
+            (k1 + k2, s1.cost + s2.cost, i, j)
+            for (i, (k1, s1)) in enumerate(pairs(labels1)),
+                (j, (k2, s2)) in enumerate(pairs(labels2))
+                if k1 + k2 ≤ data["B"]
+                    && all(s1.served .+ s2.served .≤ 1)
+                    # && length(intersect(s1.nodes, s2.nodes[2:end])) == 0
+        ])
+            if length(new) == 0
+                push!(new, (t, cost, i, j))
+            elseif new[end][1] == t
+                if new[end][2] > cost
+                    new = new[1:end-1]
+                    push!(new, (t, cost, i, j))
+                end
+            else
+                if new[end][2] > cost
+                    push!(new, (t, cost, i, j))
+                end
+            end
+        end       
+        new_labels = SortedDict{Float64, BaseSubpathLabel}(
+            t => BaseSubpathLabel(
+                t,
+                cost,
+                vcat(labels1[keys1[i]].nodes, labels2[keys2[j]].nodes[2:end]),
+                labels1[keys1[i]].served .+ labels2[keys2[j]].served
+            )
+            for (t, cost, i, j) in new
         )
-        return v
+        return new_labels
+    end
+
+    function merge_collections!(
+        labels1::SortedDict{Float64, BaseSubpathLabel},
+        labels2::SortedDict{Float64, BaseSubpathLabel},
+    )
+        last = 0.0
+        while length(labels2) > 0
+            (k, v) = first(labels2)
+            pop!(labels2, k)
+            (added, last) = add_subpath_label_to_collection!(
+                labels1,
+                k, v;
+                last = last
+            )
+        end
+        return 
     end
 
     modified_costs = data["travel_cost_coeff"] * Float64.(copy(data["c"]))
@@ -231,29 +283,25 @@ function generate_base_subpaths(
 
     base_labels = Dict(
         start_node => Dict(
-            current_node => SortedDict{Float64, SubpathWithCost}()
+            current_node => SortedDict{Float64, BaseSubpathLabel}()
             for current_node in data["N_nodes"]
         )
         for start_node in data["N_nodes"]
     )
-    for (start_node, current_node) in keys(data["A"])
-        current_time = data["t"][start_node, current_node]
-        current_charge = data["B"] - data["q"][start_node, current_node]
-        served = falses(data["n_customers"])
+
+    for edge in edges(G)
+        start_node = edge.src
+        current_node = edge.dst
+        time_taken = Float64(data["t"][start_node, current_node])
+        served = zeros(Int, data["n_customers"])
         if current_node in data["N_customers"]
-            served[current_node] = true
+            served[current_node] = 1
         end
-        base_labels[start_node][current_node][current_time] = SubpathWithCost(
-            cost = modified_costs[start_node, current_node],
-            n_customers = data["n_customers"],
-            starting_node = start_node,
-            starting_time = 0.0,
-            starting_charge = data["B"],
-            arcs = [(start_node, current_node)],
-            current_node = current_node,
-            current_time = current_time,
-            current_charge = current_charge,
-            served = served,
+        base_labels[start_node][current_node][time_taken] = BaseSubpathLabel(
+            time_taken,
+            modified_costs[start_node, current_node],
+            [start_node, current_node],
+            served,
         )
     end
 
@@ -266,34 +314,25 @@ function generate_base_subpaths(
                 if length(base_labels[new_node][end_node]) == 0
                     continue
                 end
-                ## TODO: find a better way to update collection with pairwise sum of two collections
-                for (k1, v1) in pairs(base_labels[start_node][new_node])
-                    for (k2, v2) in pairs(base_labels[new_node][end_node])
-                        k = k1 + k2
-                        v = connect(v1, v2, data)
-                        if !isnothing(v)
-                            add_subpath_to_collection!(
-                                base_labels[start_node][end_node],
-                                k, v,
-                            )
-                        end
-                    end
-                end
+                merge_collections!(
+                    base_labels[start_node][end_node],
+                    direct_sum_of_collections(base_labels[start_node][new_node], base_labels[new_node][end_node])
+                )
             end
         end
     end
 
     for start_node in data["N_depots"]
         for end_node in data["N_nodes"]
-            for (k, v) in pairs(base_labels[start_node][end_node])
-                v.cost = v.cost - κ[start_node]
+            for v in values(base_labels[start_node][end_node])
+                v.cost .- κ[start_node]
             end
         end
     end
     for end_node in data["N_depots"]
         for start_node in data["N_nodes"]
-            for (k, v) in pairs(base_labels[start_node][end_node])
-                v.cost = v.cost - μ[end_node]
+            for v in values(base_labels[start_node][end_node])
+                v.cost .- μ[end_node]
             end
         end
     end
@@ -317,31 +356,33 @@ function find_nondominated_paths(
     μ,
 )
     function charge_to_specified_level(
-        start_charge, end_charge, 
-        start_time, charging_rate,
+        start_charge::Float64, 
+        end_charge::Float64, 
+        start_time::Float64, 
+        charging_rate::Float64,
     )
         if end_charge ≤ start_charge
-            return (0, 0, start_time, start_charge)
+            return (0.0, 0.0, start_time, start_charge)
         end
         delta_charge = (end_charge - start_charge)
         delta_time = delta_charge / charging_rate
         end_time = start_time + delta_time
         return (
-            round(delta_time, digits = 1), 
+            delta_time,
             delta_charge,
-            round(end_time, digits = 1), 
+            end_time,
             end_charge,
         )
     end
 
-    function add_path_withcost_to_collection!(
+    function add_path_label_to_collection!(
         collection::SortedDict{
             Tuple{Float64, Float64}, 
-            PathWithCost,
+            PathLabel,
             DoubleStateOrdering
         },
         k1::Tuple{Float64, Float64}, 
-        v1::PathWithCost,
+        v1::PathLabel,
         ;
         verbose::Bool = false,
     )
@@ -382,18 +423,18 @@ function find_nondominated_paths(
         starting_node => Dict(
             current_node => SortedDict{
                 Tuple{Float64, Float64}, 
-                PathWithCost
+                PathLabel
             }(dso)
             for current_node in union(data["N_charging"], data["N_depots"])
         )
         for starting_node in data["N_depots"]
     )
     for depot in data["N_depots"]
-        full_labels[depot][depot][(0.0, data["B"])] = PathWithCost(
-            subpaths = [],
-            charging_arcs = [],
-            cost = 0.0,
-            served = zeros(Int, data["n_customers"]),
+        full_labels[depot][depot][(0.0, data["B"])] = PathLabel(
+            0.0,
+            BaseSubpathLabel[],
+            Tuple{Float64, Float64}[],
+            zeros(Int, data["n_customers"]),
         )
     end
     unexplored_states = SortedSet(
@@ -414,9 +455,8 @@ function find_nondominated_paths(
             for next_node in union(data["N_depots"], data["N_charging"])
                 for s in values(base_labels[state[1]][next_node])
                     if (
-                        s.current_node in data["N_depots"]
-                        && s.current_time == 0.0
-                        && s.current_charge == data["B"]
+                        next_node in data["N_depots"]
+                        && s.time_taken == 0.0
                     )
                         continue
                     end
@@ -425,47 +465,32 @@ function find_nondominated_paths(
                     )
                         continue
                     end
-                    charge_required = data["B"] - s.current_charge
                     (
                         delta_time, delta_charge,
                         end_time, end_charge,
                     ) = charge_to_specified_level(
-                        state[3], charge_required, 
+                        state[3], s.time_taken, 
                         state[2], data["μ"],
                     )
-                    if end_time + s.current_time > data["T"]
+                    if end_time + s.time_taken > data["T"]
                         continue
                     end
-                    if end_charge - charge_required < 0
-                        continue
-                    end
-                    
-                    s_new = copy(s)
-                    s_new.starting_time = end_time
-                    s_new.starting_charge = end_charge
-                    s_new.current_time = s.current_time + end_time
-                    s_new.current_charge = end_charge - (data["B"] - s.current_charge)
-                    
+
                     new_path = copy(current_path)
-                    new_path.cost += s_new.cost
-                    push!(new_path.subpaths, s_new)
-                    if length(current_path.subpaths) > 0
-                        a_new = ChargingArc(
-                            starting_node = state[1],
-                            starting_time = state[2],
-                            starting_charge = state[3],
-                            delta_time = delta_time,
-                            delta_charge = delta_charge,
-                            current_time = end_time,
-                            current_charge = end_charge,
-                        )
-                        new_path.cost += compute_charging_arc_cost(data, a_new)
-                        push!(new_path.charging_arcs, a_new)
+                    new_path.cost += s.cost
+                    push!(new_path.subpath_labels, s)
+                    new_path.served += s.served
+                    if length(current_path.subpath_labels) > 0
+                        push!(new_path.charging_actions, (delta_time, delta_charge))
+                        new_path.cost += data["charge_cost_coeff"] * delta_time
                     end
 
-                    key = (s_new.current_time, s_new.current_charge)
+                    key = (
+                        end_time + s.time_taken, 
+                        end_charge - s.time_taken,
+                    )
 
-                    if add_path_withcost_to_collection!(
+                    if add_path_label_to_collection!(
                         full_labels[starting_node][next_node],
                         key, new_path,
                     )
@@ -485,18 +510,18 @@ function find_nondominated_paths(
     for depot in data["N_depots"]
         push!(
             full_labels[depot][depot],
-            (0.0, data["B"]) => PathWithCost(
-                subpaths = [
-                    SubpathWithCost(
-                        cost = - κ[depot] - μ[depot],
-                        n_customers = data["n_customers"],
-                        starting_node = depot,
-                        starting_time = 0.0, 
-                        starting_charge = data["B"],
+            (0.0, data["B"]) => PathLabel(
+                - κ[depot] - μ[depot],
+                [
+                    BaseSubpathLabel(
+                        0.0,
+                        - κ[depot] - μ[depot],
+                        [depot, depot],
+                        zeros(Int, data["n_customers"]),
                     )
                 ],
-                charging_arcs = [],
-                cost = - κ[depot] - μ[depot],
+                [],
+                zeros(Int, data["n_customers"]),
             )
         )
     end
@@ -533,23 +558,56 @@ function get_subpaths_charging_arcs_from_negative_paths(
             if path.cost ≥ -1e-6
                 continue
             end
-            for s in path.subpaths
+            current_time, current_charge = (0.0, data["B"])
+            prev_time, prev_charge = current_time, current_charge
+            while true
+                s_label = popfirst!(path.subpath_labels)
+                prev_time = current_time
+                prev_charge = current_charge
+                current_time += s_label.time_taken
+                current_charge -= s_label.time_taken
                 state_pair = (
-                    (s.starting_node, s.starting_time, s.starting_charge),
-                    (s.current_node, s.current_time, s.current_charge),
+                    (s_label.nodes[1], prev_time, prev_charge),
+                    (s_label.nodes[end], current_time, current_charge)
+                )
+                s = Subpath(
+                    n_customers = data["n_customers"],
+                    starting_node = s_label.nodes[1],
+                    starting_time = prev_time,
+                    starting_charge = prev_charge,
+                    current_node = s_label.nodes[end],
+                    arcs = collect(zip(s_label.nodes[1:end-1], s_label.nodes[2:end])),
+                    current_time = current_time,
+                    current_charge = current_charge,
+                    served = s_label.served,
                 )
                 if state_pair in keys(generated_subpaths)
                     if !any(isequal(s, s1) for s1 in generated_subpaths[state_pair])
-                        push!(generated_subpaths[state_pair], Subpath(s))
+                        push!(generated_subpaths[state_pair], s)
                     end
                 else
-                    generated_subpaths[state_pair] = [Subpath(s)]
+                    generated_subpaths[state_pair] = [s]
                 end
-            end
-            for a in path.charging_arcs
+                if length(path.charging_actions) == 0 
+                    break
+                end
+                (delta_time, delta_charge) = popfirst!(path.charging_actions)
+                prev_time = current_time
+                prev_charge = current_charge
+                current_time += delta_time
+                current_charge += delta_charge
                 state_pair = (
-                    (a.starting_node, a.starting_time, a.starting_charge),
-                    (a.starting_node, a.current_time, a.current_charge),
+                    (s_label.nodes[end], prev_time, prev_charge),
+                    (s_label.nodes[end], current_time, current_charge)
+                )
+                a = ChargingArc(
+                    starting_node = s_label.nodes[end], 
+                    starting_time = prev_time, 
+                    starting_charge = prev_charge, 
+                    delta_time = delta_time, 
+                    delta_charge = delta_charge, 
+                    current_time = current_time, 
+                    current_charge =current_charge,
                 )
                 if state_pair in keys(generated_charging_arcs)
                     if !any(isequal(a, a1) for a1 in generated_charging_arcs[state_pair])
@@ -596,15 +654,15 @@ function subpath_formulation_column_generation_integrated_from_paths(
     )
     some_charging_arcs = Dict{
         Tuple{
-            Tuple{Int64, Float64, Float64}, 
-            Tuple{Int64, Float64, Float64}
+            Tuple{Int, Float64, Float64}, 
+            Tuple{Int, Float64, Float64}
         }, 
         Vector{ChargingArc}
     }()
     charging_arc_costs = Dict{
         Tuple{
-            Tuple{Int64, Float64, Float64}, 
-            Tuple{Int64, Float64, Float64}
+            Tuple{Int, Float64, Float64}, 
+            Tuple{Int, Float64, Float64}
         }, 
         Vector{Float64}
     }()
@@ -780,7 +838,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
         push!(params["ν"], mp_results["ν"])
         push!(params["lp_relaxation_solution_time_taken"], mp_results["solution_time_taken"])
 
-        base_labels_result = @timed generate_base_subpaths(
+        base_labels_result = @timed generate_base_labels(
             G, 
             data,
             mp_results["κ"],
