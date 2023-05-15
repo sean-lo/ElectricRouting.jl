@@ -21,14 +21,25 @@ data = generate_instance(
     load_scale = 5.0,
     load_shape = 20.0,
     load_tolerance = 1.2,
+    batch = 2,
+    permissiveness = 0.2,
 )
 plot_instance(data)
 
-arc_results, arc_params = arc_formulation(data, with_charging = true, time_limit = 60)
+arc_results, arc_params = arc_formulation(data, with_time_windows = false, with_charging = true, time_limit = 60)
 arc_paths = construct_paths_from_arc_solution(arc_results, data)
 arc_results_printout(
     arc_results, 
     arc_params,
+    data,
+    with_charging = true,
+)
+
+arc_tw_results, arc_tw_params = arc_formulation(data, with_time_windows = true, with_charging = true, time_limit = 60)
+arc_tw_paths = construct_paths_from_arc_solution(arc_tw_results, data)
+arc_results_printout(
+    arc_tw_results, 
+    arc_tw_params,
     data,
     with_charging = true,
 )
@@ -98,6 +109,8 @@ data_large = generate_instance(
     load_scale = 5.0,
     load_shape = 20.0,
     load_tolerance = 1.3,
+    batch = 5,
+    permissiveness = 0.3,
 )
 plot_instance(data_large)
 G_large = construct_graph(data_large)

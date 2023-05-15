@@ -5,6 +5,7 @@ using Printf
 function arc_formulation(
     data,
     ;
+    with_time_windows::Bool = false,
     with_charging::Bool = false,
     integral::Bool = true,
     time_limit::Union{Float64, Int} = 60.0,
@@ -124,16 +125,29 @@ function arc_formulation(
         τ_leave[i,k] + t[i,j] ≤ τ_reach[j,k] + (1 - x[(i,j),k]) * 2 * T
     ); # (1l, 1m): precedence conditions
     
-    @constraint(
-        model, 
-        [i ∈ N_nodes, k ∈ N_vehicles],
-        0.0 ≤ τ_leave[i,k] ≤ T
-    ); # (1n): time window constraints
-    @constraint(
-        model, 
-        [i ∈ N_nodes, k ∈ N_vehicles],
-        0.0 ≤ τ_reach[i,k] ≤ T
-    ); # (1n): time window constraints
+    if with_time_windows
+        @constraint(
+            model, 
+            [i ∈ N_nodes, k ∈ N_vehicles],
+            data["α"][i] ≤ τ_leave[i,k] ≤ data["β"][i]
+        ); # (1n): time window constraints
+        @constraint(
+            model, 
+            [i ∈ N_nodes, k ∈ N_vehicles],
+            data["α"][i] ≤ τ_reach[i,k] ≤ data["β"][i]
+        ); # (1n): time window constraints
+    else
+        @constraint(
+            model, 
+            [i ∈ N_nodes, k ∈ N_vehicles],
+            0.0 ≤ τ_leave[i,k] ≤ T
+        ); # (1n): time window constraints
+        @constraint(
+            model, 
+            [i ∈ N_nodes, k ∈ N_vehicles],
+            0.0 ≤ τ_reach[i,k] ≤ T
+        ); # (1n): time window constraints
+    end
     
     @constraint(
         model,

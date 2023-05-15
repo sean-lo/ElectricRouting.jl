@@ -235,6 +235,8 @@ function generate_instance(
     load_scale::Float64,
     load_shape::Float64,
     load_tolerance::Float64,
+    batch::Int,
+    permissiveness::Float64,
 )
     n_nodes = n_depots + n_customers + n_charging
 
@@ -292,6 +294,10 @@ function generate_instance(
         ),
     )
 
+    α, β = generate_times(T, n_customers, seeds[5], batch, permissiveness)
+    α_charge = vcat(α, repeat([0.0], n_depots + n_charging))
+    β_charge = vcat(β, repeat([T], n_depots + n_charging))
+
     data = Dict(
         "n_depots" => n_depots,
         "n_customers" => n_customers,
@@ -325,12 +331,47 @@ function generate_instance(
         "C" => C,
         "T" => T,
         "A" => A,
+        "α" => α_charge,
+        "β" => β_charge,
         "μ" => μ,
         "B" => B,
         "travel_cost_coeff" => travel_cost_coeff,
         "charge_cost_coeff" => charge_cost_coeff,
     )
     return data
+end
+
+function generate_times(
+    T::Float64,
+    n_customers::Int,
+    seed::Int,
+    batch::Int,
+    permissiveness::Float64 = 0.4,
+)
+    if n_customers % batch != 0
+        error()
+    end
+    times_dist = Uniform(0.0, T)
+    α = zeros(n_customers)
+    β = zeros(n_customers)
+
+    Random.seed!(seed)
+    for batch_ind in 1:(n_customers ÷ batch)
+        inds = collect((batch_ind-1)*batch+1:batch_ind*batch)
+        while true
+            times = round.(sort(rand(times_dist, 2 * batch)))
+            start_times = times[1:end÷2]
+            end_times = times[end÷2+1:end]
+            if all(
+                (end_times .- start_times) ./ T .> permissiveness
+            )
+                α[inds] = start_times
+                β[inds] = end_times
+                break
+            end
+        end
+    end
+    return α, β
 end
 
 function construct_graph(data)
