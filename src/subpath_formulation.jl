@@ -564,34 +564,6 @@ function get_subpaths_charging_arcs_from_negative_paths(
     return generated_subpaths, generated_charging_arcs
 end
 
-function subpath_formulation_column_generation_from_paths(
-    G,
-    data,
-    T_range,
-    B_range,
-    ;
-    charging_in_subpath::Bool = true,
-    time_windows::Bool = true,
-    with_charging_cost::Bool = false,
-    with_heuristic::Bool = true,
-    verbose::Bool = false,
-    time_limit::Float64 = Inf,
-)
-    function add_message!(
-        printlist::Vector, 
-        message::String, 
-        verbose::Bool,
-    )
-        push!(printlist, message)
-        if verbose
-            print(message)
-        end
-    end
-
-    return (generated_subpaths, generated_charging_arcs)
-
-end
-
 function subpath_formulation_column_generation_integrated_from_paths(
     G,
     data, 
@@ -1102,15 +1074,15 @@ function construct_paths_from_subpath_solution(
     data, 
     subpaths::Dict{
         Tuple{
-            Tuple{Int64, Float64, Float64}, 
-            Tuple{Int64, Float64, Float64}
+            Tuple{Int, Float64, Float64}, 
+            Tuple{Int, Float64, Float64}
         }, 
         Vector{Subpath}
     },
     charging_arcs::Dict{
         Tuple{
-            Tuple{Int64, Float64, Float64}, 
-            Tuple{Int64, Float64, Float64}
+            Tuple{Int, Float64, Float64}, 
+            Tuple{Int, Float64, Float64}
         }, 
         Vector{ChargingArc}
     },
@@ -1207,15 +1179,15 @@ function subpath_results_printout(
     data,
     subpaths::Dict{
         Tuple{
-            Tuple{Int64, Float64, Float64}, 
-            Tuple{Int64, Float64, Float64}
+            Tuple{Int, Float64, Float64}, 
+            Tuple{Int, Float64, Float64}
         }, 
         Vector{Subpath}
     },
     charging_arcs::Dict{
         Tuple{
-            Tuple{Int64, Float64, Float64}, 
-            Tuple{Int64, Float64, Float64}
+            Tuple{Int, Float64, Float64}, 
+            Tuple{Int, Float64, Float64}
         }, 
         Vector{ChargingArc}
     },
