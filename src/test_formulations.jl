@@ -1,6 +1,5 @@
 include("arc_formulation.jl")
 include("subpath_formulation.jl")
-# include("path_formulation.jl")
 include("utils.jl")
 
 using Distributions
@@ -24,11 +23,7 @@ data = generate_instance(
     load_tolerance = 1.2,
 )
 plot_instance(data)
-data["N_customers"]
-data["l"]
-data["C"]
 
-arc_results["l_reach"]
 arc_results, arc_params = arc_formulation(data, with_charging = true, time_limit = 60)
 arc_paths = construct_paths_from_arc_solution(arc_results, data)
 arc_results_printout(
@@ -40,6 +35,34 @@ arc_results_printout(
 
 G = construct_graph(data)
 CGLP_results, CGIP_results, params, printlist, some_subpaths, some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data);
+print.(printlist);
+
+subpath_results_printout(
+    CGLP_results,
+    params,
+    data,
+    some_subpaths,
+    some_charging_arcs,
+)
+
+subpath_results_printout(
+    CGIP_results,
+    params,
+    data,
+    some_subpaths,
+    some_charging_arcs,
+)
+
+G_sparse = construct_sparse_graph(data, 1.0)
+(
+    CGLP_results_sparse, 
+    CGIP_results_sparse, 
+    params_sparse, 
+    printlist_sparse, 
+    some_subpaths_sparse, 
+    some_charging_arcs_sparse,
+) = subpath_formulation_column_generation_integrated_from_paths(G_sparse, data);
+
 subpath_results_printout(
     CGLP_results,
     params,
@@ -57,29 +80,31 @@ subpath_results_printout(
 )
 
 
+
 data_large = generate_instance(
     ;
     n_depots = 2,
     n_customers = 25,
-    n_charging = 2,
-    n_vehicles = 4,
+    n_charging = 3,
+    n_vehicles = 3,
     shrinkage_depots = 1.4,
-    shrinkage_charging = 0.6,
+    shrinkage_charging = 0.8,
     T = 2000.0,
-    seed = 0,
-    B = 700.0,
+    seed = 6,
+    B = 600.0,
     μ = 5.0,
     travel_cost_coeff = 7,
     charge_cost_coeff = 3,
     load_scale = 5.0,
     load_shape = 20.0,
-    load_tolerance = 1.2,
+    load_tolerance = 1.3,
 )
 plot_instance(data_large)
 G_large = construct_graph(data_large)
 (
     CGLP_results_large, CGIP_results_large, params_large, printlist_large, some_subpaths_large, some_charging_arcs_large 
 ) = subpath_formulation_column_generation_integrated_from_paths(G_large, data_large);
+print.(printlist_large);
 subpath_results_printout(
     CGLP_results_large,
     params_large,
