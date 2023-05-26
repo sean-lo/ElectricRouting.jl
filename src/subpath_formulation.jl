@@ -1105,6 +1105,14 @@ function subpath_formulation_column_generation_integrated_from_paths(
     params["time_taken"] = time_taken
     params["time_limit_reached"] = (time_taken > time_limit)
     params["lp_relaxation_time_taken"] = params["lp_relaxation_constraint_time_taken"] .+ params["lp_relaxation_solution_time_taken"]
+    params["lp_relaxation_time_taken_total"] = sum(params["lp_relaxation_time_taken"])
+    params["sp_base_time_taken_total"] = sum(params["sp_base_time_taken"])
+    params["sp_full_time_taken_total"] = sum(params["sp_full_time_taken"])
+    params["sp_time_taken_total"] = params["sp_base_time_taken_total"] + params["sp_full_time_taken_total"]
+    params["lp_relaxation_time_taken_mean"] = params["lp_relaxation_time_taken_total"] / length(params["lp_relaxation_time_taken"])
+    params["sp_base_time_taken_mean"] = params["sp_base_time_taken_total"] / length(params["sp_base_time_taken"])
+    params["sp_full_time_taken_mean"] = params["sp_full_time_taken_total"] / length(params["sp_full_time_taken"])
+    params["sp_time_taken_mean"] = params["sp_base_time_taken_mean"] + params["sp_full_time_taken_mean"]
 
     for message in [
         @sprintf("\n"),
@@ -1121,6 +1129,87 @@ function subpath_formulation_column_generation_integrated_from_paths(
     end
     return CGLP_results, CGIP_results, params, printlist, some_subpaths, some_charging_arcs
 end
+
+function collect_solution_support(
+    results, 
+    subpaths::Dict{
+        Tuple{
+            Tuple{Int, Float64, Float64}, 
+            Tuple{Int, Float64, Float64}
+        }, 
+        Vector{Subpath}
+    },
+    charging_arcs::Dict{
+        Tuple{
+            Tuple{Int, Float64, Float64}, 
+            Tuple{Int, Float64, Float64}
+        }, 
+        Vector{ChargingArc}
+    },
+    ;
+)
+    results_subpaths = Tuple{Float64, Subpath}[]
+    for key in keys(subpaths)
+        for p in 1:length(subpaths[key])
+            val = results["z"][key,p]
+            if val > 1e-5
+                push!(results_subpaths, (val, subpaths[key][p]))
+            end
+        end
+    end
+    results_charging_arcs = Tuple{Float64, ChargingArc}[]
+    for key in keys(charging_arcs)
+        for p in 1:length(charging_arcs[key])
+            val = results["w"][key,p]
+            if val > 1e-5
+                push!(results_charging_arcs, (val, charging_arcs[key][p]))
+            end
+        end
+    end
+    return results_subpaths, results_charging_arcs
+end
+
+function collect_solution_metrics!(
+    results,
+    data, 
+    subpaths, 
+    charging_arcs,
+)
+
+    results["subpaths"], results["charging_arcs"] = collect_solution_support(results, subpaths, charging_arcs)
+    results["paths"] = construct_paths_from_subpath_solution(results, data, subpaths, charging_arcs)
+
+    results["mean_subpath_length"] = sum(
+        sum(s.served) + 1 for (val, s) in results["subpaths"]
+    ) / length(results["subpaths"])
+    results["weighted_mean_subpath_length"] = sum(
+        val * (sum(s.served) + 1) for (val, s) in results["subpaths"]
+    ) / sum(
+        val for (val, _) in results["subpaths"]
+    )
+    results["mean_path_length"] = sum(
+        sum(p.served) + 1 for (val, p) in results["paths"]
+    ) / length(results["paths"])
+
+    results["weighted_mean_path_length"] = sum(
+        val * (sum(p.served) + 1) for (val, p) in results["paths"]
+    ) / sum(
+        val for (val, _) in results["paths"]
+    )
+    results["mean_ps_length"] = sum(
+        length(p.subpaths) for (val, p) in results["paths"]
+    ) / length(results["paths"])
+    results["weighted_mean_ps_length"] = sum(
+        val * length(p.subpaths) for (val, p) in results["paths"]
+    ) / sum(
+        val for (val, _) in results["paths"]
+    )
+    return results
+
+end
+
+
+
 
 function construct_paths_from_subpath_solution(
     results, 
@@ -1141,28 +1230,21 @@ function construct_paths_from_subpath_solution(
     },
     ;
 )
-    results_subpaths = []
-    for key in keys(subpaths)
-        for p in 1:length(subpaths[key])
-            val = results["z"][key,p]
-            if val != 0
-                push!(results_subpaths, (val, subpaths[key][p]))
-            end
-        end
-    end
-    results_charging_arcs = []
-    for key in keys(charging_arcs)
-        for p in 1:length(charging_arcs[key])
-            val = results["w"][key,p]
-            if val != 0
-                push!(results_charging_arcs, (val, charging_arcs[key][p]))
-            end
-        end
-    end
+    results_subpaths, results_charging_arcs = collect_solution_support(results, subpaths, charging_arcs)
 
-    all_paths = []
+    all_paths = Tuple{Float64, Path}[]
 
-    while sum(x[1] for x in results_subpaths) + sum(x[1] for x in results_charging_arcs) > 0
+    while true
+        remaining_vals = 0.0
+        for x in results_subpaths
+            remaining_vals += x[1]
+        end
+        for x in results_charging_arcs
+            remaining_vals += x[1]
+        end
+        if remaining_vals < 1e-5
+            break
+        end
         pathlist = []
         current_states = [
             (depot, 0.0, data["B"]) for depot in data["N_depots"]
