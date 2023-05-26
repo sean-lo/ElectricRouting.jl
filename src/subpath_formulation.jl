@@ -327,14 +327,14 @@ function generate_base_labels(
     for start_node in data["N_depots"]
         for end_node in data["N_nodes"]
             for v in values(base_labels[start_node][end_node])
-                v.cost .- κ[start_node]
+                v.cost = v.cost - κ[start_node]
             end
         end
     end
     for end_node in data["N_depots"]
         for start_node in data["N_nodes"]
             for v in values(base_labels[start_node][end_node])
-                v.cost .- μ[end_node]
+                v.cost = v.cost - μ[end_node]
             end
         end
     end
