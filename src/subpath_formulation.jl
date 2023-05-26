@@ -199,7 +199,7 @@ function generate_base_labels(
                 continue
             end
             if k2 < k1
-                if v2.cost ≤ v1.cost
+                if v2.cost < v1.cost
                     return (false, k2)
                 end
             else
@@ -207,8 +207,10 @@ function generate_base_labels(
                     last_assigned = true
                     last = k2
                 end
-                if v1.cost ≤ v2.cost
-                    pop!(collection, k2)
+                if k1 < k2
+                    if v1.cost < v2.cost
+                        pop!(collection, k2)
+                    end
                 end
             end
         end
