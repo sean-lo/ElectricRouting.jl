@@ -67,71 +67,71 @@ Base.isequal(s1::Subpath, s2::Subpath) = begin
     )
 end
 
-@composite Base.@kwdef mutable struct SubpathWithCost 
-    Subpath...
-    cost::Float64 = 0.0
-    explored::Bool = false
-end
+# @composite Base.@kwdef mutable struct SubpathWithCost 
+#     Subpath...
+#     cost::Float64 = 0.0
+#     explored::Bool = false
+# end
 
-Base.show(io::IO, s::SubpathWithCost) = begin
-    if s.artificial
-        message = """SubpathWithCost (artificial):
-        """
-    else
-        message = """SubpathWithCost:
-        """
-    end
-    message = message * """
-    ($(s.starting_node), $(s.starting_time), $(s.starting_charge)) -> ($(s.current_node), $(s.current_time), $(s.current_charge))
-    cost:           $(s.cost)
-    arcs:           $(s.arcs)
-    served:         $(s.served)
-    """
-    print(io, message)
-end
+# Base.show(io::IO, s::SubpathWithCost) = begin
+#     if s.artificial
+#         message = """SubpathWithCost (artificial):
+#         """
+#     else
+#         message = """SubpathWithCost:
+#         """
+#     end
+#     message = message * """
+#     ($(s.starting_node), $(s.starting_time), $(s.starting_charge)) -> ($(s.current_node), $(s.current_time), $(s.current_charge))
+#     cost:           $(s.cost)
+#     arcs:           $(s.arcs)
+#     served:         $(s.served)
+#     """
+#     print(io, message)
+# end
 
-Base.copy(s::SubpathWithCost) = SubpathWithCost(
-    cost = s.cost,
-    n_customers = s.n_customers,
-    starting_node = s.starting_node,
-    starting_time = s.starting_time,
-    starting_charge = s.starting_charge,
-    current_node = s.current_node,
-    arcs = copy(s.arcs),
-    current_time = s.current_time,
-    current_charge = s.current_charge,
-    served = copy(s.served),
-    artificial = s.artificial,
-)
+# Base.copy(s::SubpathWithCost) = SubpathWithCost(
+#     cost = s.cost,
+#     n_customers = s.n_customers,
+#     starting_node = s.starting_node,
+#     starting_time = s.starting_time,
+#     starting_charge = s.starting_charge,
+#     current_node = s.current_node,
+#     arcs = copy(s.arcs),
+#     current_time = s.current_time,
+#     current_charge = s.current_charge,
+#     served = copy(s.served),
+#     artificial = s.artificial,
+# )
 
-Base.isequal(s1::SubpathWithCost, s2::SubpathWithCost) = begin 
-    (
-        s1.cost == s2.cost
-        && s1.n_customers == s2.n_customers
-        && s1.starting_node == s2.starting_node
-        && s1.starting_time == s2.starting_time
-        && s1.starting_charge == s2.starting_charge
-        && s1.current_node == s2.current_node
-        && s1.arcs == s2.arcs
-        && s1.current_time == s2.current_time
-        && s1.current_charge == s2.current_charge
-        && s1.served == s2.served
-        && s1.artificial == s2.artificial
-    )
-end
+# Base.isequal(s1::SubpathWithCost, s2::SubpathWithCost) = begin 
+#     (
+#         s1.cost == s2.cost
+#         && s1.n_customers == s2.n_customers
+#         && s1.starting_node == s2.starting_node
+#         && s1.starting_time == s2.starting_time
+#         && s1.starting_charge == s2.starting_charge
+#         && s1.current_node == s2.current_node
+#         && s1.arcs == s2.arcs
+#         && s1.current_time == s2.current_time
+#         && s1.current_charge == s2.current_charge
+#         && s1.served == s2.served
+#         && s1.artificial == s2.artificial
+#     )
+# end
 
-Subpath(s::SubpathWithCost) = Subpath(
-    n_customers = s.n_customers,
-    starting_node = s.starting_node,
-    starting_time = s.starting_time,
-    starting_charge = s.starting_charge,
-    current_node = s.current_node,
-    arcs = copy(s.arcs),
-    current_time = s.current_time,
-    current_charge = s.current_charge,
-    served = copy(s.served),
-    artificial = s.artificial,
-)
+# Subpath(s::SubpathWithCost) = Subpath(
+#     n_customers = s.n_customers,
+#     starting_node = s.starting_node,
+#     starting_time = s.starting_time,
+#     starting_charge = s.starting_charge,
+#     current_node = s.current_node,
+#     arcs = copy(s.arcs),
+#     current_time = s.current_time,
+#     current_charge = s.current_charge,
+#     served = copy(s.served),
+#     artificial = s.artificial,
+# )
 
 Base.@kwdef mutable struct ChargingArc
     starting_node::Int
@@ -181,42 +181,37 @@ Base.copy(p::Path) = Path(
     served = copy(p.served),
 )
 
-Base.@kwdef mutable struct PathWithCost
-    subpaths::Vector{SubpathWithCost}
-    charging_arcs::Vector{ChargingArc}
-    cost::Float64
-    served::Vector{Int} = sum(s.served for s in subpaths)
-    explored::Bool = false
-end
+# Base.@kwdef mutable struct PathWithCost
+#     subpaths::Vector{SubpathWithCost}
+#     charging_arcs::Vector{ChargingArc}
+#     cost::Float64
+#     served::Vector{Int} = sum(s.served for s in subpaths)
+#     explored::Bool = false
+# end
 
-Base.isequal(p1::PathWithCost, p2::PathWithCost) = (
-    all(isequal(s1, s2) for (s1, s2) in zip(p1.subpaths, p2.subpaths))
-    && all(isequal(a1, a2) for (a1, a2) in zip(p1.charging_arcs, p2.charging_arcs))
-    && p1.served == p2.served
-    && p1.cost == p2.cost
-    && p1.explored == p2.explored
-)
+# Base.isequal(p1::PathWithCost, p2::PathWithCost) = (
+#     all(isequal(s1, s2) for (s1, s2) in zip(p1.subpaths, p2.subpaths))
+#     && all(isequal(a1, a2) for (a1, a2) in zip(p1.charging_arcs, p2.charging_arcs))
+#     && p1.served == p2.served
+#     && p1.cost == p2.cost
+#     && p1.explored == p2.explored
+# )
 
-Base.copy(p::PathWithCost) = PathWithCost(
-    subpaths = [copy(s) for s in p.subpaths],
-    charging_arcs = [copy(a) for a in p.charging_arcs],
-    served = copy(p.served),
-    cost = p.cost,
-    explored = p.explored,
-)
+# Base.copy(p::PathWithCost) = PathWithCost(
+#     subpaths = [copy(s) for s in p.subpaths],
+#     charging_arcs = [copy(a) for a in p.charging_arcs],
+#     served = copy(p.served),
+#     cost = p.cost,
+#     explored = p.explored,
+# )
 
-Path(p::PathWithCost) = Path(
-    subpaths = [Subpath(s) for s in p.subpaths],
-    charging_arcs = p.charging_arcs,
-    served = sum(s.served for s in p.subpaths)
-)
+# Path(p::PathWithCost) = Path(
+#     subpaths = [Subpath(s) for s in p.subpaths],
+#     charging_arcs = p.charging_arcs,
+#     served = sum(s.served for s in p.subpaths)
+# )
 
-function dceil(
-    x::Float64,
-    points,
-)
-    return points[searchsortedfirst(points, x)]
-end
+
 
 function generate_instance(
     ;
