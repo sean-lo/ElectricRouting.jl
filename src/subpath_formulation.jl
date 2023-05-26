@@ -21,6 +21,7 @@ eq(o::DoubleStateOrdering, a, b) = isequal(a, b)
 
 mutable struct BaseSubpathLabel
     time_taken::Float64
+    charge_taken::Float64
     cost::Float64
     nodes::Vector{Int}
     served::Vector{Int}
@@ -225,12 +226,11 @@ function generate_base_labels(
     
         new = []
         for (t, cost, i, j) in sort([
-            (k1 + k2, s1.cost + s2.cost, i, j)
+            (round(k1 + k2, digits = 1), s1.cost + s2.cost, i, j)
             for (i, (k1, s1)) in enumerate(pairs(labels1)),
                 (j, (k2, s2)) in enumerate(pairs(labels2))
-                if k1 + k2 ≤ data["B"]
+                if s1.charge_taken + s2.charge_taken ≤ data["B"]
                     && all(s1.served .+ s2.served .≤ 1)
-                    # && length(intersect(s1.nodes, s2.nodes[2:end])) == 0
         ])
             if length(new) == 0
                 push!(new, (t, cost, i, j))
@@ -248,6 +248,7 @@ function generate_base_labels(
         new_labels = SortedDict{Float64, BaseSubpathLabel}(
             t => BaseSubpathLabel(
                 t,
+                round(labels1[keys1[i]].charge_taken + labels2[keys2[j]].charge_taken, digits = 1),
                 cost,
                 vcat(labels1[keys1[i]].nodes, labels2[keys2[j]].nodes[2:end]),
                 labels1[keys1[i]].served .+ labels2[keys2[j]].served
@@ -292,13 +293,14 @@ function generate_base_labels(
     for edge in edges(G)
         start_node = edge.src
         current_node = edge.dst
-        time_taken = Float64(data["t"][start_node, current_node])
+        time_taken = data["t"][start_node, current_node]
         served = zeros(Int, data["n_customers"])
         if current_node in data["N_customers"]
             served[current_node] = 1
         end
         base_labels[start_node][current_node][time_taken] = BaseSubpathLabel(
             time_taken,
+            data["q"][start_node, current_node],
             modified_costs[start_node, current_node],
             [start_node, current_node],
             served,
@@ -363,8 +365,8 @@ function find_nondominated_paths(
         if desired_end_charge ≤ start_charge
             return (0.0, start_time, start_charge)
         end
-        delta = desired_end_charge - start_charge
-        end_time = start_time + delta
+        delta = round(desired_end_charge - start_charge, digits = 1)
+        end_time = round(start_time + delta, digits = 1)
         return (delta, end_time, desired_end_charge)
     end
 
@@ -477,8 +479,8 @@ function find_nondominated_paths(
                     end
 
                     key = (
-                        end_time + s.time_taken, 
-                        end_charge - s.time_taken,
+                        round(end_time + s.time_taken, digits = 1), 
+                        round(end_charge - s.charge_taken, digits = 1),
                     )
 
                     if add_path_label_to_collection!(
@@ -505,6 +507,7 @@ function find_nondominated_paths(
                 - κ[depot] - μ[depot],
                 [
                     BaseSubpathLabel(
+                        0.0,
                         0.0,
                         - κ[depot] - μ[depot],
                         [depot, depot],
@@ -557,8 +560,8 @@ function get_subpaths_charging_arcs_from_negative_paths(
                 s_label = popfirst!(s_labels)
                 prev_time = current_time
                 prev_charge = current_charge
-                current_time += s_label.time_taken
-                current_charge -= s_label.time_taken
+                current_time = round(current_time + s_label.time_taken, digits = 1)
+                current_charge = round(current_charge - s_label.charge_taken, digits = 1)
                 state_pair = (
                     (s_label.nodes[1], prev_time, prev_charge),
                     (s_label.nodes[end], current_time, current_charge)
@@ -581,14 +584,14 @@ function get_subpaths_charging_arcs_from_negative_paths(
                 else
                     generated_subpaths[state_pair] = [s]
                 end
-                if length(path.charging_actions) == 0 
+                if length(deltas) == 0 
                     break
                 end
                 delta = popfirst!(deltas)
                 prev_time = current_time
                 prev_charge = current_charge
-                current_time += delta_time
-                current_charge += delta_charge
+                current_time = round(current_time + delta, digits = 1)
+                current_charge = round(current_time + delta, digits = 1)
                 state_pair = (
                     (s_label.nodes[end], prev_time, prev_charge),
                     (s_label.nodes[end], current_time, current_charge)

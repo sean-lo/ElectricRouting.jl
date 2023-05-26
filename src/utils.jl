@@ -268,9 +268,9 @@ function generate_instance(
     # c = Int.(round.(100 .* distances))
     # t = Int.(round.(100 .* distances)) # travel times are integer
     # q = Int.(round.(100 .* distances)) # charge costs are integer
-    c = 100 .* distances
-    t = 100 .* distances
-    q = 100 .* distances
+    c = round.(distances .* 100)
+    t = round.(distances .* 100)
+    q = round.(distances .* 100) ./ μ
     d = vcat(
         floor.(rand(Gamma(load_scale, load_shape), n_customers) ./ n_customers),
         repeat([0], n_depots + n_charging),
@@ -326,7 +326,7 @@ function generate_instance(
         "α" => α_charge,
         "β" => β_charge,
         "μ" => μ,
-        "B" => B,
+        "B" => B / μ,
         "travel_cost_coeff" => travel_cost_coeff,
         "charge_cost_coeff" => charge_cost_coeff,
     )
