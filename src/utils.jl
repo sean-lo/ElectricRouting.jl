@@ -137,8 +137,7 @@ Base.@kwdef mutable struct ChargingArc
     starting_node::Int
     starting_time::Float64
     starting_charge::Float64
-    delta_time::Float64 = 0.0
-    delta_charge::Float64 = 0.0
+    delta::Float64 = 0.0
     current_time::Float64 = starting_time
     current_charge::Float64 = starting_charge
 end
@@ -147,8 +146,7 @@ Base.isequal(a1::ChargingArc, a2::ChargingArc) = (
     a1.starting_node == a2.starting_node
     && a1.starting_time == a2.starting_time
     && a1.starting_charge == a2.starting_charge
-    && a1.delta_time == a2.delta_time
-    && a1.delta_charge == a2.delta_charge
+    && a1.delta == a2.delta
     && a1.current_time == a2.current_time
     && a1.current_charge == a2.current_charge
 )
@@ -157,8 +155,7 @@ Base.copy(a::ChargingArc) = ChargingArc(
     starting_node = a.starting_node,
     starting_time = a.starting_time,
     starting_charge = a.starting_charge,
-    delta_time = a.delta_time,
-    delta_charge = a.delta_charge,
+    delta = a.delta,
     current_time = a.current_time,
     current_charge = a.current_charge,
 )

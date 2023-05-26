@@ -29,7 +29,7 @@ end
 mutable struct PathLabel
     cost::Float64
     subpath_labels::Vector{BaseSubpathLabel}
-    charging_actions::Vector{Tuple{Float64, Float64}}
+    charging_actions::Vector{Float64}
     served::Vector{Int}
 end
 
@@ -175,7 +175,7 @@ function compute_charging_arc_cost(
     data,
     a::ChargingArc,
 )
-    return data["charge_cost_coeff"] * a.delta_time
+    return data["charge_cost_coeff"] * a.delta
 end
 
 function generate_base_labels(
@@ -357,22 +357,15 @@ function find_nondominated_paths(
 )
     function charge_to_specified_level(
         start_charge::Float64, 
-        end_charge::Float64, 
+        desired_end_charge::Float64, 
         start_time::Float64, 
-        charging_rate::Float64,
     )
-        if end_charge ≤ start_charge
-            return (0.0, 0.0, start_time, start_charge)
+        if desired_end_charge ≤ start_charge
+            return (0.0, start_time, start_charge)
         end
-        delta_charge = (end_charge - start_charge)
-        delta_time = delta_charge / charging_rate
-        end_time = start_time + delta_time
-        return (
-            delta_time,
-            delta_charge,
-            end_time,
-            end_charge,
-        )
+        delta = desired_end_charge - start_charge
+        end_time = start_time + delta
+        return (delta, end_time, desired_end_charge)
     end
 
     function add_path_label_to_collection!(
@@ -465,12 +458,10 @@ function find_nondominated_paths(
                     )
                         continue
                     end
-                    (
-                        delta_time, delta_charge,
-                        end_time, end_charge,
-                    ) = charge_to_specified_level(
-                        state[3], s.time_taken, 
-                        state[2], data["μ"],
+                    (delta, end_time, end_charge) = charge_to_specified_level(
+                        state[3], 
+                        s.charge_taken, 
+                        state[2], 
                     )
                     if end_time + s.time_taken > data["T"]
                         continue
@@ -481,8 +472,8 @@ function find_nondominated_paths(
                     push!(new_path.subpath_labels, s)
                     new_path.served += s.served
                     if length(current_path.subpath_labels) > 0
-                        push!(new_path.charging_actions, (delta_time, delta_charge))
-                        new_path.cost += data["charge_cost_coeff"] * delta_time
+                        push!(new_path.charging_actions, delta)
+                        new_path.cost += data["charge_cost_coeff"] * delta
                     end
 
                     key = (
@@ -560,8 +551,10 @@ function get_subpaths_charging_arcs_from_negative_paths(
             end
             current_time, current_charge = (0.0, data["B"])
             prev_time, prev_charge = current_time, current_charge
+            s_labels = copy(path.subpath_labels)
+            deltas = copy(path.charging_actions)
             while true
-                s_label = popfirst!(path.subpath_labels)
+                s_label = popfirst!(s_labels)
                 prev_time = current_time
                 prev_charge = current_charge
                 current_time += s_label.time_taken
@@ -591,7 +584,7 @@ function get_subpaths_charging_arcs_from_negative_paths(
                 if length(path.charging_actions) == 0 
                     break
                 end
-                (delta_time, delta_charge) = popfirst!(path.charging_actions)
+                delta = popfirst!(deltas)
                 prev_time = current_time
                 prev_charge = current_charge
                 current_time += delta_time
@@ -604,10 +597,9 @@ function get_subpaths_charging_arcs_from_negative_paths(
                     starting_node = s_label.nodes[end], 
                     starting_time = prev_time, 
                     starting_charge = prev_charge, 
-                    delta_time = delta_time, 
-                    delta_charge = delta_charge, 
+                    delta = delta,
                     current_time = current_time, 
-                    current_charge =current_charge,
+                    current_charge = current_charge,
                 )
                 if state_pair in keys(generated_charging_arcs)
                     if !any(isequal(a, a1) for a1 in generated_charging_arcs[state_pair])
@@ -1297,8 +1289,8 @@ function subpath_results_printout(
             data["node_labels"][a.starting_node],
             a.current_time,
             a.current_charge,
-            a.delta_time,
-            a.delta_charge,
+            a.delta,
+            a.delta,
         )
     end
 
