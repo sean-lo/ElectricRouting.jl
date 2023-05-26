@@ -230,6 +230,29 @@ function generate_instance(
     batch::Int,
     permissiveness::Float64,
 )
+    function complex_coords(n, seed)
+        Random.seed!(seed)
+        return hcat(
+            [round.(collect(reim(exp(2 * pi * j * im / n))), digits = 5)
+            for j in 1:n]...
+        )
+    end
+
+    function complex_coords_random(n, seed)
+        Random.seed!(seed)
+        deg = rand(n) * 2 * pi
+        scale = rand(n)
+        return hcat(
+            [round.(collect(reim(scale[j] * exp(deg[j] * im))), digits = 5)
+            for j in 1:n]...
+        )
+    end
+
+    function uniform_coords_random(n, seed)
+        Random.seed!(seed)
+        return -1 .+ rand(Float64, 2, n) .* 2
+    end
+
     n_nodes = n_depots + n_customers + n_charging
 
     seeds = abs.(rand(MersenneTwister(seed), Int, 6))
@@ -248,9 +271,9 @@ function generate_instance(
         i => "Charging $ind" for (ind, i) in enumerate(N_charging)
     ))
 
-    customer_coords = Random.randn(MersenneTwister(seeds[1]), Float64, (2, n_customers))
-    depot_coords = shrinkage_depots * Random.randn(MersenneTwister(seeds[2]), Float64, (2, n_depots))
-    charging_coords = shrinkage_charging * Random.randn(MersenneTwister(seeds[3]), Float64, (2, n_charging))
+    customer_coords = uniform_coords_random(n_customers, seeds[1])
+    depot_coords = shrinkage_depots * complex_coords(n_depots, seeds[2])
+    charging_coords = shrinkage_charging * complex_coords(n_charging, seeds[3])
     coords = hcat(
         customer_coords,
         depot_coords,
@@ -331,6 +354,29 @@ function generate_instance(
         "charge_cost_coeff" => charge_cost_coeff,
     )
     return data
+end
+
+function generate_time_windows(
+    T::Float64,
+    n_customers::Int,
+    seed::Int,
+    time_window_min_width::Float64,
+    time_window_max_width::Float64,
+)
+    if !(
+        0 < time_window_min_width ≤ time_window_max_width < 1
+    )
+        error("`time_window_min_width` and `time_window_max_width` out of bounds!")
+    end
+    Random.seed!(seed)
+    time_window_dist = Uniform(time_window_min_width * T, time_window_max_width * T)
+    time_window_widths = rand(time_window_dist, n_customers)
+    time_window_posdist = Uniform(0.0, 1.0)
+    time_window_pos = rand(time_window_posdist, n_customers)
+    α = time_window_pos .* (T .- time_window_widths)
+    β = α .+ time_window_widths
+
+    return (α, β)
 end
 
 function generate_times(
