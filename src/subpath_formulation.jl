@@ -351,7 +351,7 @@ function generate_base_labels(
     return base_labels
 end
 
-function find_nondominated_paths(
+function find_nondominated_paths_notimewindows(
     data,
     base_labels,
     κ,
@@ -621,7 +621,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
     G,
     data, 
     ;
-    time_windows::Bool = true,
+    with_time_windows::Bool = false,
     verbose::Bool = true,
     time_limit::Float64 = Inf,
 )
@@ -833,35 +833,51 @@ function subpath_formulation_column_generation_integrated_from_paths(
         push!(params["ν"], mp_results["ν"])
         push!(params["lp_relaxation_solution_time_taken"], mp_results["solution_time_taken"])
 
-        base_labels_result = @timed generate_base_labels(
-            G, 
-            data,
-            mp_results["κ"],
-            mp_results["μ"],
-            mp_results["ν"],
-        )
-        full_labels_result = @timed find_nondominated_paths(
-            data, base_labels_result.value,
-            mp_results["κ"],
-            mp_results["μ"],
-        )
-        (generated_subpaths, generated_charging_arcs) = get_subpaths_charging_arcs_from_negative_paths(
-            data,
-            full_labels_result.value,
-        )
+        if with_time_windows
+            error("`with_time_windows` not yet implemented!")
+            push!(
+                params["sp_base_time_taken"],
+                0.0
+            )
+            push!(
+                params["sp_full_time_taken"],
+                0.0
+            )
+            push!(
+                params["sp_total_time_taken"],
+                0.0,
+            )
+        else
+            base_labels_result = @timed generate_base_labels(
+                G, 
+                data,
+                mp_results["κ"],
+                mp_results["μ"],
+                mp_results["ν"],
+            )
+            full_labels_result = @timed find_nondominated_paths_notimewindows(
+                data, base_labels_result.value,
+                mp_results["κ"],
+                mp_results["μ"],
+            )
+            (generated_subpaths, generated_charging_arcs) = get_subpaths_charging_arcs_from_negative_paths(
+                data,
+                full_labels_result.value,
+            )
+            push!(
+                params["sp_base_time_taken"],
+                round(base_labels_result.time, digits=3)
+            )
+            push!(
+                params["sp_full_time_taken"],
+                round(full_labels_result.time, digits=3)
+            )
+            push!(
+                params["sp_total_time_taken"],
+                round(base_labels_result.time + full_labels_result.time, digits=3)
+            )
+        end
 
-        push!(
-            params["sp_base_time_taken"],
-            round(base_labels_result.time, digits=3)
-        )
-        push!(
-            params["sp_full_time_taken"],
-            round(full_labels_result.time, digits=3)
-        )
-        push!(
-            params["sp_total_time_taken"],
-            round(base_labels_result.time + full_labels_result.time, digits=3)
-        )
         if length(generated_subpaths) == 0
             push!(params["number_of_new_subpaths"], 0)
             converged = true
@@ -1037,10 +1053,14 @@ function subpath_formulation_column_generation_integrated_from_paths(
             params["number_of_subpaths"], 
             sum(length(v) for v in values(some_subpaths))
         )
-        push!(
-            params["number_of_charging_arcs"], 
-            sum(length(v) for v in values(some_charging_arcs))
-        )
+        if length(some_charging_arcs) == 0
+            push!(params["number_of_charging_arcs"], 0)
+        else
+            push!(
+                params["number_of_charging_arcs"],
+                sum(length(v) for v in values(some_charging_arcs))
+            )
+        end
         push!(
             params["lp_relaxation_constraint_time_taken"],
             round(mp_constraint_end_time - mp_constraint_start_time, digits = 3)
