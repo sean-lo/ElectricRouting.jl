@@ -13,12 +13,12 @@ using Graphs
 Base.@kwdef mutable struct Subpath
     n_customers::Int
     starting_node::Int
-    starting_time::Float64
-    starting_charge::Float64
+    starting_time::Int
+    starting_charge::Int
     current_node::Int = starting_node
     arcs::Vector{Tuple} = []
-    current_time::Float64 = starting_time
-    current_charge::Float64 = starting_charge
+    current_time::Int = starting_time
+    current_charge::Int = starting_charge
     served::BitVector = falses(n_customers)
     artificial::Bool = false
 end
@@ -135,11 +135,11 @@ end
 
 Base.@kwdef mutable struct ChargingArc
     starting_node::Int
-    starting_time::Float64
-    starting_charge::Float64
-    delta::Float64 = 0.0
-    current_time::Float64 = starting_time
-    current_charge::Float64 = starting_charge
+    starting_time::Int
+    starting_charge::Int
+    delta::Int = 0
+    current_time::Int = starting_time
+    current_charge::Int = starting_charge
 end
 
 Base.isequal(a1::ChargingArc, a2::ChargingArc) = (
@@ -218,10 +218,10 @@ function generate_instance(
     n_vehicles::Int,
     shrinkage_depots::Float64,
     shrinkage_charging::Float64,
-    T::Float64,
+    T::Int,
     seed::Int,
-    B::Float64,
-    μ::Float64,
+    B::Int,
+    μ::Int,
     travel_cost_coeff::Int,
     charge_cost_coeff::Int,
     load_scale::Float64,
@@ -291,9 +291,9 @@ function generate_instance(
     # c = Int.(round.(100 .* distances))
     # t = Int.(round.(100 .* distances)) # travel times are integer
     # q = Int.(round.(100 .* distances)) # charge costs are integer
-    c = round.(distances .* 100)
-    t = round.(distances .* 100)
-    q = round.(distances .* 100) ./ μ
+    c = Int.(round.(distances .* 100))
+    t = Int.(round.(distances .* 100) .* μ)
+    q = Int.(round.(distances .* 100))
     d = vcat(
         floor.(rand(Gamma(load_scale, load_shape), n_customers) ./ n_customers),
         repeat([0], n_depots + n_charging),
@@ -310,7 +310,7 @@ function generate_instance(
     )
 
     α, β = generate_times(T, n_customers, seeds[5], batch, permissiveness)
-    α_charge = vcat(α, repeat([0.0], n_depots + n_charging))
+    α_charge = vcat(α, repeat([0], n_depots + n_charging))
     β_charge = vcat(β, repeat([T], n_depots + n_charging))
 
     data = Dict(
@@ -344,12 +344,12 @@ function generate_instance(
         "q" => q,
         "d" => d,
         "C" => C,
-        "T" => T,
+        "T" => T * μ,
         "A" => A,
-        "α" => α_charge,
-        "β" => β_charge,
+        "α" => α_charge * μ,
+        "β" => β_charge * μ,
         "μ" => μ,
-        "B" => B / μ,
+        "B" => B,
         "travel_cost_coeff" => travel_cost_coeff,
         "charge_cost_coeff" => charge_cost_coeff,
     )
@@ -357,7 +357,7 @@ function generate_instance(
 end
 
 function generate_time_windows(
-    T::Float64,
+    T::Int,
     n_customers::Int,
     seed::Int,
     time_window_min_width::Float64,
@@ -370,17 +370,17 @@ function generate_time_windows(
     end
     Random.seed!(seed)
     time_window_dist = Uniform(time_window_min_width * T, time_window_max_width * T)
-    time_window_widths = rand(time_window_dist, n_customers)
+    time_window_widths = Int.(round.(rand(time_window_dist, n_customers)))
     time_window_posdist = Uniform(0.0, 1.0)
     time_window_pos = rand(time_window_posdist, n_customers)
-    α = time_window_pos .* (T .- time_window_widths)
+    α = Int.(round.(time_window_pos .* (T .- time_window_widths)))
     β = α .+ time_window_widths
 
     return (α, β)
 end
 
 function generate_times(
-    T::Float64,
+    T::Int,
     n_customers::Int,
     seed::Int,
     batch::Int,
@@ -390,14 +390,14 @@ function generate_times(
         error()
     end
     times_dist = Uniform(0.0, T)
-    α = zeros(n_customers)
-    β = zeros(n_customers)
+    α = zeros(Int, n_customers)
+    β = zeros(Int, n_customers)
 
     Random.seed!(seed)
     for batch_ind in 1:(n_customers ÷ batch)
         inds = collect((batch_ind-1)*batch+1:batch_ind*batch)
         while true
-            times = round.(sort(rand(times_dist, 2 * batch)))
+            times = Int.(round.(sort(rand(times_dist, 2 * batch))))
             start_times = times[1:end÷2]
             end_times = times[end÷2+1:end]
             if all(

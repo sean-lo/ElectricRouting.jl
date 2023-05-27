@@ -20,8 +20,8 @@ eq(o::TripleStateOrdering, a, b) = isequal(a, b)
 eq(o::DoubleStateOrdering, a, b) = isequal(a, b)
 
 mutable struct BaseSubpathLabel
-    time_taken::Float64
-    charge_taken::Float64
+    time_taken::Int
+    charge_taken::Int
     cost::Float64
     nodes::Vector{Int}
     served::Vector{Int}
@@ -30,7 +30,7 @@ end
 mutable struct PathLabel
     cost::Float64
     subpath_labels::Vector{BaseSubpathLabel}
-    charging_actions::Vector{Float64}
+    charging_actions::Vector{Int}
     served::Vector{Int}
 end
 
@@ -43,7 +43,7 @@ Base.copy(p::PathLabel) = PathLabel(
 
 function generate_artificial_subpaths(data)
     artificial_subpaths = Dict{
-        Tuple{Tuple{Int, Float64, Float64}, Tuple{Int, Float64, Float64}},
+        Tuple{Tuple{Int, Int, Int}, Tuple{Int, Int, Int}},
         Vector{Subpath},
     }()
     start_depots = zeros(Int, data["n_vehicles"])
@@ -187,11 +187,11 @@ function generate_base_labels(
     ν,
 )
     function add_subpath_label_to_collection!(
-        collection::SortedDict{Float64, BaseSubpathLabel},
-        k1::Float64,
+        collection::SortedDict{Int, BaseSubpathLabel},
+        k1::Int,
         v1::BaseSubpathLabel,
         ;
-        last::Float64 = 0.0,
+        last::Int = 0,
     )
         last_assigned = false
         for (k2, v2) in collection
@@ -220,8 +220,8 @@ function generate_base_labels(
     end
 
     function direct_sum_of_collections(
-        labels1::SortedDict{Float64, BaseSubpathLabel},
-        labels2::SortedDict{Float64, BaseSubpathLabel},
+        labels1::SortedDict{Int, BaseSubpathLabel},
+        labels2::SortedDict{Int, BaseSubpathLabel},
     )
         keys1 = collect(keys(labels1))
         keys2 = collect(keys(labels2))
@@ -247,7 +247,7 @@ function generate_base_labels(
                 end
             end
         end       
-        new_labels = SortedDict{Float64, BaseSubpathLabel}(
+        new_labels = SortedDict{Int, BaseSubpathLabel}(
             t => BaseSubpathLabel(
                 t,
                 round(labels1[keys1[i]].charge_taken + labels2[keys2[j]].charge_taken, digits = 1),
@@ -261,10 +261,10 @@ function generate_base_labels(
     end
 
     function merge_collections!(
-        labels1::SortedDict{Float64, BaseSubpathLabel},
-        labels2::SortedDict{Float64, BaseSubpathLabel},
+        labels1::SortedDict{Int, BaseSubpathLabel},
+        labels2::SortedDict{Int, BaseSubpathLabel},
     )
-        last = 0.0
+        last = 0
         while length(labels2) > 0
             (k, v) = first(labels2)
             pop!(labels2, k)
@@ -286,7 +286,7 @@ function generate_base_labels(
 
     base_labels = Dict(
         start_node => Dict(
-            current_node => SortedDict{Float64, BaseSubpathLabel}()
+            current_node => SortedDict{Int, BaseSubpathLabel}()
             for current_node in data["N_nodes"]
         )
         for start_node in data["N_nodes"]
@@ -360,25 +360,25 @@ function find_nondominated_paths_notimewindows(
     μ,
 )
     function charge_to_specified_level(
-        start_charge::Float64, 
-        desired_end_charge::Float64, 
-        start_time::Float64, 
+        start_charge::Int, 
+        desired_end_charge::Int, 
+        start_time::Int, 
     )
         if desired_end_charge ≤ start_charge
-            return (0.0, start_time, start_charge)
+            return (0, start_time, start_charge)
         end
-        delta = round(desired_end_charge - start_charge, digits = 1)
-        end_time = round(start_time + delta, digits = 1)
+        delta = desired_end_charge - start_charge
+        end_time = start_time + delta
         return (delta, end_time, desired_end_charge)
     end
 
     function add_path_label_to_collection!(
         collection::SortedDict{
-            Tuple{Float64, Float64}, 
+            Tuple{Int, Int}, 
             PathLabel,
             DoubleStateOrdering
         },
-        k1::Tuple{Float64, Float64}, 
+        k1::Tuple{Int, Int}, 
         v1::PathLabel,
         ;
         verbose::Bool = false,
@@ -419,7 +419,7 @@ function find_nondominated_paths_notimewindows(
     full_labels = Dict(
         starting_node => Dict(
             current_node => SortedDict{
-                Tuple{Float64, Float64}, 
+                Tuple{Int, Int}, 
                 PathLabel
             }(dso)
             for current_node in union(data["N_charging"], data["N_depots"])
@@ -427,17 +427,17 @@ function find_nondominated_paths_notimewindows(
         for starting_node in data["N_depots"]
     )
     for depot in data["N_depots"]
-        full_labels[depot][depot][(0.0, data["B"])] = PathLabel(
+        full_labels[depot][depot][(0, data["B"])] = PathLabel(
             0.0,
             BaseSubpathLabel[],
-            Tuple{Float64, Float64}[],
+            Tuple{Int, Int}[],
             zeros(Int, data["n_customers"]),
         )
     end
     unexplored_states = SortedSet(
         tso,
         [
-            (depot, 0.0, data["B"])
+            (depot, 0, data["B"])
             for depot in data["N_depots"]
         ]
     )
@@ -453,7 +453,7 @@ function find_nondominated_paths_notimewindows(
                 for s in values(base_labels[state[1]][next_node])
                     if (
                         next_node in data["N_depots"]
-                        && s.time_taken == 0.0
+                        && s.time_taken == 0
                     )
                         continue
                     end
@@ -481,8 +481,8 @@ function find_nondominated_paths_notimewindows(
                     end
 
                     key = (
-                        round(end_time + s.time_taken, digits = 1), 
-                        round(end_charge - s.charge_taken, digits = 1),
+                        end_time + s.time_taken, 
+                        end_charge - s.charge_taken,
                     )
 
                     if add_path_label_to_collection!(
@@ -505,18 +505,18 @@ function find_nondominated_paths_notimewindows(
     for depot in data["N_depots"]
         push!(
             full_labels[depot][depot],
-            (0.0, data["B"]) => PathLabel(
+            (0, data["B"]) => PathLabel(
                 - κ[depot] - μ[depot],
                 [
                     BaseSubpathLabel(
-                        0.0,
-                        0.0,
+                        0,
+                        0,
                         - κ[depot] - μ[depot],
                         [depot, depot],
                         zeros(Int, data["n_customers"]),
                     )
                 ],
-                [],
+                Int[],
                 zeros(Int, data["n_customers"]),
             )
         )
@@ -537,15 +537,15 @@ function get_subpaths_charging_arcs_from_negative_paths(
 )
     generated_subpaths = Dict{
         Tuple{
-            Tuple{Int, Float64, Float64}, 
-            Tuple{Int, Float64, Float64}
+            Tuple{Int, Int, Int}, 
+            Tuple{Int, Int, Int}
         }, 
         Vector{Subpath},
     }()
     generated_charging_arcs = Dict{
         Tuple{
-            Tuple{Int, Float64, Float64}, 
-            Tuple{Int, Float64, Float64}
+            Tuple{Int, Int, Int}, 
+            Tuple{Int, Int, Int}
         }, 
         Vector{ChargingArc},
     }()
@@ -651,17 +651,17 @@ function subpath_formulation_column_generation_integrated_from_paths(
     )
     some_charging_arcs = Dict{
         Tuple{
-            Tuple{Int, Float64, Float64}, 
-            Tuple{Int, Float64, Float64}
+            Tuple{Int, Int, Int}, 
+            Tuple{Int, Int, Int}
         }, 
         Vector{ChargingArc}
     }()
     charging_arc_costs = Dict{
         Tuple{
-            Tuple{Int, Float64, Float64}, 
-            Tuple{Int, Float64, Float64}
+            Tuple{Int, Int, Int}, 
+            Tuple{Int, Int, Int}
         }, 
-        Vector{Float64}
+        Vector{Int}
     }()
     charging_states_a_s = Set()
     charging_states_s_a = Set()
@@ -722,8 +722,8 @@ function subpath_formulation_column_generation_integrated_from_paths(
     z = Dict{
         Tuple{
             Tuple{
-                Tuple{Int, Float64, Float64}, 
-                Tuple{Int, Float64, Float64}
+                Tuple{Int, Int, Int}, 
+                Tuple{Int, Int, Int}
             }, 
             Int
         }, 
@@ -736,8 +736,8 @@ function subpath_formulation_column_generation_integrated_from_paths(
     w = Dict{
         Tuple{
             Tuple{
-                Tuple{Int, Float64, Float64}, 
-                Tuple{Int, Float64, Float64}
+                Tuple{Int, Int, Int}, 
+                Tuple{Int, Int, Int}
             }, 
             Int
         }, 
@@ -757,12 +757,12 @@ function subpath_formulation_column_generation_integrated_from_paths(
         == data["v_start"][findfirst(x -> (x == i), data["N_depots"])]
     )
     
-    flow_conservation_exprs_s_out = Dict{Tuple{Int, Float64, Float64}, AffExpr}()
-    flow_conservation_exprs_s_in = Dict{Tuple{Int, Float64, Float64}, AffExpr}()
-    flow_conservation_exprs_a_out = Dict{Tuple{Int, Float64, Float64}, AffExpr}()
-    flow_conservation_exprs_a_in = Dict{Tuple{Int, Float64, Float64}, AffExpr}()
-    flow_conservation_constrs_a_s = Dict{Tuple{Int, Float64, Float64}, ConstraintRef}()
-    flow_conservation_constrs_s_a = Dict{Tuple{Int, Float64, Float64}, ConstraintRef}()
+    flow_conservation_exprs_s_out = Dict{Tuple{Int, Int, Int}, AffExpr}()
+    flow_conservation_exprs_s_in = Dict{Tuple{Int, Int, Int}, AffExpr}()
+    flow_conservation_exprs_a_out = Dict{Tuple{Int, Int, Int}, AffExpr}()
+    flow_conservation_exprs_a_in = Dict{Tuple{Int, Int, Int}, AffExpr}()
+    flow_conservation_constrs_a_s = Dict{Tuple{Int, Int, Int}, ConstraintRef}()
+    flow_conservation_constrs_s_a = Dict{Tuple{Int, Int, Int}, ConstraintRef}()
 
     @constraint(
         mp_model,
@@ -1156,15 +1156,15 @@ function collect_solution_support(
     results, 
     subpaths::Dict{
         Tuple{
-            Tuple{Int, Float64, Float64}, 
-            Tuple{Int, Float64, Float64}
+            Tuple{Int, Int, Int}, 
+            Tuple{Int, Int, Int}
         }, 
         Vector{Subpath}
     },
     charging_arcs::Dict{
         Tuple{
-            Tuple{Int, Float64, Float64}, 
-            Tuple{Int, Float64, Float64}
+            Tuple{Int, Int, Int}, 
+            Tuple{Int, Int, Int}
         }, 
         Vector{ChargingArc}
     },
@@ -1238,15 +1238,15 @@ function construct_paths_from_subpath_solution(
     data, 
     subpaths::Dict{
         Tuple{
-            Tuple{Int, Float64, Float64}, 
-            Tuple{Int, Float64, Float64}
+            Tuple{Int, Int, Int}, 
+            Tuple{Int, Int, Int}
         }, 
         Vector{Subpath}
     },
     charging_arcs::Dict{
         Tuple{
-            Tuple{Int, Float64, Float64}, 
-            Tuple{Int, Float64, Float64}
+            Tuple{Int, Int, Int}, 
+            Tuple{Int, Int, Int}
         }, 
         Vector{ChargingArc}
     },
@@ -1336,15 +1336,15 @@ function subpath_results_printout(
     data,
     subpaths::Dict{
         Tuple{
-            Tuple{Int, Float64, Float64}, 
-            Tuple{Int, Float64, Float64}
+            Tuple{Int, Int, Int}, 
+            Tuple{Int, Int, Int}
         }, 
         Vector{Subpath}
     },
     charging_arcs::Dict{
         Tuple{
-            Tuple{Int, Float64, Float64}, 
-            Tuple{Int, Float64, Float64}
+            Tuple{Int, Int, Int}, 
+            Tuple{Int, Int, Int}
         }, 
         Vector{ChargingArc}
     },
