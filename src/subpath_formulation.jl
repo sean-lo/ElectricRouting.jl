@@ -532,6 +532,42 @@ function find_nondominated_paths_notimewindows(
 
 end
 
+function add_subpath_to_generated_subpaths!(
+    generated_subpaths::Dict{Tuple{Tuple{Int, Int, Int}, Tuple{Int, Int, Int}}, Vector{Subpath}},
+    subpath::Subpath,
+)
+    state_pair = (
+        (subpath.starting_node, subpath.starting_time, subpath.starting_charge),
+        (subpath.current_node, subpath.current_time, subpath.current_charge)
+    )
+    if state_pair in keys(generated_subpaths)
+        if !any(isequal(subpath, s) for s in generated_subpaths[state_pair])
+            push!(generated_subpaths[state_pair], subpath)
+        end
+    else
+        generated_subpaths[state_pair] = [subpath]
+    end
+    return
+end
+
+function add_charging_arc_to_generated_charging_arcs!(
+    generated_charging_arcs::Dict{Tuple{Tuple{Int, Int, Int}, Tuple{Int, Int, Int}}, Vector{ChargingArc}},
+    charging_arc::ChargingArc,
+)
+    state_pair = (
+        (charging_arc.starting_node, charging_arc.starting_time, charging_arc.starting_charge),
+        (charging_arc.starting_node, charging_arc.current_time, charging_arc.current_charge)
+    )
+    if state_pair in keys(generated_charging_arcs)
+        if !any(isequal(charging_arc, a) for a in generated_charging_arcs[state_pair])
+            push!(generated_charging_arcs[state_pair], charging_arc)
+        end
+    else
+        generated_charging_arcs[state_pair] = [charging_arc]
+    end
+    return
+end
+
 function get_subpaths_charging_arcs_from_negative_paths(
     data, full_labels,
 )
@@ -564,10 +600,6 @@ function get_subpaths_charging_arcs_from_negative_paths(
                 prev_charge = current_charge
                 current_time = round(current_time + s_label.time_taken, digits = 1)
                 current_charge = round(current_charge - s_label.charge_taken, digits = 1)
-                state_pair = (
-                    (s_label.nodes[1], prev_time, prev_charge),
-                    (s_label.nodes[end], current_time, current_charge)
-                )
                 s = Subpath(
                     n_customers = data["n_customers"],
                     starting_node = s_label.nodes[1],
@@ -579,13 +611,7 @@ function get_subpaths_charging_arcs_from_negative_paths(
                     current_charge = current_charge,
                     served = s_label.served,
                 )
-                if state_pair in keys(generated_subpaths)
-                    if !any(isequal(s, s1) for s1 in generated_subpaths[state_pair])
-                        push!(generated_subpaths[state_pair], s)
-                    end
-                else
-                    generated_subpaths[state_pair] = [s]
-                end
+                add_subpath_to_generated_subpaths!(generated_subpaths, s)
                 if length(deltas) == 0 
                     break
                 end
@@ -594,10 +620,6 @@ function get_subpaths_charging_arcs_from_negative_paths(
                 prev_charge = current_charge
                 current_time = round(current_time + delta, digits = 1)
                 current_charge = round(current_time + delta, digits = 1)
-                state_pair = (
-                    (s_label.nodes[end], prev_time, prev_charge),
-                    (s_label.nodes[end], current_time, current_charge)
-                )
                 a = ChargingArc(
                     starting_node = s_label.nodes[end], 
                     starting_time = prev_time, 
@@ -606,13 +628,7 @@ function get_subpaths_charging_arcs_from_negative_paths(
                     current_time = current_time, 
                     current_charge = current_charge,
                 )
-                if state_pair in keys(generated_charging_arcs)
-                    if !any(isequal(a, a1) for a1 in generated_charging_arcs[state_pair])
-                        push!(generated_charging_arcs[state_pair], a)
-                    end
-                else
-                    generated_charging_arcs[state_pair] = [a]
-                end
+                add_charging_arc_to_generated_charging_arcs!(generated_charging_arcs, a)
             end
         end
     end
