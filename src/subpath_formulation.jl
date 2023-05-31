@@ -733,7 +733,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
     )
 
     mp_model = @suppress Model(Gurobi.Optimizer)
-    set_attribute(mp_model, "MIPGap", 1e-10)
+    set_attribute(mp_model, "MIPGapAbs", 1e-3)
     JuMP.set_string_names_on_creation(mp_model, false)
     z = Dict{
         Tuple{
