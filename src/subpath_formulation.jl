@@ -1152,6 +1152,8 @@ function subpath_formulation_column_generation_integrated_from_paths(
     params["sp_full_time_taken_mean"] = params["sp_full_time_taken_total"] / length(params["sp_full_time_taken"])
     params["sp_time_taken_mean"] = params["sp_base_time_taken_mean"] + params["sp_full_time_taken_mean"]
 
+    params["LP_IP_gap"] = CGIP_results["objective"] / CGLP_results["objective"] - 1.0
+
     for message in [
         @sprintf("\n"),
         @sprintf("(CG) Objective:               %.4e\n", CGLP_results["objective"]),
