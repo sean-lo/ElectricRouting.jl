@@ -5,6 +5,9 @@ using DataStructures
 using JuMP
 using Gurobi
 
+using Plots
+using ColorSchemes
+
 include("utils.jl")
 
 struct TripleStateOrdering <: Base.Order.Ordering
@@ -1248,6 +1251,46 @@ function collect_solution_metrics!(
 
 end
 
+function plot_subpath_solution(
+    results,
+    data,
+    subpaths,
+    charging_arcs,
+)
+    p = plot_instance(data)
+    results["subpaths"], results["charging_arcs"] = collect_solution_support(results, subpaths, charging_arcs)
+    results["paths"] = construct_paths_from_subpath_solution(results, data, subpaths, charging_arcs)
+
+    n_paths = length(results["paths"]) 
+    colors = get(ColorSchemes.tol_bright, collect(0:1:(n_paths-1)) ./(n_paths-1))
+
+    all_plots = []
+    for (i, (val, path)) in enumerate(results["paths"])
+        p = plot_instance(data)
+        arcs = vcat(collect(s.arcs for s in path.subpaths)...)
+        for (j, arc) in enumerate(arcs)
+            plot!(
+                data["coords"][1,collect(arc)],
+                data["coords"][2,collect(arc)],
+                arrow = true,
+                color = colors[i],
+                alpha = 0.5,
+                lw = 1,
+            )
+        end
+        plot!(title = "Vehicle $i: $val")
+        push!(all_plots, p)
+    end
+
+    P = plot(
+        all_plots..., 
+        layout = (n_paths, 1), 
+        size = (500, 400 * n_paths), 
+        legend = false,
+        fmt = :png,
+    )
+    return P
+end
 
 
 
