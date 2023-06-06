@@ -1108,6 +1108,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
     subpath_single_service::Bool = false,
     path_check_customers::Bool = false,
     subpath_check_customers::Bool = false,
+    check_customers_accelerated::Bool = false,
     verbose::Bool = true,
     time_limit::Float64 = Inf,
 )
@@ -1185,6 +1186,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
             subpath_check_customers:        %s
             path_single_service:            %s
             path_check_customers:           %s
+            check_customers_accelerated:    %s
 
             """,
             data["n_customers"],
@@ -1196,6 +1198,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
             subpath_check_customers,
             path_single_service,
             path_check_customers,
+            check_customers_accelerated,
         ),
         verbose,
     )
@@ -1299,6 +1302,8 @@ function subpath_formulation_column_generation_integrated_from_paths(
     )
     @objective(mp_model, Min, subpath_costs_expr + charging_arc_costs_expr)
 
+    checkpoint_reached = false
+
     while (
         !converged
         && time_limit ≥ (time() - start_time)
@@ -1329,24 +1334,121 @@ function subpath_formulation_column_generation_integrated_from_paths(
         push!(params["ν"], mp_results["ν"])
         push!(params["lp_relaxation_solution_time_taken"], mp_results["solution_time_taken"])
 
+        if method == "benchmark"
+            if check_customers_accelerated
+                if checkpoint_reached
+                    
+                else
+                    
+                end
+            else
+                full_labels_result = @timed find_nondominated_paths(
+                    G, data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
+                    ;
+                    time_windows = false, 
+                    single_service = path_single_service,
+                    check_customers = path_check_customers,
+                )
+                (generated_subpaths, generated_charging_arcs) = get_subpaths_charging_arcs_from_negative_path_labels(
+                    data, full_labels_result.value,
+                )
+                full_labels_time = full_labels_result.time
+            end
+            push!(
+                params["sp_base_time_taken"],
+                0.0
+            )
+            push!(
+                params["sp_full_time_taken"],
+                round(full_labels_time, digits=3)
+            )
+            push!(
+                params["sp_total_time_taken"],
+                round(full_labels_time, digits=3)
+            )
+
+
+
+
+
+
+
         if method == "ours"
-            base_labels_result = @timed generate_base_labels(
-                G, data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
-                ;
-                single_service = subpath_single_service,
-                check_customers = subpath_check_customers,
-            )
-            base_labels_time = base_labels_result.time
-            full_labels_result = @timed find_nondominated_paths_notimewindows(
-                data, base_labels_result.value, mp_results["κ"], mp_results["μ"],
-                ;
-                single_service = path_single_service,
-                check_customers = path_check_customers,
-            )
-            full_labels_time = full_labels_result.time
-            (generated_subpaths, generated_charging_arcs) = get_subpaths_charging_arcs_from_negative_paths(
-                data, full_labels_result.value,
-            )
+            if check_customers_accelerated && !checkpoint_reached
+                base_labels_result = @timed generate_base_labels(
+                    G, data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
+                    ;
+                    single_service = subpath_single_service,
+                    check_customers = false,
+                )
+                base_labels_time = base_labels_result.time
+                full_labels_result = @timed find_nondominated_paths_notimewindows(
+                    data, base_labels_result.value, mp_results["κ"], mp_results["μ"],
+                    ;
+                    single_service = path_single_service,
+                    check_customers = false,
+                )
+                full_labels_time = full_labels_result.time
+                (generated_subpaths, generated_charging_arcs) = get_subpaths_charging_arcs_from_negative_paths(
+                    data, full_labels_result.value,
+                )
+                if length(generated_subpaths) == 0 && length(generated_charging_arcs) == 0
+                    checkpoint_reached = true
+                    base_labels_result = @timed generate_base_labels(
+                        G, data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
+                        ;
+                        single_service = subpath_single_service,
+                        check_customers = subpath_check_customers,
+                    )
+                    base_labels_time += base_labels_result.time
+                    full_labels_result = @timed find_nondominated_paths_notimewindows(
+                        data, base_labels_result.value, mp_results["κ"], mp_results["μ"],
+                        ;
+                        single_service = path_single_service,
+                        check_customers = path_check_customers,
+                    )
+                    full_labels_time += full_labels_result.time
+                    (generated_subpaths, generated_charging_arcs) = get_subpaths_charging_arcs_from_negative_paths(
+                        data, full_labels_result.value,
+                    )
+                end
+            elseif check_customers_accelerated && checkpoint_reached
+                base_labels_result = @timed generate_base_labels(
+                    G, data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
+                    ;
+                    single_service = subpath_single_service,
+                    check_customers = subpath_check_customers,
+                )
+                base_labels_time = base_labels_result.time
+                full_labels_result = @timed find_nondominated_paths_notimewindows(
+                    data, base_labels_result.value, mp_results["κ"], mp_results["μ"],
+                    ;
+                    single_service = path_single_service,
+                    check_customers = path_check_customers,
+                )
+                full_labels_time = full_labels_result.time
+                (generated_subpaths, generated_charging_arcs) = get_subpaths_charging_arcs_from_negative_paths(
+                    data, full_labels_result.value,
+                )
+            else
+                base_labels_result = @timed generate_base_labels(
+                    G, data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
+                    ;
+                    single_service = subpath_single_service,
+                    check_customers = subpath_check_customers,
+                )
+                base_labels_time = base_labels_result.time
+                full_labels_result = @timed find_nondominated_paths_notimewindows(
+                    data, base_labels_result.value, mp_results["κ"], mp_results["μ"],
+                    ;
+                    single_service = path_single_service,
+                    check_customers = path_check_customers,
+                )
+                full_labels_time = full_labels_result.time
+                (generated_subpaths, generated_charging_arcs) = get_subpaths_charging_arcs_from_negative_paths(
+                    data, full_labels_result.value,
+                )
+            end
             push!(
                 params["sp_base_time_taken"],
                 round(base_labels_time, digits=3)
@@ -1360,17 +1462,51 @@ function subpath_formulation_column_generation_integrated_from_paths(
                 round(base_labels_time + full_labels_time, digits=3)
             )
         elseif method == "benchmark"
-            full_labels_result = @timed find_nondominated_paths(
-                G, data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
-                ;
-                time_windows = false,
-                single_service = path_single_service,
-                check_customers = path_check_customers,
-            )
-            full_labels_time = full_labels_result.time
-            (generated_subpaths, generated_charging_arcs) = get_subpaths_charging_arcs_from_negative_path_labels(
-                data, full_labels_result.value,
-            )
+            if check_customers_accelerated && !checkpoint_reached
+                full_labels_result = @timed find_nondominated_paths(
+                    G, data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
+                    ;
+                    time_windows = false, single_service = true, check_customers = false,
+                )
+                full_labels_time = full_labels_result.time
+                (generated_subpaths, generated_charging_arcs) = get_subpaths_charging_arcs_from_negative_path_labels(
+                    data, full_labels_result.value,
+                )
+                if length(generated_subpaths) == 0 && length(generated_charging_arcs) == 0
+                    checkpoint_reached = true
+                    full_labels_result = @timed find_nondominated_paths(
+                        G, data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
+                        ;
+                        time_windows = false, single_service = true, check_customers = true,
+                    )
+                    full_labels_time += full_labels_result.time
+                    (generated_subpaths, generated_charging_arcs) = get_subpaths_charging_arcs_from_negative_path_labels(
+                        data, full_labels_result.value,
+                    )
+                end
+            elseif check_customers_accelerated && checkpoint_reached
+                full_labels_result = @timed find_nondominated_paths(
+                    G, data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
+                    ;
+                    time_windows = false, single_service = true, check_customers = true,
+                )
+                full_labels_time = full_labels_result.time
+                (generated_subpaths, generated_charging_arcs) = get_subpaths_charging_arcs_from_negative_path_labels(
+                    data, full_labels_result.value,
+                )
+            else
+                full_labels_result = @timed find_nondominated_paths(
+                    G, data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
+                    ;
+                    time_windows = false,
+                    single_service = path_single_service,
+                    check_customers = path_check_customers,
+                )
+                full_labels_time = full_labels_result.time
+                (generated_subpaths, generated_charging_arcs) = get_subpaths_charging_arcs_from_negative_path_labels(
+                    data, full_labels_result.value,
+                )
+            end
             push!(
                 params["sp_base_time_taken"],
                 0.0
