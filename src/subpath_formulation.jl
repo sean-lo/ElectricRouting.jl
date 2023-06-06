@@ -10,18 +10,6 @@ using ColorSchemes
 
 include("utils.jl")
 
-struct TripleStateOrdering <: Base.Order.Ordering
-end
-struct DoubleStateOrdering <: Base.Order.Ordering
-end
-
-import Base.Order.lt
-import DataStructures.eq
-lt(o::TripleStateOrdering, a, b) = isless((a[2], -a[3], a[1]), (b[2], -b[3], b[1]))
-lt(o::DoubleStateOrdering, a, b) = isless((a[1], -a[2]), (b[1], -b[2]))
-eq(o::TripleStateOrdering, a, b) = isequal(a, b)
-eq(o::DoubleStateOrdering, a, b) = isequal(a, b)
-
 mutable struct BaseSubpathLabel
     time_taken::Int
     charge_taken::Int
@@ -188,6 +176,9 @@ function generate_base_labels(
     κ,
     μ,
     ν,
+    ;
+    single_service::Bool = false,
+    check_customers::Bool = false,
 )
     function add_subpath_label_to_collection!(
         collection::SortedDict{Int, BaseSubpathLabel},
@@ -202,7 +193,7 @@ function generate_base_labels(
                 continue
             end
             if k2 < k1
-                if v2.cost < v1.cost
+                if v2.cost ≤ v1.cost
                     return (false, k2)
                 end
             else
@@ -211,7 +202,7 @@ function generate_base_labels(
                     last = k2
                 end
                 if k1 < k2
-                    if v1.cost < v2.cost
+                    if v1.cost ≤ v2.cost
                         pop!(collection, k2)
                     end
                 end
@@ -225,6 +216,8 @@ function generate_base_labels(
     function direct_sum_of_collections(
         labels1::SortedDict{Int, BaseSubpathLabel},
         labels2::SortedDict{Int, BaseSubpathLabel},
+        ;
+        single_service::Bool = false,
     )
         keys1 = collect(keys(labels1))
         keys2 = collect(keys(labels2))
@@ -235,7 +228,10 @@ function generate_base_labels(
             for (i, (k1, s1)) in enumerate(pairs(labels1)),
                 (j, (k2, s2)) in enumerate(pairs(labels2))
                 if s1.charge_taken + s2.charge_taken ≤ data["B"]
-                    && all(s1.served .+ s2.served .≤ 1)
+                    && (
+                        !single_service 
+                        || all(s1.served .+ s2.served .≤ 1)
+                    )
         ])
             if length(new) == 0
                 push!(new, (t, cost, i, j))
@@ -287,13 +283,23 @@ function generate_base_labels(
         end
     end
 
-    base_labels = Dict(
-        start_node => Dict(
-            current_node => SortedDict{Int, BaseSubpathLabel}()
-            for current_node in data["N_nodes"]
+    if check_customers
+        base_labels = Dict(
+            start_node => Dict(
+                current_node => SortedDict{Tuple{Int, Vararg{Int}}, BaseSubpathLabel}()
+                for current_node in data["N_nodes"]
+            )
+            for start_node in data["N_nodes"]
         )
-        for start_node in data["N_nodes"]
-    )
+    else
+        base_labels = Dict(
+            start_node => Dict(
+                current_node => SortedDict{Int, BaseSubpathLabel}()
+                for current_node in data["N_nodes"]
+            )
+            for start_node in data["N_nodes"]
+        )
+    end
 
     for edge in edges(G)
         start_node = edge.src
@@ -303,7 +309,12 @@ function generate_base_labels(
         if current_node in data["N_customers"]
             served[current_node] = 1
         end
-        base_labels[start_node][current_node][time_taken] = BaseSubpathLabel(
+        if check_customers
+            key = (time_taken, served...)
+        else
+            key = time_taken
+        end
+        base_labels[start_node][current_node][key] = BaseSubpathLabel(
             time_taken,
             data["q"][start_node, current_node],
             modified_costs[start_node, current_node],
@@ -361,6 +372,9 @@ function find_nondominated_paths_notimewindows(
     base_labels,
     κ,
     μ,
+    ;
+    single_service::Bool = false,
+    check_customers::Bool = false,
 )
     function charge_to_specified_level(
         start_charge::Int, 
@@ -376,32 +390,42 @@ function find_nondominated_paths_notimewindows(
     end
 
     function add_path_label_to_collection!(
-        collection::SortedDict{
-            Tuple{Int, Int}, 
-            PathLabel,
-            DoubleStateOrdering
+        collection::Union{
+            SortedDict{
+                Tuple{Int, Int},
+                PathLabel,
+            },
+            SortedDict{
+                Tuple{Int, Int, Vararg{Int}},
+                PathLabel,
+            },
         },
-        k1::Tuple{Int, Int}, 
+        k1::Union{
+            Tuple{Int, Int},
+            Tuple{Int, Int, Vararg{Int}},
+        },
         v1::PathLabel,
         ;
         verbose::Bool = false,
     )
         added = true
-        for (k2, v2) in collection
+        for (k2, v2) in pairs(collection)
+            # println(k2)
             # check if v2 dominates v1
             if v2.cost ≤ v1.cost
-                if k2[1] ≤ k1[1] && k2[2] ≥ k1[2]
+                if all(k2 .≤ k1)
                     added = false
                     if verbose
-                        println("$(k1[1]), $(k1[2]), $(v1.cost) dominated by $(k2[1]), $(k2[2]), $(v2.cost)")
+                        println("$(k1), $(v1.cost) dominated by $(k2), $(v2.cost)")
                     end
                     break
                 end
+            end
             # check if v1 dominates v2
-            elseif v1.cost ≤ v2.cost
-                if k1[1] ≤ k2[1] && k1[2] ≥ k2[2]
+            if v1.cost ≤ v2.cost
+                if all(k1 .≤ k2)
                     if verbose
-                        println("$(k1[1]), $(k1[2]), $(v1.cost) dominates $(k2[1]), $(k2[2]), $(v2.cost)")
+                        println("$(k1), $(v1.cost) dominates $(k2), $(v2.cost)")
                     end
                     pop!(collection, k2)
                 end
@@ -409,28 +433,49 @@ function find_nondominated_paths_notimewindows(
         end
         if added
             if verbose
-                println("$(k1[1]), $(k1[2]), $(v1.cost) added!")
+                println("$(k1), $(v1.cost) added!")
             end
             insert!(collection, k1, v1)
         end
         return added
     end
 
-    tso = TripleStateOrdering()
-    dso = DoubleStateOrdering()
 
-    full_labels = Dict(
-        starting_node => Dict(
-            current_node => SortedDict{
-                Tuple{Int, Int}, 
-                PathLabel
-            }(dso)
-            for current_node in union(data["N_charging"], data["N_depots"])
+    if check_customers
+        full_labels = Dict(
+            starting_node => Dict(
+                current_node => SortedDict{
+                    Tuple{Int, Int, Vararg{Int}}, 
+                    PathLabel
+                }()
+                for current_node in union(data["N_charging"], data["N_depots"])
+            )
+            for starting_node in data["N_depots"]
         )
-        for starting_node in data["N_depots"]
-    )
+    else
+        full_labels = Dict(
+            starting_node => Dict(
+                current_node => SortedDict{
+                    Tuple{Int, Int}, 
+                    PathLabel
+                }()
+                for current_node in union(data["N_charging"], data["N_depots"])
+            )
+            for starting_node in data["N_depots"]
+        )
+    end
+
+    if check_customers
+        # label key here has the following fields:
+        # 1) current time
+        # 2) negative of current charge
+        # 3) if applicable, whether i-th customer served
+        key = (0, -data["B"], zeros(Int, data["n_customers"])...)
+    else
+        key = (0, -data["B"])
+    end
     for depot in data["N_depots"]
-        full_labels[depot][depot][(0, data["B"])] = PathLabel(
+        full_labels[depot][depot][key] = PathLabel(
             0.0,
             BaseSubpathLabel[],
             Tuple{Int, Int}[],
@@ -438,77 +483,96 @@ function find_nondominated_paths_notimewindows(
         )
     end
     unexplored_states = SortedSet(
-        tso,
         [
-            (depot, 0, data["B"])
+            (key..., depot, depot)
             for depot in data["N_depots"]
         ]
     )
 
     while length(unexplored_states) > 0
         state = pop!(unexplored_states)
-        for starting_node in data["N_depots"]
-            if !((state[2], state[3]) in keys(full_labels[starting_node][state[1]]))
-                continue
-            end
-            current_path = full_labels[starting_node][state[1]][(state[2], state[3])]
-            for next_node in union(data["N_depots"], data["N_charging"])
-                for s in values(base_labels[state[1]][next_node])
-                    if (
-                        next_node in data["N_depots"]
-                        && s.time_taken == 0
-                    )
-                        continue
-                    end
-                    if (
-                        any(s.served + current_path.served .> 1)
-                    )
-                        continue
-                    end
-                    (delta, end_time, end_charge) = charge_to_specified_level(
-                        state[3], 
-                        s.charge_taken, 
-                        state[2], 
-                    )
-                    if end_time + s.time_taken > data["T"]
-                        continue
-                    end
+        starting_node = state[end-1]
+        current_node = state[end]
+        if !(state[1:end-2] in keys(full_labels[starting_node][current_node]))
+            continue
+        end
+        current_path = full_labels[starting_node][current_node][state[1:end-2]]
+        for next_node in union(data["N_depots"], data["N_charging"])
+            for s in values(base_labels[current_node][next_node])
+                if (
+                    next_node in data["N_depots"]
+                    && s.time_taken == 0
+                )
+                    continue
+                end
+                if (
+                    single_service
+                    && any(s.served + current_path.served .> 1)
+                )
+                    continue
+                end
+                (delta, end_time, end_charge) = charge_to_specified_level(
+                    - state[2], # current charge
+                    s.charge_taken, 
+                    state[1], # current time
+                )
+                if end_time + s.time_taken > data["T"]
+                    continue
+                end
 
-                    new_path = copy(current_path)
-                    new_path.cost += s.cost
-                    push!(new_path.subpath_labels, s)
-                    new_path.served += s.served
-                    if length(current_path.subpath_labels) > 0
-                        push!(new_path.charging_actions, delta)
-                        new_path.cost += data["charge_cost_coeff"] * delta
-                    end
+                new_path = copy(current_path)
+                new_path.cost += s.cost
+                push!(new_path.subpath_labels, s)
+                new_path.served += s.served
+                if length(current_path.subpath_labels) > 0
+                    push!(new_path.charging_actions, delta)
+                    new_path.cost += data["charge_cost_coeff"] * delta
+                end
 
+                if check_customers
                     key = (
                         end_time + s.time_taken, 
-                        end_charge - s.charge_taken,
+                        - (end_charge - s.charge_taken),
+                        new_path.served...
                     )
+                else
+                    key = (
+                        end_time + s.time_taken, 
+                        - (end_charge - s.charge_taken),
+                    )
+                end
 
-                    if add_path_label_to_collection!(
-                        full_labels[starting_node][next_node],
-                        key, new_path,
+                # println(key)
+                added = add_path_label_to_collection!(
+                    full_labels[starting_node][next_node],
+                    key, new_path,
+                )
+                if added
+                    next_state = (key..., starting_node, next_node)
+                    if (
+                        next_node in data["N_charging"] 
+                        && !(next_state in unexplored_states)
                     )
-                        next_state = (next_node, key[1], key[2])
-                        if (
-                            next_node in data["N_charging"] 
-                            && !(next_state in unexplored_states)
-                        )
-                            insert!(unexplored_states, next_state)
-                        end
+                        push!(unexplored_states, next_state)
                     end
                 end
             end
         end
     end
 
+    if check_customers
+        # label key here has the following fields:
+        # 1) current time
+        # 2) negative of current charge
+        # 3) if applicable, whether i-th customer served
+        key = (0, -data["B"], zeros(Int, data["n_customers"])...)
+    else
+        key = (0, -data["B"])
+    end
     for depot in data["N_depots"]
         push!(
             full_labels[depot][depot],
-            (0, data["B"]) => PathLabel(
+            key => PathLabel(
                 - κ[depot] - μ[depot],
                 [
                     BaseSubpathLabel(
@@ -642,7 +706,10 @@ function subpath_formulation_column_generation_integrated_from_paths(
     G,
     data, 
     ;
-    with_time_windows::Bool = false,
+    path_single_service::Bool = false,
+    subpath_single_service::Bool = false,
+    path_check_customers::Bool = false,
+    subpath_check_customers::Bool = false,
     verbose::Bool = true,
     time_limit::Float64 = Inf,
 )
@@ -711,16 +778,24 @@ function subpath_formulation_column_generation_integrated_from_paths(
         @sprintf(
             """
             Starting column generation.
-            # customers:                %2d
-            # depots:                   %2d
-            # charging stations:        %2d
-            # vehicles:                 %2d
+            # customers:                    %2d
+            # depots:                       %2d
+            # charging stations:            %2d
+            # vehicles:                     %2d
+            subpath_single_service:         %s
+            subpath_check_customers:        %s
+            path_single_service:            %s
+            path_check_customers:           %s
 
             """,
             data["n_customers"],
             data["n_depots"],
             data["n_charging"],
             data["n_vehicles"],
+            subpath_single_service,
+            subpath_check_customers,
+            path_single_service,
+            path_check_customers,
         ),
         verbose,
     )
@@ -854,50 +929,35 @@ function subpath_formulation_column_generation_integrated_from_paths(
         push!(params["ν"], mp_results["ν"])
         push!(params["lp_relaxation_solution_time_taken"], mp_results["solution_time_taken"])
 
-        if with_time_windows
-            error("`with_time_windows` not yet implemented!")
-            push!(
-                params["sp_base_time_taken"],
-                0.0
-            )
-            push!(
-                params["sp_full_time_taken"],
-                0.0
-            )
-            push!(
-                params["sp_total_time_taken"],
-                0.0,
-            )
-        else
-            base_labels_result = @timed generate_base_labels(
-                G, 
-                data,
-                mp_results["κ"],
-                mp_results["μ"],
-                mp_results["ν"],
-            )
-            full_labels_result = @timed find_nondominated_paths_notimewindows(
-                data, base_labels_result.value,
-                mp_results["κ"],
-                mp_results["μ"],
-            )
-            (generated_subpaths, generated_charging_arcs) = get_subpaths_charging_arcs_from_negative_paths(
-                data,
-                full_labels_result.value,
-            )
-            push!(
-                params["sp_base_time_taken"],
-                round(base_labels_result.time, digits=3)
-            )
-            push!(
-                params["sp_full_time_taken"],
-                round(full_labels_result.time, digits=3)
-            )
-            push!(
-                params["sp_total_time_taken"],
-                round(base_labels_result.time + full_labels_result.time, digits=3)
-            )
-        end
+        base_labels_result = @timed generate_base_labels(
+            G, data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
+            ;
+            single_service = subpath_single_service,
+            check_customers = subpath_check_customers,
+        )
+        base_labels_time = base_labels_result.time
+        full_labels_result = @timed find_nondominated_paths_notimewindows(
+            data, base_labels_result.value, mp_results["κ"], mp_results["μ"],
+            ;
+            single_service = path_single_service,
+            check_customers = path_check_customers,
+        )
+        full_labels_time = full_labels_result.time
+        (generated_subpaths, generated_charging_arcs) = get_subpaths_charging_arcs_from_negative_paths(
+            data, full_labels_result.value,
+        )
+        push!(
+            params["sp_base_time_taken"],
+            round(base_labels_time, digits=3)
+        )
+        push!(
+            params["sp_full_time_taken"],
+            round(full_labels_time, digits=3)
+        )
+        push!(
+            params["sp_total_time_taken"],
+            round(base_labels_time + full_labels_time, digits=3)
+        )
 
         if length(generated_subpaths) == 0
             push!(params["number_of_new_subpaths"], 0)

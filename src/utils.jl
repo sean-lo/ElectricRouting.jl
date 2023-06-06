@@ -18,7 +18,7 @@ Base.@kwdef mutable struct Subpath
     arcs::Vector{Tuple} = []
     current_time::Int = starting_time
     current_charge::Int = starting_charge
-    served::BitVector = falses(n_customers)
+    served::Vector{Int} = zeros(Int, n_customers)
     artificial::Bool = false
 end
 
