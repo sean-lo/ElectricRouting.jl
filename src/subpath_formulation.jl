@@ -63,10 +63,10 @@ function generate_artificial_subpaths(data)
             (current_node, current_time, current_charge)
         )
         # initialise a proportion of the customers to be served
-        served = falses(data["n_customers"])
+        served = zeros(Int, data["n_customers"])
         for i in 1:length(served)
             if mod1(i, data["n_vehicles"]) == v
-                served[i] = true
+                served[i] = 1
             end
         end
         s = Subpath(
