@@ -249,6 +249,57 @@ function generate_base_labels(
         return (true, k1)
     end
 
+    function add_subpath_longlabel_to_collection!(
+        collection::Union{
+            SortedDict{
+                Int,
+                BaseSubpathLabel,
+            },
+            SortedDict{
+                Tuple{Int, Vararg{Int}},
+                BaseSubpathLabel,
+            },
+        },
+        k1::Union{
+            Int,
+            Tuple{Int, Vararg{Int}},
+        },
+        v1::BaseSubpathLabel,
+        ;
+        verbose::Bool = false,
+    )
+        added = true
+        for (k2, v2) in pairs(collection)
+            # println(k2)
+            # check if v2 dominates v1
+            if v2.cost ≤ v1.cost
+                if all(k2 .≤ k1)
+                    added = false
+                    if verbose
+                        println("$(k1), $(v1.cost) dominated by $(k2), $(v2.cost)")
+                    end
+                    break
+                end
+            end
+            # check if v1 dominates v2
+            if v1.cost ≤ v2.cost
+                if all(k1 .≤ k2)
+                    if verbose
+                        println("$(k1), $(v1.cost) dominates $(k2), $(v2.cost)")
+                    end
+                    pop!(collection, k2)
+                end
+            end
+        end
+        if added
+            if verbose
+                println("$(k1), $(v1.cost) added!")
+            end
+            insert!(collection, k1, v1)
+        end
+        return added
+    end
+
     function direct_sum_of_collections(
         labels1::SortedDict{Int, BaseSubpathLabel},
         labels2::SortedDict{Int, BaseSubpathLabel},
@@ -368,10 +419,39 @@ function generate_base_labels(
                 if length(base_labels[new_node][end_node]) == 0
                     continue
                 end
-                merge_collections!(
-                    base_labels[start_node][end_node],
-                    direct_sum_of_collections(base_labels[start_node][new_node], base_labels[new_node][end_node])
-                )
+                if true
+                    for (k1, s1) in pairs(base_labels[start_node][new_node])
+                        for (k2, s2) in pairs(base_labels[new_node][end_node])
+                            k = k1 .+ k2
+                            if single_service && !all(s1.served .+ s2.served .≤ 1)
+                                continue
+                            end
+                            if s1.charge_taken + s2.charge_taken > data["B"]
+                                continue
+                            end
+                            s = BaseSubpathLabel(
+                                s1.time_taken + s2.time_taken,
+                                s1.charge_taken + s2.charge_taken,
+                                s1.cost + s2.cost,
+                                vcat(s1.nodes, s2.nodes[2:end]),
+                                s1.served .+ s2.served,
+                            )
+                            add_subpath_longlabel_to_collection!(
+                                base_labels[start_node][end_node],
+                                k, s,
+                            )
+                        end
+                    end
+                else
+                    merge_collections!(
+                        base_labels[start_node][end_node],
+                        direct_sum_of_collections(
+                            base_labels[start_node][new_node], 
+                            base_labels[new_node][end_node],
+                            single_service = single_service
+                        )
+                    )
+                end
             end
         end
     end
