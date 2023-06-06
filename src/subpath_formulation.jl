@@ -118,7 +118,7 @@ end
 function compute_subpath_cost(
     data,
     s::Subpath,
-    M::Float64 = 1e8,
+    M::Float64 = 1e10,
     ;
 )
     if s.artificial 
@@ -136,7 +136,7 @@ end
 function compute_subpath_costs(
     data,
     all_subpaths,
-    M::Float64 = 1e8,
+    M::Float64 = 1e10,
     ;
 )
     subpath_costs = Dict(

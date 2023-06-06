@@ -225,9 +225,9 @@ function generate_instance(
     # c = Int.(round.(100 .* distances))
     # t = Int.(round.(100 .* distances)) # travel times are integer
     # q = Int.(round.(100 .* distances)) # charge costs are integer
-    c = Int.(round.(distances .* 100))
-    t = Int.(round.(distances .* 100) .* μ)
-    q = Int.(round.(distances .* 100))
+    c = Int.(round.(distances .* 10000))
+    t = Int.(round.(distances .* 10000) .* μ)
+    q = Int.(round.(distances .* 10000))
     d = vcat(
         floor.(rand(Gamma(load_scale, load_shape), n_customers) ./ n_customers),
         repeat([0], n_depots + n_charging),
@@ -367,7 +367,7 @@ function plot_instance(data)
         color = :green
     )
     annotate!.(
-        data["customer_coords"][1,:] .+ 0.15, data["customer_coords"][2,:], 
+        data["customer_coords"][1,:] .+ 0.1, data["customer_coords"][2,:], 
         text.(
             collect(string(i) for i in 1:data["n_customers"]), 
             :green, :left, 11
@@ -380,7 +380,7 @@ function plot_instance(data)
         color = :black
     )
     annotate!.(
-        data["depot_coords"][1,:] .+ 0.15, data["depot_coords"][2,:], 
+        data["depot_coords"][1,:] .+ 0.1, data["depot_coords"][2,:], 
         text.(
             collect("M" * string(i) for i in 1:data["n_depots"]), 
             :black, :left, 11
@@ -393,7 +393,7 @@ function plot_instance(data)
         color = :grey
     )
     annotate!.(
-        data["charging_coords"][1,:] .+ 0.15, data["charging_coords"][2,:], 
+        data["charging_coords"][1,:] .+ 0.1, data["charging_coords"][2,:], 
         text.(
             collect("R" * string(i) for i in 1:data["n_charging"]), 
             :grey, :left, 11
