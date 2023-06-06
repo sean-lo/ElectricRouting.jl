@@ -118,6 +118,9 @@ function generate_instance(
     n_customers::Int,
     n_charging::Int,
     n_vehicles::Int,
+    depot_pattern::String,
+    customer_pattern::String,
+    charging_pattern::String,
     shrinkage_depots::Float64,
     shrinkage_charging::Float64,
     T::Int,
@@ -132,11 +135,29 @@ function generate_instance(
     batch::Int,
     permissiveness::Float64,
 )
-    function complex_coords(n, seed)
-        Random.seed!(seed)
+    function complex_coords(n)
         return hcat(
             [round.(collect(reim(exp(2 * pi * j * im / n))), digits = 5)
             for j in 1:n]...
+        )
+    end
+
+    function get_rectangle(n)
+        a = Int(ceil(sqrt(n)))
+        b = n ÷ a
+        while b * a != n
+            a -= 1
+            b = n ÷ a
+        end
+        return a, b
+    end
+
+    function grid_coords(a, b)
+        return hcat(
+            [
+                [-1 + (2 * i) / (a - 1), -1 + (2 * j) / (b - 1)]
+                for i in 0:a-1, j in 0:b-1
+            ]...
         )
     end
 
@@ -173,9 +194,20 @@ function generate_instance(
         i => "Charging $ind" for (ind, i) in enumerate(N_charging)
     ))
 
-    customer_coords = uniform_coords_random(n_customers, seeds[1])
-    depot_coords = shrinkage_depots * complex_coords(n_depots, seeds[2])
-    charging_coords = shrinkage_charging * complex_coords(n_charging, seeds[3])
+    if customer_pattern == "random_box"
+        customer_coords = uniform_coords_random(n_customers, seeds[1])
+    elseif customer_pattern == "random_uniform_polar"
+        customer_coords = complex_coords_random(n_customers, seeds[1])
+    end
+    if depot_pattern == "circular"
+        depot_coords = shrinkage_depots * complex_coords(n_depots)
+    end
+    if charging_pattern == "circular"
+        charging_coords = shrinkage_charging * complex_coords(n_charging)
+    elseif charging_pattern == "grid"
+        (a, b) = get_rectangle(n_charging)
+        charging_coords = shrinkage_charging * grid_coords(a, b)
+    end
     coords = hcat(
         customer_coords,
         depot_coords,
