@@ -95,22 +95,32 @@ function compute_subpath_modified_cost(
     κ,
     μ,
     ν,
+    ;
+    verbose = false,
 )
     reduced_cost = compute_subpath_cost(data, s)
+    verbose && println("Subpath cost: \t\t$reduced_cost")
 
-    for j in findall(s.served)
-        reduced_cost = reduced_cost - ν[j]
+    service_cost = 0.0
+    for (j, c) in enumerate(s.served)
+        service_cost += (c * -ν[j])
     end
+    verbose && println("Service cost: \t\t$service_cost")
+    reduced_cost += service_cost
 
     if s.starting_node in data["N_depots"]
         if s.starting_time == 0.0 && s.starting_charge == data["B"]
+            verbose && println("Starting depot cost: \t$(- κ[s.starting_node])")
             reduced_cost = reduced_cost - κ[s.starting_node]
         end
     end
 
     if s.current_node in data["N_depots"]
+        verbose && println("Ending depot cost: \t$( - μ[s.current_node])")
         reduced_cost = reduced_cost - μ[s.current_node]
     end
+
+    verbose && println("Total modified cost: \t$reduced_cost\n")
 
     return reduced_cost
 end
