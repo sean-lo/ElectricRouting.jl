@@ -234,7 +234,7 @@ function generate_base_labels(
     
         new = []
         for (t, cost, i, j) in sort([
-            (round(k1 + k2, digits = 1), s1.cost + s2.cost, i, j)
+            (k1 + k2, s1.cost + s2.cost, i, j)
             for (i, (k1, s1)) in enumerate(pairs(labels1)),
                 (j, (k2, s2)) in enumerate(pairs(labels2))
                 if s1.charge_taken + s2.charge_taken ≤ data["B"]
@@ -259,7 +259,7 @@ function generate_base_labels(
         new_labels = SortedDict{Int, BaseSubpathLabel}(
             t => BaseSubpathLabel(
                 t,
-                round(labels1[keys1[i]].charge_taken + labels2[keys2[j]].charge_taken, digits = 1),
+                labels1[keys1[i]].charge_taken + labels2[keys2[j]].charge_taken,
                 cost,
                 vcat(labels1[keys1[i]].nodes, labels2[keys2[j]].nodes[2:end]),
                 labels1[keys1[i]].served .+ labels2[keys2[j]].served
@@ -675,8 +675,8 @@ function get_subpaths_charging_arcs_from_negative_paths(
                 s_label = popfirst!(s_labels)
                 prev_time = current_time
                 prev_charge = current_charge
-                current_time = round(current_time + s_label.time_taken, digits = 1)
-                current_charge = round(current_charge - s_label.charge_taken, digits = 1)
+                current_time = current_time + s_label.time_taken
+                current_charge = current_charge - s_label.charge_taken
                 s = Subpath(
                     n_customers = data["n_customers"],
                     starting_node = s_label.nodes[1],
@@ -695,8 +695,8 @@ function get_subpaths_charging_arcs_from_negative_paths(
                 delta = popfirst!(deltas)
                 prev_time = current_time
                 prev_charge = current_charge
-                current_time = round(current_time + delta, digits = 1)
-                current_charge = round(current_time + delta, digits = 1)
+                current_time = current_time + delta
+                current_charge = current_charge + delta
                 a = ChargingArc(
                     starting_node = s_label.nodes[end], 
                     starting_time = prev_time, 
