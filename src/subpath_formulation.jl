@@ -1414,45 +1414,6 @@ function subpath_formulation_column_generation_integrated_from_paths(
         push!(params["ν"], mp_results["ν"])
         push!(params["lp_relaxation_solution_time_taken"], mp_results["solution_time_taken"])
 
-        if method == "benchmark"
-            if check_customers_accelerated
-                if checkpoint_reached
-                    
-                else
-                    
-                end
-            else
-                full_labels_result = @timed find_nondominated_paths(
-                    G, data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
-                    ;
-                    time_windows = false, 
-                    single_service = path_single_service,
-                    check_customers = path_check_customers,
-                )
-                (generated_subpaths, generated_charging_arcs) = get_subpaths_charging_arcs_from_negative_path_labels(
-                    data, full_labels_result.value,
-                )
-                full_labels_time = full_labels_result.time
-            end
-            push!(
-                params["sp_base_time_taken"],
-                0.0
-            )
-            push!(
-                params["sp_full_time_taken"],
-                round(full_labels_time, digits=3)
-            )
-            push!(
-                params["sp_total_time_taken"],
-                round(full_labels_time, digits=3)
-            )
-
-
-
-
-
-
-
         if method == "ours"
             if check_customers_accelerated && !checkpoint_reached
                 base_labels_result = @timed generate_base_labels(
