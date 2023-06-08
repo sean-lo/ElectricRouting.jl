@@ -115,6 +115,90 @@ function generate_artificial_subpaths(data)
     return artificial_subpaths
 end
 
+function compute_path_cost(
+    p::Path,
+    data,
+    ;
+    verbose = false,
+)
+    subpath_costs = length(p.subpaths) > 0 ? sum(compute_subpath_cost(data, s) for s in p.subpaths) : 0
+    verbose && @printf("Subpath costs: \t\t%11.3f\n", subpath_costs)
+
+    charging_costs = length(p.charging_arcs) > 0 ? sum(compute_charging_arc_cost(data, a) for a in p.charging_arcs) : 0
+    verbose && @printf("Charging arc costs: \t\t%11d\n", charging_arc_costs)
+    
+    return subpath_costs + charging_arc_costs
+end
+
+function compute_path_modified_cost(
+    p::Path,
+    data,
+    κ,
+    μ,
+    ν,
+    ;
+    verbose = false,
+)
+    reduced_cost = 0.0
+    for s in p.subpaths
+        reduced_cost += compute_subpath_modified_cost(s, data, κ, μ, ν, verbose = verbose)
+    end
+    charging_costs = length(p.charging_arcs) > 0 ? sum(compute_charging_arc_cost(data, a) for a in p.charging_arcs) : 0
+    verbose && @printf("Charging arc costs: \t%11d\n", charging_costs)
+
+    reduced_cost += charging_costs
+
+    verbose && @printf("Total modified cost: \t%11.3f\n\n", reduced_cost)
+
+    return reduced_cost
+end
+
+function compute_path_label_cost(
+    p::FullPathLabel,
+    data,
+    ;
+    verbose = false,
+)
+    arcs = collect(zip(p.nodes[1:end-1], p.nodes[2:end]))
+    cost = data["travel_cost_coeff"] * sum(data["c"][a...] for a in arcs)
+    verbose && @printf("Path cost: \t\t%11.3f\n", cost)
+
+    charging_cost = data["charge_cost_coeff"] * (sum(p.slacks) + sum(p.excesses))
+    verbose && @printf("Charging cost: \t\t%11.3f\n", charging_cost)
+    cost += charging_cost
+
+    return cost
+end
+
+function compute_path_label_modified_cost(
+    p::FullPathLabel,
+    data,
+    κ,
+    μ,
+    ν,
+    ;
+    verbose = false,
+)
+    reduced_cost = compute_path_label_cost(p, data, verbose = verbose)
+
+    service_cost = 0.0
+    for (j, c) in enumerate(p.served)
+        service_cost += (c * -ν[j])
+    end
+    verbose && @printf("Service cost: \t\t%11.3f\n", service_cost)
+    reduced_cost += service_cost
+
+    verbose && @printf("Starting depot cost: \t%11.3f\n", (- κ[p.nodes[1]]))
+    reduced_cost = reduced_cost - κ[p.nodes[1]]
+
+    verbose && @printf("Ending depot cost: \t%11.3f\n", (- μ[p.nodes[end]]))
+    reduced_cost = reduced_cost - μ[p.nodes[end]]
+
+    verbose && @printf("Total modified cost: \t%11.3f\n\n", reduced_cost)
+
+    return reduced_cost
+end
+
 function compute_subpath_modified_cost(
     s::Subpath,
     data,
@@ -125,28 +209,28 @@ function compute_subpath_modified_cost(
     verbose = false,
 )
     reduced_cost = compute_subpath_cost(data, s)
-    verbose && println("Subpath cost: \t\t$reduced_cost")
+    verbose && @printf("Subpath cost: \t\t%11.3f\n", reduced_cost)
 
     service_cost = 0.0
     for (j, c) in enumerate(s.served)
         service_cost += (c * -ν[j])
     end
-    verbose && println("Service cost: \t\t$service_cost")
+    verbose && @printf("Service cost: \t\t%11.3f\n", service_cost)
     reduced_cost += service_cost
 
     if s.starting_node in data["N_depots"]
         if s.starting_time == 0.0 && s.starting_charge == data["B"]
-            verbose && println("Starting depot cost: \t$(- κ[s.starting_node])")
+            verbose && @printf("Starting depot cost: \t%11.3f\n", (- κ[s.starting_node]))
             reduced_cost = reduced_cost - κ[s.starting_node]
         end
     end
 
     if s.current_node in data["N_depots"]
-        verbose && println("Ending depot cost: \t$( - μ[s.current_node])")
+        verbose && @printf("Ending depot cost: \t%11.3f\n", ( - μ[s.current_node]))
         reduced_cost = reduced_cost - μ[s.current_node]
     end
 
-    verbose && println("Total modified cost: \t$reduced_cost\n")
+    verbose && @printf("Total modified cost: \t%11.3f\n\n", reduced_cost)
 
     return reduced_cost
 end
