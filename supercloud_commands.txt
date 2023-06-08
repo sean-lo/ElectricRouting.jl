@@ -3,7 +3,7 @@ ssh slo@txe1-login.mit.edu
 
 # File transfer (local to cloud)
 (From research) 
-scp -r electric_trucking slo@txe1-login.mit.edu:/home/gridsan/slo/slo
+scp -r evrp slo@txe1-login.mit.edu:/home/gridsan/slo/slo
 
 # Query resources
 LLstat
