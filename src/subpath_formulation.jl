@@ -1638,9 +1638,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
                     end
                     # 6: modify customer service constraints
                     for l in data["N_customers"]
-                        if subpath_service[(state_pair, l)][count] == 1
-                            set_normalized_coefficient(ν[l], z[state_pair, count], 1)
-                        end
+                        set_normalized_coefficient(ν[l], z[state_pair, count], s_new.served[l])
                     end
                     # 7: modify objective
                     set_objective_coefficient(mp_model, z[state_pair, count], subpath_costs[state_pair][count])
