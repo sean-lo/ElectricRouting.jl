@@ -1,12 +1,9 @@
 using Random
-using Suppressor 
 using Combinatorics
 using StatsBase
-using StatsPlots
 using Distributions
 using Distances
 using Printf
-
 using Graphs
 
 Base.@kwdef mutable struct Subpath
@@ -111,6 +108,165 @@ Base.copy(p::Path) = Path(
     served = copy(p.served),
 )
 
+function compute_subpath_cost(
+    data,
+    s::Subpath,
+    M::Float64 = 1e10,
+    ;
+)
+    if s.artificial 
+        return M
+    elseif length(s.arcs) == 0
+        return 0
+    end
+
+    travel_cost = data["travel_cost_coeff"] * sum(
+        data["c"][a...] for a in s.arcs
+    )
+    return travel_cost
+end
+
+function compute_subpath_modified_cost(
+    data,
+    s::Subpath,
+    κ,
+    μ,
+    ν,
+    ;
+    verbose = false,
+)
+    reduced_cost = compute_subpath_cost(data, s)
+    verbose && @printf("Subpath cost: \t\t%11.3f\n", reduced_cost)
+
+    service_cost = 0.0
+    for (j, c) in enumerate(s.served)
+        service_cost += (c * -ν[j])
+    end
+    verbose && @printf("Service cost: \t\t%11.3f\n", service_cost)
+    reduced_cost += service_cost
+
+    if s.starting_node in data["N_depots"]
+        if s.starting_time == 0.0 && s.starting_charge == data["B"]
+            verbose && @printf("Starting depot cost: \t%11.3f\n", (- κ[s.starting_node]))
+            reduced_cost = reduced_cost - κ[s.starting_node]
+        end
+    end
+
+    if s.current_node in data["N_depots"]
+        verbose && @printf("Ending depot cost: \t%11.3f\n", ( - μ[s.current_node]))
+        reduced_cost = reduced_cost - μ[s.current_node]
+    end
+
+    verbose && @printf("Total modified cost: \t%11.3f\n\n", reduced_cost)
+
+    return reduced_cost
+end
+
+function compute_subpath_costs(
+    data,
+    all_subpaths,
+    M::Float64 = 1e10,
+    ;
+)
+    subpath_costs = Dict(
+        key => [
+            compute_subpath_cost(data, s, M;)
+            for s in all_subpaths[key]
+        ]
+        for key in keys(all_subpaths)
+    )
+    return subpath_costs
+end
+
+function compute_subpath_service(
+    data, 
+    all_subpaths,
+)
+    subpath_service = Dict(
+        (key, i) => [
+            s.served[i]
+            for s in all_subpaths[key]
+        ]
+        for key in keys(all_subpaths), i in 1:data["n_customers"]
+    )
+    return subpath_service
+end
+
+function compute_charging_arc_cost(
+    data,
+    a::ChargingArc,
+)
+    return data["charge_cost_coeff"] * a.delta
+end
+
+function compute_path_cost(
+    data,
+    p::Path,
+    M::Float64 = 1e10,
+    ;
+    verbose = false,
+)
+    subpath_costs = length(p.subpaths) > 0 ? sum(compute_subpath_cost(data, s, M) for s in p.subpaths) : 0
+    verbose && @printf("Subpath costs: \t\t%11.3f\n", subpath_costs)
+
+    charging_arc_costs = length(p.charging_arcs) > 0 ? sum(compute_charging_arc_cost(data, a) for a in p.charging_arcs) : 0
+    verbose && @printf("Charging arc costs: \t\t%11d\n", charging_arc_costs)
+    
+    return subpath_costs + charging_arc_costs
+end
+
+function compute_path_modified_cost(
+    data,
+    p::Path,
+    κ,
+    μ,
+    ν,
+    ;
+    verbose = false,
+)
+    reduced_cost = 0.0
+    for s in p.subpaths
+        reduced_cost += compute_subpath_modified_cost(data, s, κ, μ, ν, verbose = verbose)
+    end
+    charging_costs = length(p.charging_arcs) > 0 ? sum(compute_charging_arc_cost(data, a) for a in p.charging_arcs) : 0
+    verbose && @printf("Charging arc costs: \t%11d\n", charging_costs)
+
+    reduced_cost += charging_costs
+
+    verbose && @printf("Total modified cost: \t%11.3f\n\n", reduced_cost)
+
+    return reduced_cost
+end
+
+function compute_path_costs(
+    data,
+    all_paths,
+    M::Float64 = 1e10,
+    ;
+)
+    path_costs = Dict(
+        key => [
+            compute_path_cost(data, p, M;)
+            for p in all_paths[key]
+        ]
+        for key in keys(all_paths)
+    )
+    return path_costs
+end
+
+function compute_path_service(
+    data, 
+    all_paths,
+)
+    path_service = Dict(
+        (key, i) => [
+            p.served[i]
+            for p in all_paths[key]
+        ]
+        for key in keys(all_paths), i in 1:data["n_customers"]
+    )
+    return path_service
+end
 
 function generate_instance(
     ;

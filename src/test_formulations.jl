@@ -1,294 +1,148 @@
 include("arc_formulation.jl")
 include("subpath_formulation.jl")
+include("path_formulation.jl")
 include("utils.jl")
 
 using Distributions
 using CSV, DataFrames
 
-data = generate_instance(
-    ;
-    n_depots = 2,
-    n_customers = 10,
-    n_charging = 2,
-    n_vehicles = 4,
-    shrinkage_depots = 1.4,
-    shrinkage_charging = 0.6,
-    T = 1200.0,
-    seed = 0,
-    B = 800.0,
-    μ = 5.0,
-    travel_cost_coeff = 7,
-    charge_cost_coeff = 3,
-    load_scale = 5.0,
-    load_shape = 20.0,
-    load_tolerance = 1.2,
-    batch = 2,
-    permissiveness = 0.2,
-)
-plot_instance(data)
-
-arc_results, arc_params = arc_formulation(data, with_time_windows = false, with_charging = true, time_limit = 60)
-arc_paths = construct_paths_from_arc_solution(arc_results, data)
-arc_results_printout(
-    arc_results, 
-    arc_params,
-    data,
-    with_charging = true,
-)
-
-arc_tw_results, arc_tw_params = arc_formulation(data, with_time_windows = true, with_charging = true, time_limit = 60)
-arc_tw_paths = construct_paths_from_arc_solution(arc_tw_results, data)
-arc_results_printout(
-    arc_tw_results, 
-    arc_tw_params,
-    data,
-    with_charging = true,
-)
-
-G = construct_graph(data)
-CGLP_results, CGIP_results, params, printlist, some_subpaths, some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data);
-print.(printlist);
-
-subpath_results_printout(
-    CGLP_results,
-    params,
-    data,
-    some_subpaths,
-    some_charging_arcs,
-)
-
-subpath_results_printout(
-    CGIP_results,
-    params,
-    data,
-    some_subpaths,
-    some_charging_arcs,
-)
-
-G_sparse = construct_sparse_graph(data, 1.0)
-(
-    CGLP_results_sparse, 
-    CGIP_results_sparse, 
-    params_sparse, 
-    printlist_sparse, 
-    some_subpaths_sparse, 
-    some_charging_arcs_sparse,
-) = subpath_formulation_column_generation_integrated_from_paths(G_sparse, data);
-
-subpath_results_printout(
-    CGLP_results,
-    params,
-    data,
-    some_subpaths,
-    some_charging_arcs,
-)
-
-subpath_results_printout(
-    CGIP_results,
-    params,
-    data,
-    some_subpaths,
-    some_charging_arcs,
-)
-
-include("utils.jl")
-include("subpath_formulation.jl")
-all_results = []
-
-for (T, B) in [
-    # (800.0, 200.0),
-    # (700.0, 200.0),
-    # (600.0, 200.0),
-    # (500.0, 200.0),
-    # (400.0, 200.0),
-    (750.0, 250.0),
-    (900.0, 300.0)
-]
-    for seed in 1:10
-    # for seed in [1]
-        data = generate_instance(
-            ;
-            n_depots = 2,
-            n_customers = 25,
-            n_charging = 3,
-            n_vehicles = 3,
-            shrinkage_depots = 1.0,
-            shrinkage_charging = 0.7,
-            T = T,
-            seed = seed,
-            B = B,
-            μ = 5.0,
-            travel_cost_coeff = 7,
-            charge_cost_coeff = 3,
-            load_scale = 5.0,
-            load_shape = 20.0,
-            load_tolerance = 1.3,
-            batch = 5,
-            permissiveness = 0.3,
-        )
-        G = construct_graph(data)
-        (
-            CGLP_results, CGIP_results, CG_params, CG_printlist, CG_subpaths, CG_charging_arcs 
-        ) = subpath_formulation_column_generation_integrated_from_paths(G, data)
-
-        collect_solution_metrics!(CGLP_results, data, CG_subpaths, CG_charging_arcs)
-        collect_solution_metrics!(CGIP_results, data, CG_subpaths, CG_charging_arcs)
-
-        push!(all_results, 
-            (
-                T = T,
-                B = B,
-                seed = seed,
-                n_iterations = CG_params["counter"],
-                n_subpaths = length(CG_subpaths),
-                n_charging_arcs = length(CG_charging_arcs),
-                time_taken = CG_params["time_taken"],
-                lp_relaxation_time_taken_total = CG_params["lp_relaxation_time_taken_total"],
-                sp_base_time_taken_total = CG_params["sp_base_time_taken_total"],
-                sp_full_time_taken_total = CG_params["sp_full_time_taken_total"],
-                sp_time_taken_total = CG_params["sp_time_taken_total"],
-                lp_relaxation_time_taken_mean = CG_params["lp_relaxation_time_taken_mean"],
-                sp_base_time_taken_mean = CG_params["sp_base_time_taken_mean"],
-                sp_full_time_taken_mean = CG_params["sp_full_time_taken_mean"],
-                sp_time_taken_mean = CG_params["sp_time_taken_mean"],
-                CGLP_objective = CGLP_results["objective"],
-                CGLP_n_subpaths = length(CGLP_results["subpaths"]),
-                CGLP_n_charging_arcs = length(CGLP_results["charging_arcs"]),
-                CGLP_n_paths = length(CGLP_results["paths"]),
-                CGLP_mean_subpath_length = CGLP_results["mean_subpath_length"],
-                CGLP_mean_path_length = CGLP_results["mean_path_length"],
-                CGLP_mean_ps_length = CGLP_results["mean_ps_length"],
-                CGLP_weighted_mean_subpath_length = CGLP_results["weighted_mean_subpath_length"],
-                CGLP_weighted_mean_path_length = CGLP_results["weighted_mean_path_length"],
-                CGLP_weighted_mean_ps_length = CGLP_results["weighted_mean_ps_length"],
-                CGIP_objective = CGIP_results["objective"],
-                CGIP_n_subpaths = length(CGIP_results["subpaths"]),
-                CGIP_n_charging_arcs = length(CGIP_results["charging_arcs"]),
-                CGIP_n_paths = length(CGIP_results["paths"]),
-                CGIP_mean_subpath_length = CGIP_results["mean_subpath_length"],
-                CGIP_mean_path_length = CGIP_results["mean_path_length"],
-                CGIP_mean_ps_length = CGIP_results["mean_ps_length"],
-                CGIP_weighted_mean_subpath_length = CGIP_results["weighted_mean_subpath_length"],
-                CGIP_weighted_mean_path_length = CGIP_results["weighted_mean_path_length"],
-                CGIP_weighted_mean_ps_length = CGIP_results["weighted_mean_ps_length"],
-            )
-        )
-
-    end
-end
-
-using DataFrames
-results_df = DataFrame(all_results)
-filter!(r -> (r.CGLP_objective < 1e5), results_df)
-summary_df = results_df |>
-    x -> groupby(x, [:T, :B]) |>
-    x -> combine(x, 
-        names(results_df) .=> mean,
-    ) |>
-    x -> select(
-        x,
-        Not([:T_mean, :B_mean, :seed_mean]),
-    ) |>
-    x -> DataFrame([[names(x)]; collect.(eachrow(x))], [:column; Symbol.(axes(x, 1))])
-
-show(summary_df, allrows = true)
-
-(T, B) = (600.0, 200.0)
-seed = 1
-data = generate_instance(
-    ;
-    n_depots = 2,
-    n_customers = 25,
-    n_charging = 3,
-    n_vehicles = 3,
-    shrinkage_depots = 1.0,
-    shrinkage_charging = 0.7,
-    T = T,
-    seed = seed,
-    B = B,
-    μ = 5.0,
-    travel_cost_coeff = 7,
-    charge_cost_coeff = 3,
-    load_scale = 5.0,
-    load_shape = 20.0,
-    load_tolerance = 1.3,
-    batch = 5,
-    permissiveness = 0.3,
-)
-G = construct_graph(data)
-(
-    CGLP_results, CGIP_results, CG_params, CG_printlist, CG_subpaths, CG_charging_arcs 
-) = subpath_formulation_column_generation_integrated_from_paths(G, data)
-
-
-collect_solution_metrics!(CGLP_results, data, CG_subpaths, CG_charging_arcs)
-
-result_subpaths, result_charging_arc = collect_solution_support(CGIP_results, CG_subpaths, CG_charging_arcs)
-
-[x[1] for x in result_subpaths]
-[x[1] for x in result_charging_arc]
-
-collect_solution_metrics!(CGIP_results, data, CG_subpaths, CG_charging_arcs)
-
-
-
-
-
-
-generate_artificial_subpaths(data_large)[((26, 0.0, 30.0), (26, 0.0, 30.0))]
-collect(keys(CGLP_results_large))
-
-CGIP_results_large
-
-CGLP_results_large["paths"][1][2].subpaths
-
-
-data_huge = generate_instance(
-    ;
-    n_depots = 2,
-    n_customers = 35,
-    n_charging = 3,
-    n_vehicles = 4,
-    shrinkage_depots = 1.4,
-    shrinkage_charging = 0.8,
-    T = 3500.0,
-    seed = 6,
-    B = 500.0,
-    μ = 5.0,
-    travel_cost_coeff = 7,
-    charge_cost_coeff = 3,
-    load_scale = 5.0,
-    load_shape = 20.0,
-    load_tolerance = 1.3,
-)
-plot_instance(data_huge)
-G_huge = construct_graph(data_huge)
-(
-    CGLP_results_huge, CGIP_results_huge, params_huge, printlist_huge, some_subpaths_huge, some_charging_arcs_huge 
-) = subpath_formulation_column_generation_integrated_from_paths(G_huge, data_huge);
-print.(printlist_huge);
-subpath_results_printout(
-    CGLP_results_huge,
-    params_huge,
-    data_huge,
-    some_subpaths_huge,
-    some_charging_arcs_huge,
-)
-
-### Scratch work
-include("utils.jl")
-include("subpath_formulation.jl")
-
-
-
-
+using Test
 
 data = generate_instance(
     ;
     n_depots = 4,
     n_customers = 16,
     n_charging = 9,
-    n_vehicles = 4,
+    n_vehicles = 7,
+    depot_pattern = "circular",    
+    customer_pattern = "random_box",
+    charging_pattern = "grid",
+    shrinkage_depots = 1.0,
+    shrinkage_charging = 0.7,
+    T = 40000,
+    seed = 3,
+    B = 15000,
+    μ = 5,
+    travel_cost_coeff = 7,
+    charge_cost_coeff = 3,
+    load_scale = 5.0,
+    load_shape = 20.0,
+    load_tolerance = 1.3,
+    batch = 4,
+    permissiveness = 0.7,
+)
+G = construct_graph(data)
+# plot_instance(data)
+
+p_b_LP_results, p_b_IP_results, p_b_params, p_b_printlist, p_b_some_paths = path_formulation_column_generation(G, data; method = "benchmark", verbose = true)
+p_b_s_LP_results, p_b_s_IP_results, p_b_s_params, p_b_s_printlist, p_b_s_some_paths = path_formulation_column_generation(G, data; method = "benchmark", path_single_service = true, verbose = true)
+p_b_sc_LP_results, p_b_sc_IP_results, p_b_sc_params, p_b_sc_printlist, p_b_sc_some_paths = path_formulation_column_generation(G, data; method = "benchmark", path_single_service = true, path_check_customers = true, verbose = true)
+
+p_o_LP_results, p_o_IP_results, p_o_params, p_o_printlist, p_o_some_paths = path_formulation_column_generation(G, data; method = "ours", verbose = true)
+p_o_s_LP_results, p_o_s_IP_results, p_o_s_params, p_o_s_printlist, p_o_s_some_paths = path_formulation_column_generation(G, data; method = "ours", subpath_single_service = true, verbose = true)
+p_o_sc_LP_results, p_o_sc_IP_results, p_o_sc_params, p_o_sc_printlist, p_o_sc_some_paths = path_formulation_column_generation(G, data; method = "ours", subpath_single_service = true, subpath_check_customers = true, verbose = true)
+p_o_ss_LP_results, p_o_ss_IP_results, p_o_ss_params, p_o_ss_printlist, p_o_ss_some_paths = path_formulation_column_generation(G, data; method = "ours", subpath_single_service = true, path_single_service = true, verbose = true)
+p_o_scsc_LP_results, p_o_scsc_IP_results, p_o_scsc_params, p_o_scsc_printlist, p_o_scsc_some_paths = path_formulation_column_generation(G, data; method = "ours", subpath_single_service = true, subpath_check_customers = true, path_single_service = true, path_check_customers = true, verbose = true)
+
+
+sp_b_LP_results, sp_b_IP_results, sp_b_params, sp_b_printlist, sp_b_some_paths = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "benchmark", verbose = true)
+sp_b_s_LP_results, sp_b_s_IP_results, sp_b_s_params, sp_b_s_printlist, sp_b_s_some_paths = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "benchmark", path_single_service = true, verbose = true)
+sp_b_sc_LP_results, sp_b_sc_IP_results, sp_b_sc_params, sp_b_sc_printlist, sp_b_sc_some_paths = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "benchmark", path_single_service = true, path_check_customers = true, verbose = true)
+sp_b_sca_LP_results, sp_b_sca_IP_results, sp_b_sca_params, sp_b_sca_printlist, sp_b_sca_some_paths = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "benchmark", path_single_service = true, path_check_customers = true, check_customers_accelerated = true, verbose = true)
+
+sp_o_LP_results, sp_o_IP_results, sp_o_params, sp_o_printlist, sp_o_some_paths = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "ours", verbose = true)
+sp_o_s_LP_results, sp_o_s_IP_results, sp_o_s_params, sp_o_s_printlist, sp_o_s_some_paths = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "ours", subpath_single_service = true, verbose = true)
+sp_o_sc_LP_results, sp_o_sc_IP_results, sp_o_sc_params, sp_o_sc_printlist, sp_o_sc_some_paths = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "ours", subpath_single_service = true, subpath_check_customers = true, verbose = true)
+sp_o_sca_LP_results, sp_o_sca_IP_results, sp_o_sca_params, sp_o_sca_printlist, sp_o_sca_some_paths = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "ours", subpath_single_service = true, subpath_check_customers = true, check_customers_accelerated = true, verbose = true)
+sp_o_ss_LP_results, sp_o_ss_IP_results, sp_o_ss_params, sp_o_ss_printlist, sp_o_ss_some_paths = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "ours", subpath_single_service = true, path_single_service = true, verbose = true)
+sp_o_scsc_LP_results, sp_o_scsc_IP_results, sp_o_scsc_params, sp_o_scsc_printlist, sp_o_scsc_some_paths = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "ours", subpath_single_service = true, subpath_check_customers = true, path_single_service = true, path_check_customers = true, verbose = true)
+sp_o_scsca_LP_results, sp_o_scsca_IP_results, sp_o_scsca_params, sp_o_scsca_printlist, sp_o_scsca_some_paths = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "ours", subpath_single_service = true, subpath_check_customers = true, path_single_service = true, path_check_customers = true, check_customers_accelerated = true, verbose = true)
+
+p_b_LP_results["objective"]
+p_b_s_LP_results["objective"]
+p_b_sc_LP_results["objective"]
+p_o_LP_results["objective"]
+p_o_s_LP_results["objective"]
+p_o_sc_LP_results["objective"]
+p_o_ss_LP_results["objective"]
+p_o_scsc_LP_results["objective"]
+
+sp_b_LP_results["objective"]
+sp_b_s_LP_results["objective"]
+sp_b_sc_LP_results["objective"]
+sp_b_sca_LP_results["objective"]
+sp_o_LP_results["objective"]
+sp_o_s_LP_results["objective"]
+sp_o_sc_LP_results["objective"]
+sp_o_sca_LP_results["objective"]
+sp_o_ss_LP_results["objective"]
+sp_o_scsc_LP_results["objective"]
+sp_o_scsca_LP_results["objective"]
+
+@test (
+    p_b_LP_results["objective"] 
+    ≤ p_b_sc_LP_results["objective"]
+)
+@test(
+    p_o_LP_results["objective"] 
+    ≤ p_o_sc_LP_results["objective"]
+    ≤ p_o_scsc_LP_results["objective"]
+    ≈ p_b_sc_LP_results["objective"]
+)
+@test p_b_s_LP_results["objective"] ≥ p_b_sc_LP_results["objective"]
+@test p_o_s_LP_results["objective"] ≥ p_o_sc_LP_results["objective"]
+@test p_o_ss_LP_results["objective"] ≥ p_o_scsc_LP_results["objective"]
+# this should change to == after I undo Floyd-Warshall (should it?)
+@test p_b_LP_results["objective"] ≤ p_o_LP_results["objective"]
+
+@test (
+    sp_b_LP_results["objective"] 
+    ≤ sp_b_sc_LP_results["objective"]
+)
+@test(
+    sp_o_LP_results["objective"] 
+    ≤ sp_o_sc_LP_results["objective"]
+    ≤ sp_o_scsc_LP_results["objective"]
+    ≈ sp_b_sc_LP_results["objective"]
+)
+@test (
+    sp_b_s_LP_results["objective"] 
+    ≥ sp_b_sc_LP_results["objective"] 
+    ≈ sp_b_sca_LP_results["objective"]
+)
+@test (
+    sp_o_s_LP_results["objective"] 
+    ≥ sp_o_sc_LP_results["objective"] - 1e-8
+    ≈ sp_o_sca_LP_results["objective"]
+)
+@test (
+    sp_o_ss_LP_results["objective"] 
+    ≥ sp_o_scsc_LP_results["objective"]
+    ≈ sp_o_scsca_LP_results["objective"]
+)
+# this should change to == after I undo Floyd-Warshall (should it?)
+@test sp_b_LP_results["objective"] ≤ sp_o_LP_results["objective"]
+@test p_b_LP_results["objective"] ≈ sp_b_LP_results["objective"]
+@test p_b_sc_LP_results["objective"] ≈ sp_b_sc_LP_results["objective"]
+@test p_o_LP_results["objective"] ≈ sp_o_LP_results["objective"]
+@test p_o_s_LP_results["objective"] ≈ sp_o_s_LP_results["objective"]
+@test p_o_sc_LP_results["objective"] ≈ sp_o_sc_LP_results["objective"]
+@test p_o_scsc_LP_results["objective"] ≈ sp_o_scsc_LP_results["objective"]
+
+### Scratch work
+
+some_paths = generate_artificial_paths(data)
+path_costs = compute_path_costs(
+    data, 
+    some_paths,
+)
+path_service = compute_path_service(data, some_paths)
+data = generate_instance(
+    ;
+    n_depots = 4,
+    n_customers = 16,
+    n_charging = 9,
+    n_vehicles = 7,
     depot_pattern = "circular",    
     customer_pattern = "random_box",
     charging_pattern = "grid",
@@ -753,7 +607,7 @@ println("ours - single service, customer labels for subpaths and paths (accel)\t
 
 
 val, p = b_LP_results["paths"][6]
-compute_path_modified_cost(p, data, o_LP_results["κ"], o_LP_results["μ"], o_LP_results["ν"], verbose = true)
+compute_path_modified_cost(data, p, o_LP_results["κ"], o_LP_results["μ"], o_LP_results["ν"], verbose = true)
 
     
 
@@ -921,7 +775,7 @@ println("ours - single service, customer labels for subpaths and paths (accel)\t
 (val, p) = b_sc_LP_results["paths"][5]
 subpath_modified_costs = [
     compute_subpath_modified_cost(
-        s, data, b_sca_LP_results["κ"], b_sca_LP_results["μ"], b_sca_LP_results["ν"]
+        data, s, b_sca_LP_results["κ"], b_sca_LP_results["μ"], b_sca_LP_results["ν"]
     )
     for s in p.subpaths
 ]
@@ -1500,6 +1354,7 @@ for depot in data["N_depots"]
         data["B"],
         false,
         zeros(Int, data["n_customers"]),
+        false,
     )
 end
 unexplored_states = SortedSet(
