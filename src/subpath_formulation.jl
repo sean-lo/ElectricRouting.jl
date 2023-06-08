@@ -1988,7 +1988,7 @@ function construct_paths_from_subpath_solution(
         for x in results_charging_arcs
             remaining_vals += x[1]
         end
-        if remaining_vals < 1e-5
+        if remaining_vals < 1e-3
             break
         end
         pathlist = []
@@ -2000,7 +2000,7 @@ function construct_paths_from_subpath_solution(
                 s -> (
                     (s[2].starting_node, s[2].starting_time, s[2].starting_charge) 
                     in current_states
-                    && s[1] > 0
+                    && s[1] > 1e-4
                 ),
                 results_subpaths
             )
@@ -2014,7 +2014,7 @@ function construct_paths_from_subpath_solution(
                 s -> (
                     (s[2].starting_node, s[2].starting_time, s[2].starting_charge) 
                     in current_states
-                    && s[1] > 0
+                    && s[1] > 1e-4
                 ),
                 results_charging_arcs
             )

@@ -223,6 +223,18 @@ for row_index in task_index:n_tasks:size(args_df, 1)
             sp_base_time_taken_mean = r_params["sp_base_time_taken_mean"],
             sp_full_time_taken_mean = r_params["sp_full_time_taken_mean"],
             lp_relaxation_time_taken_mean = r_params["lp_relaxation_time_taken_mean"],
+            lp_mean_subpath_length = r_LP_results["mean_subpath_length"],
+            lp_weighted_mean_subpath_length = r_LP_results["weighted_mean_subpath_length"],
+            lp_mean_path_length = r_LP_results["mean_path_length"],
+            lp_weighted_mean_path_length = r_LP_results["weighted_mean_path_length"],
+            lp_mean_ps_length = r_LP_results["mean_ps_length"],
+            lp_weighted_mean_ps_length = r_LP_results["weighted_mean_ps_length"],
+            ip_mean_subpath_length = r_IP_results["mean_subpath_length"],
+            ip_weighted_mean_subpath_length = r_IP_results["weighted_mean_subpath_length"],
+            ip_mean_path_length = r_IP_results["mean_path_length"],
+            ip_weighted_mean_path_length = r_IP_results["weighted_mean_path_length"],
+            ip_mean_ps_length = r_IP_results["mean_ps_length"],
+            ip_weighted_mean_ps_length = r_IP_results["weighted_mean_ps_length"],
         )
     ]
     CSV.write("$(@__DIR__)/records/$(row_index).csv", DataFrame(records))

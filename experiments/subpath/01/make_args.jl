@@ -1,5 +1,6 @@
 using CSV
 using DataFrames
+using Glob
 
 seed_range = collect(1:20)
 data_params = [
@@ -13,6 +14,9 @@ data_params = [
     (4, 20, 8, 8, 40000, 15000),
     (4, 20, 10, 8, 40000, 15000),
     (4, 20, 12, 8, 40000, 15000),
+    (4, 24, 12, 8, 40000, 15000),
+    (4, 28, 12, 8, 40000, 15000),
+    (4, 32, 12, 8, 40000, 15000),
 ]
 setting_params = [
     # load, 
@@ -87,5 +91,20 @@ for data_param in data_params, seed in seed_range
         )
     end
 end
-
-CSV.write("$(@__DIR__)/args.csv", args_df)
+# results_df = vcat(
+#     [
+#         CSV.read(filepath, DataFrame)
+#         for filepath in glob("$(@__DIR__)/combined_*.csv")
+#     ]...
+# ) |>
+#     x -> select(
+#         x, 
+#         names(args_df)
+#     )
+# new_args_df = antijoin(
+#     args_df, 
+#     results_df, 
+#     on = names(results_df)
+# )
+new_args_df = args_df
+CSV.write("$(@__DIR__)/args.csv", new_args_df)
