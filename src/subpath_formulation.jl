@@ -1439,7 +1439,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
     return CGLP_results, CGIP_results, params, printlist, some_subpaths, some_charging_arcs
 end
 
-function collect_solution_support(
+function collect_subpath_solution_support(
     results, 
     subpaths::Dict{
         Tuple{
@@ -1485,7 +1485,7 @@ function collect_solution_metrics!(
     charging_arcs,
 )
 
-    results["subpaths"], results["charging_arcs"] = collect_solution_support(results, subpaths, charging_arcs)
+    results["subpaths"], results["charging_arcs"] = collect_subpath_solution_support(results, subpaths, charging_arcs)
     results["paths"] = construct_paths_from_subpath_solution(results, data, subpaths, charging_arcs)
 
     results["mean_subpath_length"] = sum(
@@ -1524,7 +1524,7 @@ function plot_subpath_solution(
     charging_arcs,
 )
     p = plot_instance(data)
-    results["subpaths"], results["charging_arcs"] = collect_solution_support(results, subpaths, charging_arcs)
+    results["subpaths"], results["charging_arcs"] = collect_subpath_solution_support(results, subpaths, charging_arcs)
     results["paths"] = construct_paths_from_subpath_solution(results, data, subpaths, charging_arcs)
 
     n_paths = length(results["paths"]) 
@@ -1579,7 +1579,7 @@ function construct_paths_from_subpath_solution(
     },
     ;
 )
-    results_subpaths, results_charging_arcs = collect_solution_support(results, subpaths, charging_arcs)
+    results_subpaths, results_charging_arcs = collect_subpath_solution_support(results, subpaths, charging_arcs)
 
     all_paths = Tuple{Float64, Path}[]
 

@@ -610,3 +610,25 @@ function path_formulation_column_generation(
     end
     return CGLP_results, CGIP_results, params, printlist, some_paths
 end
+
+function collect_path_solution_support(
+    results, 
+    paths::Dict{
+        Tuple{
+            Tuple{Int, Int, Int},
+            Tuple{Int, Int, Int},
+        }
+    },
+    ;
+)
+    results_paths = Tuple{Float64, Path}[]
+    for key in keys(paths)
+        for p in 1:length(paths[key])
+            val = results["z"][key,p]
+            if val > 1e-5
+                push!(results_paths, (val, paths[key][p]))
+            end
+        end
+    end
+    return results_paths
+end
