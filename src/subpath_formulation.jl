@@ -1478,7 +1478,7 @@ function collect_subpath_solution_support(
     return results_subpaths, results_charging_arcs
 end
 
-function collect_solution_metrics!(
+function collect_subpath_solution_metrics!(
     results,
     data, 
     subpaths, 

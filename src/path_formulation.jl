@@ -632,3 +632,51 @@ function collect_path_solution_support(
     end
     return results_paths
 end
+
+function collect_path_solution_metrics!(
+    results,
+    data, 
+    paths,
+)
+    results["paths"] = collect_path_solution_support(results, paths)
+
+    results["mean_subpath_length"] = sum(
+        sum(
+            length(s.arcs) for s in p.subpaths
+        )
+        for (val, p) in results["paths"]
+    ) / sum(
+        length(p.subpaths)
+        for (val, p) in results["paths"]
+    )
+    results["weighted_mean_subpath_length"] = sum(
+        val * sum(
+            length(s.arcs) for s in p.subpaths
+        )
+        for (val, p) in results["paths"]
+    ) / sum(
+        val * length(p.subpaths)
+        for (val, p) in results["paths"]
+    )
+
+    results["mean_path_length"] = sum(
+        sum(p.served) + 1 for (val, p) in results["paths"]
+    ) / length(results["paths"])
+
+    results["weighted_mean_path_length"] = sum(
+        val * (sum(p.served) + 1) for (val, p) in results["paths"]
+    ) / sum(
+        val for (val, _) in results["paths"]
+    )
+
+    results["mean_ps_length"] = sum(
+        length(p.subpaths) for (val, p) in results["paths"]
+    ) / length(results["paths"])
+    results["weighted_mean_ps_length"] = sum(
+        val * length(p.subpaths) for (val, p) in results["paths"]
+    ) / sum(
+        val for (val, _) in results["paths"]
+    )
+    return results
+
+end
