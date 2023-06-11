@@ -33,73 +33,69 @@ begin
     )
     sample_G = construct_graph(sample_data)
     (
-        p_b_LP_results, p_b_IP_results, p_b_params, p_b_printlist, p_b_subpaths, p_b_charging_arcs
-    ) = subpath_formulation_column_generation_integrated_from_paths(
+        p_b_LP_results, p_b_IP_results, p_b_params, p_b_printlist, p_b_paths
+    ) = path_formulation_column_generation(
         sample_G, sample_data, method = "benchmark",
     )
     (
-        p_b_s_LP_results, p_b_s_IP_results, p_b_s_params, p_b_s_printlist, p_b_s_subpaths, p_b_s_charging_arcs
-    ) = subpath_formulation_column_generation_integrated_from_paths(
+        p_b_s_LP_results, p_b_s_IP_results, p_b_s_params, p_b_s_printlist, p_b_s_paths
+    ) = path_formulation_column_generation(
         sample_G, sample_data, method = "benchmark", 
         path_single_service = true,
     )
     (
-        p_b_sc_LP_results, p_b_sc_IP_results, p_b_sc_params, p_b_sc_printlist, p_b_sc_subpaths, p_b_sc_charging_arcs
-    ) = subpath_formulation_column_generation_integrated_from_paths(
+        p_b_sc_LP_results, p_b_sc_IP_results, p_b_sc_params, p_b_sc_printlist, p_b_sc_paths
+    ) = path_formulation_column_generation(
         sample_G, sample_data, method = "benchmark", 
         path_single_service = true, path_check_customers = true,
     )
     (
-        p_b_sca_LP_results, p_b_sca_IP_results, p_b_sca_params, p_b_sca_printlist, p_b_sca_subpaths, p_b_sca_charging_arcs
-    ) = subpath_formulation_column_generation_integrated_from_paths(
-        sample_G, sample_data, method = "benchmark", 
-        path_single_service = true, path_check_customers = true, check_customers_accelerated = true
+        p_b_tw_LP_results, p_b_tw_IP_results, p_b_tw_params, p_b_tw_printlist, p_b_tw_paths
+    ) = path_formulation_column_generation(
+        sample_G, sample_data, method = "benchmark", time_windows = true,
     )
     (
-        p_o_LP_results, p_o_IP_results, p_o_params, p_o_printlist, p_o_subpaths, p_o_charging_arcs
-    ) = subpath_formulation_column_generation_integrated_from_paths(
+        p_b_tw_s_LP_results, p_b_tw_s_IP_results, p_b_tw_s_params, p_b_tw_s_printlist, p_b_tw_s_paths
+    ) = path_formulation_column_generation(
+        sample_G, sample_data, method = "benchmark", time_windows = true,
+        path_single_service = true,
+    )
+    (
+        p_b_tw_sc_LP_results, p_b_tw_sc_IP_results, p_b_tw_sc_params, p_b_tw_sc_printlist, p_b_tw_sc_paths
+    ) = path_formulation_column_generation(
+        sample_G, sample_data, method = "benchmark", time_windows = true,
+        path_single_service = true, path_check_customers = true,
+    )
+    (
+        p_o_LP_results, p_o_IP_results, p_o_params, p_o_printlist, p_o_paths
+    ) = path_formulation_column_generation(
         sample_G, sample_data, method = "ours",
     )
     (
-        p_o_s_LP_results, p_o_s_IP_results, p_o_s_params, p_o_s_printlist, p_o_s_subpaths, p_o_s_charging_arcs
-    ) = subpath_formulation_column_generation_integrated_from_paths(
+        p_o_s_LP_results, p_o_s_IP_results, p_o_s_params, p_o_s_printlist, p_o_s_paths
+    ) = path_formulation_column_generation(
         sample_G, sample_data, method = "ours", 
         subpath_single_service = true,
     )
     (
-        p_o_sc_LP_results, p_o_sc_IP_results, p_o_sc_params, p_o_sc_printlist, p_o_sc_subpaths, p_o_sc_charging_arcs
-    ) = subpath_formulation_column_generation_integrated_from_paths(
+        p_o_sc_LP_results, p_o_sc_IP_results, p_o_sc_params, p_o_sc_printlist, p_o_sc_paths
+    ) = path_formulation_column_generation(
         sample_G, sample_data, method = "ours", 
         subpath_single_service = true, subpath_check_customers = true,
     )
     (
-        p_o_sca_LP_results, p_o_sca_IP_results, p_o_sca_params, p_o_sca_printlist, p_o_sca_subpaths, p_o_sca_charging_arcs
-    ) = subpath_formulation_column_generation_integrated_from_paths(
-        sample_G, sample_data, method = "ours", 
-        subpath_single_service = true, subpath_check_customers = true, 
-        check_customers_accelerated = true,
-    )
-    (
-        p_o_ss_LP_results, p_o_ss_IP_results, p_o_ss_params, p_o_ss_printlist, p_o_ss_subpaths, p_o_ss_charging_arcs
-    ) = subpath_formulation_column_generation_integrated_from_paths(
+        p_o_ss_LP_results, p_o_ss_IP_results, p_o_ss_params, p_o_ss_printlist, p_o_ss_paths
+    ) = path_formulation_column_generation(
         sample_G, sample_data, method = "ours", 
         subpath_single_service = true,
         path_single_service = true,
     )
     (
-        p_o_scsc_LP_results, p_o_scsc_IP_results, p_o_scsc_params, p_o_scsc_printlist, p_o_scsc_subpaths, p_o_scsc_charging_arcs
-    ) = subpath_formulation_column_generation_integrated_from_paths(
+        p_o_scsc_LP_results, p_o_scsc_IP_results, p_o_scsc_params, p_o_scsc_printlist, p_o_scsc_paths
+    ) = path_formulation_column_generation(
         sample_G, sample_data, method = "ours", 
         subpath_single_service = true, subpath_check_customers = true,
         path_single_service = true, path_check_customers = true,
-    )
-    (
-        p_o_scsca_LP_results, p_o_scsca_IP_results, p_o_scsca_params, p_o_scsca_printlist, p_o_scsca_subpaths, p_o_scsca_charging_arcs
-    ) = subpath_formulation_column_generation_integrated_from_paths(
-        sample_G, sample_data, method = "ours", 
-        subpath_single_service = true, subpath_check_customers = true, 
-        path_single_service = true, path_check_customers = true,
-        check_customers_accelerated = true,
     )
     (
         sp_b_LP_results, sp_b_IP_results, sp_b_params, sp_b_printlist, sp_b_subpaths, sp_b_charging_arcs
@@ -122,6 +118,29 @@ begin
         sp_b_sca_LP_results, sp_b_sca_IP_results, sp_b_sca_params, sp_b_sca_printlist, sp_b_sca_subpaths, sp_b_sca_charging_arcs
     ) = subpath_formulation_column_generation_integrated_from_paths(
         sample_G, sample_data, method = "benchmark", 
+        path_single_service = true, path_check_customers = true, check_customers_accelerated = true
+    )
+    (
+        sp_b_tw_LP_results, sp_b_tw_IP_results, sp_b_tw_params, sp_b_tw_printlist, sp_b_tw_subpaths, sp_b_tw_charging_arcs
+    ) = subpath_formulation_column_generation_integrated_from_paths(
+        sample_G, sample_data, method = "benchmark", time_windows = true,
+    )
+    (
+        sp_b_tw_s_LP_results, sp_b_tw_s_IP_results, sp_b_tw_s_params, sp_b_tw_s_printlist, sp_b_tw_s_subpaths, sp_b_tw_s_charging_arcs
+    ) = subpath_formulation_column_generation_integrated_from_paths(
+        sample_G, sample_data, method = "benchmark", time_windows = true,
+        path_single_service = true,
+    )
+    (
+        sp_b_tw_sc_LP_results, sp_b_tw_sc_IP_results, sp_b_tw_sc_params, sp_b_tw_sc_printlist, sp_b_tw_sc_subpaths, sp_b_tw_sc_charging_arcs
+    ) = subpath_formulation_column_generation_integrated_from_paths(
+        sample_G, sample_data, method = "benchmark", time_windows = true,
+        path_single_service = true, path_check_customers = true,
+    )
+    (
+        sp_b_tw_sca_LP_results, sp_b_tw_sca_IP_results, sp_b_tw_sca_params, sp_b_tw_sca_printlist, sp_b_tw_sca_subpaths, sp_b_tw_sca_charging_arcs
+    ) = subpath_formulation_column_generation_integrated_from_paths(
+        sample_G, sample_data, method = "benchmark", time_windows = true,
         path_single_service = true, path_check_customers = true, check_customers_accelerated = true
     )
     (
