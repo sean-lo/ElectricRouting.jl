@@ -1,9 +1,11 @@
 using JuMP
 using Gurobi
 using Suppressor
+using Printf
 
 include("utils.jl")
 include("desaulniers_benchmark.jl")
+include("subpath_stitching.jl")
 
 function generate_artificial_paths(data)
     artificial_paths = Dict{

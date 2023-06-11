@@ -3,7 +3,6 @@ include("subpath_formulation.jl")
 include("path_formulation.jl")
 include("utils.jl")
 
-using Distributions
 using CSV, DataFrames
 
 using Test
