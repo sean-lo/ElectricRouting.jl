@@ -625,10 +625,8 @@ function find_nondominated_paths(
             added = add_full_path_label_to_collection!(full_labels[starting_node][j], new_key, new_path, verbose = false)
             if added && !(j in data["N_depots"])
                 new_state = (new_key..., starting_node, j)
-                if !(new_state in unexplored_states)
-                    # println("adding state: $(new_state)")
-                    push!(unexplored_states, new_state)
-                end
+                # println("adding state: $(new_state)")
+                push!(unexplored_states, new_state)
             end
         end
     end

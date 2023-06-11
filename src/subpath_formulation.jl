@@ -549,14 +549,9 @@ function find_nondominated_paths_notimewindows(
                     full_labels[starting_node][next_node],
                     key, new_path,
                 )
-                if added
+                if added && next_node in data["N_charging"]
                     next_state = (key..., starting_node, next_node)
-                    if (
-                        next_node in data["N_charging"] 
-                        && !(next_state in unexplored_states)
-                    )
-                        push!(unexplored_states, next_state)
-                    end
+                    push!(unexplored_states, next_state)
                 end
             end
         end
