@@ -303,12 +303,22 @@ function path_formulation_column_generation(
             # depots:                       %2d
             # charging stations:            %2d
             # vehicles:                     %2d
+            method:                         %s
+            subpath_single_service:         %s
+            subpath_check_customers:        %s
+            path_single_service:            %s
+            path_check_customers:           %s
 
             """,
             data["n_customers"],
             data["n_depots"],
             data["n_charging"],
             data["n_vehicles"],
+            method,
+            subpath_single_service,
+            subpath_check_customers,
+            path_single_service,
+            path_check_customers,
         ),
         verbose,
     )
@@ -416,12 +426,18 @@ function path_formulation_column_generation(
         push!(params["lp_relaxation_solution_time_taken"], mp_results["solution_time_taken"])
 
         if method == "ours"
-            base_labels_result = @timed generate_base_labels(
-                G, data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
-                ;
-                single_service = subpath_single_service,
-                check_customers = subpath_check_customers,
-            )
+            if subpath_single_service
+                base_labels_result = @timed generate_base_labels_singleservice(
+                    G, data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
+                    ;
+                    check_customers = subpath_check_customers,
+                )
+            else
+                base_labels_result = @timed generate_base_labels_nonsingleservice(
+                    G, data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
+                    ;
+                )
+            end
             base_labels_time = base_labels_result.time
             full_labels_result = @timed find_nondominated_paths_notimewindows(
                 data, base_labels_result.value, mp_results["κ"], mp_results["μ"],
