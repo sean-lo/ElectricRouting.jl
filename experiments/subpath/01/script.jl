@@ -179,8 +179,8 @@ for row_index in task_index:n_tasks:size(args_df, 1)
         path_check_customers = path_check_customers,
         check_customers_accelerated = check_customers_accelerated,
     )
-    collect_solution_metrics!(r_LP_results, data, r_subpaths, r_charging_arcs)
-    collect_solution_metrics!(r_IP_results, data, r_subpaths, r_charging_arcs)
+    collect_subpath_solution_metrics!(r_LP_results, data, r_subpaths, r_charging_arcs)
+    collect_subpath_solution_metrics!(r_IP_results, data, r_subpaths, r_charging_arcs)
     records = [
         (
             n_depots = n_depots,
