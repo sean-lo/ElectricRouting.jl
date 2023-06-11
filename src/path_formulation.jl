@@ -243,6 +243,7 @@ function path_formulation_column_generation(
     G,
     data, 
     ;
+    Env = nothing,
     method::String = "ours",
     time_windows::Bool = false,
     subpath_single_service::Bool = false,
@@ -334,7 +335,11 @@ function path_formulation_column_generation(
         verbose,
     )
 
-    mp_model = @suppress Model(Gurobi.Optimizer)
+    if isnothing(Env)
+        mp_model = @suppress Model(Gurobi.Optimizer)
+    else
+        mp_model = @suppress Model(() -> Gurobi.Optimizer(Env))
+    end
     JuMP.set_attribute(mp_model, "MIPGapAbs", 1e-3)
     JuMP.set_string_names_on_creation(mp_model, false)
     z = Dict{
