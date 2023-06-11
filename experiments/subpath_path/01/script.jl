@@ -271,8 +271,12 @@ for row_index in task_index:n_tasks:size(args_df, 1)
             path_check_customers = path_check_customers,
             check_customers_accelerated = check_customers_accelerated,
         )
-        collect_subpath_solution_metrics!(r_LP_results, data, r_subpaths, r_charging_arcs)
-        collect_subpath_solution_metrics!(r_IP_results, data, r_subpaths, r_charging_arcs)
+        try
+            collect_subpath_solution_metrics!(r_LP_results, data, r_subpaths, r_charging_arcs)
+            collect_subpath_solution_metrics!(r_IP_results, data, r_subpaths, r_charging_arcs)
+        catch
+            nothing
+        end
     elseif formulation == "path"
         (
             r_LP_results, r_IP_results, r_params, r_printlist, r_paths
@@ -285,8 +289,12 @@ for row_index in task_index:n_tasks:size(args_df, 1)
             path_single_service = path_single_service,
             path_check_customers = path_check_customers,
         )
-        collect_path_solution_metrics!(r_LP_results, data, r_paths)
-        collect_path_solution_metrics!(r_IP_results, data, r_paths)
+        try
+            collect_path_solution_metrics!(r_LP_results, data, r_paths)
+            collect_path_solution_metrics!(r_IP_results, data, r_paths)
+        catch
+            nothing
+        end
     end
     records = [
         (
@@ -331,18 +339,18 @@ for row_index in task_index:n_tasks:size(args_df, 1)
             sp_base_time_taken_mean = r_params["sp_base_time_taken_mean"],
             sp_full_time_taken_mean = r_params["sp_full_time_taken_mean"],
             lp_relaxation_time_taken_mean = r_params["lp_relaxation_time_taken_mean"],
-            lp_mean_subpath_length = r_LP_results["mean_subpath_length"],
-            lp_weighted_mean_subpath_length = r_LP_results["weighted_mean_subpath_length"],
-            lp_mean_path_length = r_LP_results["mean_path_length"],
-            lp_weighted_mean_path_length = r_LP_results["weighted_mean_path_length"],
-            lp_mean_ps_length = r_LP_results["mean_ps_length"],
-            lp_weighted_mean_ps_length = r_LP_results["weighted_mean_ps_length"],
-            ip_mean_subpath_length = r_IP_results["mean_subpath_length"],
-            ip_weighted_mean_subpath_length = r_IP_results["weighted_mean_subpath_length"],
-            ip_mean_path_length = r_IP_results["mean_path_length"],
-            ip_weighted_mean_path_length = r_IP_results["weighted_mean_path_length"],
-            ip_mean_ps_length = r_IP_results["mean_ps_length"],
-            ip_weighted_mean_ps_length = r_IP_results["weighted_mean_ps_length"],
+            lp_mean_subpath_length = get(r_LP_results, "mean_subpath_length", nothing),
+            lp_weighted_mean_subpath_length = get(r_LP_results, "weighted_mean_subpath_length", nothing),
+            lp_mean_path_length = get(r_LP_results, "mean_path_length", nothing),
+            lp_weighted_mean_path_length = get(r_LP_results, "weighted_mean_path_length", nothing),
+            lp_mean_ps_length = get(r_LP_results, "mean_ps_length", nothing),
+            lp_weighted_mean_ps_length = get(r_LP_results, "weighted_mean_ps_length", nothing),
+            ip_mean_subpath_length = get(r_IP_results, "mean_subpath_length", nothing),
+            ip_weighted_mean_subpath_length = get(r_IP_results, "weighted_mean_subpath_length", nothing),
+            ip_mean_path_length = get(r_IP_results, "mean_path_length", nothing),
+            ip_weighted_mean_path_length = get(r_IP_results, "weighted_mean_path_length", nothing),
+            ip_mean_ps_length = get(r_IP_results, "mean_ps_length", nothing),
+            ip_weighted_mean_ps_length = get(r_IP_results, "weighted_mean_ps_length", nothing),
         )
     ]
     CSV.write("$(@__DIR__)/records/$(row_index).csv", DataFrame(records))
