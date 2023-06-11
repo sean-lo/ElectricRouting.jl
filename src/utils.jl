@@ -510,6 +510,18 @@ function construct_graph(data)
     return G
 end
 
+function compute_minimum_time_to_nearest_depot!(data, G)
+    t_ds = dijkstra_shortest_paths(G, data["N_depots"], data["t"])
+    data["min_t"] = t_ds.dists
+    return
+end
+
+function compute_minimum_charge_to_nearest_depot_charging_station!(data, G)
+    q_ds = dijkstra_shortest_paths(G, vcat(data["N_depots"], data["N_charging"]), data["q"])
+    data["min_q"] = q_ds.dists
+    return
+end
+
 function plot_instance(data)
     p = plot(
         # xlim = (0, 1), ylim = (0, 1),

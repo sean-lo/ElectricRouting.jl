@@ -518,7 +518,7 @@ function find_nondominated_paths_notimewindows(
                     s.charge_taken, 
                     state[1], # current time
                 )
-                if end_time + s.time_taken > data["T"]
+                if end_time + s.time_taken + data["min_t"][next_node] > data["T"]
                     continue
                 end
 
@@ -809,6 +809,9 @@ function subpath_formulation_column_generation_integrated_from_paths(
     end
 
     start_time = time()
+
+    compute_minimum_time_to_nearest_depot!(data, G)
+    compute_minimum_charge_to_nearest_depot_charging_station!(data, G)
 
     some_subpaths = generate_artificial_subpaths(data)
     subpath_costs = compute_subpath_costs(

@@ -241,6 +241,9 @@ function find_nondominated_paths_v2(
                             # println("not time windows feasible")
                             continue
                         end
+                        if path.time_mincharge + excess + t[i,j] + data["min_t"][j] > data["T"]
+                            continue
+                        end
                         # (3) charge interval 
                         if (
                             (i in data["N_charging"] && excess > max(B - path.charge_mincharge, 0))
@@ -520,6 +523,9 @@ function find_nondominated_paths(
             if path.time_mincharge + excess + t[i,j] > β[j]
                 # println("$(path.time_mincharge), $excess, $(t[i,j]), $(β[j])")
                 # println("not time windows feasible")
+                continue
+            end
+            if path.time_mincharge + excess + t[i,j] + data["min_t"][j] > data["T"]
                 continue
             end
             # (3) charge interval 

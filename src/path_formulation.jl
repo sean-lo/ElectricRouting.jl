@@ -264,6 +264,9 @@ function path_formulation_column_generation(
 
     start_time = time()
 
+    compute_minimum_time_to_nearest_depot!(data, G)
+    compute_minimum_charge_to_nearest_depot_charging_station!(data, G)
+
     some_paths = generate_artificial_paths(data)
     path_costs = compute_path_costs(
         data, 
