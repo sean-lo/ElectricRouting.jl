@@ -943,6 +943,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
     data, 
     ;
     method::String = "ours",
+    time_windows::Bool = false,
     subpath_single_service::Bool = false,
     subpath_check_customers::Bool = false,
     path_single_service::Bool = false,
@@ -1293,7 +1294,9 @@ function subpath_formulation_column_generation_integrated_from_paths(
                 full_labels_result = @timed find_nondominated_paths(
                     G, data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
                     ;
-                    time_windows = false, single_service = true, check_customers = false,
+                    time_windows = time_windows, 
+                    single_service = true, 
+                    check_customers = false,
                 )
                 full_labels_time = full_labels_result.time
                 (generated_subpaths, generated_charging_arcs) = get_subpaths_charging_arcs_from_negative_path_labels(
@@ -1304,7 +1307,9 @@ function subpath_formulation_column_generation_integrated_from_paths(
                     full_labels_result = @timed find_nondominated_paths(
                         G, data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
                         ;
-                        time_windows = false, single_service = true, check_customers = true,
+                        time_windows = time_windows, 
+                        single_service = true, 
+                        check_customers = true,
                     )
                     full_labels_time += full_labels_result.time
                     (generated_subpaths, generated_charging_arcs) = get_subpaths_charging_arcs_from_negative_path_labels(
@@ -1315,7 +1320,9 @@ function subpath_formulation_column_generation_integrated_from_paths(
                 full_labels_result = @timed find_nondominated_paths(
                     G, data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
                     ;
-                    time_windows = false, single_service = true, check_customers = true,
+                    time_windows = time_windows, 
+                    single_service = true, 
+                    check_customers = true,
                 )
                 full_labels_time = full_labels_result.time
                 (generated_subpaths, generated_charging_arcs) = get_subpaths_charging_arcs_from_negative_path_labels(
@@ -1325,7 +1332,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
                 full_labels_result = @timed find_nondominated_paths(
                     G, data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
                     ;
-                    time_windows = false,
+                    time_windows = time_windows,
                     single_service = path_single_service,
                     check_customers = path_check_customers,
                 )

@@ -244,6 +244,7 @@ function path_formulation_column_generation(
     data, 
     ;
     method::String = "ours",
+    time_windows::Bool = false,
     subpath_single_service::Bool = false,
     subpath_check_customers::Bool = false,
     path_single_service::Bool = false,
@@ -465,7 +466,7 @@ function path_formulation_column_generation(
             full_labels_result = @timed find_nondominated_paths(
                 G, data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
                 ;
-                time_windows = false,
+                time_windows = time_windows,
                 single_service = path_single_service,
                 check_customers = path_check_customers,
             )
