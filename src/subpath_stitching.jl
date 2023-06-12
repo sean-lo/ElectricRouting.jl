@@ -675,3 +675,40 @@ function get_negative_path_labels_from_path_labels(
         for starting_node in data["N_depots"]
     )
 end
+
+function subproblem_iteration_ours(
+    G, data, κ, μ, ν,
+    ;
+    subpath_single_service::Bool = true,        
+    subpath_check_customers::Bool = true,
+    path_single_service::Bool = true,
+    path_check_customers::Bool = true,
+)
+    if subpath_single_service
+        base_labels_result = @timed generate_base_labels_singleservice(
+            G, data, κ, μ, ν,
+            ;
+            check_customers = subpath_check_customers,
+        )
+    else 
+        base_labels_result = @timed generate_base_labels_nonsingleservice(
+            G, data, κ, μ, ν,
+            ;
+        )
+    end
+    base_labels_time = base_labels_result.time
+    full_labels_result = @timed find_nondominated_paths_notimewindows(
+        data, base_labels_result.value, κ, μ,
+        ;
+        single_service = path_single_service,
+        check_customers = path_check_customers,
+    )
+    full_labels_time = full_labels_result.time
+    negative_full_labels = get_negative_path_labels_from_path_labels(data, full_labels_result.value)
+    negative_full_labels_count = sum(
+        length(negative_full_labels[starting_node][end_node]) 
+        for starting_node in data["N_depots"]
+            for end_node in keys(negative_full_labels[starting_node]) 
+    )
+    return (negative_full_labels, negative_full_labels_count, base_labels_time, full_labels_time)
+end

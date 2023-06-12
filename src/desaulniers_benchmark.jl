@@ -364,3 +364,28 @@ function get_negative_pure_path_labels_from_pure_path_labels(
         for starting_node in data["N_depots"]
     )
 end
+
+function subproblem_iteration_benchmark(
+    G, data, κ, μ, ν,
+    ;
+    time_windows::Bool = false,
+    path_single_service::Bool = true,
+    path_check_customers::Bool = true,
+)
+    pure_path_labels_result = @timed find_nondominated_paths(
+        G, data, κ, μ, ν,
+        ;
+        time_windows = time_windows, 
+        single_service = path_single_service, 
+        check_customers = path_check_customers,
+    )
+    pure_path_labels_time = pure_path_labels_result.time
+    negative_pure_path_labels = get_negative_pure_path_labels_from_pure_path_labels(data, pure_path_labels_result.value)
+    negative_pure_path_labels_count = sum(
+        length(negative_pure_path_labels[starting_node][end_node]) 
+        for starting_node in data["N_depots"]
+            for end_node in keys(negative_pure_path_labels[starting_node]) 
+    )
+    return (negative_pure_path_labels, negative_pure_path_labels_count, pure_path_labels_time)
+end
+

@@ -436,31 +436,16 @@ function path_formulation_column_generation(
         push!(params["lp_relaxation_solution_time_taken"], mp_results["solution_time_taken"])
 
         if method == "ours"
-            if subpath_single_service
-                base_labels_result = @timed generate_base_labels_singleservice(
-                    G, data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
-                    ;
-                    check_customers = subpath_check_customers,
-                )
-            else
-                base_labels_result = @timed generate_base_labels_nonsingleservice(
-                    G, data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
-                    ;
-                )
-            end
-            base_labels_time = base_labels_result.time
-            full_labels_result = @timed find_nondominated_paths_notimewindows(
-                data, base_labels_result.value, mp_results["κ"], mp_results["μ"],
+            (negative_full_labels, _, base_labels_time, full_labels_time) = subproblem_iteration_ours(
+                G, data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
                 ;
-                single_service = path_single_service,
-                check_customers = path_check_customers,
+                subpath_single_service = subpath_single_service,
+                subpath_check_customers = subpath_check_customers,
+                path_single_service = path_single_service,
+                path_check_customers = path_check_customers,
             )
-            full_labels_time = full_labels_result.time
-            negative_path_labels = get_negative_path_labels_from_path_labels(
-                data, full_labels_result.value,
-            )
-            generated_paths = get_paths_from_negative_path_labels(
-                data, negative_path_labels,
+            (generated_paths) = get_paths_from_negative_path_labels(
+                data, negative_full_labels,
             )
             push!(
                 params["sp_base_time_taken"],
@@ -475,15 +460,13 @@ function path_formulation_column_generation(
                 round(base_labels_time + full_labels_time, digits=3)
             )
         elseif method == "benchmark"
-            full_labels_result = @timed find_nondominated_paths(
+            (negative_pure_path_labels, _, pure_path_labels_time) = subproblem_iteration_benchmark(
                 G, data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
                 ;
                 time_windows = time_windows,
-                single_service = path_single_service,
-                check_customers = path_check_customers,
+                path_single_service = path_single_service,
+                path_check_customers = path_check_customers,
             )
-            full_labels_time = full_labels_result.time
-            negative_pure_path_labels = get_negative_pure_path_labels_from_pure_path_labels(data, full_labels_result.value)
             generated_paths = get_paths_from_negative_pure_path_labels(
                 data, negative_pure_path_labels,
             )
@@ -493,15 +476,14 @@ function path_formulation_column_generation(
             )
             push!(
                 params["sp_full_time_taken"],
-                round(full_labels_time, digits=3)
+                round(pure_path_labels_time, digits=3)
             )
             push!(
                 params["sp_total_time_taken"],
-                round(full_labels_time, digits=3)
+                round(pure_path_labels_time, digits=3)
             )
         end
         
-
         if length(generated_paths) == 0
             push!(params["number_of_new_paths"], 0)
             converged = true
