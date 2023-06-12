@@ -87,9 +87,13 @@ function add_path_to_generated_paths!(
     return
 end
 
-function get_paths_from_negative_paths(
+function get_paths_from_negative_path_labels(
     data,
-    full_labels,
+    path_labels::Dict{Int, Dict{Int, SortedDict{
+        Tuple{Vararg{Int}},
+        PathLabel,
+        Base.Order.ForwardOrdering
+    }}}
 )
     generated_paths = Dict{
         Tuple{
@@ -99,10 +103,7 @@ function get_paths_from_negative_paths(
         Vector{Path},
     }()
     for starting_node in data["N_depots"], end_node in data["N_depots"]
-        for path_label in values(full_labels[starting_node][end_node])
-            if path_label.cost ≥ -1e-6
-                continue
-            end
+        for path_label in values(path_labels[starting_node][end_node])
             current_time, current_charge = (0.0, data["B"])
             prev_time, prev_charge = current_time, current_charge
             s_labels = copy(path_label.subpath_labels)
@@ -155,9 +156,13 @@ function get_paths_from_negative_paths(
     return generated_paths
 end
 
-function get_paths_from_negative_path_labels(
+function get_paths_from_negative_pure_path_labels(
     data, 
-    full_labels,
+    pure_path_labels::Dict{Int, Dict{Int, SortedDict{
+        Tuple{Vararg{Int}},
+        PurePathLabel,
+        Base.Order.ForwardOrdering
+    }}},
 )
     generated_paths = Dict{
         Tuple{
@@ -167,10 +172,7 @@ function get_paths_from_negative_path_labels(
         Vector{Path},
     }()
     for starting_node in data["N_depots"], end_node in data["N_depots"]
-        for path_label in values(full_labels[starting_node][end_node])
-            if path_label.cost ≥ -1e-6
-                continue
-            end
+        for path_label in values(pure_path_labels[starting_node][end_node])
             p = Path(
                 subpaths = Subpath[],
                 charging_arcs = ChargingArc[],
@@ -454,8 +456,11 @@ function path_formulation_column_generation(
                 check_customers = path_check_customers,
             )
             full_labels_time = full_labels_result.time
-            generated_paths = get_paths_from_negative_paths(
+            negative_path_labels = get_negative_path_labels_from_path_labels(
                 data, full_labels_result.value,
+            )
+            generated_paths = get_paths_from_negative_path_labels(
+                data, negative_path_labels,
             )
             push!(
                 params["sp_base_time_taken"],
@@ -478,8 +483,9 @@ function path_formulation_column_generation(
                 check_customers = path_check_customers,
             )
             full_labels_time = full_labels_result.time
-            generated_paths = get_paths_from_negative_path_labels(
-                data, full_labels_result.value,
+            negative_pure_path_labels = get_negative_pure_path_labels_from_pure_path_labels(data, full_labels_result.value)
+            generated_paths = get_paths_from_negative_pure_path_labels(
+                data, negative_pure_path_labels,
             )
             push!(
                 params["sp_base_time_taken"],

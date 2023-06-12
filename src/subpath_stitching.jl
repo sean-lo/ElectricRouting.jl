@@ -227,20 +227,12 @@ function generate_base_labels_singleservice(
     end
 
     function add_subpath_longlabel_to_collection!(
-        collection::Union{
-            SortedDict{
-                Int,
-                BaseSubpathLabel,
-            },
-            SortedDict{
-                Tuple{Int, Vararg{Int}},
-                BaseSubpathLabel,
-            },
+        collection::SortedDict{
+            Tuple{Vararg{Int}},
+            BaseSubpathLabel,
+            Base.Order.ForwardOrdering
         },
-        k1::Union{
-            Int,
-            Tuple{Int, Vararg{Int}},
-        },
+        k1::Tuple{Vararg{Int}},
         v1::BaseSubpathLabel,
         ;
         verbose::Bool = false,
@@ -343,23 +335,16 @@ function generate_base_labels_singleservice(
         end
     end
 
-    if check_customers
-        base_labels = Dict(
-            start_node => Dict(
-                current_node => SortedDict{Tuple{Int, Vararg{Int}}, BaseSubpathLabel}()
-                for current_node in data["N_nodes"]
-            )
-            for start_node in data["N_nodes"]
+    base_labels = Dict(
+        start_node => Dict(
+            current_node => SortedDict{
+                Tuple{Vararg{Int}}, 
+                BaseSubpathLabel,
+            }()
+            for current_node in data["N_nodes"]
         )
-    else
-        base_labels = Dict(
-            start_node => Dict(
-                current_node => SortedDict{Int, BaseSubpathLabel}()
-                for current_node in data["N_nodes"]
-            )
-            for start_node in data["N_nodes"]
-        )
-    end
+        for start_node in data["N_nodes"]
+    )
 
     for edge in edges(G)
         start_node = edge.src
@@ -372,7 +357,7 @@ function generate_base_labels_singleservice(
         if check_customers
             key = (time_taken, served...)
         else
-            key = time_taken
+            key = (time_taken,)
         end
         base_labels[start_node][current_node][key] = BaseSubpathLabel(
             time_taken,
@@ -485,20 +470,12 @@ function find_nondominated_paths_notimewindows(
     end
 
     function add_path_label_to_collection!(
-        collection::Union{
-            SortedDict{
-                Tuple{Int, Int},
-                PathLabel,
-            },
-            SortedDict{
-                Tuple{Int, Int, Vararg{Int}},
-                PathLabel,
-            },
+        collection::SortedDict{
+            Tuple{Vararg{Int}},
+            PathLabel,
+            Base.Order.ForwardOrdering
         },
-        k1::Union{
-            Tuple{Int, Int},
-            Tuple{Int, Int, Vararg{Int}},
-        },
+        k1::Tuple{Vararg{Int}},
         v1::PathLabel,
         ;
         verbose::Bool = false,
@@ -535,30 +512,16 @@ function find_nondominated_paths_notimewindows(
         return added
     end
 
-
-    if check_customers
-        full_labels = Dict(
-            starting_node => Dict(
-                current_node => SortedDict{
-                    Tuple{Int, Int, Vararg{Int}}, 
-                    PathLabel
-                }()
-                for current_node in union(data["N_charging"], data["N_depots"])
-            )
-            for starting_node in data["N_depots"]
+    full_labels = Dict(
+        starting_node => Dict(
+            current_node => SortedDict{
+                Tuple{Vararg{Int}}, 
+                PathLabel,
+            }()
+            for current_node in union(data["N_charging"], data["N_depots"])
         )
-    else
-        full_labels = Dict(
-            starting_node => Dict(
-                current_node => SortedDict{
-                    Tuple{Int, Int}, 
-                    PathLabel
-                }()
-                for current_node in union(data["N_charging"], data["N_depots"])
-            )
-            for starting_node in data["N_depots"]
-        )
-    end
+        for starting_node in data["N_depots"]
+    )
 
     if check_customers
         # label key here has the following fields:
@@ -687,4 +650,28 @@ function find_nondominated_paths_notimewindows(
 
     return full_labels
 
+end
+
+function get_negative_path_labels_from_path_labels(
+    data, 
+    path_labels::Dict{Int, Dict{Int, SortedDict{
+        Tuple{Vararg{Int}},
+        PathLabel,
+        Base.Order.ForwardOrdering
+    }}}
+)
+    return Dict(
+        starting_node => Dict(
+            end_node => SortedDict{
+                Tuple{Vararg{Int}},
+                PathLabel,
+            }(
+                key => path_label
+                for (key, path_label) in path_labels[starting_node][end_node] 
+                    if path_label.cost < -1e-6
+            )
+            for end_node in keys(path_labels[starting_node])
+        )
+        for starting_node in data["N_depots"]
+    )
 end

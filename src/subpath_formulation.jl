@@ -105,8 +105,13 @@ function add_charging_arc_to_generated_charging_arcs!(
     return
 end
 
-function get_subpaths_charging_arcs_from_negative_paths(
-    data, full_labels,
+function get_subpaths_charging_arcs_from_negative_path_labels(
+    data, 
+    full_labels = Dict{Int, Dict{Int, SortedDict{
+        Tuple{Vararg{Int}},
+        PathLabel,
+        Base.Order.ForwardOrdering
+    }}},
 )
     generated_subpaths = Dict{
         Tuple{
@@ -124,9 +129,6 @@ function get_subpaths_charging_arcs_from_negative_paths(
     }()
     for starting_node in data["N_depots"], end_node in data["N_depots"]
         for path in values(full_labels[starting_node][end_node])
-            if path.cost ≥ -1e-6
-                continue
-            end
             current_time, current_charge = (0.0, data["B"])
             prev_time, prev_charge = current_time, current_charge
             s_labels = copy(path.subpath_labels)
@@ -172,9 +174,13 @@ function get_subpaths_charging_arcs_from_negative_paths(
     return generated_subpaths, generated_charging_arcs
 end
 
-function get_subpaths_charging_arcs_from_negative_path_labels(
+function get_subpaths_charging_arcs_from_negative_pure_path_labels(
     data, 
-    full_labels,
+    pure_labels = Dict{Int, Dict{Int, SortedDict{
+        Tuple{Vararg{Int}},
+        PurePathLabel,
+        Base.Order.ForwardOrdering
+    }}},
 )
     generated_subpaths = Dict{
         Tuple{
@@ -191,10 +197,7 @@ function get_subpaths_charging_arcs_from_negative_path_labels(
         Vector{ChargingArc},
     }()
     for starting_node in data["N_depots"], end_node in data["N_depots"]
-        for path in values(full_labels[starting_node][end_node])
-            if path.cost ≥ -1e-6
-                continue
-            end
+        for path in values(pure_labels[starting_node][end_node])
             states = Tuple{Int, Int, Int}[]
             current_subpath = Subpath(
                 n_customers = data["n_customers"],
@@ -518,8 +521,9 @@ function subpath_formulation_column_generation_integrated_from_paths(
                     check_customers = false,
                 )
                 full_labels_time = full_labels_result.time
-                (generated_subpaths, generated_charging_arcs) = get_subpaths_charging_arcs_from_negative_paths(
-                    data, full_labels_result.value,
+                negative_full_labels = get_negative_path_labels_from_path_labels(data, full_labels_result.value)
+                (generated_subpaths, generated_charging_arcs) = get_subpaths_charging_arcs_from_negative_path_labels(
+                    data, negative_full_labels,
                 )
                 if length(generated_subpaths) == 0 && length(generated_charging_arcs) == 0
                     checkpoint_reached = true
@@ -543,8 +547,9 @@ function subpath_formulation_column_generation_integrated_from_paths(
                         check_customers = path_check_customers,
                     )
                     full_labels_time += full_labels_result.time
-                    (generated_subpaths, generated_charging_arcs) = get_subpaths_charging_arcs_from_negative_paths(
-                        data, full_labels_result.value,
+                    negative_full_labels = get_negative_path_labels_from_path_labels(data, full_labels_result.value)
+                    (generated_subpaths, generated_charging_arcs) = get_subpaths_charging_arcs_from_negative_path_labels(
+                        data, negative_full_labels,
                     )
                 end
             elseif check_customers_accelerated && checkpoint_reached
@@ -568,8 +573,9 @@ function subpath_formulation_column_generation_integrated_from_paths(
                     check_customers = path_check_customers,
                 )
                 full_labels_time = full_labels_result.time
-                (generated_subpaths, generated_charging_arcs) = get_subpaths_charging_arcs_from_negative_paths(
-                    data, full_labels_result.value,
+                negative_full_labels = get_negative_path_labels_from_path_labels(data, full_labels_result.value)
+                (generated_subpaths, generated_charging_arcs) = get_subpaths_charging_arcs_from_negative_path_labels(
+                    data, negative_full_labels,
                 )
             else
                 if subpath_single_service
@@ -592,8 +598,9 @@ function subpath_formulation_column_generation_integrated_from_paths(
                     check_customers = path_check_customers,
                 )
                 full_labels_time = full_labels_result.time
-                (generated_subpaths, generated_charging_arcs) = get_subpaths_charging_arcs_from_negative_paths(
-                    data, full_labels_result.value,
+                negative_full_labels = get_negative_path_labels_from_path_labels(data, full_labels_result.value)
+                (generated_subpaths, generated_charging_arcs) = get_subpaths_charging_arcs_from_negative_path_labels(
+                    data, negative_full_labels,
                 )
             end
             push!(
@@ -618,8 +625,9 @@ function subpath_formulation_column_generation_integrated_from_paths(
                     check_customers = false,
                 )
                 full_labels_time = full_labels_result.time
-                (generated_subpaths, generated_charging_arcs) = get_subpaths_charging_arcs_from_negative_path_labels(
-                    data, full_labels_result.value,
+                negative_pure_labels = get_negative_pure_path_labels_from_pure_path_labels(data, full_labels_result.value)
+                (generated_subpaths, generated_charging_arcs) = get_subpaths_charging_arcs_from_negative_pure_path_labels(
+                    data, negative_pure_labels,
                 )
                 if length(generated_subpaths) == 0 && length(generated_charging_arcs) == 0
                     checkpoint_reached = true
@@ -631,8 +639,9 @@ function subpath_formulation_column_generation_integrated_from_paths(
                         check_customers = true,
                     )
                     full_labels_time += full_labels_result.time
-                    (generated_subpaths, generated_charging_arcs) = get_subpaths_charging_arcs_from_negative_path_labels(
-                        data, full_labels_result.value,
+                    negative_pure_labels = get_negative_pure_path_labels_from_pure_path_labels(data, full_labels_result.value)
+                    (generated_subpaths, generated_charging_arcs) = get_subpaths_charging_arcs_from_negative_pure_path_labels(
+                        data, negative_pure_labels,
                     )
                 end
             elseif check_customers_accelerated && checkpoint_reached
@@ -644,8 +653,9 @@ function subpath_formulation_column_generation_integrated_from_paths(
                     check_customers = true,
                 )
                 full_labels_time = full_labels_result.time
-                (generated_subpaths, generated_charging_arcs) = get_subpaths_charging_arcs_from_negative_path_labels(
-                    data, full_labels_result.value,
+                negative_pure_labels = get_negative_pure_path_labels_from_pure_path_labels(data, full_labels_result.value)
+                (generated_subpaths, generated_charging_arcs) = get_subpaths_charging_arcs_from_negative_pure_path_labels(
+                    data, negative_pure_labels,
                 )
             else
                 full_labels_result = @timed find_nondominated_paths(
@@ -656,8 +666,9 @@ function subpath_formulation_column_generation_integrated_from_paths(
                     check_customers = path_check_customers,
                 )
                 full_labels_time = full_labels_result.time
-                (generated_subpaths, generated_charging_arcs) = get_subpaths_charging_arcs_from_negative_path_labels(
-                    data, full_labels_result.value,
+                negative_pure_labels = get_negative_pure_path_labels_from_pure_path_labels(data, full_labels_result.value)
+                (generated_subpaths, generated_charging_arcs) = get_subpaths_charging_arcs_from_negative_pure_path_labels(
+                    data, negative_pure_labels,
                 )
             end
             push!(

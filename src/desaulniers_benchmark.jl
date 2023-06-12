@@ -2,7 +2,7 @@ include("utils.jl")
 using DataStructures
 using Printf
 
-Base.@kwdef mutable struct FullPathLabel
+Base.@kwdef mutable struct PurePathLabel
     cost::Float64
     nodes::Vector{Int}
     excesses::Vector{Int}
@@ -16,7 +16,7 @@ Base.@kwdef mutable struct FullPathLabel
     artificial::Bool = false
 end
 
-Base.copy(p::FullPathLabel) = FullPathLabel(
+Base.copy(p::PurePathLabel) = PurePathLabel(
     p.cost,
     copy(p.nodes),
     copy(p.excesses),
@@ -31,7 +31,7 @@ Base.copy(p::FullPathLabel) = FullPathLabel(
 )
 
 function compute_path_label_cost(
-    p::FullPathLabel,
+    p::PurePathLabel,
     data,
     M::Float64 = 1e10,
     ;
@@ -56,7 +56,7 @@ end
 
 
 function compute_path_label_modified_cost(
-    p::FullPathLabel,
+    p::PurePathLabel,
     data,
     κ,
     μ,
@@ -93,24 +93,16 @@ function find_nondominated_paths(
     ;
     single_service::Bool = false,
     time_windows::Bool = true,
-    check_customers::Bool = false,
+    check_customers::Bool = true,
 )
-    function add_full_path_label_to_collection!(
-        collection::Union{
-            SortedDict{
-                Tuple{Int, Int, Int}, 
-                FullPathLabel, 
-            },
-            SortedDict{
-                Tuple{Int, Int, Int, Vararg{Int}}, 
-                FullPathLabel, 
-            },
+    function add_pure_path_label_to_collection!(
+        collection::SortedDict{
+            Tuple{Vararg{Int}}, 
+            PurePathLabel,
+            Base.Order.ForwardOrdering
         },
-        key::Union{
-            Tuple{Int, Int, Int},
-            Tuple{Int, Int, Int, Vararg{Int}},
-        },
-        path::FullPathLabel,
+        key::Tuple{Vararg{Int}},
+        path::PurePathLabel,
         ;
         verbose::Bool = false,
     )
@@ -150,29 +142,16 @@ function find_nondominated_paths(
         end
     end
 
-    if check_customers
-        full_labels = Dict(
-            starting_node => Dict(
-                current_node => SortedDict{
-                    Tuple{Int, Int, Int, Vararg{Int}}, 
-                    FullPathLabel
-                }()
-                for current_node in data["N_nodes"]
-            )
-            for starting_node in data["N_depots"]
+    pure_path_labels = Dict(
+        starting_node => Dict(
+            current_node => SortedDict{
+                Tuple{Vararg{Int}}, 
+                PurePathLabel,
+            }()
+            for current_node in data["N_nodes"]
         )
-    else
-        full_labels = Dict(
-            starting_node => Dict(
-                current_node => SortedDict{
-                    Tuple{Int, Int, Int}, 
-                    FullPathLabel
-                }()
-                for current_node in data["N_nodes"]
-            )
-            for starting_node in data["N_depots"]
-        )
-    end
+        for starting_node in data["N_depots"]
+    )
 
     if check_customers
         # label key here has the following fields:
@@ -185,7 +164,7 @@ function find_nondominated_paths(
         key = (0, -data["B"], -data["B"])
     end
     for depot in data["N_depots"]
-        full_labels[depot][depot][key] = FullPathLabel(
+        pure_path_labels[depot][depot][key] = PurePathLabel(
             0.0,
             [depot],
             Int[],
@@ -222,10 +201,10 @@ function find_nondominated_paths(
         state = pop!(unexplored_states)
         starting_node = state[end-1]
         i = state[end]
-        if !(state[1:end-2] in keys(full_labels[starting_node][i]))
+        if !(state[1:end-2] in keys(pure_path_labels[starting_node][i]))
             continue
         end
-        path = full_labels[starting_node][i][state[1:end-2]]
+        path = pure_path_labels[starting_node][i][state[1:end-2]]
         # println("$(path.time_mincharge), $(path.time_maxcharge), $(path.charge_mincharge), $(path.charge_maxcharge)")
         for j in setdiff(outneighbors(G, i), i)
             # println("$state -> $j")
@@ -342,7 +321,7 @@ function find_nondominated_paths(
                 )
             end
 
-            added = add_full_path_label_to_collection!(full_labels[starting_node][j], new_key, new_path, verbose = false)
+            added = add_pure_path_label_to_collection!(pure_path_labels[starting_node][j], new_key, new_path, verbose = false)
             if added && !(j in data["N_depots"])
                 new_state = (new_key..., starting_node, j)
                 # println("adding state: $(new_state)")
@@ -352,17 +331,36 @@ function find_nondominated_paths(
     end
     
     for starting_node in data["N_depots"]
-        for ending_node in union(data["N_customers"], data["N_charging"])
-            delete!(full_labels[starting_node], ending_node)
-        end
-    end
-    for starting_node in data["N_depots"]
-        for ending_node in  data["N_depots"]
-            for path in values(full_labels[starting_node][ending_node])
+        for ending_node in data["N_depots"]
+            for path in values(pure_path_labels[starting_node][ending_node])
                 path.cost = path.cost - κ[starting_node] - μ[ending_node]
             end
         end
     end
 
-    return full_labels
+    return pure_path_labels
+end
+
+function get_negative_pure_path_labels_from_pure_path_labels(
+    data, 
+    pure_path_labels::Dict{Int, Dict{Int, SortedDict{
+        Tuple{Vararg{Int}},
+        PurePathLabel,
+        Base.Order.ForwardOrdering
+    }}}
+)
+    return Dict(
+        starting_node => Dict(
+            end_node => SortedDict{
+                Tuple{Vararg{Int}},
+                PurePathLabel,
+            }(
+                key => path_label
+                for (key, path_label) in pure_path_labels[starting_node][end_node] 
+                    if path_label.cost < -1e-6
+            )
+            for end_node in keys(pure_path_labels[starting_node])
+        )
+        for starting_node in data["N_depots"]
+    )
 end
