@@ -39,7 +39,7 @@ p_b_tw_sc_LP_results, p_b_tw_sc_IP_results, p_b_tw_sc_params, p_b_tw_sc_printlis
 
 p_b_tw_ie_LP_results, p_b_tw_ie_IP_results, p_b_tw_ie_params, p_b_tw_ie_printlist, p_b_tw_ie_some_paths = path_formulation_column_generation(G, data; method = "benchmark", time_windows = true, verbose = true, incremental_elementarity = true,)
 p_b_tw_iec_LP_results, p_b_tw_iec_IP_results, p_b_tw_iec_params, p_b_tw_iec_printlist, p_b_tw_iec_some_paths = path_formulation_column_generation(G, data; method = "benchmark", time_windows = true, verbose = true, incremental_elementarity = true, path_check_customers = true)
-p_b_tw_iecw_LP_results, p_b_tw_iecw_IP_results, p_b_tw_iecw_params, p_b_tw_iecw_printlist, p_b_tw_iecw_some_paths = path_formulation_column_generation(G, data; method = "benchmark", time_windows = true, verbose = true, incremental_elementarity = true, path_check_customers = true, warm_start = true) # FIXME: debug
+p_b_tw_iecw_LP_results, p_b_tw_iecw_IP_results, p_b_tw_iecw_params, p_b_tw_iecw_printlist, p_b_tw_iecw_some_paths = path_formulation_column_generation(G, data; method = "benchmark", time_windows = true, verbose = true, incremental_elementarity = true, path_check_customers = true, warm_start = true)
 
 p_b_LP_results, p_b_IP_results, p_b_params, p_b_printlist, p_b_some_paths = path_formulation_column_generation(G, data; method = "benchmark", verbose = true)
 p_b_s_LP_results, p_b_s_IP_results, p_b_s_params, p_b_s_printlist, p_b_s_some_paths = path_formulation_column_generation(G, data; method = "benchmark", path_single_service = true, verbose = true)
