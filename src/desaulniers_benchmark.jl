@@ -208,9 +208,14 @@ function find_nondominated_paths(
         # println("$(path.time_mincharge), $(path.time_maxcharge), $(path.charge_mincharge), $(path.charge_maxcharge)")
         for j in setdiff(outneighbors(G, i), i)
             # println("$state -> $j")
-            if j in data["N_customers"] && single_service && path.served[j] > 0
-                # println("already served $j")
-                continue
+            if j in data["N_customers"] 
+                if single_service && path.served[j] > 0
+                    # println("already served $j")
+                    continue
+                end
+                if length(path.nodes) ≥ 2 && path.nodes[end-1] == j
+                    continue
+                end
             end
             # feasibility checks
             # (1) battery

@@ -126,6 +126,12 @@ function generate_base_labels_nonsingleservice(
             if current_subpath.charge_taken + data["q"][current_node, next_node] + data["min_q"][next_node] > data["B"]
                 continue
             end
+            # Preventing customer 2-cycles (Christofides)
+            if next_node in data["N_customers"]
+                if length(current_subpath.nodes) ≥ 2 && current_subpath.nodes[end-1] == next_node
+                    continue
+                end
+            end
             # if current_subpath.time_taken + data["t"][current_node, next_node] + data["min_t"][next_node] > data["T"]
             #     continue
             # end 
@@ -284,6 +290,7 @@ function generate_base_labels_singleservice(
                 (j, (k2, s2)) in enumerate(pairs(labels2))
                 if s1.charge_taken + s2.charge_taken ≤ data["B"]
                     && all(s1.served .+ s2.served .≤ 1)
+                    # TODO: if I relax this, think of how to impose Christofides 2-cycle condition
         ])
             if length(new) == 0
                 push!(new, (t, cost, i, j))
@@ -380,6 +387,10 @@ function generate_base_labels_singleservice(
                 if true
                     for (k1, s1) in pairs(base_labels[start_node][new_node])
                         for (k2, s2) in pairs(base_labels[new_node][end_node])
+                            # Preventing customer 2-cycles (Christofides)
+                            if s1.nodes[end-1] in data["N_customers"] && s1.nodes[end-1] == s2.nodes[2]
+                                continue
+                            end
                             k = k1 .+ k2
                             if !all(s1.served .+ s2.served .≤ 1)
                                 continue
@@ -568,6 +579,16 @@ function find_nondominated_paths_notimewindows(
                     && any(s.served + current_path.served .> 1)
                 )
                     continue
+                end
+                # Preventing customer 2-cycles (Christofides)
+                if length(current_path.subpath_labels) ≥ 1
+                    prev_subpath = current_path.subpath_labels[end]
+                    if (
+                        prev_subpath.nodes[end-1] in data["N_customers"] 
+                        && prev_subpath.nodes[end-1] == s.nodes[2]
+                    )
+                        continue
+                    end
                 end
                 (delta, end_time, end_charge) = charge_to_specified_level(
                     - state[2], # current charge
