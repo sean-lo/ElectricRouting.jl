@@ -37,9 +37,29 @@ p_b_tw_LP_results, p_b_tw_IP_results, p_b_tw_params, p_b_tw_printlist, p_b_tw_so
 p_b_tw_s_LP_results, p_b_tw_s_IP_results, p_b_tw_s_params, p_b_tw_s_printlist, p_b_tw_s_some_paths = path_formulation_column_generation(G, data; method = "benchmark", time_windows = true, path_single_service = true, verbose = true)
 p_b_tw_sc_LP_results, p_b_tw_sc_IP_results, p_b_tw_sc_params, p_b_tw_sc_printlist, p_b_tw_sc_some_paths = path_formulation_column_generation(G, data; method = "benchmark", time_windows = true, path_single_service = true, path_check_customers = true, verbose = true)
 
+p_b_tw_ch_LP_results, p_b_tw_ch_IP_results, p_b_tw_ch_params, p_b_tw_ch_printlist, p_b_tw_ch_some_paths = path_formulation_column_generation(G, data; method = "benchmark", time_windows = true, christofides = true, verbose = true)
+
+p_b_tw_ie_LP_results, p_b_tw_ie_IP_results, p_b_tw_ie_params, p_b_tw_ie_printlist, p_b_tw_ie_some_paths = path_formulation_column_generation(G, data; method = "benchmark", time_windows = true, verbose = true, incremental_elementarity = true,)
+p_b_tw_iec_LP_results, p_b_tw_iec_IP_results, p_b_tw_iec_params, p_b_tw_iec_printlist, p_b_tw_iec_some_paths = path_formulation_column_generation(G, data; method = "benchmark", time_windows = true, verbose = true, incremental_elementarity = true, path_check_customers = true)
+p_b_tw_iecw_LP_results, p_b_tw_iecw_IP_results, p_b_tw_iecw_params, p_b_tw_iecw_printlist, p_b_tw_iecw_some_paths = path_formulation_column_generation(G, data; method = "benchmark", time_windows = true, verbose = true, incremental_elementarity = true, path_check_customers = true, warm_start = true)
+
+p_b_tw_ie_ch_LP_results, p_b_tw_ie_ch_IP_results, p_b_tw_ie_ch_params, p_b_tw_ie_ch_printlist, p_b_tw_ie_ch_some_paths = path_formulation_column_generation(G, data; method = "benchmark", time_windows = true, verbose = true, incremental_elementarity = true, christofides = true)
+p_b_tw_iec_ch_LP_results, p_b_tw_iec_ch_IP_results, p_b_tw_iec_ch_params, p_b_tw_iec_ch_printlist, p_b_tw_iec_ch_some_paths = path_formulation_column_generation(G, data; method = "benchmark", time_windows = true, verbose = true, incremental_elementarity = true, path_check_customers = true, christofides = true)
+p_b_tw_iecw_ch_LP_results, p_b_tw_iecw_ch_IP_results, p_b_tw_iecw_ch_params, p_b_tw_iecw_ch_printlist, p_b_tw_iecw_ch_some_paths = path_formulation_column_generation(G, data; method = "benchmark", time_windows = true, verbose = true, incremental_elementarity = true, path_check_customers = true, warm_start = true, christofides = true)
+
 p_b_LP_results, p_b_IP_results, p_b_params, p_b_printlist, p_b_some_paths = path_formulation_column_generation(G, data; method = "benchmark", verbose = true)
 p_b_s_LP_results, p_b_s_IP_results, p_b_s_params, p_b_s_printlist, p_b_s_some_paths = path_formulation_column_generation(G, data; method = "benchmark", path_single_service = true, verbose = true)
 p_b_sc_LP_results, p_b_sc_IP_results, p_b_sc_params, p_b_sc_printlist, p_b_sc_some_paths = path_formulation_column_generation(G, data; method = "benchmark", path_single_service = true, path_check_customers = true, verbose = true)
+
+p_b_ch_LP_results, p_b_ch_IP_results, p_b_ch_params, p_b_ch_printlist, p_b_ch_some_paths = path_formulation_column_generation(G, data; method = "benchmark", verbose = true, christofides = true)
+
+p_b_ie_LP_results, p_b_ie_IP_results, p_b_ie_params, p_b_ie_printlist, p_b_ie_some_paths = path_formulation_column_generation(G, data; method = "benchmark", verbose = true, incremental_elementarity = true,)
+p_b_iec_LP_results, p_b_iec_IP_results, p_b_iec_params, p_b_iec_printlist, p_b_iec_some_paths = path_formulation_column_generation(G, data; method = "benchmark", verbose = true, incremental_elementarity = true, path_check_customers = true)
+p_b_iecw_LP_results, p_b_iecw_IP_results, p_b_iecw_params, p_b_iecw_printlist, p_b_iecw_some_paths = path_formulation_column_generation(G, data; method = "benchmark", verbose = true, incremental_elementarity = true, path_check_customers = true, warm_start = true) # FIXME: debug this
+
+p_b_ie_ch_LP_results, p_b_ie_ch_IP_results, p_b_ie_ch_params, p_b_ie_ch_printlist, p_b_ie_ch_some_paths = path_formulation_column_generation(G, data; method = "benchmark", verbose = true, incremental_elementarity = true, christofides = true)
+p_b_iec_ch_LP_results, p_b_iec_ch_IP_results, p_b_iec_ch_params, p_b_iec_ch_printlist, p_b_iec_ch_some_paths = path_formulation_column_generation(G, data; method = "benchmark", verbose = true, incremental_elementarity = true, path_check_customers = true, christofides = true)
+p_b_iecw_ch_LP_results, p_b_iecw_ch_IP_results, p_b_iecw_ch_params, p_b_iecw_ch_printlist, p_b_iecw_ch_some_paths = path_formulation_column_generation(G, data; method = "benchmark", verbose = true, incremental_elementarity = true, path_check_customers = true, warm_start = true, christofides = true)
 
 p_o_LP_results, p_o_IP_results, p_o_params, p_o_printlist, p_o_some_paths = path_formulation_column_generation(G, data; method = "ours", verbose = true)
 p_o_s_LP_results, p_o_s_IP_results, p_o_s_params, p_o_s_printlist, p_o_s_some_paths = path_formulation_column_generation(G, data; method = "ours", subpath_single_service = true, verbose = true)
@@ -47,15 +67,42 @@ p_o_sc_LP_results, p_o_sc_IP_results, p_o_sc_params, p_o_sc_printlist, p_o_sc_so
 p_o_ss_LP_results, p_o_ss_IP_results, p_o_ss_params, p_o_ss_printlist, p_o_ss_some_paths = path_formulation_column_generation(G, data; method = "ours", subpath_single_service = true, path_single_service = true, verbose = true)
 p_o_scsc_LP_results, p_o_scsc_IP_results, p_o_scsc_params, p_o_scsc_printlist, p_o_scsc_some_paths = path_formulation_column_generation(G, data; method = "ours", subpath_single_service = true, subpath_check_customers = true, path_single_service = true, path_check_customers = true, verbose = true)
 
+p_o_ch_LP_results, p_o_ch_IP_results, p_o_ch_params, p_o_ch_printlist, p_o_ch_some_paths = path_formulation_column_generation(G, data; method = "ours", verbose = true, christofides = true)
+p_o_s_ch_LP_results, p_o_s_ch_IP_results, p_o_s_ch_params, p_o_s_ch_printlist, p_o_s_ch_some_paths = path_formulation_column_generation(G, data; method = "ours", subpath_single_service = true, verbose = true, christofides = true)
+p_o_sc_ch_LP_results, p_o_sc_ch_IP_results, p_o_sc_ch_params, p_o_sc_ch_printlist, p_o_sc_ch_some_paths = path_formulation_column_generation(G, data; method = "ours", subpath_single_service = true, subpath_check_customers = true, verbose = true, christofides = true)
+p_o_ss_ch_LP_results, p_o_ss_ch_IP_results, p_o_ss_ch_params, p_o_ss_ch_printlist, p_o_ss_ch_some_paths = path_formulation_column_generation(G, data; method = "ours", subpath_single_service = true, path_single_service = true, verbose = true, christofides = true)
+p_o_scsc_ch_LP_results, p_o_scsc_ch_IP_results, p_o_scsc_ch_params, p_o_scsc_ch_printlist, p_o_scsc_ch_some_paths = path_formulation_column_generation(G, data; method = "ours", subpath_single_service = true, subpath_check_customers = true, path_single_service = true, path_check_customers = true, verbose = true, christofides = true)
+
 sp_b_tw_LP_results, sp_b_tw_IP_results, sp_b_tw_params, sp_b_tw_printlist, sp_b_tw_some_subpaths, sp_b_tw_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "benchmark", time_windows = true, verbose = true)
 sp_b_tw_s_LP_results, sp_b_tw_s_IP_results, sp_b_tw_s_params, sp_b_tw_s_printlist, sp_b_tw_s_some_subpaths, sp_b_tw_s_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "benchmark", time_windows = true, path_single_service = true, verbose = true)
 sp_b_tw_sc_LP_results, sp_b_tw_sc_IP_results, sp_b_tw_sc_params, sp_b_tw_sc_printlist, sp_b_tw_sc_some_subpaths, sp_b_tw_sc_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "benchmark", time_windows = true, path_single_service = true, path_check_customers = true, verbose = true)
 sp_b_tw_sca_LP_results, sp_b_tw_sca_IP_results, sp_b_tw_sca_params, sp_b_tw_sca_printlist, sp_b_tw_sca_some_subpaths, sp_b_tw_sca_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "benchmark", time_windows = true, path_single_service = true, path_check_customers = true, check_customers_accelerated = true, verbose = true)
 
+sp_b_tw_ch_LP_results, sp_b_tw_ch_IP_results, sp_b_tw_ch_params, sp_b_tw_ch_printlist, sp_b_tw_ch_some_subpaths, sp_b_tw_ch_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "benchmark", time_windows = true, verbose = true, christofides = true)
+
+sp_b_tw_ie_LP_results, sp_b_tw_ie_IP_results, sp_b_tw_ie_params, sp_b_tw_ie_printlist, sp_b_tw_ie_some_subpaths, sp_b_tw_ie_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "benchmark", time_windows = true, incremental_elementarity = true, verbose = true)
+sp_b_tw_iec_LP_results, sp_b_tw_iec_IP_results, sp_b_tw_iec_params, sp_b_tw_iec_printlist, sp_b_tw_iec_some_subpaths, sp_b_tw_iec_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "benchmark", time_windows = true, incremental_elementarity = true, path_check_customers = true, verbose = true)
+sp_b_tw_iecw_LP_results, sp_b_tw_iecw_IP_results, sp_b_tw_iecw_params, sp_b_tw_iecw_printlist, sp_b_tw_iecw_some_subpaths, sp_b_tw_iecw_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "benchmark", time_windows = true, incremental_elementarity = true, path_check_customers = true, warm_start = true, verbose = true)
+
+sp_b_tw_ie_ch_LP_results, sp_b_tw_ie_ch_IP_results, sp_b_tw_ie_ch_params, sp_b_tw_ie_ch_printlist, sp_b_tw_ie_ch_some_subpaths, sp_b_tw_ie_ch_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "benchmark", time_windows = true, incremental_elementarity = true, verbose = true, christofides = true)
+sp_b_tw_iec_ch_LP_results, sp_b_tw_iec_ch_IP_results, sp_b_tw_iec_ch_params, sp_b_tw_iec_ch_printlist, sp_b_tw_iec_ch_some_subpaths, sp_b_tw_iec_ch_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "benchmark", time_windows = true, incremental_elementarity = true, path_check_customers = true, verbose = true, christofides = true)
+sp_b_tw_iecw_ch_LP_results, sp_b_tw_iecw_ch_IP_results, sp_b_tw_iecw_ch_params, sp_b_tw_iecw_ch_printlist, sp_b_tw_iecw_ch_some_subpaths, sp_b_tw_iecw_ch_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "benchmark", time_windows = true, incremental_elementarity = true, path_check_customers = true, warm_start = true, verbose = true, christofides = true)
+
 sp_b_LP_results, sp_b_IP_results, sp_b_params, sp_b_printlist, sp_b_some_subpaths, sp_b_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "benchmark", verbose = true)
 sp_b_s_LP_results, sp_b_s_IP_results, sp_b_s_params, sp_b_s_printlist, sp_b_s_some_subpaths, sp_b_s_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "benchmark", path_single_service = true, verbose = true)
 sp_b_sc_LP_results, sp_b_sc_IP_results, sp_b_sc_params, sp_b_sc_printlist, sp_b_sc_some_subpaths, sp_b_sc_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "benchmark", path_single_service = true, path_check_customers = true, verbose = true)
 sp_b_sca_LP_results, sp_b_sca_IP_results, sp_b_sca_params, sp_b_sca_printlist, sp_b_sca_some_subpaths, sp_b_sca_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "benchmark", path_single_service = true, path_check_customers = true, check_customers_accelerated = true, verbose = true)
+
+sp_b_ch_LP_results, sp_b_ch_IP_results, sp_b_ch_params, sp_b_ch_printlist, sp_b_ch_some_subpaths, sp_b_ch_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "benchmark", verbose = true, christofides = true)
+
+sp_b_ie_LP_results, sp_b_ie_IP_results, sp_b_ie_params, sp_b_ie_printlist, sp_b_ie_some_subpaths, sp_b_ie_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "benchmark", incremental_elementarity = true, verbose = true)
+sp_b_iec_LP_results, sp_b_iec_IP_results, sp_b_iec_params, sp_b_iec_printlist, sp_b_iec_some_subpaths, sp_b_iec_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "benchmark", incremental_elementarity = true, path_check_customers = true, verbose = true)
+sp_b_iecw_LP_results, sp_b_iecw_IP_results, sp_b_iecw_params, sp_b_iecw_printlist, sp_b_iecw_some_subpaths, sp_b_iecw_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "benchmark", incremental_elementarity = true, path_check_customers = true, warm_start = true, verbose = true)
+
+sp_b_ie_ch_LP_results, sp_b_ie_ch_IP_results, sp_b_ie_ch_params, sp_b_ie_ch_printlist, sp_b_ie_ch_some_subpaths, sp_b_ie_ch_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "benchmark", incremental_elementarity = true, verbose = true, christofides = true)
+sp_b_iec_ch_LP_results, sp_b_iec_ch_IP_results, sp_b_iec_ch_params, sp_b_iec_ch_printlist, sp_b_iec_ch_some_subpaths, sp_b_iec_ch_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "benchmark", incremental_elementarity = true, path_check_customers = true, verbose = true, christofides = true)
+sp_b_iecw_ch_LP_results, sp_b_iecw_ch_IP_results, sp_b_iecw_ch_params, sp_b_iecw_ch_printlist, sp_b_iecw_ch_some_subpaths, sp_b_iecw_ch_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "benchmark", incremental_elementarity = true, path_check_customers = true, warm_start = true, verbose = true, christofides = true)
+
 
 sp_o_LP_results, sp_o_IP_results, sp_o_params, sp_o_printlist, sp_o_some_subpaths, sp_o_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "ours", verbose = true)
 sp_o_s_LP_results, sp_o_s_IP_results, sp_o_s_params, sp_o_s_printlist, sp_o_s_some_subpaths, sp_o_s_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "ours", subpath_single_service = true, verbose = true)
@@ -65,28 +112,76 @@ sp_o_ss_LP_results, sp_o_ss_IP_results, sp_o_ss_params, sp_o_ss_printlist, sp_o_
 sp_o_scsc_LP_results, sp_o_scsc_IP_results, sp_o_scsc_params, sp_o_scsc_printlist, sp_o_scsc_some_subpaths, sp_o_scsc_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "ours", subpath_single_service = true, subpath_check_customers = true, path_single_service = true, path_check_customers = true, verbose = true)
 sp_o_scsca_LP_results, sp_o_scsca_IP_results, sp_o_scsca_params, sp_o_scsca_printlist, sp_o_scsca_some_subpaths, sp_o_scsca_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "ours", subpath_single_service = true, subpath_check_customers = true, path_single_service = true, path_check_customers = true, check_customers_accelerated = true, verbose = true)
 
+sp_o_ch_LP_results, sp_o_ch_IP_results, sp_o_ch_params, sp_o_ch_printlist, sp_o_ch_some_subpaths, sp_o_ch_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "ours", verbose = true, christofides = true)
+sp_o_s_ch_LP_results, sp_o_s_ch_IP_results, sp_o_s_ch_params, sp_o_s_ch_printlist, sp_o_s_ch_some_subpaths, sp_o_s_ch_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "ours", subpath_single_service = true, verbose = true, christofides = true)
+sp_o_sc_ch_LP_results, sp_o_sc_ch_IP_results, sp_o_sc_ch_params, sp_o_sc_ch_printlist, sp_o_sc_ch_some_subpaths, sp_o_sc_ch_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "ours", subpath_single_service = true, subpath_check_customers = true, verbose = true, christofides = true)
+sp_o_sca_ch_LP_results, sp_o_sca_ch_IP_results, sp_o_sca_ch_params, sp_o_sca_ch_printlist, sp_o_sca_ch_some_subpaths, sp_o_sca_ch_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "ours", subpath_single_service = true, subpath_check_customers = true, check_customers_accelerated = true, verbose = true, christofides = true)
+sp_o_ss_ch_LP_results, sp_o_ss_ch_IP_results, sp_o_ss_ch_params, sp_o_ss_ch_printlist, sp_o_ss_ch_some_subpaths, sp_o_ss_ch_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "ours", subpath_single_service = true, path_single_service = true, verbose = true, christofides = true)
+sp_o_scsc_ch_LP_results, sp_o_scsc_ch_IP_results, sp_o_scsc_ch_params, sp_o_scsc_ch_printlist, sp_o_scsc_ch_some_subpaths, sp_o_scsc_ch_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "ours", subpath_single_service = true, subpath_check_customers = true, path_single_service = true, path_check_customers = true, verbose = true, christofides = true)
+sp_o_scsca_ch_LP_results, sp_o_scsca_ch_IP_results, sp_o_scsca_ch_params, sp_o_scsca_ch_printlist, sp_o_scsca_ch_some_subpaths, sp_o_scsca_ch_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "ours", subpath_single_service = true, subpath_check_customers = true, path_single_service = true, path_check_customers = true, check_customers_accelerated = true, verbose = true, christofides = true)
+
 collect_path_solution_metrics!(p_b_tw_LP_results, data, p_b_tw_some_paths)
 collect_path_solution_metrics!(p_b_tw_s_LP_results, data, p_b_tw_s_some_paths)
 collect_path_solution_metrics!(p_b_tw_sc_LP_results, data, p_b_tw_sc_some_paths)
+collect_path_solution_metrics!(p_b_tw_ch_LP_results, data, p_b_tw_ch_some_paths)
+
+collect_path_solution_metrics!(p_b_tw_ie_LP_results, data, p_b_tw_ie_some_paths)
+collect_path_solution_metrics!(p_b_tw_iec_LP_results, data, p_b_tw_iec_some_paths)
+collect_path_solution_metrics!(p_b_tw_iecw_LP_results, data, p_b_tw_iecw_some_paths)
+collect_path_solution_metrics!(p_b_tw_ie_ch_LP_results, data, p_b_tw_ie_ch_some_paths)
+collect_path_solution_metrics!(p_b_tw_iec_ch_LP_results, data, p_b_tw_iec_ch_some_paths)
+collect_path_solution_metrics!(p_b_tw_iecw_ch_LP_results, data, p_b_tw_iecw_ch_some_paths)
 
 collect_path_solution_metrics!(p_b_LP_results, data, p_b_some_paths)
 collect_path_solution_metrics!(p_b_s_LP_results, data, p_b_s_some_paths)
 collect_path_solution_metrics!(p_b_sc_LP_results, data, p_b_sc_some_paths)
+collect_path_solution_metrics!(p_b_ch_LP_results, data, p_b_ch_some_paths)
+
+collect_path_solution_metrics!(p_b_ie_LP_results, data, p_b_ie_some_paths)
+collect_path_solution_metrics!(p_b_iec_LP_results, data, p_b_iec_some_paths)
+collect_path_solution_metrics!(p_b_iecw_LP_results, data, p_b_iecw_some_paths)
+collect_path_solution_metrics!(p_b_ie_ch_LP_results, data, p_b_ie_ch_some_paths)
+collect_path_solution_metrics!(p_b_iec_ch_LP_results, data, p_b_iec_ch_some_paths)
+collect_path_solution_metrics!(p_b_iecw_ch_LP_results, data, p_b_iecw_ch_some_paths)
+
 collect_path_solution_metrics!(p_o_LP_results, data, p_o_some_paths)
 collect_path_solution_metrics!(p_o_s_LP_results, data, p_o_s_some_paths)
 collect_path_solution_metrics!(p_o_sc_LP_results, data, p_o_sc_some_paths)
 collect_path_solution_metrics!(p_o_ss_LP_results, data, p_o_ss_some_paths)
 collect_path_solution_metrics!(p_o_scsc_LP_results, data, p_o_scsc_some_paths)
 
+collect_path_solution_metrics!(p_o_ch_LP_results, data, p_o_ch_some_paths)
+collect_path_solution_metrics!(p_o_s_ch_LP_results, data, p_o_s_ch_some_paths)
+collect_path_solution_metrics!(p_o_sc_ch_LP_results, data, p_o_sc_ch_some_paths)
+collect_path_solution_metrics!(p_o_ss_ch_LP_results, data, p_o_ss_ch_some_paths)
+collect_path_solution_metrics!(p_o_scsc_ch_LP_results, data, p_o_scsc_ch_some_paths)
+
 collect_subpath_solution_metrics!(sp_b_tw_LP_results, data, sp_b_tw_some_subpaths, sp_b_tw_some_charging_arcs)
 collect_subpath_solution_metrics!(sp_b_tw_s_LP_results, data, sp_b_tw_s_some_subpaths, sp_b_tw_s_some_charging_arcs)
 collect_subpath_solution_metrics!(sp_b_tw_sc_LP_results, data, sp_b_tw_sc_some_subpaths, sp_b_tw_sc_some_charging_arcs)
 collect_subpath_solution_metrics!(sp_b_tw_sca_LP_results, data, sp_b_tw_sca_some_subpaths, sp_b_sca_some_charging_arcs)
+collect_subpath_solution_metrics!(sp_b_tw_ch_LP_results, data, sp_b_tw_ch_some_subpaths, sp_b_tw_ch_some_charging_arcs)
+
+collect_subpath_solution_metrics!(sp_b_tw_ie_LP_results, data, sp_b_tw_ie_some_subpaths, sp_b_tw_ie_some_charging_arcs)
+collect_subpath_solution_metrics!(sp_b_tw_iec_LP_results, data, sp_b_tw_iec_some_subpaths, sp_b_tw_iec_some_charging_arcs)
+collect_subpath_solution_metrics!(sp_b_tw_iecw_LP_results, data, sp_b_tw_iecw_some_subpaths, sp_b_tw_iecw_some_charging_arcs)
+collect_subpath_solution_metrics!(sp_b_tw_ie_ch_LP_results, data, sp_b_tw_ie_ch_some_subpaths, sp_b_tw_ie_ch_some_charging_arcs)
+collect_subpath_solution_metrics!(sp_b_tw_iec_ch_LP_results, data, sp_b_tw_iec_ch_some_subpaths, sp_b_tw_iec_ch_some_charging_arcs)
+collect_subpath_solution_metrics!(sp_b_tw_iecw_ch_LP_results, data, sp_b_tw_iecw_ch_some_subpaths, sp_b_tw_iecw_ch_some_charging_arcs)
 
 collect_subpath_solution_metrics!(sp_b_LP_results, data, sp_b_some_subpaths, sp_b_some_charging_arcs)
 collect_subpath_solution_metrics!(sp_b_s_LP_results, data, sp_b_s_some_subpaths, sp_b_s_some_charging_arcs)
 collect_subpath_solution_metrics!(sp_b_sc_LP_results, data, sp_b_sc_some_subpaths, sp_b_sc_some_charging_arcs)
 collect_subpath_solution_metrics!(sp_b_sca_LP_results, data, sp_b_sca_some_subpaths, sp_b_sca_some_charging_arcs)
+collect_subpath_solution_metrics!(sp_b_ch_LP_results, data, sp_b_ch_some_subpaths, sp_b_ch_some_charging_arcs)
+
+collect_subpath_solution_metrics!(sp_b_ie_LP_results, data, sp_b_ie_some_subpaths, sp_b_ie_some_charging_arcs)
+collect_subpath_solution_metrics!(sp_b_iec_LP_results, data, sp_b_iec_some_subpaths, sp_b_iec_some_charging_arcs)
+collect_subpath_solution_metrics!(sp_b_iecw_LP_results, data, sp_b_iecw_some_subpaths, sp_b_iecw_some_charging_arcs)
+collect_subpath_solution_metrics!(sp_b_ie_ch_LP_results, data, sp_b_ie_ch_some_subpaths, sp_b_ie_ch_some_charging_arcs)
+collect_subpath_solution_metrics!(sp_b_iec_ch_LP_results, data, sp_b_iec_ch_some_subpaths, sp_b_iec_ch_some_charging_arcs)
+collect_subpath_solution_metrics!(sp_b_iecw_ch_LP_results, data, sp_b_iecw_ch_some_subpaths, sp_b_iecw_ch_some_charging_arcs)
+
 collect_subpath_solution_metrics!(sp_o_LP_results, data, sp_o_some_subpaths, sp_o_some_charging_arcs)
 collect_subpath_solution_metrics!(sp_o_s_LP_results, data, sp_o_s_some_subpaths, sp_o_s_some_charging_arcs)
 collect_subpath_solution_metrics!(sp_o_sc_LP_results, data, sp_o_sc_some_subpaths, sp_o_sc_some_charging_arcs)
@@ -95,28 +190,71 @@ collect_subpath_solution_metrics!(sp_o_ss_LP_results, data, sp_o_ss_some_subpath
 collect_subpath_solution_metrics!(sp_o_scsc_LP_results, data, sp_o_scsc_some_subpaths, sp_o_scsc_some_charging_arcs)
 collect_subpath_solution_metrics!(sp_o_scsca_LP_results, data, sp_o_scsca_some_subpaths, sp_o_scsca_some_charging_arcs)
 
+collect_subpath_solution_metrics!(sp_o_ch_LP_results, data, sp_o_ch_some_subpaths, sp_o_ch_some_charging_arcs)
+collect_subpath_solution_metrics!(sp_o_s_ch_LP_results, data, sp_o_s_ch_some_subpaths, sp_o_s_ch_some_charging_arcs)
+collect_subpath_solution_metrics!(sp_o_sc_ch_LP_results, data, sp_o_sc_ch_some_subpaths, sp_o_sc_ch_some_charging_arcs)
+collect_subpath_solution_metrics!(sp_o_sca_ch_LP_results, data, sp_o_sca_ch_some_subpaths, sp_o_sca_ch_some_charging_arcs)
+collect_subpath_solution_metrics!(sp_o_ss_ch_LP_results, data, sp_o_ss_ch_some_subpaths, sp_o_ss_ch_some_charging_arcs)
+collect_subpath_solution_metrics!(sp_o_scsc_ch_LP_results, data, sp_o_scsc_ch_some_subpaths, sp_o_scsc_ch_some_charging_arcs)
+collect_subpath_solution_metrics!(sp_o_scsca_ch_LP_results, data, sp_o_scsca_ch_some_subpaths, sp_o_scsca_ch_some_charging_arcs)
+
 p_b_tw_LP_results["objective"]
 p_b_tw_s_LP_results["objective"]
 p_b_tw_sc_LP_results["objective"]
+p_b_tw_ch_LP_results["objective"]
+p_b_tw_ie_LP_results["objective"]
+p_b_tw_iec_LP_results["objective"]
+p_b_tw_iecw_LP_results["objective"]
+p_b_tw_ie_ch_LP_results["objective"]
+p_b_tw_iec_ch_LP_results["objective"]
+p_b_tw_iecw_ch_LP_results["objective"]
 
 p_b_LP_results["objective"]
 p_b_s_LP_results["objective"]
 p_b_sc_LP_results["objective"]
+p_b_ch_LP_results["objective"]
+p_b_ie_LP_results["objective"]
+p_b_iec_LP_results["objective"]
+p_b_iecw_LP_results["objective"]
+p_b_ie_ch_LP_results["objective"]
+p_b_iec_ch_LP_results["objective"]
+p_b_iecw_ch_LP_results["objective"]
+
 p_o_LP_results["objective"]
 p_o_s_LP_results["objective"]
 p_o_sc_LP_results["objective"]
 p_o_ss_LP_results["objective"]
 p_o_scsc_LP_results["objective"]
+p_o_ch_LP_results["objective"]
+p_o_s_ch_LP_results["objective"]
+p_o_sc_ch_LP_results["objective"]
+p_o_ss_ch_LP_results["objective"]
+p_o_scsc_ch_LP_results["objective"]
 
 sp_b_tw_LP_results["objective"]
 sp_b_tw_s_LP_results["objective"]
 sp_b_tw_sc_LP_results["objective"]
 sp_b_tw_sca_LP_results["objective"]
+sp_b_tw_ch_LP_results["objective"]
+sp_b_tw_ie_LP_results["objective"]
+sp_b_tw_iec_LP_results["objective"]
+sp_b_tw_iecw_LP_results["objective"]
+sp_b_tw_ie_ch_LP_results["objective"]
+sp_b_tw_iec_ch_LP_results["objective"]
+sp_b_tw_iecw_ch_LP_results["objective"]
 
 sp_b_LP_results["objective"]
 sp_b_s_LP_results["objective"]
 sp_b_sc_LP_results["objective"]
 sp_b_sca_LP_results["objective"]
+sp_b_ch_LP_results["objective"]
+sp_b_ie_LP_results["objective"]
+sp_b_iec_LP_results["objective"]
+sp_b_iecw_LP_results["objective"]
+sp_b_ie_ch_LP_results["objective"]
+sp_b_iec_ch_LP_results["objective"]
+sp_b_iecw_ch_LP_results["objective"]
+
 sp_o_LP_results["objective"]
 sp_o_s_LP_results["objective"]
 sp_o_sc_LP_results["objective"]
@@ -124,26 +262,121 @@ sp_o_sca_LP_results["objective"]
 sp_o_ss_LP_results["objective"]
 sp_o_scsc_LP_results["objective"]
 sp_o_scsca_LP_results["objective"]
+sp_o_ch_LP_results["objective"]
+sp_o_s_ch_LP_results["objective"]
+sp_o_sc_ch_LP_results["objective"]
+sp_o_sca_ch_LP_results["objective"]
+sp_o_ss_ch_LP_results["objective"]
+sp_o_scsc_ch_LP_results["objective"]
+sp_o_scsca_ch_LP_results["objective"]
+
+@test (
+    p_b_tw_LP_results["objective"] 
+    ≤ p_b_tw_ch_LP_results["objective"]
+    ≤ p_b_tw_sc_LP_results["objective"]
+)
+@test p_b_tw_s_LP_results["objective"] ≥ p_b_tw_sc_LP_results["objective"]
+@test (
+    p_b_tw_ie_ch_LP_results["objective"]
+    ≥ p_b_tw_ie_LP_results["objective"]
+    ≥ p_b_tw_iec_LP_results["objective"]
+    ≈ p_b_tw_iecw_LP_results["objective"]
+    ≈ p_b_tw_iec_ch_LP_results["objective"]
+    ≈ p_b_tw_iecw_ch_LP_results["objective"]
+)
+@test(
+    p_b_tw_sc_LP_results["objective"]
+    ≈ p_b_tw_iec_LP_results["objective"]
+    ≈ p_b_tw_iecw_LP_results["objective"]
+    ≈ p_b_tw_iec_ch_LP_results["objective"]
+    ≈ p_b_tw_iecw_ch_LP_results["objective"]
+)
 
 @test (
     p_b_LP_results["objective"] 
+    ≤ p_b_ch_LP_results["objective"]
     ≤ p_b_sc_LP_results["objective"]
 )
+@test p_b_s_LP_results["objective"] ≥ p_b_sc_LP_results["objective"]
+@test (
+    p_b_ie_ch_LP_results["objective"]
+    ≥ p_b_ie_LP_results["objective"]
+    ≥ p_b_iec_LP_results["objective"]
+    ≈ p_b_iecw_LP_results["objective"]
+    ≈ p_b_iec_ch_LP_results["objective"]
+    ≈ p_b_iecw_ch_LP_results["objective"]
+)
+@test(
+    p_b_sc_LP_results["objective"]
+    ≈ p_b_iec_LP_results["objective"]
+    ≈ p_b_iecw_LP_results["objective"]
+    ≈ p_b_iec_ch_LP_results["objective"]
+    ≈ p_b_iecw_ch_LP_results["objective"]
+)
+
 @test(
     p_o_LP_results["objective"] 
     ≤ p_o_sc_LP_results["objective"]
     ≤ p_o_scsc_LP_results["objective"]
     ≈ p_b_sc_LP_results["objective"]
 )
-@test p_b_s_LP_results["objective"] ≥ p_b_sc_LP_results["objective"]
 @test p_o_s_LP_results["objective"] ≥ p_o_sc_LP_results["objective"]
 @test p_o_ss_LP_results["objective"] ≥ p_o_scsc_LP_results["objective"]
+@test(
+    p_o_ch_LP_results["objective"] 
+    ≤ p_o_sc_ch_LP_results["objective"]
+    ≤ p_o_scsc_ch_LP_results["objective"]
+)
+@test p_o_s_ch_LP_results["objective"] ≥ p_o_sc_ch_LP_results["objective"]
+@test p_o_ss_ch_LP_results["objective"] ≥ p_o_scsc_ch_LP_results["objective"]
+
 @test p_b_LP_results["objective"] ≈ p_o_LP_results["objective"]
 
 @test (
+    sp_b_tw_LP_results["objective"] 
+    ≤ sp_b_tw_ch_LP_results["objective"]
+    ≤ sp_b_tw_sc_LP_results["objective"]
+)
+@test sp_b_tw_s_LP_results["objective"] ≥ sp_b_tw_sc_LP_results["objective"]
+@test (
+    sp_b_tw_ie_ch_LP_results["objective"]
+    ≥ sp_b_tw_ie_LP_results["objective"]
+    ≥ sp_b_tw_iec_LP_results["objective"]
+    ≈ sp_b_tw_iecw_LP_results["objective"]
+    ≈ sp_b_tw_iec_ch_LP_results["objective"]
+    ≈ sp_b_tw_iecw_ch_LP_results["objective"]
+)
+@test(
+    sp_b_tw_sc_LP_results["objective"]
+    ≈ sp_b_tw_iec_LP_results["objective"]
+    ≈ sp_b_tw_iecw_LP_results["objective"]
+    ≈ sp_b_tw_iec_ch_LP_results["objective"]
+    ≈ sp_b_tw_iecw_ch_LP_results["objective"]
+)
+
+@test (
     sp_b_LP_results["objective"] 
+    ≤ sp_b_ch_LP_results["objective"]
     ≤ sp_b_sc_LP_results["objective"]
 )
+@test sp_b_s_LP_results["objective"] ≥ sp_b_sc_LP_results["objective"]
+@test (
+    sp_b_ie_ch_LP_results["objective"]
+    ≥ sp_b_ie_LP_results["objective"]
+    ≥ sp_b_iec_LP_results["objective"]
+    ≈ sp_b_iecw_LP_results["objective"]
+    ≈ sp_b_iec_ch_LP_results["objective"]
+    ≈ sp_b_iecw_ch_LP_results["objective"]
+)
+@test(
+    sp_b_sc_LP_results["objective"]
+    ≈ sp_b_iec_LP_results["objective"]
+    ≈ sp_b_iecw_LP_results["objective"]
+    ≈ sp_b_iec_ch_LP_results["objective"]
+    ≈ sp_b_iecw_ch_LP_results["objective"]
+)
+
+
 @test(
     sp_o_LP_results["objective"] 
     ≤ sp_o_sc_LP_results["objective"]
@@ -151,13 +384,8 @@ sp_o_scsca_LP_results["objective"]
     ≈ sp_b_sc_LP_results["objective"]
 )
 @test (
-    sp_b_s_LP_results["objective"] 
-    ≥ sp_b_sc_LP_results["objective"] 
-    ≈ sp_b_sca_LP_results["objective"]
-)
-@test (
     sp_o_s_LP_results["objective"] 
-    ≥ sp_o_sc_LP_results["objective"] - 1e-8
+    ≥ sp_o_sc_LP_results["objective"]
     ≈ sp_o_sca_LP_results["objective"]
 )
 @test (
@@ -165,7 +393,31 @@ sp_o_scsca_LP_results["objective"]
     ≥ sp_o_scsc_LP_results["objective"]
     ≈ sp_o_scsca_LP_results["objective"]
 )
+@test(
+    sp_o_ch_LP_results["objective"] 
+    ≤ sp_o_sc_ch_LP_results["objective"]
+    ≤ sp_o_scsc_ch_LP_results["objective"]
+    ≈ sp_b_sc_LP_results["objective"]
+)
+@test (
+    sp_o_s_ch_LP_results["objective"] 
+    ≥ sp_o_sc_ch_LP_results["objective"]
+)
+@test (
+    sp_o_ss_ch_LP_results["objective"] 
+    ≥ sp_o_scsc_ch_LP_results["objective"]
+    ≈ sp_o_scsca_ch_LP_results["objective"]
+)
+@test sp_o_LP_results["objective"] ≤ sp_o_ch_LP_results["objective"]
+@test sp_o_s_LP_results["objective"] ≤ sp_o_s_ch_LP_results["objective"]
+@test sp_o_sc_LP_results["objective"] ≤ sp_o_sc_LP_results["objective"]
+@test sp_o_sca_LP_results["objective"] ≤ sp_o_sca_ch_LP_results["objective"]
+@test sp_o_ss_LP_results["objective"] ≤ sp_o_ss_ch_LP_results["objective"]
+@test sp_o_scsc_LP_results["objective"] ≤ sp_o_scsc_ch_LP_results["objective"]
+@test sp_o_scsca_LP_results["objective"] ≤ sp_o_scsca_ch_LP_results["objective"]
+
 @test sp_b_LP_results["objective"] ≈ sp_o_LP_results["objective"]
+
 @test p_b_LP_results["objective"] ≈ sp_b_LP_results["objective"]
 @test p_b_sc_LP_results["objective"] ≈ sp_b_sc_LP_results["objective"]
 @test p_o_LP_results["objective"] ≈ sp_o_LP_results["objective"]
@@ -173,29 +425,69 @@ sp_o_scsca_LP_results["objective"]
 @test p_o_sc_LP_results["objective"] ≈ sp_o_sc_LP_results["objective"]
 @test p_o_scsc_LP_results["objective"] ≈ sp_o_scsc_LP_results["objective"]
 
+@test p_b_ch_LP_results["objective"] ≥ sp_b_ch_LP_results["objective"]
+@test p_o_ch_LP_results["objective"] ≥ sp_o_ch_LP_results["objective"]
+@test p_o_s_ch_LP_results["objective"] ≥ sp_o_s_ch_LP_results["objective"]
+@test p_o_sc_ch_LP_results["objective"] ≥ sp_o_sc_ch_LP_results["objective"]
+@test p_o_scsc_ch_LP_results["objective"] ≥ sp_o_scsc_ch_LP_results["objective"]
 
 p_b_tw_params["time_taken"]
 p_b_tw_s_params["time_taken"]
 p_b_tw_sc_params["time_taken"]
+p_b_tw_ch_params["time_taken"]
+p_b_tw_ie_params["time_taken"]
+p_b_tw_iec_params["time_taken"]
+p_b_tw_iecw_params["time_taken"]
+p_b_tw_ie_ch_params["time_taken"]
+p_b_tw_iec_ch_params["time_taken"]
+p_b_tw_iecw_ch_params["time_taken"]
 
 p_b_params["time_taken"]
 p_b_s_params["time_taken"]
 p_b_sc_params["time_taken"]
+p_b_ch_params["time_taken"]
+p_b_ie_params["time_taken"]
+p_b_iec_params["time_taken"]
+p_b_iecw_params["time_taken"]
+p_b_ie_ch_params["time_taken"]
+p_b_iec_ch_params["time_taken"]
+p_b_iecw_ch_params["time_taken"]
+
 p_o_params["time_taken"]
 p_o_s_params["time_taken"]
 p_o_sc_params["time_taken"]
 p_o_ss_params["time_taken"]
 p_o_scsc_params["time_taken"]
+p_o_ch_params["time_taken"]
+p_o_s_ch_params["time_taken"]
+p_o_sc_ch_params["time_taken"]
+p_o_ss_ch_params["time_taken"]
+p_o_scsc_ch_params["time_taken"]
 
 sp_b_tw_params["time_taken"]
 sp_b_tw_s_params["time_taken"]
 sp_b_tw_sc_params["time_taken"]
 sp_b_tw_sca_params["time_taken"]
+sp_b_tw_ch_params["time_taken"]
+sp_b_tw_ie_params["time_taken"]
+sp_b_tw_iec_params["time_taken"]
+sp_b_tw_iecw_params["time_taken"]
+sp_b_tw_ie_ch_params["time_taken"]
+sp_b_tw_iec_ch_params["time_taken"]
+sp_b_tw_iecw_ch_params["time_taken"]
 
 sp_b_params["time_taken"]
 sp_b_s_params["time_taken"]
 sp_b_sc_params["time_taken"]
 sp_b_sca_params["time_taken"]
+sp_b_ch_params["time_taken"]
+sp_b_ie_params["time_taken"]
+sp_b_iec_params["time_taken"]
+sp_b_iecw_params["time_taken"]
+sp_b_ie_ch_params["time_taken"]
+sp_b_iec_ch_params["time_taken"]
+sp_b_iecw_ch_params["time_taken"]
+
 sp_o_params["time_taken"]
 sp_o_s_params["time_taken"]
 sp_o_sc_params["time_taken"]
@@ -203,7 +495,54 @@ sp_o_sca_params["time_taken"]
 sp_o_ss_params["time_taken"]
 sp_o_scsc_params["time_taken"]
 sp_o_scsca_params["time_taken"]
+sp_o_ch_params["time_taken"]
+sp_o_s_ch_params["time_taken"]
+sp_o_sc_ch_params["time_taken"]
+sp_o_sca_ch_params["time_taken"]
+sp_o_ss_ch_params["time_taken"]
+sp_o_scsc_ch_params["time_taken"]
+sp_o_scsca_ch_params["time_taken"]
 
+### Printouts
+
+@printf("                                                       \t\tno 2-cycles\n")
+@printf("path, benchmark:                                       %8.3f\t%8.3f\n", p_b_params["time_taken"], p_b_ch_params["time_taken"])
+@printf("path, benchmark, elementary:                           %8.3f\t    ----\n", p_b_sc_params["time_taken"])
+@printf("path, benchmark, boland:                               %8.3f\t%8.3f\n", p_b_iec_params["time_taken"], p_b_iec_ch_params["time_taken"])
+@printf("path, ours:                                            %8.3f\t%8.3f\n", p_o_params["time_taken"], p_o_ch_params["time_taken"])
+@printf("path, ours, elementary subpaths:                       %8.3f\t%8.3f\n", p_o_sc_params["time_taken"], p_o_sc_ch_params["time_taken"])
+@printf("path, ours, elementary subpaths & paths:               %8.3f\t%8.3f\n", p_o_scsc_params["time_taken"], p_o_scsc_ch_params["time_taken"])
+
+@printf("                                                       \t\tno 2-cycles\n")
+@printf("subpath, benchmark:                                    %8.3f\t%8.3f\n", sp_b_params["time_taken"], sp_b_ch_params["time_taken"])
+@printf("subpath, benchmark, elementary:                        %8.3f\t    ----\n", sp_b_sc_params["time_taken"])
+@printf("subpath, benchmark, elementary (accel):                %8.3f\t    ----\n", sp_b_sca_params["time_taken"])
+@printf("subpath, benchmark, boland:                            %8.3f\t%8.3f\n", sp_b_iec_params["time_taken"], sp_b_iec_ch_params["time_taken"])
+@printf("subpath, ours:                                         %8.3f\t%8.3f\n", sp_o_params["time_taken"], sp_o_ch_params["time_taken"])
+@printf("subpath, ours, elementary subpaths:                    %8.3f\t%8.3f\n", sp_o_sc_params["time_taken"], sp_o_sc_ch_params["time_taken"])
+@printf("subpath, ours, elementary subpaths (accel):            %8.3f\t%8.3f\n", sp_o_sca_params["time_taken"], sp_o_sca_ch_params["time_taken"])
+@printf("subpath, ours, elementary subpaths & paths:            %8.3f\t%8.3f\n", sp_o_scsc_params["time_taken"], sp_o_scsc_ch_params["time_taken"])
+@printf("subpath, ours, elementary subpaths & paths (accel):    %8.3f\t%8.3f\n", sp_o_scsca_params["time_taken"], sp_o_scsca_ch_params["time_taken"])
+
+
+@printf("                                                       \t\t\tno 2-cycles\n")
+@printf("path, benchmark:                                       %8.1f\t\t%8.1f\n", p_b_LP_results["objective"], p_b_ch_LP_results["objective"])
+@printf("path, benchmark, elementary:                           %8.1f\t\t    ----\n", p_b_sc_LP_results["objective"])
+@printf("path, benchmark, boland:                               %8.1f\t\t%8.1f\n", p_b_iec_LP_results["objective"], p_b_iec_ch_LP_results["objective"])
+@printf("path, ours:                                            %8.1f\t\t%8.1f\n", p_o_LP_results["objective"], p_o_ch_LP_results["objective"])
+@printf("path, ours, elementary subpaths:                       %8.1f\t\t%8.1f\n", p_o_sc_LP_results["objective"], p_o_sc_ch_LP_results["objective"])
+@printf("path, ours, elementary subpaths & paths:               %8.1f\t\t%8.1f\n", p_o_scsc_LP_results["objective"], p_o_scsc_ch_LP_results["objective"])
+
+@printf("                                                       \t\t\tno 2-cycles\n")
+@printf("subpath, benchmark:                                    %8.1f\t\t%8.1f\n", sp_b_LP_results["objective"], sp_b_ch_LP_results["objective"])
+@printf("subpath, benchmark, elementary:                        %8.1f\t\t    ----\n", sp_b_sc_LP_results["objective"])
+@printf("subpath, benchmark, elementary (accel):                %8.1f\t\t    ----\n", sp_b_sca_LP_results["objective"])
+@printf("subpath, benchmark, boland:                            %8.1f\t\t%8.1f\n", sp_b_iec_LP_results["objective"], sp_b_iec_ch_LP_results["objective"])
+@printf("subpath, ours:                                         %8.1f\t\t%8.1f\n", sp_o_LP_results["objective"], sp_o_ch_LP_results["objective"])
+@printf("subpath, ours, elementary subpaths:                    %8.1f\t\t%8.1f\n", sp_o_sc_LP_results["objective"], sp_o_sc_ch_LP_results["objective"])
+@printf("subpath, ours, elementary subpaths (accel):            %8.1f\t\t%8.1f\n", sp_o_sca_LP_results["objective"], sp_o_sca_ch_LP_results["objective"])
+@printf("subpath, ours, elementary subpaths & paths:            %8.1f\t\t%8.1f\n", sp_o_scsc_LP_results["objective"], sp_o_scsc_ch_LP_results["objective"])
+@printf("subpath, ours, elementary subpaths & paths (accel):    %8.1f\t\t%8.1f\n", sp_o_scsca_LP_results["objective"], sp_o_scsca_ch_LP_results["objective"])
 
 ### Scratch work
 
