@@ -254,6 +254,8 @@ function path_formulation_column_generation(
     subpath_check_customers::Bool = false,
     path_single_service::Bool = false,
     path_check_customers::Bool = false,
+    incremental_elementarity::Bool = false,
+    warm_start::Bool = false,
     verbose::Bool = true,
     time_limit::Float64 = Inf,
 )
@@ -309,22 +311,29 @@ function path_formulation_column_generation(
             # depots:                       %2d
             # charging stations:            %2d
             # vehicles:                     %2d
+            time windows?:                  %s
+
             method:                         %s
             subpath_single_service:         %s
             subpath_check_customers:        %s
             path_single_service:            %s
             path_check_customers:           %s
+            incremental_elementarity:       %s
+            warm_start:                     %s
 
             """,
             data["n_customers"],
             data["n_depots"],
             data["n_charging"],
             data["n_vehicles"],
+            time_windows,
             method,
             subpath_single_service,
             subpath_check_customers,
             path_single_service,
             path_check_customers,
+            incremental_elementarity,
+            warm_start,
         ),
         verbose,
     )
@@ -460,13 +469,25 @@ function path_formulation_column_generation(
                 round(base_labels_time + full_labels_time, digits=3)
             )
         elseif method == "benchmark"
-            (negative_pure_path_labels, _, pure_path_labels_time) = subproblem_iteration_benchmark(
-                G, data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
-                ;
-                time_windows = time_windows,
-                path_single_service = path_single_service,
-                path_check_customers = path_check_customers,
-            )
+            if incremental_elementarity
+                (negative_pure_path_labels, _, pure_path_labels_time) = subproblem_iteration_benchmark_incremental_elementarity(
+                    G, data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
+                    ;
+                    time_windows = time_windows,
+                    path_check_customers = path_check_customers,
+                    warm_start = warm_start,
+                    verbose = verbose,
+                )
+            else
+                (negative_pure_path_labels, _, pure_path_labels_time) = subproblem_iteration_benchmark(
+                    G, data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
+                    ;
+                    time_windows = time_windows,
+                    path_single_service = path_single_service,
+                    path_check_customers = path_check_customers,
+                    christofides = christofides,
+                )
+            end
             generated_paths = get_paths_from_negative_pure_path_labels(
                 data, negative_pure_path_labels,
             )
