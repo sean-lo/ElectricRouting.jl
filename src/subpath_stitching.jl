@@ -40,6 +40,7 @@ function generate_base_labels_nonsingleservice(
     μ,
     ν,
     ;
+    christofides::Bool = false,
 )
     function add_subpath_longlabel_to_collection!(
         collection::SortedDict{
@@ -127,7 +128,7 @@ function generate_base_labels_nonsingleservice(
                 continue
             end
             # Preventing customer 2-cycles (Christofides)
-            if next_node in data["N_customers"]
+            if christofides && next_node in data["N_customers"]
                 if length(current_subpath.nodes) ≥ 2 && current_subpath.nodes[end-1] == next_node
                     continue
                 end
@@ -198,6 +199,7 @@ function generate_base_labels_singleservice(
     ν,
     ;
     check_customers::Bool = false,
+    christofides::Bool = false,
 )
     function add_subpath_label_to_collection!(
         collection::SortedDict{Int, BaseSubpathLabel},
@@ -388,7 +390,7 @@ function generate_base_labels_singleservice(
                     for (k1, s1) in pairs(base_labels[start_node][new_node])
                         for (k2, s2) in pairs(base_labels[new_node][end_node])
                             # Preventing customer 2-cycles (Christofides)
-                            if s1.nodes[end-1] in data["N_customers"] && s1.nodes[end-1] == s2.nodes[2]
+                            if christofides && s1.nodes[end-1] in data["N_customers"] && s1.nodes[end-1] == s2.nodes[2]
                                 continue
                             end
                             k = k1 .+ k2
@@ -466,6 +468,7 @@ function find_nondominated_paths_notimewindows(
     ;
     single_service::Bool = false,
     check_customers::Bool = false,
+    christofides::Bool = false,
 )
     function charge_to_specified_level(
         start_charge::Int, 
@@ -581,13 +584,15 @@ function find_nondominated_paths_notimewindows(
                     continue
                 end
                 # Preventing customer 2-cycles (Christofides)
-                if length(current_path.subpath_labels) ≥ 1
-                    prev_subpath = current_path.subpath_labels[end]
-                    if (
-                        prev_subpath.nodes[end-1] in data["N_customers"] 
-                        && prev_subpath.nodes[end-1] == s.nodes[2]
-                    )
-                        continue
+                if christofides
+                    if length(current_path.subpath_labels) ≥ 1
+                        prev_subpath = current_path.subpath_labels[end]
+                        if (
+                            prev_subpath.nodes[end-1] in data["N_customers"] 
+                            && prev_subpath.nodes[end-1] == s.nodes[2]
+                        )
+                            continue
+                        end
                     end
                 end
                 (delta, end_time, end_charge) = charge_to_specified_level(
@@ -704,17 +709,20 @@ function subproblem_iteration_ours(
     subpath_check_customers::Bool = true,
     path_single_service::Bool = true,
     path_check_customers::Bool = true,
+    christofides::Bool = false,
 )
     if subpath_single_service
         base_labels_result = @timed generate_base_labels_singleservice(
             G, data, κ, μ, ν,
             ;
             check_customers = subpath_check_customers,
+            christofides = christofides,
         )
     else 
         base_labels_result = @timed generate_base_labels_nonsingleservice(
             G, data, κ, μ, ν,
             ;
+            christofides = christofides,
         )
     end
     base_labels_time = base_labels_result.time
@@ -723,6 +731,7 @@ function subproblem_iteration_ours(
         ;
         single_service = path_single_service,
         check_customers = path_check_customers,
+        christofides = christofides,
     )
     full_labels_time = full_labels_result.time
     negative_full_labels = get_negative_path_labels_from_path_labels(data, full_labels_result.value)

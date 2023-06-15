@@ -269,6 +269,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
     check_customers_accelerated::Bool = false,
     incremental_elementarity::Bool = false,
     warm_start::Bool = false,
+    christofides::Bool = false,
     verbose::Bool = true,
     time_limit::Float64 = Inf,
 )
@@ -354,6 +355,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
             check_customers_accelerated:    %s
             incremental_elementarity:       %s
             warm_start:                     %s
+            christofides:                   %s
 
             """,
             data["n_customers"],
@@ -369,6 +371,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
             check_customers_accelerated,
             incremental_elementarity,
             warm_start,
+            christofides,
         ),
         verbose,
     )
@@ -517,6 +520,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
                     subpath_check_customers = false,
                     path_single_service = path_single_service,
                     path_check_customers = false,
+                    christofides = christofides,
                 )
                 if negative_full_labels_count == 0
                     checkpoint_reached = true
@@ -527,6 +531,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
                         subpath_check_customers = subpath_check_customers,
                         path_single_service = path_single_service,
                         path_check_customers = path_check_customers,
+                        christofides = christofides,
                     )
                     base_labels_time += base_labels_time_new
                     full_labels_time += full_labels_time_new
@@ -539,6 +544,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
                     subpath_check_customers = subpath_check_customers,
                     path_single_service = path_single_service,
                     path_check_customers = path_check_customers,
+                    christofides = christofides,
                 )
             else
                 (negative_full_labels, _, base_labels_time, full_labels_time) = subproblem_iteration_ours(
@@ -548,6 +554,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
                     subpath_check_customers = subpath_check_customers,
                     path_single_service = path_single_service,
                     path_check_customers = path_check_customers,
+                    christofides = christofides,
                 )
             end
             (generated_subpaths, generated_charging_arcs) = get_subpaths_charging_arcs_from_negative_path_labels(
@@ -573,6 +580,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
                     time_windows = time_windows,
                     path_check_customers = path_check_customers,
                     warm_start = warm_start,
+                    christofides = christofides,
                     verbose = verbose,
                 )
             elseif check_customers_accelerated && !checkpoint_reached
@@ -582,6 +590,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
                     time_windows = time_windows,
                     path_single_service = true,
                     path_check_customers = false,
+                    christofides = christofides,
                 )
                 if negative_pure_path_labels_count == 0
                     checkpoint_reached = true
@@ -591,6 +600,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
                         time_windows = time_windows,
                         path_single_service = true,
                         path_check_customers = true,
+                        christofides = christofides,
                     )
                     pure_path_labels_time += pure_path_labels_time_new
                 end
@@ -601,6 +611,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
                     time_windows = time_windows,
                     path_single_service = true,
                     path_check_customers = true,
+                    christofides = christofides,
                 )
             else
                 (negative_pure_path_labels, _, pure_path_labels_time) = subproblem_iteration_benchmark(
@@ -609,6 +620,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
                     time_windows = time_windows,
                     path_single_service = path_single_service,
                     path_check_customers = path_check_customers,
+                    christofides = christofides,
                 )
             end
             (generated_subpaths, generated_charging_arcs) = get_subpaths_charging_arcs_from_negative_pure_path_labels(

@@ -94,6 +94,7 @@ function find_nondominated_paths(
     single_service::Bool = false,
     check_customers::Bool = true, 
     time_windows::Bool = true,
+    christofides::Bool = false,
 )
     if single_service
         S = data["N_customers"]
@@ -106,6 +107,7 @@ function find_nondominated_paths(
         S = S,     
         check_customers = check_customers, 
         time_windows = time_windows,
+        christofides = christofides,
     )
 end
 
@@ -120,6 +122,7 @@ function find_nondominated_paths_S(
     S::Vector{Int} = [],
     check_customers::Bool = true, # indicates if labels for customers are used in label domination
     time_windows::Bool = true,
+    christofides::Bool = false,
     initial_pure_path_labels::Union{
         Nothing,
         Dict{Int, Dict{Int, SortedDict{
@@ -266,7 +269,7 @@ function find_nondominated_paths_S(
                     # println("already served $j")
                     continue
                 end
-                if length(path.nodes) ≥ 2 && path.nodes[end-1] == j
+                if christofides && length(path.nodes) ≥ 2 && path.nodes[end-1] == j
                     continue
                 end
             end
@@ -437,6 +440,7 @@ function subproblem_iteration_benchmark(
     time_windows::Bool = false,
     path_single_service::Bool = true,
     path_check_customers::Bool = true,
+    christofides::Bool = false,
 )
     pure_path_labels_result = @timed find_nondominated_paths(
         G, data, κ, μ, ν,
@@ -444,6 +448,7 @@ function subproblem_iteration_benchmark(
         time_windows = time_windows, 
         single_service = path_single_service, 
         check_customers = path_check_customers,
+        christofides = christofides,
     )
     pure_path_labels_time = pure_path_labels_result.time
     negative_pure_path_labels = get_negative_pure_path_labels_from_pure_path_labels(data, pure_path_labels_result.value)
@@ -462,6 +467,7 @@ function subproblem_iteration_benchmark_incremental_elementarity(
     path_check_customers::Bool = true,
     verbose::Bool = false,
     warm_start::Bool = false,
+    christofides::Bool = false,
 )
     start_time = time()
     S = Int[]
@@ -473,6 +479,7 @@ function subproblem_iteration_benchmark_incremental_elementarity(
             S = S,
             time_windows = time_windows, 
             check_customers = path_check_customers,
+            christofides = christofides,
             initial_pure_path_labels = initial_pure_path_labels
         )
         # filter for path labels: (i) ending at depot, 
