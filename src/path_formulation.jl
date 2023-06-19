@@ -255,6 +255,7 @@ function path_formulation_column_generation(
     path_single_service::Bool = false,
     path_check_customers::Bool = false,
     incremental_elementarity::Bool = false,
+    incremental_elementarity_rule::String = "hmo",
     warm_start::Bool = false,
     christofides::Bool = false,
     verbose::Bool = true,
@@ -481,6 +482,7 @@ function path_formulation_column_generation(
                     path_check_customers = path_check_customers,
                     warm_start = warm_start,
                     christofides = christofides,
+                    rule = incremental_elementarity_rule,
                     verbose = verbose,
                 )
             else

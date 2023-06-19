@@ -468,7 +468,43 @@ function subproblem_iteration_benchmark_incremental_elementarity(
     verbose::Bool = false,
     warm_start::Bool = false,
     christofides::Bool = false,
+    rule::String = "hmo",
 )
+    function hmo(data, pure_path_labels; verbose::Bool = false)
+        # select a path which is nondominated of minimal cost
+        (min_cost, _, _, _, path_label) = find_minimum_reduced_cost_pure_path_label(data, pure_path_labels)
+        verbose && println("$min_cost, $path_label")
+        if min_cost >= -1e-6
+            error()
+        end
+        (max_freq, cust) = findmax(path_label.served)
+        return max_freq, [cust]
+    end
+
+    function hmaa(data, pure_path_labels; verbose::Bool = false)
+        max_freq = 0
+        max_custs = Int[]
+        for starting_node in data["N_depots"]
+            for end_node in keys(pure_path_labels[starting_node])
+                for (key, path_label) in pairs(pure_path_labels[starting_node][end_node])
+                    freq = maximum(path_label.served)
+                    custs = findall(==(freq), path_label.served)
+                    if freq < max_freq
+                        continue
+                    elseif freq > max_freq
+                        max_freq = freq
+                        max_custs = custs 
+                    else
+                        max_custs = union(max_custs, custs)
+                    end
+                    verbose && println("$max_freq, $max_custs")
+                end
+            end
+        end
+        return max_freq, max_custs
+    end
+
+
     start_time = time()
     S = Int[]
     initial_pure_path_labels = nothing
@@ -515,16 +551,14 @@ function subproblem_iteration_benchmark_incremental_elementarity(
         if length(S) == data["n_customers"]
             error()
         end
-        # select a path which is nondominated of minimal cost 
-        (min_cost, _, _, _, path_label) = find_minimum_reduced_cost_pure_path_label(data, d_pure_path_labels)
-        verbose && println("$min_cost, $path_label")
-        if min_cost >= -1e-6
+        if rule == "hmo"
+            val, custs = hmo(data, n_d_pure_path_labels, verbose = verbose)
+        elseif rule == "hmaa"
+            val, custs = hmaa(data, n_d_pure_path_labels, verbose = false)
+        else
             error()
         end
-        (val, j) = findmax(path_label.served)
-        # println("$val, $j")
-        push!(S, j)
-        sort!(S)
+        S = sort(union(S, custs))
         verbose && println(S)
         
         # prepare warm start

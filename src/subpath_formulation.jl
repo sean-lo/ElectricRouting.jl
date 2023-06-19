@@ -268,6 +268,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
     path_check_customers::Bool = false,
     check_customers_accelerated::Bool = false,
     incremental_elementarity::Bool = false,
+    incremental_elementarity_rule::String = "hmo",
     warm_start::Bool = false,
     christofides::Bool = false,
     verbose::Bool = true,
@@ -581,6 +582,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
                     path_check_customers = path_check_customers,
                     warm_start = warm_start,
                     christofides = christofides,
+                    rule = incremental_elementarity_rule,
                     verbose = verbose,
                 )
             elseif check_customers_accelerated && !checkpoint_reached
