@@ -686,20 +686,13 @@ function get_negative_path_labels_from_path_labels(
         Base.Order.ForwardOrdering
     }}}
 )
-    return Dict(
-        starting_node => Dict(
-            end_node => SortedDict{
-                Tuple{Vararg{Int}},
-                PathLabel,
-            }(
-                key => path_label
-                for (key, path_label) in path_labels[starting_node][end_node] 
-                    if path_label.cost < -1e-6
-            )
-            for end_node in keys(path_labels[starting_node])
-        )
+    return PathLabel[
+        path_label
         for starting_node in data["N_depots"]
-    )
+            for end_node in data["N_depots"]
+                for (key, path_label) in path_labels[starting_node][end_node]
+                    if path_label.cost < -1e-6
+    ]
 end
 
 function subproblem_iteration_ours(
@@ -735,10 +728,6 @@ function subproblem_iteration_ours(
     )
     full_labels_time = full_labels_result.time
     negative_full_labels = get_negative_path_labels_from_path_labels(data, full_labels_result.value)
-    negative_full_labels_count = sum(
-        length(negative_full_labels[starting_node][end_node]) 
-        for starting_node in data["N_depots"]
-            for end_node in keys(negative_full_labels[starting_node]) 
-    )
+    negative_full_labels_count = length(negative_full_labels)
     return (negative_full_labels, negative_full_labels_count, base_labels_time, full_labels_time)
 end

@@ -363,20 +363,13 @@ function get_negative_pure_path_labels_from_pure_path_labels(
         Base.Order.ForwardOrdering
     }}}
 )
-    return Dict(
-        starting_node => Dict(
-            end_node => SortedDict{
-                Tuple{Vararg{Int}},
-                PurePathLabel,
-            }(
-                key => path_label
-                for (key, path_label) in pure_path_labels[starting_node][end_node] 
-                    if path_label.cost < -1e-6
-            )
-            for end_node in keys(pure_path_labels[starting_node])
-        )
+    return PurePathLabel[
+        path_label
         for starting_node in data["N_depots"]
-    )
+            for end_node in data["N_depots"]
+                for (key, path_label) in pure_path_labels[starting_node][end_node]
+                    if path_label.cost < -1e-6
+    ]
 end
 
 function subproblem_iteration_benchmark(
@@ -397,11 +390,7 @@ function subproblem_iteration_benchmark(
     )
     pure_path_labels_time = pure_path_labels_result.time
     negative_pure_path_labels = get_negative_pure_path_labels_from_pure_path_labels(data, pure_path_labels_result.value)
-    negative_pure_path_labels_count = sum(
-        length(negative_pure_path_labels[starting_node][end_node]) 
-        for starting_node in data["N_depots"]
-            for end_node in keys(negative_pure_path_labels[starting_node]) 
-    )
+    negative_pure_path_labels_count = length(negative_pure_path_labels)
     return (negative_pure_path_labels, negative_pure_path_labels_count, pure_path_labels_time)
 end
 

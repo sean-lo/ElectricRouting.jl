@@ -107,11 +107,7 @@ end
 
 function get_subpaths_charging_arcs_from_negative_path_labels(
     data, 
-    full_labels = Dict{Int, Dict{Int, SortedDict{
-        Tuple{Vararg{Int}},
-        PathLabel,
-        Base.Order.ForwardOrdering
-    }}},
+    full_labels = Vector{PathLabel},
 )
     generated_subpaths = Dict{
         Tuple{
@@ -127,48 +123,46 @@ function get_subpaths_charging_arcs_from_negative_path_labels(
         }, 
         Vector{ChargingArc},
     }()
-    for starting_node in data["N_depots"], end_node in data["N_depots"]
-        for path in values(full_labels[starting_node][end_node])
-            current_time, current_charge = (0.0, data["B"])
-            prev_time, prev_charge = current_time, current_charge
-            s_labels = copy(path.subpath_labels)
-            deltas = copy(path.charging_actions)
-            while true
-                s_label = popfirst!(s_labels)
-                prev_time = current_time
-                prev_charge = current_charge
-                current_time = current_time + s_label.time_taken
-                current_charge = current_charge - s_label.charge_taken
-                s = Subpath(
-                    n_customers = data["n_customers"],
-                    starting_node = s_label.nodes[1],
-                    starting_time = prev_time,
-                    starting_charge = prev_charge,
-                    current_node = s_label.nodes[end],
-                    arcs = collect(zip(s_label.nodes[1:end-1], s_label.nodes[2:end])),
-                    current_time = current_time,
-                    current_charge = current_charge,
-                    served = s_label.served,
-                )
-                add_subpath_to_generated_subpaths!(generated_subpaths, s)
-                if length(deltas) == 0 
-                    break
-                end
-                delta = popfirst!(deltas)
-                prev_time = current_time
-                prev_charge = current_charge
-                current_time = current_time + delta
-                current_charge = current_charge + delta
-                a = ChargingArc(
-                    starting_node = s_label.nodes[end], 
-                    starting_time = prev_time, 
-                    starting_charge = prev_charge, 
-                    delta = delta,
-                    current_time = current_time, 
-                    current_charge = current_charge,
-                )
-                add_charging_arc_to_generated_charging_arcs!(generated_charging_arcs, a)
+    for path in full_labels
+        current_time, current_charge = (0.0, data["B"])
+        prev_time, prev_charge = current_time, current_charge
+        s_labels = copy(path.subpath_labels)
+        deltas = copy(path.charging_actions)
+        while true
+            s_label = popfirst!(s_labels)
+            prev_time = current_time
+            prev_charge = current_charge
+            current_time = current_time + s_label.time_taken
+            current_charge = current_charge - s_label.charge_taken
+            s = Subpath(
+                n_customers = data["n_customers"],
+                starting_node = s_label.nodes[1],
+                starting_time = prev_time,
+                starting_charge = prev_charge,
+                current_node = s_label.nodes[end],
+                arcs = collect(zip(s_label.nodes[1:end-1], s_label.nodes[2:end])),
+                current_time = current_time,
+                current_charge = current_charge,
+                served = s_label.served,
+            )
+            add_subpath_to_generated_subpaths!(generated_subpaths, s)
+            if length(deltas) == 0 
+                break
             end
+            delta = popfirst!(deltas)
+            prev_time = current_time
+            prev_charge = current_charge
+            current_time = current_time + delta
+            current_charge = current_charge + delta
+            a = ChargingArc(
+                starting_node = s_label.nodes[end], 
+                starting_time = prev_time, 
+                starting_charge = prev_charge, 
+                delta = delta,
+                current_time = current_time, 
+                current_charge = current_charge,
+            )
+            add_charging_arc_to_generated_charging_arcs!(generated_charging_arcs, a)
         end
     end
     return generated_subpaths, generated_charging_arcs
@@ -176,11 +170,7 @@ end
 
 function get_subpaths_charging_arcs_from_negative_pure_path_labels(
     data, 
-    pure_labels = Dict{Int, Dict{Int, SortedDict{
-        Tuple{Vararg{Int}},
-        PurePathLabel,
-        Base.Order.ForwardOrdering
-    }}},
+    pure_labels = Vector{PurePathLabel},
 )
     generated_subpaths = Dict{
         Tuple{
@@ -196,60 +186,58 @@ function get_subpaths_charging_arcs_from_negative_pure_path_labels(
         }, 
         Vector{ChargingArc},
     }()
-    for starting_node in data["N_depots"], end_node in data["N_depots"]
-        for path in values(pure_labels[starting_node][end_node])
-            states = Tuple{Int, Int, Int}[]
-            current_subpath = Subpath(
-                n_customers = data["n_customers"],
-                starting_node = path.nodes[1],
-                starting_time = 0.0, 
-                starting_charge = data["B"],
-            )
-            i = path.nodes[1]
-            for (j, e, s) in zip(path.nodes[2:end], path.excesses, path.slacks)
-                current_subpath.current_node = j
-                push!(current_subpath.arcs, (i, j))
-                current_subpath.starting_time += (e + s)
-                current_subpath.starting_charge += (e + s) 
-                current_subpath.current_time += (data["t"][i,j] + e + s)
-                current_subpath.current_charge += (- data["q"][i,j] + e + s)
-                if j in data["N_charging"]
-                    push!(
-                        states, 
-                        (current_subpath.starting_node, current_subpath.starting_time, current_subpath.starting_charge), 
-                        (current_subpath.current_node, current_subpath.current_time, current_subpath.current_charge), 
-                    )
-                    add_subpath_to_generated_subpaths!(generated_subpaths, current_subpath)
-                    current_subpath = Subpath(
-                        n_customers = data["n_customers"],
-                        starting_node = j,
-                        starting_time = current_subpath.current_time, 
-                        starting_charge = current_subpath.current_charge,
-                    )
-                elseif j in data["N_customers"]
-                    current_subpath.served[j] += 1
-                end
-                i = j
-            end
-            push!(
-                states, 
-                (current_subpath.starting_node, current_subpath.starting_time, current_subpath.starting_charge), 
-                (current_subpath.current_node, current_subpath.current_time, current_subpath.current_charge), 
-            )
-            add_subpath_to_generated_subpaths!(generated_subpaths, current_subpath)
-            for i in 1:(length(states)÷2)-1
-                add_charging_arc_to_generated_charging_arcs!(
-                    generated_charging_arcs, 
-                    ChargingArc(
-                        states[2*i][1],
-                        states[2*i][2],
-                        states[2*i][3],
-                        states[2*i+1][2] - states[2*i][2],
-                        states[2*i+1][2],
-                        states[2*i+1][3],
-                    )
+    for path in pure_labels
+        states = Tuple{Int, Int, Int}[]
+        current_subpath = Subpath(
+            n_customers = data["n_customers"],
+            starting_node = path.nodes[1],
+            starting_time = 0.0, 
+            starting_charge = data["B"],
+        )
+        i = path.nodes[1]
+        for (j, e, s) in zip(path.nodes[2:end], path.excesses, path.slacks)
+            current_subpath.current_node = j
+            push!(current_subpath.arcs, (i, j))
+            current_subpath.starting_time += (e + s)
+            current_subpath.starting_charge += (e + s) 
+            current_subpath.current_time += (data["t"][i,j] + e + s)
+            current_subpath.current_charge += (- data["q"][i,j] + e + s)
+            if j in data["N_charging"]
+                push!(
+                    states, 
+                    (current_subpath.starting_node, current_subpath.starting_time, current_subpath.starting_charge), 
+                    (current_subpath.current_node, current_subpath.current_time, current_subpath.current_charge), 
                 )
+                add_subpath_to_generated_subpaths!(generated_subpaths, current_subpath)
+                current_subpath = Subpath(
+                    n_customers = data["n_customers"],
+                    starting_node = j,
+                    starting_time = current_subpath.current_time, 
+                    starting_charge = current_subpath.current_charge,
+                )
+            elseif j in data["N_customers"]
+                current_subpath.served[j] += 1
             end
+            i = j
+        end
+        push!(
+            states, 
+            (current_subpath.starting_node, current_subpath.starting_time, current_subpath.starting_charge), 
+            (current_subpath.current_node, current_subpath.current_time, current_subpath.current_charge), 
+        )
+        add_subpath_to_generated_subpaths!(generated_subpaths, current_subpath)
+        for i in 1:(length(states)÷2)-1
+            add_charging_arc_to_generated_charging_arcs!(
+                generated_charging_arcs, 
+                ChargingArc(
+                    states[2*i][1],
+                    states[2*i][2],
+                    states[2*i][3],
+                    states[2*i+1][2] - states[2*i][2],
+                    states[2*i+1][2],
+                    states[2*i+1][3],
+                )
+            )
         end
     end
     return generated_subpaths, generated_charging_arcs

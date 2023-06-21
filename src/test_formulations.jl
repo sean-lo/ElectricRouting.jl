@@ -415,8 +415,6 @@ subpath_single_service = false
 subpath_check_customers = false
 path_single_service = false
 path_check_customers = false
-incremental_elementarity = true
-warm_start = false
 christofides = true
 verbose = true
 
@@ -577,27 +575,14 @@ begin
             round(base_labels_time + full_labels_time, digits=3)
         )
     elseif method == "benchmark"
-        if incremental_elementarity
-            (negative_pure_path_labels, _, pure_path_labels_time) = subproblem_iteration_benchmark_incremental_elementarity(
-                G, data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
-                ;
-                time_windows = time_windows,
-                path_check_customers = path_check_customers,
-                warm_start = warm_start,
-                christofides = christofides,
-                verbose = verbose,
-                rule = "hmaa",
-            )
-        else
-            (negative_pure_path_labels, _, pure_path_labels_time) = subproblem_iteration_benchmark(
-                G, data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
-                ;
-                time_windows = time_windows,
-                path_single_service = path_single_service,
-                path_check_customers = path_check_customers,
-                christofides = christofides,
-            )
-        end
+        (negative_pure_path_labels, _, pure_path_labels_time) = subproblem_iteration_benchmark(
+            G, data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
+            ;
+            time_windows = time_windows,
+            path_single_service = path_single_service,
+            path_check_customers = path_check_customers,
+            christofides = christofides,
+        )
         generated_paths = get_paths_from_negative_pure_path_labels(
             data, negative_pure_path_labels,
         )
@@ -614,7 +599,7 @@ begin
             round(pure_path_labels_time, digits=3)
         )
     end
-    
+
     if length(generated_paths) == 0
         push!(params["number_of_new_paths"], 0)
         converged = true
