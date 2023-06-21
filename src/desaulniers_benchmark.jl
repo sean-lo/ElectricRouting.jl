@@ -92,47 +92,10 @@ function find_nondominated_paths(
     ν,
     ;
     single_service::Bool = false,
-    check_customers::Bool = true, 
     time_windows::Bool = true,
-    christofides::Bool = false,
+    check_customers::Bool = true,
+    christofides::Bool = true,
 )
-    if single_service
-        S = data["N_customers"]
-    else
-        S = Int[]
-    end
-    return find_nondominated_paths_S(
-        G, data, κ, μ, ν,
-        ;
-        S = S,     
-        check_customers = check_customers, 
-        time_windows = time_windows,
-        christofides = christofides,
-    )
-end
-
-
-function find_nondominated_paths_S(
-    G,
-    data, 
-    κ,
-    μ,
-    ν,
-    ;
-    S::Vector{Int} = [],
-    check_customers::Bool = true, # indicates if labels for customers are used in label domination
-    time_windows::Bool = true,
-    christofides::Bool = false,
-    initial_pure_path_labels::Union{
-        Nothing,
-        Dict{Int, Dict{Int, SortedDict{
-            Tuple{Vararg{Int}},
-            PurePathLabel,
-            Base.Order.ForwardOrdering
-        }}},
-    } = nothing,
-)
-    # finds non-dominated paths where customers in S appear at most once.
     function add_pure_path_label_to_collection!(
         collection::SortedDict{
             Tuple{Vararg{Int}}, 
@@ -180,64 +143,46 @@ function find_nondominated_paths_S(
         end
     end
 
-    if isnothing(initial_pure_path_labels)
-        pure_path_labels = Dict(
-            starting_node => Dict(
-                current_node => SortedDict{
-                    Tuple{Vararg{Int}}, 
-                    PurePathLabel,
-                }()
-                for current_node in data["N_nodes"]
-            )
-            for starting_node in data["N_depots"]
+    pure_path_labels = Dict(
+        starting_node => Dict(
+            current_node => SortedDict{
+                Tuple{Vararg{Int}}, 
+                PurePathLabel,
+            }()
+            for current_node in data["N_nodes"]
         )
-        if check_customers
-            # label key here has the following fields:
-            # 1) current minimum time T_i(min)
-            # 2) negative of current max charge -B_i(max)
-            # 3) difference between min time and min charge, T_i(min) - B_i(min)
-            # 4) if applicable, whether i-th customer served
-            key = (0, -data["B"], -data["B"], zeros(Int, length(S))...)
-        else
-            key = (0, -data["B"], -data["B"])
-        end
-        for depot in data["N_depots"]
-            pure_path_labels[depot][depot][key] = PurePathLabel(
-                0.0,
-                [depot],
-                Int[],
-                Int[],
-                0,
-                0,
-                data["B"],
-                data["B"],
-                false,
-                zeros(Int, data["n_customers"]),
-                false,
-            )
-        end
-    else
-        pure_path_labels = deepcopy(initial_pure_path_labels)
-        # reset pure_path_labels
         for starting_node in data["N_depots"]
-            for ending_node in keys(pure_path_labels[starting_node])
-                for path in values(pure_path_labels[starting_node][ending_node])
-                    path.explored = false
-                    path.cost = path.cost + κ[starting_node]
-                    if ending_node in data["N_depots"]
-                        path.cost = path.cost + μ[ending_node]
-                    end
-                end
-            end
-        end
-    end
+    )
 
+    if check_customers
+        # label key here has the following fields:
+        # 1) current minimum time T_i(min)
+        # 2) negative of current max charge -B_i(max)
+        # 3) difference between min time and min charge, T_i(min) - B_i(min)
+        # 4) if applicable, whether i-th customer served
+        key = (0, -data["B"], -data["B"], zeros(Int, data["n_customers"])...)
+    else
+        key = (0, -data["B"], -data["B"])
+    end
+    for depot in data["N_depots"]
+        pure_path_labels[depot][depot][key] = PurePathLabel(
+            0.0,
+            [depot],
+            Int[],
+            Int[],
+            0,
+            0,
+            data["B"],
+            data["B"],
+            false,
+            zeros(Int, data["n_customers"]),
+            false,
+        )
+    end
     unexplored_states = SortedSet(
         [
-            (key..., starting_node, current_node)
-            for starting_node in data["N_depots"]
-                for current_node in keys(pure_path_labels[starting_node])
-                    for key in keys(pure_path_labels[starting_node][current_node])
+            (key..., depot, depot)
+            for depot in data["N_depots"]
         ]
     )
 
@@ -264,8 +209,8 @@ function find_nondominated_paths_S(
         # println("$(path.time_mincharge), $(path.time_maxcharge), $(path.charge_mincharge), $(path.charge_maxcharge)")
         for j in setdiff(outneighbors(G, i), i)
             # println("$state -> $j")
-            if j in data["N_customers"]
-                if j in S && path.served[j] > 0
+            if j in data["N_customers"] 
+                if single_service && path.served[j] > 0
                     # println("already served $j")
                     continue
                 end
@@ -372,7 +317,7 @@ function find_nondominated_paths_S(
                     new_path.time_mincharge, 
                     - new_path.charge_maxcharge, 
                     new_path.time_mincharge - new_path.charge_mincharge, 
-                    new_path.served[S]...,
+                    new_path.served...,
                 )
             else
                 new_key = (
@@ -460,214 +405,3 @@ function subproblem_iteration_benchmark(
     return (negative_pure_path_labels, negative_pure_path_labels_count, pure_path_labels_time)
 end
 
-function subproblem_iteration_benchmark_incremental_elementarity(
-    G, data, κ, μ, ν,
-    ;
-    time_windows::Bool = false,
-    path_check_customers::Bool = true,
-    verbose::Bool = false,
-    warm_start::Bool = false,
-    christofides::Bool = false,
-    rule::String = "hmo",
-)
-    function hmo(data, pure_path_labels; verbose::Bool = false)
-        # select a path which is nondominated of minimal cost
-        (min_cost, _, _, _, path_label) = find_minimum_reduced_cost_pure_path_label(data, pure_path_labels)
-        verbose && println("$min_cost, $path_label")
-        if min_cost >= -1e-6
-            error()
-        end
-        (max_freq, cust) = findmax(path_label.served)
-        return max_freq, [cust]
-    end
-
-    function hmaa(data, pure_path_labels; verbose::Bool = false)
-        max_freq = 0
-        max_custs = Int[]
-        for starting_node in data["N_depots"]
-            for end_node in keys(pure_path_labels[starting_node])
-                for (key, path_label) in pairs(pure_path_labels[starting_node][end_node])
-                    freq = maximum(path_label.served)
-                    custs = findall(==(freq), path_label.served)
-                    if freq < max_freq
-                        continue
-                    elseif freq > max_freq
-                        max_freq = freq
-                        max_custs = custs 
-                    else
-                        max_custs = union(max_custs, custs)
-                    end
-                    verbose && println("$max_freq, $max_custs")
-                end
-            end
-        end
-        return max_freq, max_custs
-    end
-
-
-    start_time = time()
-    S = Int[]
-    initial_pure_path_labels = nothing
-    while true
-        pure_path_labels = find_nondominated_paths_S(
-            G, data, κ, μ, ν,
-            ;
-            S = S,
-            time_windows = time_windows, 
-            check_customers = path_check_customers,
-            christofides = christofides,
-            initial_pure_path_labels = initial_pure_path_labels
-        )
-        # filter for path labels: (i) ending at depot, 
-        # (ii) w/ negative reduced cost,
-        # (iii) elementary
-        d_pure_path_labels = get_depot_pure_path_labels(data, pure_path_labels);
-        n_d_pure_path_labels = get_negative_pure_path_labels_from_pure_path_labels(data, d_pure_path_labels);
-        n_d_pure_path_labels_count = sum(
-            length(n_d_pure_path_labels[starting_node][end_node]) 
-            for starting_node in data["N_depots"]
-                for end_node in keys(n_d_pure_path_labels[starting_node]) 
-        )
-        if n_d_pure_path_labels_count == 0
-            # this activates if the overall CG converges
-            return (n_d_pure_path_labels, 0, time() - start_time)
-        end
-        (e_n_d_pure_path_labels, ne_n_d_pure_path_labels) = get_elementary_nonelementary_pure_path_labels(
-            data, n_d_pure_path_labels; 
-            S = data["N_customers"]
-        );
-        e_n_d_pure_path_labels_count = sum(
-            length(e_n_d_pure_path_labels[starting_node][end_node]) 
-            for starting_node in data["N_depots"]
-                for end_node in keys(e_n_d_pure_path_labels[starting_node]) 
-        )
-        if e_n_d_pure_path_labels_count > 0
-            # this activates if there is some negative path found (elementary w.r.t. all customers)
-            return (e_n_d_pure_path_labels, e_n_d_pure_path_labels_count, time() - start_time)
-        end
-
-        # else, expand S
-        # println(length(S))
-        if length(S) == data["n_customers"]
-            error()
-        end
-        if rule == "hmo"
-            val, custs = hmo(data, n_d_pure_path_labels, verbose = verbose)
-        elseif rule == "hmaa"
-            val, custs = hmaa(data, n_d_pure_path_labels, verbose = false)
-        else
-            error()
-        end
-        S = sort(union(S, custs))
-        verbose && println(S)
-        
-        # prepare warm start
-        if warm_start
-            initial_pure_path_labels, _ = get_elementary_nonelementary_pure_path_labels(
-                data, pure_path_labels, 
-                ; 
-                S = S, rename_keys = true,
-            )
-        end
-    end
-end
-
-
-function get_depot_pure_path_labels(
-    data, 
-    pure_path_labels::Dict{Int, Dict{Int, SortedDict{
-        Tuple{Vararg{Int}},
-        PurePathLabel,
-        Base.Order.ForwardOrdering
-    }}},
-)
-    return Dict(
-        starting_node => Dict(
-            end_node => pure_path_labels[starting_node][end_node]
-            for end_node in data["N_depots"]
-        )
-        for starting_node in data["N_depots"]
-    )
-end
-
-function get_elementary_nonelementary_pure_path_labels(
-    data, 
-    pure_path_labels::Dict{Int, Dict{Int, SortedDict{
-        Tuple{Vararg{Int}},
-        PurePathLabel,
-        Base.Order.ForwardOrdering
-    }}},
-    ;
-    S::Vector{Int} = data["N_customers"],
-    rename_keys::Bool = false,
-)
-    # divides pure path labels in pure_path_labels into two:
-    # those that are elementary (with respect to S) 
-    # and those that visit a customer in S more than once.
-    elementary_pure_path_labels = Dict(
-        starting_node => Dict(
-            end_node => SortedDict{
-                Tuple{Vararg{Int}}, 
-                PurePathLabel,
-            }()
-            for end_node in keys(pure_path_labels[starting_node])
-        )
-        for starting_node in data["N_depots"]
-    )
-    nonelementary_pure_path_labels = Dict(
-        starting_node => Dict(
-            end_node => SortedDict{
-                Tuple{Vararg{Int}}, 
-                PurePathLabel,
-            }()
-            for end_node in keys(pure_path_labels[starting_node])
-        )
-        for starting_node in data["N_depots"]
-    )
-    for starting_node in data["N_depots"]
-        for end_node in keys(pure_path_labels[starting_node])
-            for (key, path_label) in pairs(pure_path_labels[starting_node][end_node])
-                if rename_keys
-                    new_key = (key[1:3]..., path_label.served[S]...)
-                else
-                    new_key = key 
-                end
-                if all(path_label.served[S] .≤ 1)
-                    push!(elementary_pure_path_labels[starting_node][end_node], new_key => path_label)
-                else
-                    push!(nonelementary_pure_path_labels[starting_node][end_node], new_key => path_label)
-                end
-            end
-        end
-    end
-    return (elementary_pure_path_labels, nonelementary_pure_path_labels)
-end
-
-function find_minimum_reduced_cost_pure_path_label(
-    data,
-    pure_path_labels::Dict{Int, Dict{Int, SortedDict{
-        Tuple{Vararg{Int}},
-        PurePathLabel,
-        Base.Order.ForwardOrdering
-    }}},
-)
-    min_cost = Inf
-    min_starting_node = nothing
-    min_end_node = nothing
-    min_key = nothing 
-    min_path_label = nothing
-    for starting_node in data["N_depots"]
-        for end_node in keys(pure_path_labels[starting_node])
-            for (key, path_label) in pairs(pure_path_labels[starting_node][end_node])
-                if path_label.cost < min_cost
-                    min_cost = path_label.cost
-                    min_starting_node = starting_node
-                    min_end_node = end_node
-                    min_key = key
-                    min_path_label = path_label
-                end
-            end
-        end
-    end
-    return (min_cost, min_starting_node, min_end_node, min_key, min_path_label)
-end

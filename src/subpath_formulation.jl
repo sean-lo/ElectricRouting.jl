@@ -267,9 +267,6 @@ function subpath_formulation_column_generation_integrated_from_paths(
     path_single_service::Bool = false,
     path_check_customers::Bool = false,
     check_customers_accelerated::Bool = false,
-    incremental_elementarity::Bool = false,
-    incremental_elementarity_rule::String = "hmo",
-    warm_start::Bool = false,
     christofides::Bool = false,
     verbose::Bool = true,
     time_limit::Float64 = Inf,
@@ -354,8 +351,6 @@ function subpath_formulation_column_generation_integrated_from_paths(
             path_single_service:            %s
             path_check_customers:           %s
             check_customers_accelerated:    %s
-            incremental_elementarity:       %s
-            warm_start:                     %s
             christofides:                   %s
 
             """,
@@ -370,8 +365,6 @@ function subpath_formulation_column_generation_integrated_from_paths(
             path_single_service,
             path_check_customers,
             check_customers_accelerated,
-            incremental_elementarity,
-            warm_start,
             christofides,
         ),
         verbose,
@@ -574,18 +567,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
                 round(base_labels_time + full_labels_time, digits=3)
             )
         elseif method == "benchmark"
-            if incremental_elementarity
-                (negative_pure_path_labels, negative_pure_path_labels_count, pure_path_labels_time) = subproblem_iteration_benchmark_incremental_elementarity(
-                    G, data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
-                    ;
-                    time_windows = time_windows,
-                    path_check_customers = path_check_customers,
-                    warm_start = warm_start,
-                    christofides = christofides,
-                    rule = incremental_elementarity_rule,
-                    verbose = verbose,
-                )
-            elseif check_customers_accelerated && !checkpoint_reached
+            if check_customers_accelerated && !checkpoint_reached
                 (negative_pure_path_labels, negative_pure_path_labels_count, pure_path_labels_time) = subproblem_iteration_benchmark(
                     G, data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
                     ;
