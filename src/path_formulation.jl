@@ -243,6 +243,9 @@ function path_formulation_column_generation(
     path_single_service::Bool = false,
     path_check_customers::Bool = false,
     christofides::Bool = false,
+    ngroute::Bool = false,
+    ngroute_neighborhood_size::Int = Int(ceil(sqrt(data["n_customers"]))),
+    ngroute_neighborhood_charging_depots_size::String = "small",
     verbose::Bool = true,
     time_limit::Float64 = Inf,
 )
@@ -261,6 +264,13 @@ function path_formulation_column_generation(
 
     compute_minimum_time_to_nearest_depot!(data, G)
     compute_minimum_charge_to_nearest_depot_charging_station!(data, G)
+    if ngroute
+        compute_ngroute_neighborhoods!(
+            data, 
+            ngroute_neighborhood_size; 
+            charging_depots_size = ngroute_neighborhood_charging_depots_size,
+        )
+    end
 
     some_paths = generate_artificial_paths(data)
     path_costs = compute_path_costs(
@@ -306,6 +316,10 @@ function path_formulation_column_generation(
             path_single_service:            %s
             path_check_customers:           %s
             christofides:                   %s
+            ngroute:                        %s
+            ngroute neighborhood size:
+                customers                   %2d
+                charging / depots           %s
 
             """,
             data["n_customers"],
@@ -319,6 +333,9 @@ function path_formulation_column_generation(
             path_single_service,
             path_check_customers,
             christofides,
+            ngroute,
+            ngroute_neighborhood_size,
+            ngroute_neighborhood_charging_depots_size,
         ),
         verbose,
     )
@@ -433,6 +450,7 @@ function path_formulation_column_generation(
             (negative_full_labels, _, base_labels_time, full_labels_time) = subproblem_iteration_ours(
                 G, data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
                 ;
+                ngroute = ngroute,
                 subpath_single_service = subpath_single_service,
                 subpath_check_customers = subpath_check_customers,
                 path_single_service = path_single_service,

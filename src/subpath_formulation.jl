@@ -256,6 +256,9 @@ function subpath_formulation_column_generation_integrated_from_paths(
     path_check_customers::Bool = false,
     check_customers_accelerated::Bool = false,
     christofides::Bool = false,
+    ngroute::Bool = false,
+    ngroute_neighborhood_size::Int = Int(ceil(sqrt(data["n_customers"]))),
+    ngroute_neighborhood_charging_depots_size::String = "small",
     verbose::Bool = true,
     time_limit::Float64 = Inf,
 )
@@ -274,6 +277,13 @@ function subpath_formulation_column_generation_integrated_from_paths(
 
     compute_minimum_time_to_nearest_depot!(data, G)
     compute_minimum_charge_to_nearest_depot_charging_station!(data, G)
+    if ngroute
+        compute_ngroute_neighborhoods!(
+            data, 
+            ngroute_neighborhood_size; 
+            charging_depots_size = ngroute_neighborhood_charging_depots_size,
+        )
+    end
 
     some_subpaths = generate_artificial_subpaths(data)
     subpath_costs = compute_subpath_costs(
@@ -340,6 +350,10 @@ function subpath_formulation_column_generation_integrated_from_paths(
             path_check_customers:           %s
             check_customers_accelerated:    %s
             christofides:                   %s
+            ngroute:                        %s
+            ngroute neighborhood size:
+                customers                   %2d
+                charging / depots           %s
 
             """,
             data["n_customers"],
@@ -354,6 +368,9 @@ function subpath_formulation_column_generation_integrated_from_paths(
             path_check_customers,
             check_customers_accelerated,
             christofides,
+            ngroute,
+            ngroute_neighborhood_size,
+            ngroute_neighborhood_charging_depots_size,
         ),
         verbose,
     )
@@ -494,10 +511,22 @@ function subpath_formulation_column_generation_integrated_from_paths(
         push!(params["lp_relaxation_solution_time_taken"], mp_results["solution_time_taken"])
 
         if method == "ours"
-            if check_customers_accelerated && !checkpoint_reached
+            if ngroute
+                (negative_full_labels, _, base_labels_time, full_labels_time) = subproblem_iteration_ours(
+                    G, data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
+                    ;
+                    ngroute = ngroute,
+                    subpath_single_service = subpath_single_service,        
+                    subpath_check_customers = subpath_check_customers,
+                    path_single_service = path_single_service,
+                    path_check_customers = path_check_customers,
+                    christofides = christofides,
+                )
+            elseif check_customers_accelerated && !checkpoint_reached
                 (negative_full_labels, negative_full_labels_count, base_labels_time, full_labels_time) = subproblem_iteration_ours(
                     G, data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
                     ;
+                    ngroute = false,
                     subpath_single_service = subpath_single_service,        
                     subpath_check_customers = false,
                     path_single_service = path_single_service,
@@ -509,6 +538,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
                     (negative_full_labels, _, base_labels_time_new, full_labels_time_new) = subproblem_iteration_ours(
                         G, data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
                         ;
+                        ngroute = false,
                         subpath_single_service = subpath_single_service,        
                         subpath_check_customers = subpath_check_customers,
                         path_single_service = path_single_service,
@@ -522,6 +552,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
                 (negative_full_labels, _, base_labels_time, full_labels_time) = subproblem_iteration_ours(
                     G, data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
                     ;
+                    ngroute = false,
                     subpath_single_service = subpath_single_service,        
                     subpath_check_customers = subpath_check_customers,
                     path_single_service = path_single_service,
@@ -532,6 +563,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
                 (negative_full_labels, _, base_labels_time, full_labels_time) = subproblem_iteration_ours(
                     G, data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
                     ;
+                    ngroute = false,
                     subpath_single_service = subpath_single_service,        
                     subpath_check_customers = subpath_check_customers,
                     path_single_service = path_single_service,

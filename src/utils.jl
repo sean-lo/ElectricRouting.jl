@@ -522,6 +522,33 @@ function compute_minimum_charge_to_nearest_depot_charging_station!(data, G)
     return
 end
 
+function compute_ngroute_neighborhoods!(
+    data, 
+    k::Int, 
+    ;
+    charging_depots_size::String = "small",
+)
+    if !(1 ≤ k ≤ data["n_customers"])
+        error()
+    end
+    data["neighborhoods"] = Dict{Int, Vector{Int}}()
+    for i in data["N_customers"]
+        data["neighborhoods"][i] = sortperm(data["distances"][i,data["N_customers"]])[1:k]
+    end
+    for i in union(data["N_depots"], data["N_charging"])
+        # Option 1:
+        if charging_depots_size == "small"
+            data["neighborhoods"][i] = [i]
+        # Option 2:
+        elseif charging_depots_size == "large"
+            data["neighborhoods"][i] = vcat(data["N_customers"], [i])
+        else
+            error()
+        end
+    end
+    return
+end
+
 function plot_instance(data)
     p = plot(
         # xlim = (0, 1), ylim = (0, 1),
