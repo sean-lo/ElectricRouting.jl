@@ -443,6 +443,28 @@ sp_o_ngl_ch_params["time_taken"]
 @printf("subpath, ours, ng-route relaxation (small N at depots/CS): %8.1f\t%8.1f\n", sp_o_ngs_LP_results["objective"], sp_o_ngs_ch_LP_results["objective"])
 @printf("subpath, ours, ng-route relaxation (large N at depots/CS): %8.1f\t%8.1f\n", sp_o_ngl_LP_results["objective"], sp_o_ngl_ch_LP_results["objective"])
 
+
+@printf("                                                           \t\tno 2-cycles\n")
+@printf("path, benchmark:                                           %8.1f\t%8.1f\n", p_b_IP_results["objective"], p_b_ch_IP_results["objective"])
+@printf("path, benchmark, elementary:                               %8.1f\t    ----\n", p_b_sc_IP_results["objective"])
+@printf("path, ours:                                                %8.1f\t%8.1f\n", p_o_IP_results["objective"], p_o_ch_IP_results["objective"])
+@printf("path, ours, elementary subpaths:                           %8.1f\t%8.1f\n", p_o_sc_IP_results["objective"], p_o_sc_ch_IP_results["objective"])
+@printf("path, ours, elementary subpaths & paths:                   %8.1f\t%8.1f\n", p_o_scsc_IP_results["objective"], p_o_scsc_ch_IP_results["objective"])
+@printf("path, ours, ng-route relaxation (small N at depots/CS):    %8.1f\t%8.1f\n", p_o_ngs_IP_results["objective"], p_o_ngs_ch_IP_results["objective"])
+@printf("path, ours, ng-route relaxation (large N at depots/CS):    %8.1f\t%8.1f\n", p_o_ngl_IP_results["objective"], p_o_ngl_ch_IP_results["objective"])
+
+@printf("                                                           \t\tno 2-cycles\n")
+@printf("subpath, benchmark:                                        %8.1f\t%8.1f\n", sp_b_IP_results["objective"], sp_b_ch_IP_results["objective"])
+@printf("subpath, benchmark, elementary:                            %8.1f\t    ----\n", sp_b_sc_IP_results["objective"])
+@printf("subpath, benchmark, elementary (accel):                    %8.1f\t    ----\n", sp_b_sca_IP_results["objective"])
+@printf("subpath, ours:                                             %8.1f\t%8.1f\n", sp_o_IP_results["objective"], sp_o_ch_IP_results["objective"])
+@printf("subpath, ours, elementary subpaths:                        %8.1f\t%8.1f\n", sp_o_sc_IP_results["objective"], sp_o_sc_ch_IP_results["objective"])
+@printf("subpath, ours, elementary subpaths (accel):                %8.1f\t%8.1f\n", sp_o_sca_IP_results["objective"], sp_o_sca_ch_IP_results["objective"])
+@printf("subpath, ours, elementary subpaths & paths:                %8.1f\t%8.1f\n", sp_o_scsc_IP_results["objective"], sp_o_scsc_ch_IP_results["objective"])
+@printf("subpath, ours, elementary subpaths & paths (accel):        %8.1f\t%8.1f\n", sp_o_scsca_IP_results["objective"], sp_o_scsca_ch_IP_results["objective"])
+@printf("subpath, ours, ng-route relaxation (small N at depots/CS): %8.1f\t%8.1f\n", sp_o_ngs_IP_results["objective"], sp_o_ngs_ch_IP_results["objective"])
+@printf("subpath, ours, ng-route relaxation (large N at depots/CS): %8.1f\t%8.1f\n", sp_o_ngl_IP_results["objective"], sp_o_ngl_ch_IP_results["objective"])
+
 ### Scratch work
 
 include("arc_formulation.jl")
