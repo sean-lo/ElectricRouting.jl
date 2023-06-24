@@ -520,6 +520,27 @@ sp_o_ngla_ch_params["time_taken"]
 
 
 
+## trial
+
+print.(p_o_ngs_printlist);
+print.(p_o_ngsa_printlist);
+print.(p_o_ngs_ch_printlist);
+print.(p_o_ngsa_ch_printlist);
+print.(p_o_ngl_printlist);
+print.(p_o_ngla_printlist);
+print.(p_o_ngl_ch_printlist);
+print.(p_o_ngla_ch_printlist);
+
+print.(sp_o_ngs_printlist);
+print.(sp_o_ngsa_printlist);
+print.(sp_o_ngs_ch_printlist);
+print.(sp_o_ngsa_ch_printlist);
+print.(sp_o_ngl_printlist);
+print.(sp_o_ngla_printlist);
+print.(sp_o_ngl_ch_printlist);
+print.(sp_o_ngla_ch_printlist);
+
+
 
 ### Scratch work
 
@@ -954,16 +975,16 @@ end
 
 
 base_labels = Dict(
-    start_node => Dict(
+    starting_node => Dict(
         current_node => Dict{
             Tuple{Vararg{Int}}, 
             SortedDict{Int, BaseSubpathLabel},
         }()
         for current_node in data["N_nodes"]
     )
-    for start_node in union(data["N_depots"], data["N_charging"])
+    for starting_node in union(data["N_depots"], data["N_charging"])
 )
-for node in union(data["N_charging"], data["N_depots"])
+for node in union(data["N_depots"], data["N_charging"])
     base_labels[node][node][(node,)] = SortedDict(
         0 => BaseSubpathLabel(
             0, 0, 0.0, [node,], zeros(Int, data["n_customers"]),
@@ -982,15 +1003,15 @@ unexplored_states = SortedSet(
 # begin
 @time @suppress while length(unexplored_states) > 0
     state = pop!(unexplored_states)
-    start_node = state[end-1]
+    starting_node = state[end-1]
     current_node = state[end]
-    for set in keys(base_labels[start_node][current_node])
-        if !(state[1] in keys(base_labels[start_node][current_node][set]))
-            println("$start_node, $current_node, $set, $(state[1]) not found!")
+    for set in keys(base_labels[starting_node][current_node])
+        if !(state[1] in keys(base_labels[starting_node][current_node][set]))
+            println("$starting_node, $current_node, $set, $(state[1]) not found!")
             continue
         end
-        current_subpath = base_labels[start_node][current_node][set][state[1]]
-        println("$start_node, $current_node, $set, $(state[1]): $(current_subpath.nodes)")
+        current_subpath = base_labels[starting_node][current_node][set][state[1]]
+        println("$starting_node, $current_node, $set, $(state[1]): $(current_subpath.nodes)")
         for next_node in setdiff(outneighbors(G, current_node), current_node)
             println("exploring next node $next_node")
             # if next_node is not a customer, proceed
@@ -1029,23 +1050,23 @@ unexplored_states = SortedSet(
             end
             new_set = ngroute_create_set(data, set, next_node)
             println("set: $set, next_node: $next_node, new_set: $new_set")
-            if !(new_set in keys(base_labels[start_node][next_node]))
-                base_labels[start_node][next_node][new_set] = SortedDict{
+            if !(new_set in keys(base_labels[starting_node][next_node]))
+                base_labels[starting_node][next_node][new_set] = SortedDict{
                     Tuple{Vararg{Int}},
                     BaseSubpathLabel,
                 }()
             end
             added = add_subpath_longlabel_to_collection!(
-                base_labels[start_node][next_node][new_set],
+                base_labels[starting_node][next_node][new_set],
                 new_subpath.time_taken, new_subpath,
                 ;
                 verbose = true,
             )
             println("added = $added")
             if added && next_node in data["N_customers"]
-                next_state = (new_subpath.time_taken, start_node, next_node)
-                push!(unexplored_states, next_state)
-                println("added next state: $next_state")
+                new_state = (new_subpath.time_taken, starting_node, next_node)
+                push!(unexplored_states, new_state)
+                println("added next state: $new_state")
             end
         end
     end
@@ -1054,25 +1075,25 @@ end
 unexplored_states
 base_labels
 
-for start_node in vcat(data["N_depots"], data["N_charging"])
+for starting_node in vcat(data["N_depots"], data["N_charging"])
     for end_node in data["N_customers"]
-        delete!(base_labels[start_node], end_node)
+        delete!(base_labels[starting_node], end_node)
     end
 end
 
-for start_node in data["N_depots"]
+for starting_node in data["N_depots"]
     for end_node in vcat(data["N_depots"], data["N_charging"])
-        for set in keys(base_labels[start_node][end_node])
-            for v in values(base_labels[start_node][end_node][set])
-                v.cost = v.cost - κ[start_node]
+        for set in keys(base_labels[starting_node][end_node])
+            for v in values(base_labels[starting_node][end_node][set])
+                v.cost = v.cost - κ[starting_node]
             end
         end
     end
 end
 for end_node in data["N_depots"]
-    for start_node in vcat(data["N_depots"], data["N_charging"])
-        for set in keys(base_labels[start_node][end_node])
-            for v in values(base_labels[start_node][end_node][set])
+    for starting_node in vcat(data["N_depots"], data["N_charging"])
+        for set in keys(base_labels[starting_node][end_node])
+            for v in values(base_labels[starting_node][end_node][set])
                 v.cost = v.cost - μ[end_node]
             end
         end
@@ -1092,15 +1113,15 @@ end
 
 *("3", "3", "4")
 
-for start_node in union(data["N_depots"], data["N_charging"])
+for starting_node in union(data["N_depots"], data["N_charging"])
     vals = [
-        length(keys(base_labels[start_node][end_node]))
+        length(keys(base_labels[starting_node][end_node]))
         for end_node in data["N_nodes"]
     ]
     # vals = [
     #     sum(
-    #         [length(base_labels[start_node][end_node][set])
-    #         for set in keys(base_labels[start_node][end_node])],
+    #         [length(base_labels[starting_node][end_node][set])
+    #         for set in keys(base_labels[starting_node][end_node])],
     #         init = 0,
     #     )
     #     for end_node in data["N_nodes"]
@@ -1111,14 +1132,14 @@ end
 
 base_labels[28][24]
 sum(
-    length(base_labels[start_node][end_node][set])
-    for start_node in union(data["N_depots"], data["N_charging"])
+    length(base_labels[starting_node][end_node][set])
+    for starting_node in union(data["N_depots"], data["N_charging"])
         for end_node in union(data["N_depots"], data["N_charging"])
-            for set in keys(base_labels[start_node][end_node])
+            for set in keys(base_labels[starting_node][end_node])
 )
 sum(
-    length(base_labels[start_node][end_node])
-    for start_node in union(data["N_depots"], data["N_charging"])
+    length(base_labels[starting_node][end_node])
+    for starting_node in union(data["N_depots"], data["N_charging"])
         for end_node in union(data["N_depots"], data["N_charging"])
 )
 

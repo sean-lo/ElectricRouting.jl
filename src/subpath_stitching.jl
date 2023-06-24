@@ -92,24 +92,22 @@ function generate_base_labels_nonsingleservice(
     end
 
     base_labels = Dict(
-        start_node => Dict(
-            current_node => SortedDict{Int, BaseSubpathLabel}()
+        starting_node => Dict(
+            current_node => SortedDict{
+                Int, 
+                BaseSubpathLabel,
+            }()
             for current_node in data["N_nodes"]
         )
-        for start_node in union(data["N_depots"], data["N_charging"])
+        for starting_node in union(data["N_depots"], data["N_charging"])
     )
+    unexplored_states = SortedSet{Tuple{Vararg{Int}}}()
     for node in union(data["N_depots"], data["N_charging"])
         base_labels[node][node][0] = BaseSubpathLabel(
             0, 0, 0.0, [node,], zeros(Int, data["n_customers"]),
         )
+        push!(unexplored_states, (0, node, node))
     end
-
-    unexplored_states = SortedSet(
-        [
-            (0.0, node, node)
-            for node in union(data["N_depots"], data["N_charging"])
-        ]
-    )
 
     while length(unexplored_states) > 0
         state = pop!(unexplored_states)
@@ -120,18 +118,20 @@ function generate_base_labels_nonsingleservice(
         end
         current_subpath = base_labels[starting_node][current_node][state[1]]
         for next_node in setdiff(outneighbors(G, current_node), current_node)
-            if current_subpath.charge_taken + data["q"][current_node, next_node] + data["min_q"][next_node] > data["B"]
-                continue
-            end
             # Preventing customer 2-cycles (Christofides)
             if christofides && next_node in data["N_customers"]
                 if length(current_subpath.nodes) ≥ 2 && current_subpath.nodes[end-1] == next_node
                     continue
                 end
             end
+            # time and charge feasibility
             # if current_subpath.time_taken + data["t"][current_node, next_node] + data["min_t"][next_node] > data["T"]
             #     continue
             # end 
+            if current_subpath.charge_taken + data["q"][current_node, next_node] + data["min_q"][next_node] > data["B"]
+                continue
+            end
+
             new_subpath = copy(current_subpath)
             new_subpath.time_taken += data["t"][current_node, next_node]
             new_subpath.charge_taken += data["q"][current_node, next_node]
@@ -140,35 +140,37 @@ function generate_base_labels_nonsingleservice(
             if next_node in data["N_customers"]
                 new_subpath.served[next_node] += 1
             end
+
+            new_key = new_subpath.time_taken
             added = add_subpath_longlabel_to_collection!(
                 base_labels[starting_node][next_node], 
-                new_subpath.time_taken, new_subpath,
+                new_key, new_subpath,
                 ;
-                verbose = false
+                verbose = false,
             )
             if added && next_node in data["N_customers"]
-                next_state = (new_subpath.time_taken, starting_node, next_node)
-                push!(unexplored_states, next_state)
+                new_state = (new_key, starting_node, next_node)
+                push!(unexplored_states, new_state)
             end
         end
     end
 
-    for start_node in vcat(data["N_depots"], data["N_charging"])
+    for starting_node in vcat(data["N_depots"], data["N_charging"])
         for end_node in data["N_customers"]
-            delete!(base_labels[start_node], end_node)
+            delete!(base_labels[starting_node], end_node)
         end
     end
 
-    for start_node in data["N_depots"]
+    for starting_node in data["N_depots"]
         for end_node in vcat(data["N_depots"], data["N_charging"])
-            for v in values(base_labels[start_node][end_node])
-                v.cost = v.cost - κ[start_node]
+            for v in values(base_labels[starting_node][end_node])
+                v.cost = v.cost - κ[starting_node]
             end
         end
     end
     for end_node in data["N_depots"]
-        for start_node in vcat(data["N_depots"], data["N_charging"])
-            for v in values(base_labels[start_node][end_node])
+        for starting_node in vcat(data["N_depots"], data["N_charging"])
+            for v in values(base_labels[starting_node][end_node])
                 v.cost = v.cost - μ[end_node]
             end
         end
@@ -341,20 +343,20 @@ function generate_base_labels_singleservice(
     end
 
     base_labels = Dict(
-        start_node => Dict(
+        starting_node => Dict(
             current_node => SortedDict{
                 Tuple{Vararg{Int}}, 
                 BaseSubpathLabel,
             }()
             for current_node in data["N_nodes"]
         )
-        for start_node in data["N_nodes"]
+        for starting_node in data["N_nodes"]
     )
 
     for edge in edges(G)
-        start_node = edge.src
+        starting_node = edge.src
         current_node = edge.dst
-        time_taken = data["t"][start_node, current_node]
+        time_taken = data["t"][starting_node, current_node]
         served = zeros(Int, data["n_customers"])
         if current_node in data["N_customers"]
             served[current_node] = 1
@@ -364,18 +366,18 @@ function generate_base_labels_singleservice(
         else
             key = (time_taken,)
         end
-        base_labels[start_node][current_node][key] = BaseSubpathLabel(
+        base_labels[starting_node][current_node][key] = BaseSubpathLabel(
             time_taken,
-            data["q"][start_node, current_node],
-            modified_costs[start_node, current_node],
-            [start_node, current_node],
+            data["q"][starting_node, current_node],
+            modified_costs[starting_node, current_node],
+            [starting_node, current_node],
             served,
         )
     end
 
     for new_node in data["N_customers"]
-        for start_node in setdiff(data["N_nodes"], new_node)
-            if length(base_labels[start_node][new_node]) == 0
+        for starting_node in setdiff(data["N_nodes"], new_node)
+            if length(base_labels[starting_node][new_node]) == 0
                 continue
             end
             for end_node in setdiff(data["N_nodes"], new_node)
@@ -383,7 +385,7 @@ function generate_base_labels_singleservice(
                     continue
                 end
                 if true
-                    for (k1, s1) in pairs(base_labels[start_node][new_node])
+                    for (k1, s1) in pairs(base_labels[starting_node][new_node])
                         for (k2, s2) in pairs(base_labels[new_node][end_node])
                             # Preventing customer 2-cycles (Christofides)
                             if christofides && s1.nodes[end-1] in data["N_customers"] && s1.nodes[end-1] == s2.nodes[2]
@@ -404,16 +406,16 @@ function generate_base_labels_singleservice(
                                 s1.served .+ s2.served,
                             )
                             add_subpath_longlabel_to_collection!(
-                                base_labels[start_node][end_node],
+                                base_labels[starting_node][end_node],
                                 k, s,
                             )
                         end
                     end
                 else
                     merge_collections!(
-                        base_labels[start_node][end_node],
+                        base_labels[starting_node][end_node],
                         direct_sum_of_collections(
-                            base_labels[start_node][new_node], 
+                            base_labels[starting_node][new_node], 
                             base_labels[new_node][end_node],
                         )
                     )
@@ -422,22 +424,22 @@ function generate_base_labels_singleservice(
         end
     end
 
-    for start_node in vcat(data["N_depots"], data["N_charging"])
+    for starting_node in vcat(data["N_depots"], data["N_charging"])
         for end_node in data["N_customers"]
-            delete!(base_labels[start_node], end_node)
+            delete!(base_labels[starting_node], end_node)
         end
     end
 
-    for start_node in data["N_depots"]
+    for starting_node in data["N_depots"]
         for end_node in vcat(data["N_depots"], data["N_charging"])
-            for v in values(base_labels[start_node][end_node])
-                v.cost = v.cost - κ[start_node]
+            for v in values(base_labels[starting_node][end_node])
+                v.cost = v.cost - κ[starting_node]
             end
         end
     end
     for end_node in data["N_depots"]
-        for start_node in vcat(data["N_depots"], data["N_charging"])
-            for v in values(base_labels[start_node][end_node])
+        for starting_node in vcat(data["N_depots"], data["N_charging"])
+            for v in values(base_labels[starting_node][end_node])
                 v.cost = v.cost - μ[end_node]
             end
         end
@@ -530,7 +532,7 @@ function generate_base_labels_ngroute(
     end
 
     base_labels = Dict(
-        start_node => Dict(
+        starting_node => Dict(
             current_node => Dict{
                 Tuple{Vararg{Int}}, 
                 SortedDict{
@@ -540,9 +542,10 @@ function generate_base_labels_ngroute(
             }()
             for current_node in data["N_nodes"]
         )
-        for start_node in union(data["N_depots"], data["N_charging"])
+        for starting_node in union(data["N_depots"], data["N_charging"])
     )
-    for node in union(data["N_charging"], data["N_depots"])
+    unexplored_states = SortedSet{Tuple{Vararg{Int}}}()
+    for node in union(data["N_depots"], data["N_charging"])
         base_labels[node][node][(node,)] = SortedDict{
             Int,
             BaseSubpathLabel,
@@ -552,40 +555,28 @@ function generate_base_labels_ngroute(
                 0, 0, 0.0, [node,], zeros(Int, data["n_customers"]),
             )
         )
+        push!(unexplored_states, (0, node, node))
     end
-
-    unexplored_states = SortedSet(
-        [
-            (0, node, node)
-            for node in union(data["N_depots"], data["N_charging"])
-        ]
-    )
 
     while length(unexplored_states) > 0
         state = pop!(unexplored_states)
-        start_node = state[end-1]
+        starting_node = state[end-1]
         current_node = state[end]
-        for set in keys(base_labels[start_node][current_node])
-            if !(state[1] in keys(base_labels[start_node][current_node][set]))
+        for current_set in keys(base_labels[starting_node][current_node])
+            if !(state[1] in keys(base_labels[starting_node][current_node][current_set]))
                 continue
             end
-            current_subpath = base_labels[start_node][current_node][set][state[1]]
+            current_subpath = base_labels[starting_node][current_node][current_set][state[1]]
             for next_node in setdiff(outneighbors(G, current_node), current_node)
-                # if next_node is not a customer, proceed
-                if next_node in data["N_customers"]
+                if next_node in current_set
                     # if next_node is a customer not yet visited, proceed
                     # only if one can extend current_subpath along next_node according to ng-route rules
-                    if next_node in set 
+                    continue
+                end
+                # Preventing customer 2-cycles (Christofides)
+                if christofides && next_node in data["N_customers"]
+                    if length(current_subpath.nodes) ≥ 2 && current_subpath.nodes[end-1] == next_node
                         continue
-                    end
-                    # if next_node is a customer, only proceed if 
-                    # it is not part of a 2-cycle (Christofides 1981)
-                    if christofides
-                        if length(current_subpath.nodes) ≥ 2
-                            if next_node == current_subpath.nodes[end-1]
-                                continue
-                            end
-                        end
                     end
                 end
                 # time and charge feasibility
@@ -595,6 +586,7 @@ function generate_base_labels_ngroute(
                 if current_subpath.charge_taken + data["q"][current_node, next_node] + data["min_q"][next_node] > data["B"]
                     continue
                 end
+
                 new_subpath = copy(current_subpath)
                 new_subpath.time_taken += data["t"][current_node, next_node]
                 new_subpath.charge_taken += data["q"][current_node, next_node]
@@ -603,46 +595,48 @@ function generate_base_labels_ngroute(
                 if next_node in data["N_customers"]
                     new_subpath.served[next_node] += 1
                 end
-                new_set = ngroute_create_set(data, set, next_node)
-                if !(new_set in keys(base_labels[start_node][next_node]))
-                    base_labels[start_node][next_node][new_set] = SortedDict{
+
+                new_set = ngroute_create_set(data, current_set, next_node)
+                if !(new_set in keys(base_labels[starting_node][next_node]))
+                    base_labels[starting_node][next_node][new_set] = SortedDict{
                         Tuple{Vararg{Int}},
                         BaseSubpathLabel,
                     }()
                 end
+                new_key = new_subpath.time_taken
                 added = add_subpath_longlabel_to_collection!(
-                    base_labels[start_node][next_node][new_set],
-                    new_subpath.time_taken, new_subpath,
+                    base_labels[starting_node][next_node][new_set],
+                    new_key, new_subpath,
                     ;
                     verbose = false,
                 )
                 if added && next_node in data["N_customers"]
-                    next_state = (new_subpath.time_taken, start_node, next_node)
-                    push!(unexplored_states, next_state)
+                    new_state = (new_key, starting_node, next_node)
+                    push!(unexplored_states, new_state)
                 end
             end
         end
     end
 
-    for start_node in vcat(data["N_depots"], data["N_charging"])
+    for starting_node in vcat(data["N_depots"], data["N_charging"])
         for end_node in data["N_customers"]
-            delete!(base_labels[start_node], end_node)
+            delete!(base_labels[starting_node], end_node)
         end
     end
 
-    for start_node in data["N_depots"]
+    for starting_node in data["N_depots"]
         for end_node in vcat(data["N_depots"], data["N_charging"])
-            for set in keys(base_labels[start_node][end_node])
-                for v in values(base_labels[start_node][end_node][set])
-                    v.cost = v.cost - κ[start_node]
+            for set in keys(base_labels[starting_node][end_node])
+                for v in values(base_labels[starting_node][end_node][set])
+                    v.cost = v.cost - κ[starting_node]
                 end
             end
         end
     end
     for end_node in data["N_depots"]
-        for start_node in vcat(data["N_depots"], data["N_charging"])
-            for set in keys(base_labels[start_node][end_node])
-                for v in values(base_labels[start_node][end_node][set])
+        for starting_node in vcat(data["N_depots"], data["N_charging"])
+            for set in keys(base_labels[starting_node][end_node])
+                for v in values(base_labels[starting_node][end_node][set])
                     v.cost = v.cost - μ[end_node]
                 end
             end
@@ -739,20 +733,20 @@ function generate_base_labels_ngroute_alt(
     end
 
     base_labels = Dict(
-        start_node => Dict(
+        starting_node => Dict(
             current_node => SortedDict{
                 Tuple{Vararg{Int}}, 
                 BaseSubpathLabel,
             }()
             for current_node in data["N_nodes"]
         )
-        for start_node in union(data["N_depots"], data["N_charging"])
+        for starting_node in union(data["N_depots"], data["N_charging"])
     )
     unexplored_states = SortedSet{Tuple{Vararg{Int}}}()
-    for node in union(data["N_charging"], data["N_depots"])
-        customer_labels = zeros(Int, data["n_nodes"])
-        customer_labels[node] = 1
-        key = (0, customer_labels...)
+    for node in union(data["N_depots"], data["N_charging"])
+        node_labels = zeros(Int, data["n_nodes"])
+        node_labels[node] = 1
+        key = (0, node_labels...)
         base_labels[node][node][key] = BaseSubpathLabel(
             0, 0, 0.0, [node,], zeros(Int, data["n_customers"]),
         )
@@ -761,29 +755,23 @@ function generate_base_labels_ngroute_alt(
 
     while length(unexplored_states) > 0
         state = pop!(unexplored_states)
-        start_node = state[end-1]
+        starting_node = state[end-1]
         current_node = state[end]
-        if !(state[1:end-2] in keys(base_labels[start_node][current_node]))
+        if !(state[1:end-2] in keys(base_labels[starting_node][current_node]))
             continue
         end
-        set = state[2:end-2]
-        current_subpath = base_labels[start_node][current_node][state[1:end-2]]
+        current_set = state[2:end-2]
+        current_subpath = base_labels[starting_node][current_node][state[1:end-2]]
         for next_node in setdiff(outneighbors(G, current_node), current_node)
-            # if next_node is not a customer, proceed
-            if next_node in data["N_customers"]
+            if next_node in data["N_customers"] && current_set[next_node] == 1
                 # if next_node is a customer not yet visited, proceed
                 # only if one can extend current_subpath along next_node according to ng-route rules
-                if set[next_node] == 1
+                continue
+            end
+            # Preventing customer 2-cycles (Christofides)
+            if christofides && next_node in data["N_customers"]
+                if length(current_subpath.nodes) ≥ 2 && current_subpath.nodes[end-1] == next_node
                     continue
-                end
-                # if next_node is a customer, only proceed if 
-                # it is not part of a 2-cycle (Christofides 1981)
-                if christofides
-                    if length(current_subpath.nodes) ≥ 2
-                        if next_node == current_subpath.nodes[end-1]
-                            continue
-                        end
-                    end
                 end
             end
             # time and charge feasibility
@@ -793,6 +781,7 @@ function generate_base_labels_ngroute_alt(
             if current_subpath.charge_taken + data["q"][current_node, next_node] + data["min_q"][next_node] > data["B"]
                 continue
             end
+
             new_subpath = copy(current_subpath)
             new_subpath.time_taken += data["t"][current_node, next_node]
             new_subpath.charge_taken += data["q"][current_node, next_node]
@@ -801,37 +790,38 @@ function generate_base_labels_ngroute_alt(
             if next_node in data["N_customers"]
                 new_subpath.served[next_node] += 1
             end
-            new_set = ngroute_create_set_alt(data, collect(set), next_node)
+
+            new_set = ngroute_create_set_alt(data, collect(current_set), next_node)
             new_key = (new_subpath.time_taken, new_set...)
             added = add_subpath_longlabel_to_collection!(
-                base_labels[start_node][next_node],
+                base_labels[starting_node][next_node],
                 new_key, new_subpath,
                 ;
                 verbose = false,
             )
             if added && next_node in data["N_customers"]
-                next_state = (new_key..., start_node, next_node)
-                push!(unexplored_states, next_state)
+                new_state = (new_key..., starting_node, next_node)
+                push!(unexplored_states, new_state)
             end
         end
     end
 
-    for start_node in vcat(data["N_depots"], data["N_charging"])
+    for starting_node in vcat(data["N_depots"], data["N_charging"])
         for end_node in data["N_customers"]
-            delete!(base_labels[start_node], end_node)
+            delete!(base_labels[starting_node], end_node)
         end
     end
 
-    for start_node in data["N_depots"]
+    for starting_node in data["N_depots"]
         for end_node in vcat(data["N_depots"], data["N_charging"])
-            for v in values(base_labels[start_node][end_node])
-                v.cost = v.cost - κ[start_node]
+            for v in values(base_labels[starting_node][end_node])
+                v.cost = v.cost - κ[starting_node]
             end
         end
     end
     for end_node in data["N_depots"]
-        for start_node in vcat(data["N_depots"], data["N_charging"])
-            for v in values(base_labels[start_node][end_node])
+        for starting_node in vcat(data["N_depots"], data["N_charging"])
+            for v in values(base_labels[starting_node][end_node])
                 v.cost = v.cost - μ[end_node]
             end
         end
@@ -921,7 +911,7 @@ function find_nondominated_paths_notimewindows(
                 Tuple{Vararg{Int}}, 
                 PathLabel,
             }()
-            for current_node in union(data["N_charging"], data["N_depots"])
+            for current_node in union(data["N_depots"], data["N_charging"])
         )
         for starting_node in data["N_depots"]
     )
@@ -935,6 +925,7 @@ function find_nondominated_paths_notimewindows(
     else
         key = (0, -data["B"])
     end
+    unexplored_states = SortedSet{Tuple{Vararg{Int}}}()
     for depot in data["N_depots"]
         full_labels[depot][depot][key] = PathLabel(
             0.0,
@@ -942,13 +933,8 @@ function find_nondominated_paths_notimewindows(
             Tuple{Int, Int}[],
             zeros(Int, data["n_customers"]),
         )
+        push!(unexplored_states, (key..., depot, depot))
     end
-    unexplored_states = SortedSet(
-        [
-            (key..., depot, depot)
-            for depot in data["N_depots"]
-        ]
-    )
 
     while length(unexplored_states) > 0
         state = pop!(unexplored_states)
@@ -960,12 +946,14 @@ function find_nondominated_paths_notimewindows(
         current_path = full_labels[starting_node][current_node][state[1:end-2]]
         for next_node in union(data["N_depots"], data["N_charging"])
             for s in values(base_labels[current_node][next_node])
+                # don't count initial subpath again
                 if (
                     next_node in data["N_depots"]
                     && s.time_taken == 0
                 )
                     continue
                 end
+                # single-service requirement
                 if (
                     single_service
                     && any(s.served + current_path.served .> 1)
@@ -984,6 +972,8 @@ function find_nondominated_paths_notimewindows(
                         end
                     end
                 end
+
+                # time horizon and charge feasibility
                 (delta, end_time, end_charge) = charge_to_specified_level(
                     - state[2], # current charge
                     s.charge_taken, 
@@ -1003,26 +993,26 @@ function find_nondominated_paths_notimewindows(
                 end
 
                 if check_customers
-                    key = (
+                    new_key = (
                         end_time + s.time_taken, 
                         - (end_charge - s.charge_taken),
                         new_path.served...
                     )
                 else
-                    key = (
+                    new_key = (
                         end_time + s.time_taken, 
                         - (end_charge - s.charge_taken),
                     )
                 end
-
-                # println(key)
                 added = add_path_label_to_collection!(
                     full_labels[starting_node][next_node],
-                    key, new_path,
+                    new_key, new_path,
+                    ;
+                    verbose = false,
                 )
                 if added && next_node in data["N_charging"]
-                    next_state = (key..., starting_node, next_node)
-                    push!(unexplored_states, next_state)
+                    new_state = (new_key..., starting_node, next_node)
+                    push!(unexplored_states, new_state)
                 end
             end
         end
@@ -1153,7 +1143,7 @@ function find_nondominated_paths_notimewindows_ngroute(
     end
 
     full_labels = Dict(
-        start_node => Dict(
+        starting_node => Dict(
             current_node => Dict{
                 Tuple{Vararg{Int}}, 
                 SortedDict{
@@ -1161,44 +1151,43 @@ function find_nondominated_paths_notimewindows_ngroute(
                     PathLabel,
                 },
             }()
-            for current_node in union(data["N_charging"], data["N_depots"])
+            for current_node in union(data["N_depots"], data["N_charging"])
         )
-        for start_node in data["N_depots"]
+        for starting_node in data["N_depots"]
     )
 
+    unexplored_states = SortedSet{Tuple{Vararg{Int}}}()
     for depot in data["N_depots"]
-        full_labels[depot][depot][(depot,)] = SortedDict{
+        key = (0, -data["B"])
+        set = (depot,)
+        full_labels[depot][depot][set] = SortedDict{
             Tuple{Vararg{Int}},
             PathLabel,
         }(
             Base.Order.ForwardOrdering(),
-            (0, -data["B"]) => PathLabel(
+            key => PathLabel(
                 0.0,
                 BaseSubpathLabel[],
                 Tuple{Int, Int}[],
                 zeros(Int, data["n_customers"]),
             ),
         )
+        push!(unexplored_states, (key..., depot, depot))
     end
-    unexplored_states = SortedSet(
-        [
-            (0, -data["B"], depot, depot)
-            for depot in data["N_depots"]
-        ]
-    )
 
     while length(unexplored_states) > 0
         state = pop!(unexplored_states)
-        start_node = state[end-1]
+        starting_node = state[end-1]
         current_node = state[end]
-        for current_set in keys(full_labels[start_node][current_node])
-            if !(state[1:end-2] in keys(full_labels[start_node][current_node][current_set]))
+        for current_set in keys(full_labels[starting_node][current_node])
+            if !(state[1:end-2] in keys(full_labels[starting_node][current_node][current_set]))
                 continue
             end
-            current_path = full_labels[start_node][current_node][current_set][state[1:end-2]]
+            current_path = full_labels[starting_node][current_node][current_set][state[1:end-2]]
             for next_node in union(data["N_depots"], data["N_charging"])
                 for set in keys(base_labels[current_node][next_node])
                     for s in values(base_labels[current_node][next_node][set])
+                        # don't count initial subpath again
                         if (
                             next_node in data["N_depots"]
                             && s.time_taken == 0
@@ -1222,12 +1211,13 @@ function find_nondominated_paths_notimewindows_ngroute(
                         if !check
                             continue
                         end
+
+                        # time horizon and charge feasibility
                         (delta, end_time, end_charge) = charge_to_specified_level(
                             - state[2], # current charge
                             s.charge_taken, 
                             state[1], # current time
                         )
-                        # time horizon check
                         if end_time + s.time_taken + data["min_t"][next_node] > data["T"]
                             continue
                         end
@@ -1241,25 +1231,25 @@ function find_nondominated_paths_notimewindows_ngroute(
                             new_path.cost += data["charge_cost_coeff"] * delta
                         end
 
-                        key = (
+                        new_key = (
                             end_time + s.time_taken, 
                             - (end_charge - s.charge_taken),
                         )
-                        if !(new_set in keys(full_labels[start_node][next_node]))
-                            full_labels[start_node][next_node][new_set] = SortedDict{
+                        if !(new_set in keys(full_labels[starting_node][next_node]))
+                            full_labels[starting_node][next_node][new_set] = SortedDict{
                                 Tuple{Vararg{Int}},
                                 PathLabel,
                             }()
                         end
                         added = add_path_label_to_collection!(
-                            full_labels[start_node][next_node][new_set],
-                            key, new_path,
+                            full_labels[starting_node][next_node][new_set],
+                            new_key, new_path,
                             ;
                             verbose = false,
                         )
                         if added && next_node in data["N_charging"]
-                            next_state = (key..., start_node, next_node)
-                            push!(unexplored_states, next_state)
+                            new_state = (new_key..., starting_node, next_node)
+                            push!(unexplored_states, new_state)
                         end
                     end
                 end
@@ -1291,9 +1281,9 @@ function find_nondominated_paths_notimewindows_ngroute(
         )
     end
 
-    for start_node in data["N_depots"]
+    for starting_node in data["N_depots"]
         for end_node in data["N_charging"]
-            delete!(full_labels[start_node], end_node)
+            delete!(full_labels[starting_node], end_node)
         end
     end
 
@@ -1388,21 +1378,21 @@ function find_nondominated_paths_notimewindows_ngroute_alt(
     end
 
     full_labels = Dict(
-        start_node => Dict(
+        starting_node => Dict(
             current_node => SortedDict{
                 Tuple{Vararg{Int}}, 
                 PathLabel,
             }()
-            for current_node in union(data["N_charging"], data["N_depots"])
+            for current_node in union(data["N_depots"], data["N_charging"])
         )
-        for start_node in data["N_depots"]
+        for starting_node in data["N_depots"]
     )
 
     unexplored_states = SortedSet{Tuple{Vararg{Int}}}()
     for depot in data["N_depots"]
-        customer_labels = zeros(Int, data["n_nodes"])
-        customer_labels[depot] = 1
-        key = (0, -data["B"], customer_labels...)
+        node_labels = zeros(Int, data["n_nodes"])
+        node_labels[depot] = 1
+        key = (0, -data["B"], node_labels...)
         full_labels[depot][depot][key] = PathLabel(
             0.0,
             BaseSubpathLabel[],
@@ -1414,15 +1404,16 @@ function find_nondominated_paths_notimewindows_ngroute_alt(
 
     while length(unexplored_states) > 0
         state = pop!(unexplored_states)
-        start_node = state[end-1]
+        starting_node = state[end-1]
         current_node = state[end]
-        if !(state[1:end-2] in keys(full_labels[start_node][current_node]))
+        if !(state[1:end-2] in keys(full_labels[starting_node][current_node]))
             continue
         end
         current_set = state[3:end-2]
-        current_path = full_labels[start_node][current_node][state[1:end-2]]
+        current_path = full_labels[starting_node][current_node][state[1:end-2]]
         for next_node in union(data["N_depots"], data["N_charging"])
-            for (key, s) in pairs(base_labels[current_node][next_node])
+            for s in values(base_labels[current_node][next_node])
+                # don't count initial subpath again
                 if (
                     next_node in data["N_depots"]
                     && s.time_taken == 0
@@ -1441,17 +1432,19 @@ function find_nondominated_paths_notimewindows_ngroute_alt(
                         end
                     end
                 end
+
                 # ngroute stitching subpaths check
                 (new_set, check) = ngroute_extend_partial_path_check_alt(data, collect(current_set), s)
                 if !check
                     continue
                 end
+
+                # time horizon and charge feasibility
                 (delta, end_time, end_charge) = charge_to_specified_level(
                     - state[2], # current charge
                     s.charge_taken, 
                     state[1], # current time
                 )
-                # time horizon check
                 if end_time + s.time_taken + data["min_t"][next_node] > data["T"]
                     continue
                 end
@@ -1465,20 +1458,20 @@ function find_nondominated_paths_notimewindows_ngroute_alt(
                     new_path.cost += data["charge_cost_coeff"] * delta
                 end
 
-                key = (
+                new_key = (
                     end_time + s.time_taken, 
                     - (end_charge - s.charge_taken),
                     new_set...,
                 )
                 added = add_path_label_to_collection!(
-                    full_labels[start_node][next_node],
-                    key, new_path,
+                    full_labels[starting_node][next_node],
+                    new_key, new_path,
                     ;
                     verbose = false,
                 )
                 if added && next_node in data["N_charging"]
-                    next_state = (key..., start_node, next_node)
-                    push!(unexplored_states, next_state)
+                    new_state = (new_key..., starting_node, next_node)
+                    push!(unexplored_states, new_state)
                 end
             end
         end
@@ -1489,9 +1482,9 @@ function find_nondominated_paths_notimewindows_ngroute_alt(
     # 2) negative of current charge
     key = (0, -data["B"])
     for depot in data["N_depots"]
-        customer_labels = zeros(Int, data["n_nodes"])
-        customer_labels[depot] = 1
-        key = (0, -data["B"], customer_labels...,)
+        node_labels = zeros(Int, data["n_nodes"])
+        node_labels[depot] = 1
+        key = (0, -data["B"], node_labels...,)
         full_labels[depot][depot][key] = PathLabel(
             - κ[depot] - μ[depot],
             [
@@ -1508,9 +1501,9 @@ function find_nondominated_paths_notimewindows_ngroute_alt(
         )
     end
 
-    for start_node in data["N_depots"]
+    for starting_node in data["N_depots"]
         for end_node in data["N_charging"]
-            delete!(full_labels[start_node], end_node)
+            delete!(full_labels[starting_node], end_node)
         end
     end
 
@@ -1572,20 +1565,18 @@ function subproblem_iteration_ours(
     path_check_customers::Bool = true,
     christofides::Bool = false,
 )
-    if ngroute
-        if ngroute_alt
-            base_labels_result = @timed generate_base_labels_ngroute_alt(
-                G, data, κ, μ, ν, 
-                ;
-                christofides = christofides,
-            )
-        else
-            base_labels_result = @timed generate_base_labels_ngroute(
-                G, data, κ, μ, ν, 
-                ;
-                christofides = christofides,
-            )
-        end
+    if ngroute && !ngroute_alt
+        base_labels_result = @timed generate_base_labels_ngroute(
+            G, data, κ, μ, ν, 
+            ;
+            christofides = christofides,
+        )
+    elseif ngroute && ngroute_alt
+        base_labels_result = @timed generate_base_labels_ngroute_alt(
+            G, data, κ, μ, ν, 
+            ;
+            christofides = christofides,
+        )
     elseif subpath_single_service
         base_labels_result = @timed generate_base_labels_singleservice(
             G, data, κ, μ, ν,
@@ -1601,20 +1592,18 @@ function subproblem_iteration_ours(
         )
     end
     base_labels_time = base_labels_result.time
-    if ngroute
-        if ngroute_alt
-            full_labels_result = @timed find_nondominated_paths_notimewindows_ngroute_alt(
-                data, base_labels_result.value, κ, μ,
-                ;
-                christofides = christofides,
-            )
-        else
-            full_labels_result = @timed find_nondominated_paths_notimewindows_ngroute(
-                data, base_labels_result.value, κ, μ,
-                ;
-                christofides = christofides,
-            )
-        end
+    if ngroute && !ngroute_alt
+        full_labels_result = @timed find_nondominated_paths_notimewindows_ngroute(
+            data, base_labels_result.value, κ, μ,
+            ;
+            christofides = christofides,
+        )
+    elseif ngroute && ngroute_alt
+        full_labels_result = @timed find_nondominated_paths_notimewindows_ngroute_alt(
+            data, base_labels_result.value, κ, μ,
+            ;
+            christofides = christofides,
+        )
     else
         full_labels_result = @timed find_nondominated_paths_notimewindows(
             data, base_labels_result.value, κ, μ,
@@ -1627,7 +1616,7 @@ function subproblem_iteration_ours(
     full_labels_time = full_labels_result.time
     if ngroute && !ngroute_alt
         negative_full_labels = get_negative_path_labels_from_path_labels_ngroute(data, full_labels_result.value)
-    else
+    elseif (ngroute && ngroute_alt) || !ng_route
         negative_full_labels = get_negative_path_labels_from_path_labels(data, full_labels_result.value)
     end
     negative_full_labels_count = length(negative_full_labels)
