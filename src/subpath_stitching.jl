@@ -1616,7 +1616,7 @@ function subproblem_iteration_ours(
     full_labels_time = full_labels_result.time
     if ngroute && !ngroute_alt
         negative_full_labels = get_negative_path_labels_from_path_labels_ngroute(data, full_labels_result.value)
-    elseif (ngroute && ngroute_alt) || !ng_route
+    elseif (ngroute && ngroute_alt) || !ngroute
         negative_full_labels = get_negative_path_labels_from_path_labels(data, full_labels_result.value)
     end
     negative_full_labels_count = length(negative_full_labels)

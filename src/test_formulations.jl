@@ -36,8 +36,16 @@ G = construct_graph(data)
 p_b_LP_results, p_b_IP_results, p_b_params, p_b_printlist, p_b_some_paths = path_formulation_column_generation(G, data; method = "benchmark", verbose = true)
 p_b_s_LP_results, p_b_s_IP_results, p_b_s_params, p_b_s_printlist, p_b_s_some_paths = path_formulation_column_generation(G, data; method = "benchmark", path_single_service = true, verbose = true)
 p_b_sc_LP_results, p_b_sc_IP_results, p_b_sc_params, p_b_sc_printlist, p_b_sc_some_paths = path_formulation_column_generation(G, data; method = "benchmark", path_single_service = true, path_check_customers = true, verbose = true)
+p_b_ngs_LP_results, p_b_ngs_IP_results, p_b_ngs_params, p_b_ngs_printlist, p_b_ngs_some_paths = path_formulation_column_generation(G, data; method = "benchmark", ngroute = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true)
+p_b_ngl_LP_results, p_b_ngl_IP_results, p_b_ngl_params, p_b_ngl_printlist, p_b_ngl_some_paths = path_formulation_column_generation(G, data; method = "benchmark", ngroute = true, ngroute_neighborhood_charging_depots_size = "large", verbose = true)
+p_b_ngsa_LP_results, p_b_ngsa_IP_results, p_b_ngsa_params, p_b_ngsa_printlist, p_b_ngsa_some_paths = path_formulation_column_generation(G, data; method = "benchmark", ngroute = true, ngroute_alt = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true)
+p_b_ngla_LP_results, p_b_ngla_IP_results, p_b_ngla_params, p_b_ngla_printlist, p_b_ngla_some_paths = path_formulation_column_generation(G, data; method = "benchmark", ngroute = true, ngroute_alt = true, ngroute_neighborhood_charging_depots_size = "large", verbose = true)
 
 p_b_ch_LP_results, p_b_ch_IP_results, p_b_ch_params, p_b_ch_printlist, p_b_ch_some_paths = path_formulation_column_generation(G, data; method = "benchmark", verbose = true, christofides = true)
+p_b_ngs_ch_LP_results, p_b_ngs_ch_IP_results, p_b_ngs_ch_params, p_b_ngs_ch_printlist, p_b_ngs_ch_some_paths = path_formulation_column_generation(G, data; method = "benchmark", ngroute = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true, christofides = true)
+p_b_ngl_ch_LP_results, p_b_ngl_ch_IP_results, p_b_ngl_ch_params, p_b_ngl_ch_printlist, p_b_ngl_ch_some_paths = path_formulation_column_generation(G, data; method = "benchmark", ngroute = true, ngroute_neighborhood_charging_depots_size = "large", verbose = true, christofides = true)
+p_b_ngsa_ch_LP_results, p_b_ngsa_ch_IP_results, p_b_ngsa_ch_params, p_b_ngsa_ch_printlist, p_b_ngsa_ch_some_paths = path_formulation_column_generation(G, data; method = "benchmark", ngroute = true, ngroute_alt = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true, christofides = true)
+p_b_ngla_ch_LP_results, p_b_ngla_ch_IP_results, p_b_ngla_ch_params, p_b_ngla_ch_printlist, p_b_ngla_ch_some_paths = path_formulation_column_generation(G, data; method = "benchmark", ngroute = true, ngroute_alt = true, ngroute_neighborhood_charging_depots_size = "large", verbose = true, christofides = true)
 
 p_o_LP_results, p_o_IP_results, p_o_params, p_o_printlist, p_o_some_paths = path_formulation_column_generation(G, data; method = "ours", verbose = true)
 p_o_s_LP_results, p_o_s_IP_results, p_o_s_params, p_o_s_printlist, p_o_s_some_paths = path_formulation_column_generation(G, data; method = "ours", subpath_single_service = true, verbose = true)
@@ -64,6 +72,17 @@ sp_b_LP_results, sp_b_IP_results, sp_b_params, sp_b_printlist, sp_b_some_subpath
 sp_b_s_LP_results, sp_b_s_IP_results, sp_b_s_params, sp_b_s_printlist, sp_b_s_some_subpaths, sp_b_s_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "benchmark", path_single_service = true, verbose = true)
 sp_b_sc_LP_results, sp_b_sc_IP_results, sp_b_sc_params, sp_b_sc_printlist, sp_b_sc_some_subpaths, sp_b_sc_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "benchmark", path_single_service = true, path_check_customers = true, verbose = true)
 sp_b_sca_LP_results, sp_b_sca_IP_results, sp_b_sca_params, sp_b_sca_printlist, sp_b_sca_some_subpaths, sp_b_sca_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "benchmark", path_single_service = true, path_check_customers = true, check_customers_accelerated = true, verbose = true)
+sp_b_ngs_LP_results, sp_b_ngs_IP_results, sp_b_ngs_params, sp_b_ngs_printlist, sp_b_ngs_some_subpaths, sp_b_ngs_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "benchmark", ngroute = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true)
+sp_b_ngl_LP_results, sp_b_ngl_IP_results, sp_b_ngl_params, sp_b_ngl_printlist, sp_b_ngl_some_subpaths, sp_b_ngl_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "benchmark", ngroute = true, ngroute_neighborhood_charging_depots_size = "large", verbose = true)
+sp_b_ngsa_LP_results, sp_b_ngsa_IP_results, sp_b_ngsa_params, sp_b_ngsa_printlist, sp_b_ngsa_some_subpaths, sp_b_ngsa_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "benchmark", ngroute = true, ngroute_alt = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true)
+sp_b_ngla_LP_results, sp_b_ngla_IP_results, sp_b_ngla_params, sp_b_ngla_printlist, sp_b_ngla_some_subpaths, sp_b_ngla_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "benchmark", ngroute = true, ngroute_alt = true, ngroute_neighborhood_charging_depots_size = "large", verbose = true)
+
+sp_b_ngs_ch_LP_results, sp_b_ngs_ch_IP_results, sp_b_ngs_ch_params, sp_b_ngs_ch_printlist, sp_b_ngs_ch_some_subpaths, sp_b_ngs_ch_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "benchmark", ngroute = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true, christofides = true)
+sp_b_ngl_ch_LP_results, sp_b_ngl_ch_IP_results, sp_b_ngl_ch_params, sp_b_ngl_ch_printlist, sp_b_ngl_ch_some_subpaths, sp_b_ngl_ch_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "benchmark", ngroute = true, ngroute_neighborhood_charging_depots_size = "large", verbose = true, christofides = true)
+sp_b_ngsa_ch_LP_results, sp_b_ngsa_ch_IP_results, sp_b_ngsa_ch_params, sp_b_ngsa_ch_printlist, sp_b_ngsa_ch_some_subpaths, sp_b_ngsa_ch_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "benchmark", ngroute = true, ngroute_alt = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true, christofides = true)
+sp_b_ngla_ch_LP_results, sp_b_ngla_ch_IP_results, sp_b_ngla_ch_params, sp_b_ngla_ch_printlist, sp_b_ngla_ch_some_subpaths, sp_b_ngla_ch_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "benchmark", ngroute = true, ngroute_alt = true, ngroute_neighborhood_charging_depots_size = "large", verbose = true, christofides = true)
+
+
 
 sp_b_ch_LP_results, sp_b_ch_IP_results, sp_b_ch_params, sp_b_ch_printlist, sp_b_ch_some_subpaths, sp_b_ch_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "benchmark", verbose = true, christofides = true)
 
@@ -95,7 +114,15 @@ sp_o_ngla_ch_LP_results, sp_o_ngla_ch_IP_results, sp_o_ngla_ch_params, sp_o_ngla
 collect_path_solution_metrics!(p_b_LP_results, data, p_b_some_paths)
 collect_path_solution_metrics!(p_b_s_LP_results, data, p_b_s_some_paths)
 collect_path_solution_metrics!(p_b_sc_LP_results, data, p_b_sc_some_paths)
+collect_path_solution_metrics!(p_b_ngs_LP_results, data, p_b_ngs_some_paths)
+collect_path_solution_metrics!(p_b_ngsa_LP_results, data, p_b_ngsa_some_paths)
+collect_path_solution_metrics!(p_b_ngl_LP_results, data, p_b_ngl_some_paths)
+collect_path_solution_metrics!(p_b_ngla_LP_results, data, p_b_ngla_some_paths)
 collect_path_solution_metrics!(p_b_ch_LP_results, data, p_b_ch_some_paths)
+collect_path_solution_metrics!(p_b_ngs_ch_LP_results, data, p_b_ngs_ch_some_paths)
+collect_path_solution_metrics!(p_b_ngsa_ch_LP_results, data, p_b_ngsa_ch_some_paths)
+collect_path_solution_metrics!(p_b_ngl_ch_LP_results, data, p_b_ngl_ch_some_paths)
+collect_path_solution_metrics!(p_b_ngla_ch_LP_results, data, p_b_ngla_ch_some_paths)
 
 collect_path_solution_metrics!(p_o_LP_results, data, p_o_some_paths)
 collect_path_solution_metrics!(p_o_s_LP_results, data, p_o_s_some_paths)
@@ -121,7 +148,16 @@ collect_subpath_solution_metrics!(sp_b_LP_results, data, sp_b_some_subpaths, sp_
 collect_subpath_solution_metrics!(sp_b_s_LP_results, data, sp_b_s_some_subpaths, sp_b_s_some_charging_arcs)
 collect_subpath_solution_metrics!(sp_b_sc_LP_results, data, sp_b_sc_some_subpaths, sp_b_sc_some_charging_arcs)
 collect_subpath_solution_metrics!(sp_b_sca_LP_results, data, sp_b_sca_some_subpaths, sp_b_sca_some_charging_arcs)
+
+collect_subpath_solution_metrics!(sp_b_ngs_LP_results, data, sp_b_ngs_some_subpaths, sp_b_ngs_some_charging_arcs)
+collect_subpath_solution_metrics!(sp_b_ngl_LP_results, data, sp_b_ngl_some_subpaths, sp_b_ngl_some_charging_arcs)
+collect_subpath_solution_metrics!(sp_b_ngsa_LP_results, data, sp_b_ngsa_some_subpaths, sp_b_ngsa_some_charging_arcs)
+collect_subpath_solution_metrics!(sp_b_ngla_LP_results, data, sp_b_ngla_some_subpaths, sp_b_ngla_some_charging_arcs)
 collect_subpath_solution_metrics!(sp_b_ch_LP_results, data, sp_b_ch_some_subpaths, sp_b_ch_some_charging_arcs)
+collect_subpath_solution_metrics!(sp_b_ngs_ch_LP_results, data, sp_b_ngs_ch_some_subpaths, sp_b_ngs_ch_some_charging_arcs)
+collect_subpath_solution_metrics!(sp_b_ngl_ch_LP_results, data, sp_b_ngl_ch_some_subpaths, sp_b_ngl_ch_some_charging_arcs)
+collect_subpath_solution_metrics!(sp_b_ngsa_ch_LP_results, data, sp_b_ngsa_ch_some_subpaths, sp_b_ngsa_ch_some_charging_arcs)
+collect_subpath_solution_metrics!(sp_b_ngla_ch_LP_results, data, sp_b_ngla_ch_some_subpaths, sp_b_ngla_ch_some_charging_arcs)
 
 collect_subpath_solution_metrics!(sp_o_LP_results, data, sp_o_some_subpaths, sp_o_some_charging_arcs)
 collect_subpath_solution_metrics!(sp_o_s_LP_results, data, sp_o_s_some_subpaths, sp_o_s_some_charging_arcs)
@@ -151,7 +187,16 @@ collect_subpath_solution_metrics!(sp_o_ngla_ch_LP_results, data, sp_o_ngla_ch_so
 p_b_LP_results["objective"]
 p_b_s_LP_results["objective"]
 p_b_sc_LP_results["objective"]
+p_b_ngs_LP_results["objective"]
+p_b_ngl_LP_results["objective"]
+p_b_ngsa_LP_results["objective"]
+p_b_ngla_LP_results["objective"]
+
 p_b_ch_LP_results["objective"]
+p_b_ngs_ch_LP_results["objective"]
+p_b_ngl_ch_LP_results["objective"]
+p_b_ngsa_ch_LP_results["objective"]
+p_b_ngla_ch_LP_results["objective"]
 
 p_o_LP_results["objective"]
 p_o_s_LP_results["objective"]
@@ -162,6 +207,7 @@ p_o_ngs_LP_results["objective"]
 p_o_ngl_LP_results["objective"]
 p_o_ngsa_LP_results["objective"]
 p_o_ngla_LP_results["objective"]
+
 p_o_ch_LP_results["objective"]
 p_o_s_ch_LP_results["objective"]
 p_o_sc_ch_LP_results["objective"]
@@ -177,7 +223,16 @@ sp_b_LP_results["objective"]
 sp_b_s_LP_results["objective"]
 sp_b_sc_LP_results["objective"]
 sp_b_sca_LP_results["objective"]
+sp_b_ngs_LP_results["objective"]
+sp_b_ngl_LP_results["objective"]
+sp_b_ngsa_LP_results["objective"]
+sp_b_ngla_LP_results["objective"]
+
 sp_b_ch_LP_results["objective"]
+sp_b_ngs_ch_LP_results["objective"]
+sp_b_ngl_ch_LP_results["objective"]
+sp_b_ngsa_ch_LP_results["objective"]
+sp_b_ngla_ch_LP_results["objective"]
 
 sp_o_LP_results["objective"]
 sp_o_s_LP_results["objective"]
@@ -190,6 +245,7 @@ sp_o_ngs_LP_results["objective"]
 sp_o_ngl_LP_results["objective"]
 sp_o_ngsa_LP_results["objective"]
 sp_o_ngla_LP_results["objective"]
+
 sp_o_ch_LP_results["objective"]
 sp_o_s_ch_LP_results["objective"]
 sp_o_sc_ch_LP_results["objective"]
@@ -209,6 +265,22 @@ sp_o_ngla_ch_LP_results["objective"]
     ≤ p_b_sc_LP_results["objective"]
 )
 @test p_b_s_LP_results["objective"] ≥ p_b_sc_LP_results["objective"]
+@test(
+    p_b_LP_results["objective"] 
+    ≤ p_b_ngs_LP_results["objective"] 
+    ≤ p_b_ngl_LP_results["objective"] 
+    ≤ p_b_sc_LP_results["objective"]
+)
+@test p_b_ngs_LP_results["objective"] ≈ p_b_ngsa_LP_results["objective"]
+@test p_b_ngl_LP_results["objective"] ≈ p_b_ngla_LP_results["objective"]
+@test(
+    p_b_ch_LP_results["objective"] 
+    ≤ p_b_ngs_ch_LP_results["objective"]
+    ≤ p_b_ngl_ch_LP_results["objective"]
+    ≤ p_b_scsc_ch_LP_results["objective"]
+)
+@test p_b_ngs_ch_LP_results["objective"] ≈ p_b_ngsa_ch_LP_results["objective"]
+@test p_b_ngl_ch_LP_results["objective"] ≈ p_b_ngla_ch_LP_results["objective"]
 
 @test(
     p_o_LP_results["objective"] 
@@ -251,7 +323,22 @@ sp_o_ngla_ch_LP_results["objective"]
     ≤ sp_b_sc_LP_results["objective"]
 )
 @test sp_b_s_LP_results["objective"] ≥ sp_b_sc_LP_results["objective"]
-
+@test(
+    sp_b_LP_results["objective"] 
+    ≤ sp_b_ngs_LP_results["objective"] 
+    ≤ sp_b_ngl_LP_results["objective"] 
+    ≤ sp_b_sc_LP_results["objective"]
+)
+@test sp_b_ngs_LP_results["objective"] ≈ sp_b_ngsa_LP_results["objective"]
+@test sp_b_ngl_LP_results["objective"] ≈ sp_b_ngla_LP_results["objective"]
+@test(
+    sp_b_ch_LP_results["objective"] 
+    ≤ sp_b_ngs_ch_LP_results["objective"]
+    ≤ sp_b_ngl_ch_LP_results["objective"]
+    ≤ sp_b_scsc_ch_LP_results["objective"]
+)
+@test sp_b_ngs_ch_LP_results["objective"] ≈ sp_b_ngsa_ch_LP_results["objective"]
+@test sp_b_ngl_ch_LP_results["objective"] ≈ sp_b_ngla_ch_LP_results["objective"]
 
 @test(
     sp_o_LP_results["objective"] 
@@ -332,7 +419,16 @@ sp_o_ngla_ch_LP_results["objective"]
 p_b_params["time_taken"]
 p_b_s_params["time_taken"]
 p_b_sc_params["time_taken"]
+p_b_ngs_params["time_taken"]
+p_b_ngl_params["time_taken"]
+p_b_ngsa_params["time_taken"]
+p_b_ngla_params["time_taken"]
+
 p_b_ch_params["time_taken"]
+p_b_ngs_ch_params["time_taken"]
+p_b_ngl_ch_params["time_taken"]
+p_b_ngsa_ch_params["time_taken"]
+p_b_ngla_ch_params["time_taken"]
 
 p_o_params["time_taken"]
 p_o_s_params["time_taken"]
@@ -359,7 +455,16 @@ sp_b_params["time_taken"]
 sp_b_s_params["time_taken"]
 sp_b_sc_params["time_taken"]
 sp_b_sca_params["time_taken"]
+sp_b_ngs_params["time_taken"]
+sp_b_ngl_params["time_taken"]
+sp_b_ngsa_params["time_taken"]
+sp_b_ngla_params["time_taken"]
+
 sp_b_ch_params["time_taken"]
+sp_b_ngs_ch_params["time_taken"]
+sp_b_ngl_ch_params["time_taken"]
+sp_b_ngsa_ch_params["time_taken"]
+sp_b_ngla_ch_params["time_taken"]
 
 sp_o_params["time_taken"]
 sp_o_s_params["time_taken"]
@@ -390,6 +495,10 @@ sp_o_ngla_ch_params["time_taken"]
 @printf("                                                               \t\tno 2-cycles\n")
 @printf("path, benchmark:                                               %8.3f\t%8.3f\n", p_b_params["time_taken"], p_b_ch_params["time_taken"])
 @printf("path, benchmark, elementary:                                   %8.3f\t    ----\n", p_b_sc_params["time_taken"])
+@printf("path, benc, ng-route relaxation (small N at depots/CS):        %8.3f\t%8.3f\n", p_b_ngs_params["time_taken"], p_b_ngs_ch_params["time_taken"])
+@printf("path, benc, ng-route relaxation (large N at depots/CS):        %8.3f\t%8.3f\n", p_b_ngl_params["time_taken"], p_b_ngl_ch_params["time_taken"])
+@printf("path, benc, ng-route relaxation (small N at depots/CS, alt):   %8.3f\t%8.3f\n", p_b_ngsa_params["time_taken"], p_b_ngsa_ch_params["time_taken"])
+@printf("path, benc, ng-route relaxation (large N at depots/CS, alt):   %8.3f\t%8.3f\n", p_b_ngla_params["time_taken"], p_b_ngla_ch_params["time_taken"])
 @printf("path, ours:                                                    %8.3f\t%8.3f\n", p_o_params["time_taken"], p_o_ch_params["time_taken"])
 @printf("path, ours, elementary subpaths:                               %8.3f\t%8.3f\n", p_o_sc_params["time_taken"], p_o_sc_ch_params["time_taken"])
 @printf("path, ours, elementary subpaths & paths:                       %8.3f\t%8.3f\n", p_o_scsc_params["time_taken"], p_o_scsc_ch_params["time_taken"])
@@ -402,6 +511,10 @@ sp_o_ngla_ch_params["time_taken"]
 @printf("subpath, benchmark:                                            %8.3f\t%8.3f\n", sp_b_params["time_taken"], sp_b_ch_params["time_taken"])
 @printf("subpath, benchmark, elementary:                                %8.3f\t    ----\n", sp_b_sc_params["time_taken"])
 @printf("subpath, benchmark, elementary (accel):                        %8.3f\t    ----\n", sp_b_sca_params["time_taken"])
+@printf("subpath, benc, ng-route relaxation (small N at depots/CS):     %8.3f\t%8.3f\n", sp_b_ngs_params["time_taken"], sp_b_ngs_ch_params["time_taken"])
+@printf("subpath, benc, ng-route relaxation (large N at depots/CS):     %8.3f\t%8.3f\n", sp_b_ngl_params["time_taken"], sp_b_ngl_ch_params["time_taken"])
+@printf("subpath, benc, ng-route relaxation (small N at depots/CS, alt):%8.3f\t%8.3f\n", sp_b_ngsa_params["time_taken"], sp_b_ngsa_ch_params["time_taken"])
+@printf("subpath, benc, ng-route relaxation (large N at depots/CS, alt):%8.3f\t%8.3f\n", sp_b_ngla_params["time_taken"], sp_b_ngla_ch_params["time_taken"])
 @printf("subpath, ours:                                                 %8.3f\t%8.3f\n", sp_o_params["time_taken"], sp_o_ch_params["time_taken"])
 @printf("subpath, ours, elementary subpaths:                            %8.3f\t%8.3f\n", sp_o_sc_params["time_taken"], sp_o_sc_ch_params["time_taken"])
 @printf("subpath, ours, elementary subpaths (accel):                    %8.3f\t%8.3f\n", sp_o_sca_params["time_taken"], sp_o_sca_ch_params["time_taken"])
@@ -416,6 +529,10 @@ sp_o_ngla_ch_params["time_taken"]
 @printf("                                                               \t\tno 2-cycles\n")
 @printf("path, benchmark:                                               %8.1f\t%8.1f\n", p_b_LP_results["objective"], p_b_ch_LP_results["objective"])
 @printf("path, benchmark, elementary:                                   %8.1f\t    ----\n", p_b_sc_LP_results["objective"])
+@printf("path, benc, ng-route relaxation (small N at depots/CS):        %8.1f\t%8.1f\n", p_b_ngs_LP_results["objective"], p_b_ngs_ch_LP_results["objective"])
+@printf("path, benc, ng-route relaxation (large N at depots/CS):        %8.1f\t%8.1f\n", p_b_ngl_LP_results["objective"], p_b_ngl_ch_LP_results["objective"])
+@printf("path, benc, ng-route relaxation (small N at depots/CS, alt):   %8.1f\t%8.1f\n", p_b_ngsa_LP_results["objective"], p_b_ngsa_ch_LP_results["objective"])
+@printf("path, benc, ng-route relaxation (large N at depots/CS, alt):   %8.1f\t%8.1f\n", p_b_ngla_LP_results["objective"], p_b_ngla_ch_LP_results["objective"])
 @printf("path, ours:                                                    %8.1f\t%8.1f\n", p_o_LP_results["objective"], p_o_ch_LP_results["objective"])
 @printf("path, ours, elementary subpaths:                               %8.1f\t%8.1f\n", p_o_sc_LP_results["objective"], p_o_sc_ch_LP_results["objective"])
 @printf("path, ours, elementary subpaths & paths:                       %8.1f\t%8.1f\n", p_o_scsc_LP_results["objective"], p_o_scsc_ch_LP_results["objective"])
@@ -428,6 +545,10 @@ sp_o_ngla_ch_params["time_taken"]
 @printf("subpath, benchmark:                                            %8.1f\t%8.1f\n", sp_b_LP_results["objective"], sp_b_ch_LP_results["objective"])
 @printf("subpath, benchmark, elementary:                                %8.1f\t    ----\n", sp_b_sc_LP_results["objective"])
 @printf("subpath, benchmark, elementary (accel):                        %8.1f\t    ----\n", sp_b_sca_LP_results["objective"])
+@printf("subpath, benc, ng-route relaxation (small N at depots/CS):     %8.1f\t%8.1f\n", sp_b_ngs_LP_results["objective"], sp_b_ngs_ch_LP_results["objective"])
+@printf("subpath, benc, ng-route relaxation (large N at depots/CS):     %8.1f\t%8.1f\n", sp_b_ngl_LP_results["objective"], sp_b_ngl_ch_LP_results["objective"])
+@printf("subpath, benc, ng-route relaxation (small N at depots/CS, alt):%8.1f\t%8.1f\n", sp_b_ngsa_LP_results["objective"], sp_b_ngsa_ch_LP_results["objective"])
+@printf("subpath, benc, ng-route relaxation (large N at depots/CS, alt):%8.1f\t%8.1f\n", sp_b_ngla_LP_results["objective"], sp_b_ngla_ch_LP_results["objective"])
 @printf("subpath, ours:                                                 %8.1f\t%8.1f\n", sp_o_LP_results["objective"], sp_o_ch_LP_results["objective"])
 @printf("subpath, ours, elementary subpaths:                            %8.1f\t%8.1f\n", sp_o_sc_LP_results["objective"], sp_o_sc_ch_LP_results["objective"])
 @printf("subpath, ours, elementary subpaths (accel):                    %8.1f\t%8.1f\n", sp_o_sca_LP_results["objective"], sp_o_sca_ch_LP_results["objective"])
@@ -442,6 +563,10 @@ sp_o_ngla_ch_params["time_taken"]
 @printf("                                                               \t\tno 2-cycles\n")
 @printf("path, benchmark:                                               %8.1f\t%8.1f\n", p_b_IP_results["objective"], p_b_ch_IP_results["objective"])
 @printf("path, benchmark, elementary:                                   %8.1f\t    ----\n", p_b_sc_IP_results["objective"])
+@printf("path, benc, ng-route relaxation (small N at depots/CS):        %8.1f\t%8.1f\n", p_b_ngs_IP_results["objective"], p_b_ngs_ch_IP_results["objective"])
+@printf("path, benc, ng-route relaxation (large N at depots/CS):        %8.1f\t%8.1f\n", p_b_ngl_IP_results["objective"], p_b_ngl_ch_IP_results["objective"])
+@printf("path, benc, ng-route relaxation (small N at depots/CS, alt):   %8.1f\t%8.1f\n", p_b_ngsa_IP_results["objective"], p_b_ngsa_ch_IP_results["objective"])
+@printf("path, benc, ng-route relaxation (large N at depots/CS, alt):   %8.1f\t%8.1f\n", p_b_ngla_IP_results["objective"], p_b_ngla_ch_IP_results["objective"])
 @printf("path, ours:                                                    %8.1f\t%8.1f\n", p_o_IP_results["objective"], p_o_ch_IP_results["objective"])
 @printf("path, ours, elementary subpaths:                               %8.1f\t%8.1f\n", p_o_sc_IP_results["objective"], p_o_sc_ch_IP_results["objective"])
 @printf("path, ours, elementary subpaths & paths:                       %8.1f\t%8.1f\n", p_o_scsc_IP_results["objective"], p_o_scsc_ch_IP_results["objective"])
@@ -454,6 +579,10 @@ sp_o_ngla_ch_params["time_taken"]
 @printf("subpath, benchmark:                                            %8.1f\t%8.1f\n", sp_b_IP_results["objective"], sp_b_ch_IP_results["objective"])
 @printf("subpath, benchmark, elementary:                                %8.1f\t    ----\n", sp_b_sc_IP_results["objective"])
 @printf("subpath, benchmark, elementary (accel):                        %8.1f\t    ----\n", sp_b_sca_IP_results["objective"])
+@printf("subpath, benc, ng-route relaxation (small N at depots/CS):     %8.1f\t%8.1f\n", sp_b_ngs_IP_results["objective"], sp_b_ngs_ch_IP_results["objective"])
+@printf("subpath, benc, ng-route relaxation (large N at depots/CS):     %8.1f\t%8.1f\n", sp_b_ngl_IP_results["objective"], sp_b_ngl_ch_IP_results["objective"])
+@printf("subpath, benc, ng-route relaxation (small N at depots/CS, alt):%8.1f\t%8.1f\n", sp_b_ngsa_IP_results["objective"], sp_b_ngsa_ch_IP_results["objective"])
+@printf("subpath, benc, ng-route relaxation (large N at depots/CS, alt):%8.1f\t%8.1f\n", sp_b_ngla_IP_results["objective"], sp_b_ngla_ch_IP_results["objective"])
 @printf("subpath, ours:                                                 %8.1f\t%8.1f\n", sp_o_IP_results["objective"], sp_o_ch_IP_results["objective"])
 @printf("subpath, ours, elementary subpaths:                            %8.1f\t%8.1f\n", sp_o_sc_IP_results["objective"], sp_o_sc_ch_IP_results["objective"])
 @printf("subpath, ours, elementary subpaths (accel):                    %8.1f\t%8.1f\n", sp_o_sca_IP_results["objective"], sp_o_sca_ch_IP_results["objective"])
@@ -468,6 +597,24 @@ sp_o_ngla_ch_params["time_taken"]
 
 
 ## trial
+
+print.(p_b_ngs_printlist);
+print.(p_b_ngsa_printlist);
+print.(p_b_ngs_ch_printlist);
+print.(p_b_ngsa_ch_printlist);
+print.(p_b_ngl_printlist);
+print.(p_b_ngla_printlist);
+print.(p_b_ngl_ch_printlist);
+print.(p_b_ngla_ch_printlist);
+
+print.(sp_b_ngs_printlist);
+print.(sp_b_ngsa_printlist);
+print.(sp_b_ngs_ch_printlist);
+print.(sp_b_ngsa_ch_printlist);
+print.(sp_b_ngl_printlist);
+print.(sp_b_ngla_printlist);
+print.(sp_b_ngl_ch_printlist);
+print.(sp_b_ngla_ch_printlist);
 
 print.(p_o_ngs_printlist);
 print.(p_o_ngsa_printlist);

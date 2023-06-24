@@ -480,6 +480,8 @@ function path_formulation_column_generation(
             (negative_pure_path_labels, _, pure_path_labels_time) = subproblem_iteration_benchmark(
                 G, data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
                 ;
+                ngroute = ngroute, 
+                ngroute_alt = ngroute_alt,
                 time_windows = time_windows,
                 path_single_service = path_single_service,
                 path_check_customers = path_check_customers,

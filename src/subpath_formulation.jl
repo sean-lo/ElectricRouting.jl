@@ -591,7 +591,18 @@ function subpath_formulation_column_generation_integrated_from_paths(
                 round(base_labels_time + full_labels_time, digits=3)
             )
         elseif method == "benchmark"
-            if check_customers_accelerated && !checkpoint_reached
+            if ngroute
+                (negative_pure_path_labels, negative_pure_path_labels_count, pure_path_labels_time) = subproblem_iteration_benchmark(
+                    G, data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
+                    ;
+                    ngroute = ngroute,
+                    ngroute_alt = ngroute_alt,
+                    time_windows = time_windows,
+                    path_single_service = path_single_service,
+                    path_check_customers = path_check_customers,
+                    christofides = christofides,
+                )
+            elseif check_customers_accelerated && !checkpoint_reached
                 (negative_pure_path_labels, negative_pure_path_labels_count, pure_path_labels_time) = subproblem_iteration_benchmark(
                     G, data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
                     ;
