@@ -33,12 +33,6 @@ data = generate_instance(
 G = construct_graph(data)
 # plot_instance(data)
 
-p_b_tw_LP_results, p_b_tw_IP_results, p_b_tw_params, p_b_tw_printlist, p_b_tw_some_paths = path_formulation_column_generation(G, data; method = "benchmark", time_windows = true, verbose = true)
-p_b_tw_s_LP_results, p_b_tw_s_IP_results, p_b_tw_s_params, p_b_tw_s_printlist, p_b_tw_s_some_paths = path_formulation_column_generation(G, data; method = "benchmark", time_windows = true, path_single_service = true, verbose = true)
-p_b_tw_sc_LP_results, p_b_tw_sc_IP_results, p_b_tw_sc_params, p_b_tw_sc_printlist, p_b_tw_sc_some_paths = path_formulation_column_generation(G, data; method = "benchmark", time_windows = true, path_single_service = true, path_check_customers = true, verbose = true)
-
-p_b_tw_ch_LP_results, p_b_tw_ch_IP_results, p_b_tw_ch_params, p_b_tw_ch_printlist, p_b_tw_ch_some_paths = path_formulation_column_generation(G, data; method = "benchmark", time_windows = true, christofides = true, verbose = true)
-
 p_b_LP_results, p_b_IP_results, p_b_params, p_b_printlist, p_b_some_paths = path_formulation_column_generation(G, data; method = "benchmark", verbose = true)
 p_b_s_LP_results, p_b_s_IP_results, p_b_s_params, p_b_s_printlist, p_b_s_some_paths = path_formulation_column_generation(G, data; method = "benchmark", path_single_service = true, verbose = true)
 p_b_sc_LP_results, p_b_sc_IP_results, p_b_sc_params, p_b_sc_printlist, p_b_sc_some_paths = path_formulation_column_generation(G, data; method = "benchmark", path_single_service = true, path_check_customers = true, verbose = true)
@@ -65,13 +59,6 @@ p_o_ngs_ch_LP_results, p_o_ngs_ch_IP_results, p_o_ngs_ch_params, p_o_ngs_ch_prin
 p_o_ngl_ch_LP_results, p_o_ngl_ch_IP_results, p_o_ngl_ch_params, p_o_ngl_ch_printlist, p_o_ngl_ch_some_paths = path_formulation_column_generation(G, data; method = "ours", ngroute = true, ngroute_neighborhood_charging_depots_size = "large", verbose = true, christofides = true)
 p_o_ngsa_ch_LP_results, p_o_ngsa_ch_IP_results, p_o_ngsa_ch_params, p_o_ngsa_ch_printlist, p_o_ngsa_ch_some_paths = path_formulation_column_generation(G, data; method = "ours", ngroute = true, ngroute_alt = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true, christofides = true)
 p_o_ngla_ch_LP_results, p_o_ngla_ch_IP_results, p_o_ngla_ch_params, p_o_ngla_ch_printlist, p_o_ngla_ch_some_paths = path_formulation_column_generation(G, data; method = "ours", ngroute = true, ngroute_alt = true, ngroute_neighborhood_charging_depots_size = "large", verbose = true, christofides = true)
-
-sp_b_tw_LP_results, sp_b_tw_IP_results, sp_b_tw_params, sp_b_tw_printlist, sp_b_tw_some_subpaths, sp_b_tw_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "benchmark", time_windows = true, verbose = true)
-sp_b_tw_s_LP_results, sp_b_tw_s_IP_results, sp_b_tw_s_params, sp_b_tw_s_printlist, sp_b_tw_s_some_subpaths, sp_b_tw_s_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "benchmark", time_windows = true, path_single_service = true, verbose = true)
-sp_b_tw_sc_LP_results, sp_b_tw_sc_IP_results, sp_b_tw_sc_params, sp_b_tw_sc_printlist, sp_b_tw_sc_some_subpaths, sp_b_tw_sc_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "benchmark", time_windows = true, path_single_service = true, path_check_customers = true, verbose = true)
-sp_b_tw_sca_LP_results, sp_b_tw_sca_IP_results, sp_b_tw_sca_params, sp_b_tw_sca_printlist, sp_b_tw_sca_some_subpaths, sp_b_tw_sca_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "benchmark", time_windows = true, path_single_service = true, path_check_customers = true, check_customers_accelerated = true, verbose = true)
-
-sp_b_tw_ch_LP_results, sp_b_tw_ch_IP_results, sp_b_tw_ch_params, sp_b_tw_ch_printlist, sp_b_tw_ch_some_subpaths, sp_b_tw_ch_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "benchmark", time_windows = true, verbose = true, christofides = true)
 
 sp_b_LP_results, sp_b_IP_results, sp_b_params, sp_b_printlist, sp_b_some_subpaths, sp_b_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "benchmark", verbose = true)
 sp_b_s_LP_results, sp_b_s_IP_results, sp_b_s_params, sp_b_s_printlist, sp_b_s_some_subpaths, sp_b_s_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "benchmark", path_single_service = true, verbose = true)
@@ -104,10 +91,6 @@ sp_o_ngl_ch_LP_results, sp_o_ngl_ch_IP_results, sp_o_ngl_ch_params, sp_o_ngl_ch_
 sp_o_ngsa_ch_LP_results, sp_o_ngsa_ch_IP_results, sp_o_ngsa_ch_params, sp_o_ngsa_ch_printlist, sp_o_ngsa_ch_some_subpaths, sp_o_ngsa_ch_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "ours", ngroute = true, ngroute_alt = true, ngroute_neighborhood_charging_depots_size = "small", christofides = true, verbose = true)
 sp_o_ngla_ch_LP_results, sp_o_ngla_ch_IP_results, sp_o_ngla_ch_params, sp_o_ngla_ch_printlist, sp_o_ngla_ch_some_subpaths, sp_o_ngla_ch_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "ours", ngroute = true, ngroute_alt = true, ngroute_neighborhood_charging_depots_size = "large", christofides = true, verbose = true)
 
-collect_path_solution_metrics!(p_b_tw_LP_results, data, p_b_tw_some_paths)
-collect_path_solution_metrics!(p_b_tw_s_LP_results, data, p_b_tw_s_some_paths)
-collect_path_solution_metrics!(p_b_tw_sc_LP_results, data, p_b_tw_sc_some_paths)
-collect_path_solution_metrics!(p_b_tw_ch_LP_results, data, p_b_tw_ch_some_paths)
 
 collect_path_solution_metrics!(p_b_LP_results, data, p_b_some_paths)
 collect_path_solution_metrics!(p_b_s_LP_results, data, p_b_s_some_paths)
@@ -133,12 +116,6 @@ collect_path_solution_metrics!(p_o_ngs_ch_LP_results, data, p_o_ngs_ch_some_path
 collect_path_solution_metrics!(p_o_ngl_ch_LP_results, data, p_o_ngl_ch_some_paths)
 collect_path_solution_metrics!(p_o_ngsa_ch_LP_results, data, p_o_ngsa_ch_some_paths)
 collect_path_solution_metrics!(p_o_ngla_ch_LP_results, data, p_o_ngla_ch_some_paths)
-
-collect_subpath_solution_metrics!(sp_b_tw_LP_results, data, sp_b_tw_some_subpaths, sp_b_tw_some_charging_arcs)
-collect_subpath_solution_metrics!(sp_b_tw_s_LP_results, data, sp_b_tw_s_some_subpaths, sp_b_tw_s_some_charging_arcs)
-collect_subpath_solution_metrics!(sp_b_tw_sc_LP_results, data, sp_b_tw_sc_some_subpaths, sp_b_tw_sc_some_charging_arcs)
-collect_subpath_solution_metrics!(sp_b_tw_sca_LP_results, data, sp_b_tw_sca_some_subpaths, sp_b_sca_some_charging_arcs)
-collect_subpath_solution_metrics!(sp_b_tw_ch_LP_results, data, sp_b_tw_ch_some_subpaths, sp_b_tw_ch_some_charging_arcs)
 
 collect_subpath_solution_metrics!(sp_b_LP_results, data, sp_b_some_subpaths, sp_b_some_charging_arcs)
 collect_subpath_solution_metrics!(sp_b_s_LP_results, data, sp_b_s_some_subpaths, sp_b_s_some_charging_arcs)
@@ -170,10 +147,6 @@ collect_subpath_solution_metrics!(sp_o_ngl_ch_LP_results, data, sp_o_ngl_ch_some
 collect_subpath_solution_metrics!(sp_o_ngsa_ch_LP_results, data, sp_o_ngsa_ch_some_subpaths, sp_o_ngsa_ch_some_charging_arcs)
 collect_subpath_solution_metrics!(sp_o_ngla_ch_LP_results, data, sp_o_ngla_ch_some_subpaths, sp_o_ngla_ch_some_charging_arcs)
 
-p_b_tw_LP_results["objective"]
-p_b_tw_s_LP_results["objective"]
-p_b_tw_sc_LP_results["objective"]
-p_b_tw_ch_LP_results["objective"]
 
 p_b_LP_results["objective"]
 p_b_s_LP_results["objective"]
@@ -199,11 +172,6 @@ p_o_ngl_ch_LP_results["objective"]
 p_o_ngsa_ch_LP_results["objective"]
 p_o_ngla_ch_LP_results["objective"]
 
-sp_b_tw_LP_results["objective"]
-sp_b_tw_s_LP_results["objective"]
-sp_b_tw_sc_LP_results["objective"]
-sp_b_tw_sca_LP_results["objective"]
-sp_b_tw_ch_LP_results["objective"]
 
 sp_b_LP_results["objective"]
 sp_b_s_LP_results["objective"]
@@ -234,12 +202,6 @@ sp_o_ngl_ch_LP_results["objective"]
 sp_o_ngsa_ch_LP_results["objective"]
 sp_o_ngla_ch_LP_results["objective"]
 
-@test (
-    p_b_tw_LP_results["objective"] 
-    ≤ p_b_tw_ch_LP_results["objective"]
-    ≤ p_b_tw_sc_LP_results["objective"]
-)
-@test p_b_tw_s_LP_results["objective"] ≥ p_b_tw_sc_LP_results["objective"]
 
 @test (
     p_b_LP_results["objective"] 
@@ -282,12 +244,6 @@ sp_o_ngla_ch_LP_results["objective"]
 
 @test p_b_LP_results["objective"] ≈ p_o_LP_results["objective"]
 
-@test (
-    sp_b_tw_LP_results["objective"] 
-    ≤ sp_b_tw_ch_LP_results["objective"]
-    ≤ sp_b_tw_sc_LP_results["objective"]
-)
-@test sp_b_tw_s_LP_results["objective"] ≥ sp_b_tw_sc_LP_results["objective"]
 
 @test (
     sp_b_LP_results["objective"] 
@@ -372,10 +328,6 @@ sp_o_ngla_ch_LP_results["objective"]
 @test p_o_ngs_ch_LP_results["objective"] ≥ sp_o_ngs_ch_LP_results["objective"]
 @test p_o_ngl_ch_LP_results["objective"] ≥ sp_o_ngl_ch_LP_results["objective"]
 
-p_b_tw_params["time_taken"]
-p_b_tw_s_params["time_taken"]
-p_b_tw_sc_params["time_taken"]
-p_b_tw_ch_params["time_taken"]
 
 p_b_params["time_taken"]
 p_b_s_params["time_taken"]
@@ -402,11 +354,6 @@ p_o_ngl_ch_params["time_taken"]
 p_o_ngsa_ch_params["time_taken"]
 p_o_ngla_ch_params["time_taken"]
 
-sp_b_tw_params["time_taken"]
-sp_b_tw_s_params["time_taken"]
-sp_b_tw_sc_params["time_taken"]
-sp_b_tw_sca_params["time_taken"]
-sp_b_tw_ch_params["time_taken"]
 
 sp_b_params["time_taken"]
 sp_b_s_params["time_taken"]
