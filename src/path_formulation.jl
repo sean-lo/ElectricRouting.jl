@@ -244,6 +244,7 @@ function path_formulation_column_generation(
     path_check_customers::Bool = false,
     christofides::Bool = false,
     ngroute::Bool = false,
+    ngroute_alt::Bool = false,
     ngroute_neighborhood_size::Int = Int(ceil(sqrt(data["n_customers"]))),
     ngroute_neighborhood_charging_depots_size::String = "small",
     verbose::Bool = true,
@@ -317,6 +318,7 @@ function path_formulation_column_generation(
             path_check_customers:           %s
             christofides:                   %s
             ngroute:                        %s
+            ngroute_alt:                    %s
             ngroute neighborhood size:
                 customers                   %2d
                 charging / depots           %s
@@ -334,6 +336,7 @@ function path_formulation_column_generation(
             path_check_customers,
             christofides,
             ngroute,
+            ngroute_alt,
             ngroute_neighborhood_size,
             ngroute_neighborhood_charging_depots_size,
         ),
@@ -451,6 +454,7 @@ function path_formulation_column_generation(
                 G, data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
                 ;
                 ngroute = ngroute,
+                ngroute_alt = ngroute_alt,
                 subpath_single_service = subpath_single_service,
                 subpath_check_customers = subpath_check_customers,
                 path_single_service = path_single_service,
