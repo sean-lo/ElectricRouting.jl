@@ -10,15 +10,15 @@ using Test
 data = generate_instance(
     ;
     n_depots = 4,
-    n_customers = 16,
+    n_customers = 40,
     n_charging = 9,
-    n_vehicles = 7,
+    n_vehicles = 8,
     depot_pattern = "circular",    
     customer_pattern = "random_box",
-    charging_pattern = "grid",
+    charging_pattern = "circular_packing",
     shrinkage_depots = 1.0,
-    shrinkage_charging = 0.7,
-    T = 40000,
+    shrinkage_charging = 1.0,
+    T = 80000,
     seed = 6,
     B = 15000,
     μ = 5,
@@ -31,9 +31,9 @@ data = generate_instance(
     permissiveness = 0.2,
 )
 G = construct_graph(data)
-# plot_instance(data)
+plot_instance(data)
 
-p_b_LP_results, p_b_IP_results, p_b_params, p_b_printlist, p_b_some_paths = path_formulation_column_generation(G, data; method = "benchmark", verbose = true)
+p_b_LP_results, p_b_IP_results, p_b_params, p_b_printlist, p_b_some_paths = @timev path_formulation_column_generation(G, data; method = "benchmark", verbose = true);
 p_b_s_LP_results, p_b_s_IP_results, p_b_s_params, p_b_s_printlist, p_b_s_some_paths = path_formulation_column_generation(G, data; method = "benchmark", path_single_service = true, verbose = true)
 p_b_sc_LP_results, p_b_sc_IP_results, p_b_sc_params, p_b_sc_printlist, p_b_sc_some_paths = path_formulation_column_generation(G, data; method = "benchmark", path_single_service = true, path_check_customers = true, verbose = true)
 p_b_ngs_LP_results, p_b_ngs_IP_results, p_b_ngs_params, p_b_ngs_printlist, p_b_ngs_some_paths = path_formulation_column_generation(G, data; method = "benchmark", ngroute = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true)
@@ -633,6 +633,238 @@ print.(sp_o_ngl_printlist);
 print.(sp_o_ngla_printlist);
 print.(sp_o_ngl_ch_printlist);
 print.(sp_o_ngla_ch_printlist);
+
+### Testing
+
+include("arc_formulation.jl")
+include("subpath_formulation.jl")
+include("path_formulation.jl")
+include("utils.jl")
+
+using CSV, DataFrames
+
+using Test
+
+all_results = []
+for (n_customers, n_vehicles, T, n_charging) in Iterators.product(
+    20:4:40,
+    [6,8],
+    40000:10000:80000,
+    [13],
+)
+    data = generate_instance(
+        ;
+        n_depots = 4,
+        n_customers = n_customers,
+        n_charging = n_charging,
+        n_vehicles = n_vehicles,
+        depot_pattern = "circular",    
+        customer_pattern = "random_box",
+        charging_pattern = "circular_packing",
+        shrinkage_depots = 1.0,
+        shrinkage_charging = 1.0,
+        T = T,
+        seed = 5,
+        B = 15000,
+        μ = 5,
+        travel_cost_coeff = 7,
+        charge_cost_coeff = 3,
+        load_scale = 5.0,
+        load_shape = 20.0,
+        load_tolerance = 1.3,
+        batch = 4,
+        permissiveness = 0.2,
+    )
+    G = construct_graph(data)
+    # plot_instance(data)
+    LP_results, IP_results, cgparams, printlist, some_subpaths, some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data;
+        method = "ours",
+        time_windows = false,
+        ngroute = true,
+        christofides = true,
+    )
+    collect_subpath_solution_metrics!(LP_results, data, some_subpaths, some_charging_arcs)
+    collect_subpath_solution_metrics!(IP_results, data, some_subpaths, some_charging_arcs)
+    push!(all_results, (
+        n_customers = n_customers,
+        n_vehicles = n_vehicles,
+        T = T,
+        CG_time_taken = cgparams["time_taken"],
+        CG_lp_relaxation_time_taken_mean = cgparams["lp_relaxation_time_taken_mean"],
+        CG_sp_base_time_taken_mean = cgparams["sp_base_time_taken_mean"],
+        CG_sp_full_time_taken_mean = cgparams["sp_full_time_taken_mean"],
+        CG_sp_time_taken_mean = cgparams["sp_time_taken_mean"],
+        LP_objective = LP_results["objective"],
+        LP_mean_subpath_length = LP_results["mean_subpath_length"],
+        LP_mean_subpath_ncust = LP_results["mean_subpath_ncust"],
+        LP_mean_path_length = LP_results["mean_path_length"],
+        LP_mean_path_ncust = LP_results["mean_path_ncust"],
+        LP_mean_ps_length = LP_results["mean_ps_length"],
+        LP_weighted_mean_subpath_length = LP_results["weighted_mean_subpath_length"],
+        LP_weighted_mean_subpath_ncust = LP_results["weighted_mean_subpath_ncust"],
+        LP_weighted_mean_path_length = LP_results["weighted_mean_path_length"],
+        LP_weighted_mean_path_ncust = LP_results["weighted_mean_path_ncust"],
+        LP_weighted_mean_ps_length = LP_results["weighted_mean_ps_length"],
+        LP_utilization = LP_results["utilization"],
+        LP_driving_time_proportion = LP_results["driving_time_proportion"],
+        LP_charging_time_proportion = LP_results["charging_time_proportion"],
+        IP_objective = IP_results["objective"],
+        IP_mean_subpath_length = IP_results["mean_subpath_length"],
+        IP_mean_subpath_ncust = IP_results["mean_subpath_ncust"],
+        IP_mean_path_length = IP_results["mean_path_length"],
+        IP_mean_path_ncust = IP_results["mean_path_ncust"],
+        IP_mean_ps_length = IP_results["mean_ps_length"],
+        IP_weighted_mean_subpath_length = IP_results["weighted_mean_subpath_length"],
+        IP_weighted_mean_subpath_ncust = IP_results["weighted_mean_subpath_ncust"],
+        IP_weighted_mean_path_length = IP_results["weighted_mean_path_length"],
+        IP_weighted_mean_path_ncust = IP_results["weighted_mean_path_ncust"],
+        IP_weighted_mean_ps_length = IP_results["weighted_mean_ps_length"],
+        IP_utilization = IP_results["utilization"],
+        IP_driving_time_proportion = IP_results["driving_time_proportion"],
+        IP_charging_time_proportion = IP_results["charging_time_proportion"],
+    ))
+end
+df = DataFrame(all_results) 
+df |>
+    x -> sort(x, [:n_vehicles, :n_customers, :T]) |>
+    x -> select(x, [
+        :n_customers, 
+        :n_vehicles,
+        :T,
+        :CG_time_taken,
+        :CG_lp_relaxation_time_taken_mean,
+        :CG_sp_base_time_taken_mean,
+        :CG_sp_full_time_taken_mean,
+        :CG_sp_time_taken_mean,
+        :LP_objective, :IP_objective,
+        :LP_weighted_mean_subpath_length,
+        :LP_weighted_mean_path_length,
+        :LP_weighted_mean_ps_length,
+    ]) |>
+    x -> show(x, allrows = true)
+
+df |>
+    x -> filter(r -> r.n_vehicles == 6, df) |>
+    x -> unstack(x, :n_customers, :T, :LP_weighted_mean_subpath_length)
+df |>
+    x -> filter(r -> r.n_vehicles == 6, df) |>
+    x -> unstack(x, :n_customers, :T, :LP_weighted_mean_ps_length)
+df |>
+    x -> filter(r -> r.n_vehicles == 6, df) |>
+    x -> unstack(x, :n_customers, :T, :LP_weighted_mean_path_length)
+
+
+
+time_feas_results = []
+for (n_customers, n_vehicles, T, n_charging) in Iterators.product(
+    20:4:28,
+    [8],
+    [40000],
+    [7],
+)
+    data = generate_instance(
+        ;
+        n_depots = 4,
+        n_customers = n_customers,
+        n_charging = n_charging,
+        n_vehicles = n_vehicles,
+        depot_pattern = "circular",    
+        customer_pattern = "random_box",
+        charging_pattern = "circular_packing",
+        shrinkage_depots = 1.0,
+        shrinkage_charging = 1.0,
+        T = T,
+        seed = 5,
+        B = 15000,
+        μ = 5,
+        travel_cost_coeff = 7,
+        charge_cost_coeff = 3,
+        load_scale = 5.0,
+        load_shape = 20.0,
+        load_tolerance = 1.3,
+        batch = 4,
+        permissiveness = 0.2,
+    )
+    G = construct_graph(data)
+    # plot_instance(data)
+    LP_results, IP_results, cgparams, printlist, some_paths = path_formulation_column_generation(G, data;
+        method = "benchmark",
+        path_single_service = true,
+        path_check_customers = true,
+        time_windows = false,
+        christofides = false,
+    )
+    collect_path_solution_metrics!(LP_results, data, some_paths)
+    collect_path_solution_metrics!(IP_results, data, some_paths)
+    push!(time_feas_results, (
+        n_customers = n_customers,
+        n_vehicles = n_vehicles,
+        T = T,
+        CG_time_taken = cgparams["time_taken"],
+        CG_lp_relaxation_time_taken_mean = cgparams["lp_relaxation_time_taken_mean"],
+        CG_sp_base_time_taken_mean = cgparams["sp_base_time_taken_mean"],
+        CG_sp_full_time_taken_mean = cgparams["sp_full_time_taken_mean"],
+        CG_sp_time_taken_mean = cgparams["sp_time_taken_mean"],
+        LP_objective = LP_results["objective"],
+        LP_mean_subpath_length = LP_results["mean_subpath_length"],
+        LP_mean_subpath_ncust = LP_results["mean_subpath_ncust"],
+        LP_mean_path_length = LP_results["mean_path_length"],
+        LP_mean_path_ncust = LP_results["mean_path_ncust"],
+        LP_mean_ps_length = LP_results["mean_ps_length"],
+        LP_weighted_mean_subpath_length = LP_results["weighted_mean_subpath_length"],
+        LP_weighted_mean_subpath_ncust = LP_results["weighted_mean_subpath_ncust"],
+        LP_weighted_mean_path_length = LP_results["weighted_mean_path_length"],
+        LP_weighted_mean_path_ncust = LP_results["weighted_mean_path_ncust"],
+        LP_weighted_mean_ps_length = LP_results["weighted_mean_ps_length"],
+        LP_utilization = LP_results["utilization"],
+        LP_driving_time_proportion = LP_results["driving_time_proportion"],
+        LP_charging_time_proportion = LP_results["charging_time_proportion"],
+        IP_objective = IP_results["objective"],
+        IP_mean_subpath_length = IP_results["mean_subpath_length"],
+        IP_mean_subpath_ncust = IP_results["mean_subpath_ncust"],
+        IP_mean_path_length = IP_results["mean_path_length"],
+        IP_mean_path_ncust = IP_results["mean_path_ncust"],
+        IP_mean_ps_length = IP_results["mean_ps_length"],
+        IP_weighted_mean_subpath_length = IP_results["weighted_mean_subpath_length"],
+        IP_weighted_mean_subpath_ncust = IP_results["weighted_mean_subpath_ncust"],
+        IP_weighted_mean_path_length = IP_results["weighted_mean_path_length"],
+        IP_weighted_mean_path_ncust = IP_results["weighted_mean_path_ncust"],
+        IP_weighted_mean_ps_length = IP_results["weighted_mean_ps_length"],
+        IP_utilization = IP_results["utilization"],
+        IP_driving_time_proportion = IP_results["driving_time_proportion"],
+        IP_charging_time_proportion = IP_results["charging_time_proportion"],
+    ))
+end
+df = DataFrame(all_results) 
+df |>
+    x -> sort(x, [:n_vehicles, :n_customers, :T]) |>
+    x -> select(x, [
+        :n_customers, 
+        :n_vehicles,
+        :T,
+        :CG_time_taken,
+        :CG_lp_relaxation_time_taken_mean,
+        :CG_sp_base_time_taken_mean,
+        :CG_sp_full_time_taken_mean,
+        :CG_sp_time_taken_mean,
+        :LP_objective, :IP_objective,
+        :LP_weighted_mean_subpath_length,
+        :LP_weighted_mean_path_length,
+        :LP_weighted_mean_ps_length,
+    ]) |>
+    x -> show(x, allrows = true)
+
+df |>
+    x -> filter(r -> r.n_vehicles == 6, df) |>
+    x -> unstack(x, :n_customers, :T, :LP_weighted_mean_subpath_length)
+df |>
+    x -> filter(r -> r.n_vehicles == 6, df) |>
+    x -> unstack(x, :n_customers, :T, :LP_weighted_mean_ps_length)
+df |>
+    x -> filter(r -> r.n_vehicles == 6, df) |>
+    x -> unstack(x, :n_customers, :T, :LP_weighted_mean_path_length)
+
+    
 
 
 
