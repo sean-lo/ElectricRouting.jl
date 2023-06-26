@@ -298,7 +298,7 @@ function generate_instance(
         )
     end
 
-    function get_rectangle(n)
+    function get_rectangle(n::Int)
         a = Int(ceil(sqrt(n)))
         b = n ÷ a
         while b * a != n
@@ -308,11 +308,31 @@ function generate_instance(
         return a, b
     end
 
-    function grid_coords(a, b)
+    function grid_coords(
+        a::Int,
+        b::Int,
+        xmin::Float64 = -1.0,
+        xmax::Float64 = 1.0,
+        ymin::Float64 = -1.0,
+        ymax::Float64 = 1.0,
+    )
         return hcat(
             [
-                [-1 + (2 * i) / (a - 1), -1 + (2 * j) / (b - 1)]
+                [
+                    -xmin + ((xmax - xmin) * i) / (a - 1), 
+                    -ymin + ((ymax - ymin) * j) / (b - 1),
+                ]
                 for i in 0:a-1, j in 0:b-1
+            ]...
+        )
+    end
+
+    function circle_packing_coords(n::Int)
+        lines = readlines("data/cci_coords/cci$n.txt")
+        return hcat(
+            [
+                [parse(Float64, x[2]), parse(Float64, x[3])]
+                for x in split.(lines)
             ]...
         )
     end
@@ -363,6 +383,8 @@ function generate_instance(
     elseif charging_pattern == "grid"
         (a, b) = get_rectangle(n_charging)
         charging_coords = shrinkage_charging * grid_coords(a, b)
+    elseif charging_pattern == "circular_packing"
+        charging_coords = shrinkage_charging * circle_packing_coords(n_charging)
     end
     coords = hcat(
         customer_coords,
