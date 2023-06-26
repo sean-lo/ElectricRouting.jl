@@ -668,50 +668,92 @@ function collect_path_solution_support(
     return results_paths
 end
 
+function collect_solution_metrics!(
+    results, 
+    data,
+)
+    if !("paths" in keys(results))
+        error()
+    end
+
+    total_subpath_length = 0.0
+    weighted_total_subpath_length = 0.0
+    total_subpath_ncust = 0.0
+    weighted_total_subpath_ncust = 0.0
+    num_subpaths = 0.0
+    weighted_num_subpaths = 0.0
+    total_path_length = 0.0
+    weighted_total_path_length = 0.0
+    total_path_ncust = 0.0
+    weighted_total_path_ncust = 0.0
+    num_paths = 0.0
+    weighted_num_paths = 0.0
+    total_ps_length = 0.0
+    weighted_total_ps_length = 0.0
+    utilization_total = 0.0
+    driving_time_total = 0.0
+    charging_time_total = 0.0
+    for (val, p) in results["paths"]
+        if (
+            length(p.subpaths) == 1 
+            && (
+                p.subpaths[1].artificial # artificial path
+                || length(p.subpaths[1].arcs) == 1 # path from depot to depot
+            )
+        )
+            continue
+        end
+        total_subpath_length += sum(sum(s.served) + 1 for s in p.subpaths) 
+        weighted_total_subpath_length += val * sum(sum(s.served) + 1 for s in p.subpaths)
+        total_subpath_ncust += sum(sum(s.served) for s in p.subpaths)
+        weighted_total_subpath_ncust += val * sum(sum(s.served) for s in p.subpaths)
+
+        num_subpaths += length(p.subpaths)
+        weighted_num_subpaths += val * length(p.subpaths)
+        
+        total_path_length += sum(p.served) + length(p.subpaths)
+        weighted_total_path_length += val * (sum(p.served) + length(p.subpaths))
+        total_path_ncust += sum(p.served)
+        weighted_total_path_ncust += val * sum(p.served)
+
+        num_paths += 1
+        weighted_num_paths += val
+
+        total_ps_length += length(p.subpaths)
+        weighted_total_ps_length += val * length(p.subpaths)
+
+        utilization_total += val * p.subpaths[end].current_time
+        driving_time_total += val * sum(s.current_time - s.starting_time for s in p.subpaths)
+        charging_time_total += val * sum([a.delta for a in p.charging_arcs], init = 0.0)
+    end
+
+    results["mean_subpath_length"] = total_subpath_length / num_subpaths
+    results["weighted_mean_subpath_length"] = weighted_total_subpath_length / weighted_num_subpaths
+    results["mean_subpath_ncust"] = total_subpath_ncust / num_subpaths
+    results["weighted_mean_subpath_ncust"] = weighted_total_subpath_ncust / weighted_num_subpaths
+    
+    results["mean_path_length"] = total_path_length / num_paths
+    results["weighted_mean_path_length"] = weighted_total_path_length / weighted_num_paths
+    results["mean_path_ncust"] = total_path_ncust / num_paths
+    results["weighted_mean_path_ncust"] = weighted_total_path_ncust / weighted_num_paths
+
+    results["mean_ps_length"] = total_ps_length / num_paths
+    results["weighted_mean_ps_length"] = weighted_total_ps_length / weighted_num_paths
+
+    results["utilization"] = utilization_total / (weighted_num_paths * data["T"])
+    results["driving_time_proportion"] = driving_time_total / (weighted_num_paths * data["T"])
+    results["charging_time_proportion"] = charging_time_total / (weighted_num_paths * data["T"])
+
+    return results
+
+end
+
 function collect_path_solution_metrics!(
     results,
     data, 
     paths,
 )
     results["paths"] = collect_path_solution_support(results, paths)
-
-    results["mean_subpath_length"] = sum(
-        sum(
-            length(s.arcs) for s in p.subpaths
-        )
-        for (val, p) in results["paths"]
-    ) / sum(
-        length(p.subpaths)
-        for (val, p) in results["paths"]
-    )
-    results["weighted_mean_subpath_length"] = sum(
-        val * sum(
-            length(s.arcs) for s in p.subpaths
-        )
-        for (val, p) in results["paths"]
-    ) / sum(
-        val * length(p.subpaths)
-        for (val, p) in results["paths"]
-    )
-
-    results["mean_path_length"] = sum(
-        sum(p.served) + 1 for (val, p) in results["paths"]
-    ) / length(results["paths"])
-
-    results["weighted_mean_path_length"] = sum(
-        val * (sum(p.served) + 1) for (val, p) in results["paths"]
-    ) / sum(
-        val for (val, _) in results["paths"]
-    )
-
-    results["mean_ps_length"] = sum(
-        length(p.subpaths) for (val, p) in results["paths"]
-    ) / length(results["paths"])
-    results["weighted_mean_ps_length"] = sum(
-        val * length(p.subpaths) for (val, p) in results["paths"]
-    ) / sum(
-        val for (val, _) in results["paths"]
-    )
+    collect_solution_metrics!(results, data)
     return results
-
 end

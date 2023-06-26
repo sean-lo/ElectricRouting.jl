@@ -976,37 +976,10 @@ function collect_subpath_solution_metrics!(
     subpaths, 
     charging_arcs,
 )
-
     results["subpaths"], results["charging_arcs"] = collect_subpath_solution_support(results, subpaths, charging_arcs)
     results["paths"] = construct_paths_from_subpath_solution(results, data, subpaths, charging_arcs)
-
-    results["mean_subpath_length"] = sum(
-        sum(s.served) + 1 for (val, s) in results["subpaths"]
-    ) / length(results["subpaths"])
-    results["weighted_mean_subpath_length"] = sum(
-        val * (sum(s.served) + 1) for (val, s) in results["subpaths"]
-    ) / sum(
-        val for (val, _) in results["subpaths"]
-    )
-    results["mean_path_length"] = sum(
-        sum(p.served) + 1 for (val, p) in results["paths"]
-    ) / length(results["paths"])
-
-    results["weighted_mean_path_length"] = sum(
-        val * (sum(p.served) + 1) for (val, p) in results["paths"]
-    ) / sum(
-        val for (val, _) in results["paths"]
-    )
-    results["mean_ps_length"] = sum(
-        length(p.subpaths) for (val, p) in results["paths"]
-    ) / length(results["paths"])
-    results["weighted_mean_ps_length"] = sum(
-        val * length(p.subpaths) for (val, p) in results["paths"]
-    ) / sum(
-        val for (val, _) in results["paths"]
-    )
+    collect_solution_metrics!(results, data)
     return results
-
 end
 
 function plot_subpath_solution(
