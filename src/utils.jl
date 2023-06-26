@@ -290,6 +290,7 @@ function generate_instance(
     load_tolerance::Float64,
     batch::Int,
     permissiveness::Float64,
+    data_dir::String = "data/",
 )
     function complex_coords(n)
         return hcat(
@@ -327,8 +328,12 @@ function generate_instance(
         )
     end
 
-    function circle_packing_coords(n::Int)
-        lines = readlines("data/cci_coords/cci$n.txt")
+    function circle_packing_coords(
+        n::Int,
+        ;
+        data_dir::String = "data/",
+    )
+        lines = readlines(joinpath(data_dir, "cci_coords/cci$n.txt"))
         return hcat(
             [
                 [parse(Float64, x[2]), parse(Float64, x[3])]
@@ -384,7 +389,7 @@ function generate_instance(
         (a, b) = get_rectangle(n_charging)
         charging_coords = shrinkage_charging * grid_coords(a, b)
     elseif charging_pattern == "circular_packing"
-        charging_coords = shrinkage_charging * circle_packing_coords(n_charging)
+        charging_coords = shrinkage_charging * circle_packing_coords(n_charging, data_dir = data_dir)
     end
     coords = hcat(
         customer_coords,
