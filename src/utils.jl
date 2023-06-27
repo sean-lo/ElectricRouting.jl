@@ -594,8 +594,8 @@ function ngroute_create_set_alt(
     set::Vector{Int},
     next_node::Int,
 )
-    new_set = zeros(Int, data["n_nodes"])
-    for node in data["N_nodes"]
+    new_set = zeros(Int, length(set))
+    for node in eachindex(set)
         if set[node] == 1 && node in data["neighborhoods"][next_node]
             new_set[node] = 1
         end
