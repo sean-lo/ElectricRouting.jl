@@ -903,7 +903,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
     time_taken = round(end_time - start_time, digits = 3)
     params["time_taken"] = time_taken
     params["time_limit_reached"] = (time_taken > time_limit)
-    params["lp_relaxation_time_taken"] = params["lp_relaxation_constraint_time_taken"] .+ params["lp_relaxation_solution_time_taken"]
+    params["lp_relaxation_time_taken"] = sum.(zip(params["lp_relaxation_constraint_time_taken"], params["lp_relaxation_solution_time_taken"]))
     params["lp_relaxation_time_taken_total"] = sum(params["lp_relaxation_time_taken"])
     params["sp_base_time_taken_total"] = sum(params["sp_base_time_taken"])
     params["sp_full_time_taken_total"] = sum(params["sp_full_time_taken"])
