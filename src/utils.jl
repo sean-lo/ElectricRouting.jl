@@ -537,6 +537,19 @@ function construct_graph(data)
     return G
 end
 
+function charge_to_specified_level(
+    starting_charge::Int, 
+    desired_end_charge::Int, 
+    starting_time::Int, 
+)
+    if desired_end_charge ≤ starting_charge
+        return (0, starting_time, starting_charge)
+    end
+    delta = desired_end_charge - starting_charge
+    end_time = starting_time + delta
+    return (delta, end_time, desired_end_charge)
+end
+
 function compute_minimum_time_to_nearest_depot!(data, G)
     t_ds = dijkstra_shortest_paths(G, data["N_depots"], data["t"])
     data["min_t"] = t_ds.dists

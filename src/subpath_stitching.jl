@@ -717,18 +717,6 @@ function find_nondominated_paths_notimewindows(
     check_customers::Bool = false,
     christofides::Bool = false,
 )
-    function charge_to_specified_level(
-        start_charge::Int, 
-        desired_end_charge::Int, 
-        start_time::Int, 
-    )
-        if desired_end_charge ≤ start_charge
-            return (0, start_time, start_charge)
-        end
-        delta = desired_end_charge - start_charge
-        end_time = start_time + delta
-        return (delta, end_time, desired_end_charge)
-    end
 
     full_labels = Dict(
         starting_node => Dict(
@@ -912,19 +900,6 @@ function find_nondominated_paths_notimewindows_ngroute(
         return (Tuple(sort(unique(new_set))), true)
     end
 
-    function charge_to_specified_level(
-        start_charge::Int, 
-        desired_end_charge::Int, 
-        start_time::Int, 
-    )
-        if desired_end_charge ≤ start_charge
-            return (0, start_time, start_charge)
-        end
-        delta = desired_end_charge - start_charge
-        end_time = start_time + delta
-        return (delta, end_time, desired_end_charge)
-    end
-
     full_labels = Dict(
         starting_node => Dict(
             current_node => Dict{
@@ -1102,19 +1077,6 @@ function find_nondominated_paths_notimewindows_ngroute_alt(
             # println("$next_node, $new_set")
         end
         return (new_set, true)
-    end
-
-    function charge_to_specified_level(
-        start_charge::Int, 
-        desired_end_charge::Int, 
-        start_time::Int, 
-    )
-        if desired_end_charge ≤ start_charge
-            return (0, start_time, start_charge)
-        end
-        delta = desired_end_charge - start_charge
-        end_time = start_time + delta
-        return (delta, end_time, desired_end_charge)
     end
 
     full_labels = Dict(
