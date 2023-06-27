@@ -125,7 +125,10 @@ function generate_base_labels_nonsingleservice(
     ν,
     ;
     christofides::Bool = false,
+    time_limit::Float64 = Inf,
 )
+
+    start_time = time()
     modified_costs = compute_arc_modified_costs(data, ν)
 
     base_labels = Dict(
@@ -147,6 +150,9 @@ function generate_base_labels_nonsingleservice(
     end
 
     while length(unexplored_states) > 0
+        if time_limit < time() - start_time
+            error("Time limit reached.")
+        end
         state = pop!(unexplored_states)
         starting_node = state[end-1]
         current_node = state[end]
@@ -236,6 +242,7 @@ function generate_base_labels_singleservice(
     ;
     check_customers::Bool = false,
     christofides::Bool = false,
+    time_limit::Float64 = Inf,
 )
     function add_subpath_label_to_collection!(
         collection::SortedDict{Int, BaseSubpathLabel},
@@ -330,6 +337,7 @@ function generate_base_labels_singleservice(
         return 
     end
 
+    start_time = time()
     modified_costs = compute_arc_modified_costs(data, ν)
 
     base_labels = Dict(
@@ -377,6 +385,9 @@ function generate_base_labels_singleservice(
                 if true
                     for (k1, s1) in pairs(base_labels[starting_node][new_node])
                         for (k2, s2) in pairs(base_labels[new_node][end_node])
+                            if !(time_limit ≥ time() - start_time)
+                                error("Time limit reached.")
+                            end
                             # Preventing customer 2-cycles (Christofides)
                             if christofides && s1.nodes[end-1] in data["N_customers"] && s1.nodes[end-1] == s2.nodes[2]
                                 continue
@@ -456,8 +467,10 @@ function generate_base_labels_ngroute(
     ν,
     ;
     christofides::Bool = false,
+    time_limit::Float64 = Inf,
 )
 
+    start_time = time()
     modified_costs = compute_arc_modified_costs(data, ν)
 
     base_labels = Dict(
@@ -488,6 +501,9 @@ function generate_base_labels_ngroute(
     end
 
     while length(unexplored_states) > 0
+        if time_limit < time() - start_time
+            error("Time limit reached.")
+        end
         state = pop!(unexplored_states)
         starting_node = state[end-1]
         current_node = state[end]
@@ -595,8 +611,10 @@ function generate_base_labels_ngroute_alt(
     ν,
     ;
     christofides::Bool = false,
+    time_limit::Float64 = Inf,
 )
 
+    start_time = time()
     modified_costs = compute_arc_modified_costs(data, ν)
 
     base_labels = Dict(
@@ -621,6 +639,9 @@ function generate_base_labels_ngroute_alt(
     end
 
     while length(unexplored_states) > 0
+        if time_limit < time() - start_time
+            error("Time limit reached.")
+        end
         state = pop!(unexplored_states)
         starting_node = state[end-1]
         current_node = state[end]
@@ -716,8 +737,10 @@ function find_nondominated_paths_notimewindows(
     single_service::Bool = false,
     check_customers::Bool = false,
     christofides::Bool = false,
+    time_limit::Float64 = Inf,
 )
 
+    start_time = time()
     full_labels = Dict(
         starting_node => Dict(
             current_node => SortedDict{
@@ -750,6 +773,9 @@ function find_nondominated_paths_notimewindows(
     end
 
     while length(unexplored_states) > 0
+        if time_limit < time() - start_time
+            error("Time limit reached.")
+        end
         state = pop!(unexplored_states)
         starting_node = state[end-1]
         current_node = state[end]
@@ -878,6 +904,7 @@ function find_nondominated_paths_notimewindows_ngroute(
     μ,
     ;
     christofides::Bool = false,
+    time_limit::Float64 = Inf,
 )
 
     function ngroute_extend_partial_path_check(
@@ -900,6 +927,7 @@ function find_nondominated_paths_notimewindows_ngroute(
         return (Tuple(sort(unique(new_set))), true)
     end
 
+    start_time = time()
     full_labels = Dict(
         starting_node => Dict(
             current_node => Dict{
@@ -934,9 +962,13 @@ function find_nondominated_paths_notimewindows_ngroute(
     end
 
     while length(unexplored_states) > 0
+        if time_limit < time() - start_time
+            error("Time limit reached.")
+        end
         state = pop!(unexplored_states)
         starting_node = state[end-1]
         current_node = state[end]
+        current_key = state[1:end-2]
         for current_set in keys(full_labels[starting_node][current_node])
             if !(current_key in keys(full_labels[starting_node][current_node][current_set]))
                 continue
@@ -1056,6 +1088,7 @@ function find_nondominated_paths_notimewindows_ngroute_alt(
     μ,
     ;
     christofides::Bool = false,
+    time_limit::Float64 = Inf,
 )
 
     function ngroute_extend_partial_path_check_alt(
@@ -1079,6 +1112,7 @@ function find_nondominated_paths_notimewindows_ngroute_alt(
         return (new_set, true)
     end
 
+    start_time = time()
     full_labels = Dict(
         starting_node => Dict(
             current_node => SortedDict{
@@ -1105,6 +1139,9 @@ function find_nondominated_paths_notimewindows_ngroute_alt(
     end
 
     while length(unexplored_states) > 0
+        if time_limit < time() - start_time
+            error("Time limit reached.")
+        end
         state = pop!(unexplored_states)
         starting_node = state[end-1]
         current_node = state[end]
@@ -1267,18 +1304,22 @@ function subproblem_iteration_ours(
     path_single_service::Bool = true,
     path_check_customers::Bool = true,
     christofides::Bool = false,
+    time_limit::Float64 = Inf,
 )
+    start_time = time()
     if ngroute && !ngroute_alt
         base_labels_result = @timed generate_base_labels_ngroute(
             G, data, κ, μ, ν, 
             ;
             christofides = christofides,
+            time_limit = time_limit - (time() - start_time),
         )
     elseif ngroute && ngroute_alt
         base_labels_result = @timed generate_base_labels_ngroute_alt(
             G, data, κ, μ, ν, 
             ;
             christofides = christofides,
+            time_limit = time_limit - (time() - start_time),
         )
     elseif subpath_single_service
         base_labels_result = @timed generate_base_labels_singleservice(
@@ -1286,12 +1327,14 @@ function subproblem_iteration_ours(
             ;
             check_customers = subpath_check_customers,
             christofides = christofides,
+            time_limit = time_limit - (time() - start_time),
         )
     else 
         base_labels_result = @timed generate_base_labels_nonsingleservice(
             G, data, κ, μ, ν,
             ;
             christofides = christofides,
+            time_limit = time_limit - (time() - start_time),
         )
     end
     base_labels_time = base_labels_result.time
@@ -1300,12 +1343,14 @@ function subproblem_iteration_ours(
             data, base_labels_result.value, κ, μ,
             ;
             christofides = christofides,
+            time_limit = time_limit - (time() - start_time),
         )
     elseif ngroute && ngroute_alt
         full_labels_result = @timed find_nondominated_paths_notimewindows_ngroute_alt(
             data, base_labels_result.value, κ, μ,
             ;
             christofides = christofides,
+            time_limit = time_limit - (time() - start_time),
         )
     else
         full_labels_result = @timed find_nondominated_paths_notimewindows(
@@ -1314,6 +1359,7 @@ function subproblem_iteration_ours(
             single_service = path_single_service,
             check_customers = path_check_customers,
             christofides = christofides,
+            time_limit = time_limit - (time() - start_time),
         )
     end
     full_labels_time = full_labels_result.time

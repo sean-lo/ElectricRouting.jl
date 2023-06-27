@@ -757,7 +757,7 @@ df |>
 
 time_feas_results = []
 for (n_customers, n_vehicles, T, n_charging) in Iterators.product(
-    20:4:28,
+    [16],
     [8],
     [40000],
     [7],
@@ -864,7 +864,115 @@ df |>
     x -> filter(r -> r.n_vehicles == 6, df) |>
     x -> unstack(x, :n_customers, :T, :LP_weighted_mean_path_length)
 
-    
+include("path_formulation.jl")
+include("subpath_formulation.jl")
+include("utils.jl")
+TIME_LIMIT = 3.0
+# simple test case to quickly compile 
+
+    sample_data = generate_instance(
+        n_depots = 4,
+        n_customers = 10,
+        n_charging = 9,
+        n_vehicles = 7,
+        depot_pattern = "circular",    
+        customer_pattern = "random_box",
+        charging_pattern = "circular_packing",
+        shrinkage_depots = 1.0,
+        shrinkage_charging = 0.7,
+        T = 40000,
+        seed = 3,
+        B = 15000,
+        μ = 5,
+        travel_cost_coeff = 7,
+        charge_cost_coeff = 3,
+        load_scale = 5.0,
+        load_shape = 20.0,
+        load_tolerance = 1.3,
+        batch = 5,
+        permissiveness = 0.7,
+        # data_dir = "../../../data/",
+    )
+    sample_G = construct_graph(sample_data)
+    method_params = [
+        # formulation
+        # method
+        # subpath_single_service
+        # subpath_check_customers
+        # path_single_service
+        # path_check_customers
+        # check_customers_accelerated
+        # christofides
+        # ngroute
+        # ngroute_alt
+        # ngroute_neighborhood_charging_depots_size
+        ("path", "benchmark", false, false, false, false, false,  true, false, false, "none"),
+        ("path", "benchmark", false, false,  true,  true, false, false, false, false, "none"),
+        ("path", "benchmark", false, false, false, false, false,  true,  true, false, "small"),
+        ("path", "benchmark", false, false, false, false, false,  true,  true, false, "large"),
+        ("path", "benchmark", false, false, false, false, false,  true,  true,  true, "small"),
+        ("path", "benchmark", false, false, false, false, false,  true,  true,  true, "large"),
+        ("path", "ours", false, false, false, false, false,  true, false, false, "none"),
+        ("path", "ours",  true,  true, false, false, false,  true, false, false, "none"),
+        ("path", "ours",  true,  true,  true,  true, false,  true, false, false, "none"),
+        ("path", "ours", false, false, false, false, false,  true,  true, false, "small"),
+        ("path", "ours", false, false, false, false, false,  true,  true, false, "large"),
+        ("path", "ours", false, false, false, false, false,  true,  true,  true, "small"),
+        ("path", "ours", false, false, false, false, false,  true,  true,  true, "large"),
+        ("subpath", "benchmark", false, false, false, false, false,  true, false, false, "none"),
+        ("subpath", "benchmark", false, false,  true,  true, false, false, false, false, "none"),
+        ("subpath", "benchmark", false, false,  true,  true,  true, false, false, false, "none"),
+        ("subpath", "benchmark", false, false, false, false, false,  true,  true, false, "small"),
+        ("subpath", "benchmark", false, false, false, false, false,  true,  true, false, "large"),
+        ("subpath", "benchmark", false, false, false, false, false,  true,  true,  true, "small"),
+        ("subpath", "benchmark", false, false, false, false, false,  true,  true,  true, "large"),
+        ("subpath", "ours", false, false, false, false, false,  true, false, false, "none"),
+        ("subpath", "ours",  true,  true, false, false, false,  true, false, false, "none"),
+        ("subpath", "ours",  true,  true, false, false,  true,  true, false, false, "none"),
+        ("subpath", "ours",  true,  true,  true,  true, false,  true, false, false, "none"),
+        ("subpath", "ours",  true,  true,  true,  true,  true,  true, false, false, "none"),
+        ("subpath", "ours", false, false, false, false, false,  true,  true, false, "small"),
+        ("subpath", "ours", false, false, false, false, false,  true,  true, false, "large"),
+        ("subpath", "ours", false, false, false, false, false,  true,  true,  true, "small"),
+        ("subpath", "ours", false, false, false, false, false,  true,  true,  true, "large"),
+    ]
+    for method_param in method_params
+        if method_param[1] == "path"
+            (
+                LP_results, IP_results, cgparams, printlist, paths
+            ) = path_formulation_column_generation(
+                sample_G, sample_data,
+                ;
+                method = method_param[2],
+                subpath_single_service = method_param[3],
+                subpath_check_customers = method_param[4],
+                path_single_service = method_param[5],
+                path_check_customers = method_param[6],
+                christofides = method_param[8],
+                ngroute = method_param[9],
+                ngroute_alt = method_param[10],
+                ngroute_neighborhood_charging_depots_size = method_param[11],
+                time_limit = TIME_LIMIT,
+            )
+        elseif method_param[1] == "subpath"
+            (
+                LP_results, IP_results, cgparams, printlist, subpaths, charging_arcs
+            ) = subpath_formulation_column_generation_integrated_from_paths(
+                sample_G, sample_data,
+                ;
+                method = method_param[2],
+                subpath_single_service = method_param[3],
+                subpath_check_customers = method_param[4],
+                path_single_service = method_param[5],
+                path_check_customers = method_param[6],
+                christofides = method_param[8],
+                ngroute = method_param[9],
+                ngroute_alt = method_param[10],
+                ngroute_neighborhood_charging_depots_size = method_param[11],
+                time_limit = TIME_LIMIT,
+            )
+        end
+    end
 
 
 

@@ -514,32 +514,53 @@ function subpath_formulation_column_generation_integrated_from_paths(
         push!(params["lp_relaxation_solution_time_taken"], mp_results["solution_time_taken"])
 
         if method == "ours"
-            if ngroute
-                (negative_full_labels, _, base_labels_time, full_labels_time) = subproblem_iteration_ours(
-                    G, data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
-                    ;
-                    ngroute = ngroute,
-                    ngroute_alt = ngroute_alt,
-                    subpath_single_service = subpath_single_service,        
-                    subpath_check_customers = subpath_check_customers,
-                    path_single_service = path_single_service,
-                    path_check_customers = path_check_customers,
-                    christofides = christofides,
-                )
-            elseif check_customers_accelerated && !checkpoint_reached
-                (negative_full_labels, negative_full_labels_count, base_labels_time, full_labels_time) = subproblem_iteration_ours(
-                    G, data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
-                    ;
-                    ngroute = false,
-                    subpath_single_service = subpath_single_service,        
-                    subpath_check_customers = false,
-                    path_single_service = path_single_service,
-                    path_check_customers = false,
-                    christofides = christofides,
-                )
-                if negative_full_labels_count == 0
-                    checkpoint_reached = true
-                    (negative_full_labels, _, base_labels_time_new, full_labels_time_new) = subproblem_iteration_ours(
+            negative_full_labels = nothing
+            base_labels_time = 0.0
+            full_labels_time = 0.0
+            try
+                if ngroute
+                    (negative_full_labels, _, base_labels_time, full_labels_time) = subproblem_iteration_ours(
+                        G, data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
+                        ;
+                        ngroute = ngroute,
+                        ngroute_alt = ngroute_alt,
+                        subpath_single_service = subpath_single_service,        
+                        subpath_check_customers = subpath_check_customers,
+                        path_single_service = path_single_service,
+                        path_check_customers = path_check_customers,
+                        christofides = christofides,
+                        time_limit = time_limit - (time() - start_time),
+                    )
+                elseif check_customers_accelerated && !checkpoint_reached
+                    (negative_full_labels, negative_full_labels_count, base_labels_time, full_labels_time) = subproblem_iteration_ours(
+                        G, data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
+                        ;
+                        ngroute = false,
+                        subpath_single_service = subpath_single_service,        
+                        subpath_check_customers = false,
+                        path_single_service = path_single_service,
+                        path_check_customers = false,
+                        christofides = christofides,
+                        time_limit = time_limit - (time() - start_time),
+                    )
+                    if negative_full_labels_count == 0
+                        checkpoint_reached = true
+                        (negative_full_labels, _, base_labels_time_new, full_labels_time_new) = subproblem_iteration_ours(
+                            G, data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
+                            ;
+                            ngroute = false,
+                            subpath_single_service = subpath_single_service,        
+                            subpath_check_customers = subpath_check_customers,
+                            path_single_service = path_single_service,
+                            path_check_customers = path_check_customers,
+                            christofides = christofides,
+                            time_limit = time_limit - (time() - start_time),
+                        )
+                        base_labels_time += base_labels_time_new
+                        full_labels_time += full_labels_time_new
+                    end
+                elseif check_customers_accelerated && checkpoint_reached
+                    (negative_full_labels, _, base_labels_time, full_labels_time) = subproblem_iteration_ours(
                         G, data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
                         ;
                         ngroute = false,
@@ -548,32 +569,23 @@ function subpath_formulation_column_generation_integrated_from_paths(
                         path_single_service = path_single_service,
                         path_check_customers = path_check_customers,
                         christofides = christofides,
+                        time_limit = time_limit - (time() - start_time),
                     )
-                    base_labels_time += base_labels_time_new
-                    full_labels_time += full_labels_time_new
+                else
+                    (negative_full_labels, _, base_labels_time, full_labels_time) = subproblem_iteration_ours(
+                        G, data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
+                        ;
+                        ngroute = false,
+                        subpath_single_service = subpath_single_service,        
+                        subpath_check_customers = subpath_check_customers,
+                        path_single_service = path_single_service,
+                        path_check_customers = path_check_customers,
+                        christofides = christofides,
+                        time_limit = time_limit - (time() - start_time),
+                    )
                 end
-            elseif check_customers_accelerated && checkpoint_reached
-                (negative_full_labels, _, base_labels_time, full_labels_time) = subproblem_iteration_ours(
-                    G, data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
-                    ;
-                    ngroute = false,
-                    subpath_single_service = subpath_single_service,        
-                    subpath_check_customers = subpath_check_customers,
-                    path_single_service = path_single_service,
-                    path_check_customers = path_check_customers,
-                    christofides = christofides,
-                )
-            else
-                (negative_full_labels, _, base_labels_time, full_labels_time) = subproblem_iteration_ours(
-                    G, data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
-                    ;
-                    ngroute = false,
-                    subpath_single_service = subpath_single_service,        
-                    subpath_check_customers = subpath_check_customers,
-                    path_single_service = path_single_service,
-                    path_check_customers = path_check_customers,
-                    christofides = christofides,
-                )
+            catch
+                break
             end
             (generated_subpaths, generated_charging_arcs) = get_subpaths_charging_arcs_from_negative_path_labels(
                 data, negative_full_labels,
@@ -591,56 +603,67 @@ function subpath_formulation_column_generation_integrated_from_paths(
                 round(base_labels_time + full_labels_time, digits=3)
             )
         elseif method == "benchmark"
-            if ngroute
-                (negative_pure_path_labels, negative_pure_path_labels_count, pure_path_labels_time) = subproblem_iteration_benchmark(
-                    G, data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
-                    ;
-                    ngroute = ngroute,
-                    ngroute_alt = ngroute_alt,
-                    time_windows = time_windows,
-                    path_single_service = path_single_service,
-                    path_check_customers = path_check_customers,
-                    christofides = christofides,
-                )
-            elseif check_customers_accelerated && !checkpoint_reached
-                (negative_pure_path_labels, negative_pure_path_labels_count, pure_path_labels_time) = subproblem_iteration_benchmark(
-                    G, data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
-                    ;
-                    time_windows = time_windows,
-                    path_single_service = true,
-                    path_check_customers = false,
-                    christofides = christofides,
-                )
-                if negative_pure_path_labels_count == 0
-                    checkpoint_reached = true
-                    (negative_pure_path_labels, _, pure_path_labels_time_new) = subproblem_iteration_benchmark(
+            negative_pure_path_labels = nothing
+            pure_path_labels_time = 0.0
+            try
+                if ngroute
+                    (negative_pure_path_labels, negative_pure_path_labels_count, pure_path_labels_time) = subproblem_iteration_benchmark(
+                        G, data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
+                        ;
+                        ngroute = ngroute,
+                        ngroute_alt = ngroute_alt,
+                        time_windows = time_windows,
+                        path_single_service = path_single_service,
+                        path_check_customers = path_check_customers,
+                        christofides = christofides,
+                        time_limit = time_limit - (time() - start_time),
+                    )
+                elseif check_customers_accelerated && !checkpoint_reached
+                    (negative_pure_path_labels, negative_pure_path_labels_count, pure_path_labels_time) = subproblem_iteration_benchmark(
+                        G, data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
+                        ;
+                        time_windows = time_windows,
+                        path_single_service = true,
+                        path_check_customers = false,
+                        christofides = christofides,
+                        time_limit = time_limit - (time() - start_time),
+                    )
+                    if negative_pure_path_labels_count == 0
+                        checkpoint_reached = true
+                        (negative_pure_path_labels, _, pure_path_labels_time_new) = subproblem_iteration_benchmark(
+                            G, data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
+                            ;
+                            time_windows = time_windows,
+                            path_single_service = true,
+                            path_check_customers = true,
+                            christofides = christofides,
+                            time_limit = time_limit - (time() - start_time),
+                        )
+                        pure_path_labels_time += pure_path_labels_time_new
+                    end
+                elseif check_customers_accelerated && checkpoint_reached
+                    (negative_pure_path_labels, _, pure_path_labels_time) = subproblem_iteration_benchmark(
                         G, data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
                         ;
                         time_windows = time_windows,
                         path_single_service = true,
                         path_check_customers = true,
                         christofides = christofides,
+                        time_limit = time_limit - (time() - start_time),
                     )
-                    pure_path_labels_time += pure_path_labels_time_new
+                else
+                    (negative_pure_path_labels, _, pure_path_labels_time) = subproblem_iteration_benchmark(
+                        G, data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
+                        ;
+                        time_windows = time_windows,
+                        path_single_service = path_single_service,
+                        path_check_customers = path_check_customers,
+                        christofides = christofides,
+                        time_limit = time_limit - (time() - start_time),
+                    )
                 end
-            elseif check_customers_accelerated && checkpoint_reached
-                (negative_pure_path_labels, _, pure_path_labels_time) = subproblem_iteration_benchmark(
-                    G, data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
-                    ;
-                    time_windows = time_windows,
-                    path_single_service = true,
-                    path_check_customers = true,
-                    christofides = christofides,
-                )
-            else
-                (negative_pure_path_labels, _, pure_path_labels_time) = subproblem_iteration_benchmark(
-                    G, data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
-                    ;
-                    time_windows = time_windows,
-                    path_single_service = path_single_service,
-                    path_check_customers = path_check_customers,
-                    christofides = christofides,
-                )
+            catch
+                break
             end
             (generated_subpaths, generated_charging_arcs) = get_subpaths_charging_arcs_from_negative_pure_path_labels(
                 data, negative_pure_path_labels,
