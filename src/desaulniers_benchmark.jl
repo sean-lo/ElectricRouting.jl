@@ -136,12 +136,7 @@ function find_nondominated_paths(
         return added
     end
 
-    modified_costs = data["travel_cost_coeff"] * Float64.(copy(data["c"]))
-    for j in data["N_customers"]
-        for i in data["N_nodes"]
-            modified_costs[i,j] -= ν[j]
-        end
-    end
+    modified_costs = compute_arc_modified_costs(data, ν)
 
     pure_path_labels = Dict(
         starting_node => Dict(
@@ -422,12 +417,7 @@ function find_nondominated_paths_ngroute(
         return added
     end
 
-    modified_costs = data["travel_cost_coeff"] * Float64.(copy(data["c"]))
-    for j in data["N_customers"]
-        for i in data["N_nodes"]
-            modified_costs[i,j] -= ν[j]
-        end
-    end
+    modified_costs = compute_arc_modified_costs(data, ν)
 
     pure_path_labels = Dict(
         starting_node => Dict(
@@ -712,12 +702,7 @@ function find_nondominated_paths_ngroute_alt(
         return added
     end
 
-    modified_costs = data["travel_cost_coeff"] * Float64.(copy(data["c"]))
-    for j in data["N_customers"]
-        for i in data["N_nodes"]
-            modified_costs[i,j] -= ν[j]
-        end
-    end
+    modified_costs = compute_arc_modified_costs(data, ν)
 
     pure_path_labels = Dict(
         starting_node => Dict(

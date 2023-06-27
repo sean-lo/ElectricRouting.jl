@@ -84,12 +84,7 @@ function generate_base_labels_nonsingleservice(
         return added
     end
 
-    modified_costs = data["travel_cost_coeff"] * Float64.(copy(data["c"]))
-    for j in data["N_customers"]
-        for i in data["N_nodes"]
-            modified_costs[i,j] -= ν[j]
-        end
-    end
+    modified_costs = compute_arc_modified_costs(data, ν)
 
     base_labels = Dict(
         starting_node => Dict(
@@ -335,12 +330,7 @@ function generate_base_labels_singleservice(
         return 
     end
 
-    modified_costs = data["travel_cost_coeff"] * Float64.(copy(data["c"]))
-    for j in data["N_customers"]
-        for i in data["N_nodes"]
-            modified_costs[i,j] -= ν[j]
-        end
-    end
+    modified_costs = compute_arc_modified_costs(data, ν)
 
     base_labels = Dict(
         starting_node => Dict(
@@ -524,12 +514,7 @@ function generate_base_labels_ngroute(
         return added
     end
 
-    modified_costs = data["travel_cost_coeff"] * Float64.(copy(data["c"]))
-    for j in data["N_customers"]
-        for i in data["N_nodes"]
-            modified_costs[i,j] -= ν[j]
-        end
-    end
+    modified_costs = compute_arc_modified_costs(data, ν)
 
     base_labels = Dict(
         starting_node => Dict(
@@ -725,12 +710,7 @@ function generate_base_labels_ngroute_alt(
         return added
     end
 
-    modified_costs = data["travel_cost_coeff"] * Float64.(copy(data["c"]))
-    for j in data["N_customers"]
-        for i in data["N_nodes"]
-            modified_costs[i,j] -= ν[j]
-        end
-    end
+    modified_costs = compute_arc_modified_costs(data, ν)
 
     base_labels = Dict(
         starting_node => Dict(

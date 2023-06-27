@@ -1292,13 +1292,7 @@ function add_subpath_longlabel_to_collection!(
     return added
 end
 
-modified_costs = data["travel_cost_coeff"] * Float64.(copy(data["c"]))
-for j in data["N_customers"]
-    for i in data["N_nodes"]
-        modified_costs[i,j] -= ν[j]
-    end
-end
-
+modified_costs = compute_arc_modified_costs(data, ν)
 
 base_labels = Dict(
     starting_node => Dict(
