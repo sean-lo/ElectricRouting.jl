@@ -913,7 +913,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
     params["sp_full_time_taken_mean"] = params["sp_full_time_taken_total"] / length(params["sp_full_time_taken"])
     params["sp_time_taken_mean"] = params["sp_base_time_taken_mean"] + params["sp_full_time_taken_mean"]
 
-    params["LP_IP_gap"] = CGIP_results["objective"] / CGLP_results["objective"] - 1.0
+    params["LP_IP_gap"] = 1.0 - CGLP_results["objective"] / CGIP_results["objective"]
 
     for message in [
         @sprintf("\n"),
