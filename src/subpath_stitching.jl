@@ -458,19 +458,6 @@ function generate_base_labels_ngroute(
     christofides::Bool = false,
 )
 
-    function ngroute_create_set(
-        data, 
-        set::Tuple{Vararg{Int}}, 
-        next_node::Int,
-    )
-        new_set = Int[
-            node for node in set
-                if node in data["neighborhoods"][next_node]
-        ]
-        push!(new_set, next_node) 
-        return Tuple(sort(unique(new_set)))
-    end
-
     modified_costs = compute_arc_modified_costs(data, ν)
 
     base_labels = Dict(
@@ -609,21 +596,6 @@ function generate_base_labels_ngroute_alt(
     ;
     christofides::Bool = false,
 )
-
-    function ngroute_create_set_alt(
-        data, 
-        set::Vector{Int},
-        next_node::Int,
-    )
-        new_set = zeros(Int, data["n_nodes"])
-        for node in data["N_nodes"]
-            if set[node] == 1 && node in data["neighborhoods"][next_node]
-                new_set[node] = 1
-            end
-        end
-        new_set[next_node] = 1
-        return new_set
-    end
 
     modified_costs = compute_arc_modified_costs(data, ν)
 

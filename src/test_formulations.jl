@@ -1237,19 +1237,6 @@ ngroute_extend_partial_path_check(data, set, s)
 #     return false
 # end
 
-function ngroute_create_set(
-    data, 
-    set::Tuple{Vararg{Int}}, 
-    next_node::Int,
-)
-    new_set = Int[
-        node for node in set
-            if node in data["neighborhoods"][next_node]
-    ]
-    push!(new_set, next_node) 
-    return Tuple(sort(unique(new_set)))
-end
-
 function add_subpath_longlabel_to_collection!(
     collection::SortedDict{
         Int,
