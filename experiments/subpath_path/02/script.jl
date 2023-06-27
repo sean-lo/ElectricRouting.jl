@@ -102,8 +102,8 @@ begin
             )
         elseif method_param[1] == "subpath"
             (
-                LP_results, IP_results, cgparams, printlist, paths
-            ) = path_formulation_column_generation(
+                LP_results, IP_results, cgparams, printlist, subpaths, charging_arcs
+            ) = subpath_formulation_column_generation_integrated_from_paths(
                 sample_G, sample_data,
                 ;
                 Env = GRB_ENV, 
@@ -207,6 +207,10 @@ for row_index in task_index:n_tasks:size(args_df, 1)
             path_single_service = path_single_service,
             path_check_customers = path_check_customers,
             check_customers_accelerated = check_customers_accelerated,
+            christofides = christofides,
+            ngroute = ngroute,
+            ngroute_alt = ngroute_alt,
+            ngroute_neighborhood_charging_depots_size = ngroute_neighborhood_charging_depots_size,
             time_limit = TIME_LIMIT,
         )
         try
@@ -228,6 +232,10 @@ for row_index in task_index:n_tasks:size(args_df, 1)
             path_single_service = path_single_service,
             path_check_customers = path_check_customers,
             time_limit = TIME_LIMIT,
+            christofides = christofides,
+            ngroute = ngroute,
+            ngroute_alt = ngroute_alt,
+            ngroute_neighborhood_charging_depots_size = ngroute_neighborhood_charging_depots_size,
         )
         try
             collect_path_solution_metrics!(r_LP_results, data, r_paths)
