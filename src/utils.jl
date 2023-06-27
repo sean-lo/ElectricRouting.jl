@@ -576,6 +576,19 @@ function compute_ngroute_neighborhoods!(
     return
 end
 
+function compute_arc_modified_costs(
+    data,
+    ν,
+)
+    modified_costs = data["travel_cost_coeff"] * Float64.(copy(data["c"]))
+    for j in data["N_customers"]
+        for i in data["N_nodes"]
+            modified_costs[i,j] -= ν[j]
+        end
+    end
+    return modified_costs
+end
+
 function plot_instance(data)
     p = plot(
         # xlim = (0, 1), ylim = (0, 1),
