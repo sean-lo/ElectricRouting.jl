@@ -320,8 +320,8 @@ function generate_instance(
         return hcat(
             [
                 [
-                    -xmin + ((xmax - xmin) * i) / (a - 1), 
-                    -ymin + ((ymax - ymin) * j) / (b - 1),
+                    xmin + ((xmax - xmin) * i) / (a - 1), 
+                    ymin + ((ymax - ymin) * j) / (b - 1),
                 ]
                 for i in 0:a-1, j in 0:b-1
             ]...
