@@ -192,10 +192,11 @@ function find_nondominated_paths(
         state = pop!(unexplored_states)
         starting_node = state[end-1]
         current_node = state[end]
-        if !(state[1:end-2] in keys(pure_path_labels[starting_node][current_node]))
+        current_key = state[1:end-2]
+        if !(current_key in keys(pure_path_labels[starting_node][current_node]))
             continue
         end
-        current_path = pure_path_labels[starting_node][current_node][state[1:end-2]]
+        current_path = pure_path_labels[starting_node][current_node][current_key]
         for next_node in setdiff(outneighbors(G, current_node), current_node)
             if next_node in data["N_customers"]
                 # single-service requirement
@@ -474,11 +475,12 @@ function find_nondominated_paths_ngroute(
         state = pop!(unexplored_states)
         starting_node = state[end-1]
         current_node = state[end]
+        current_key = state[1:end-2]
         for current_set in keys(pure_path_labels[starting_node][current_node])
-            if !(state[1:end-2] in keys(pure_path_labels[starting_node][current_node][current_set]))
+            if !(current_key in keys(pure_path_labels[starting_node][current_node][current_set]))
                 continue
             end
-            current_path = pure_path_labels[starting_node][current_node][current_set][state[1:end-2]]
+            current_path = pure_path_labels[starting_node][current_node][current_set][current_key]
             for next_node in setdiff(outneighbors(G, current_node), current_node)
                 if next_node in current_set
                     # if next_node is a customer not yet visited, proceed
@@ -751,11 +753,12 @@ function find_nondominated_paths_ngroute_alt(
         state = pop!(unexplored_states)
         starting_node = state[end-1]
         current_node = state[end]
-        if !(state[1:end-2] in keys(pure_path_labels[starting_node][current_node]))
+        current_key = state[1:end-2]
+        if !(current_key in keys(pure_path_labels[starting_node][current_node]))
             continue
         end
         current_set = state[4:end-2]
-        current_path = pure_path_labels[starting_node][current_node][state[1:end-2]]
+        current_path = pure_path_labels[starting_node][current_node][current_key]
         for next_node in setdiff(outneighbors(G, current_node), current_node)
             if next_node in data["N_customers"] && current_set[next_node] == 1
                 # if next_node is a customer not yet visited, proceed
