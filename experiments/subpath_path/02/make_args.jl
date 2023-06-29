@@ -116,21 +116,21 @@ for data_param in data_params, seed in seed_range
         )
     end
 end
-# results_df = vcat(
-#     [
-#         CSV.read(filepath, DataFrame)
-#         for filepath in glob("$(@__DIR__)/combined_*.csv")
-#     ]...
-# ) |>
-#     x -> select(
-#         x, 
-#         names(args_df)
-#     )
-# new_args_df = antijoin(
-#     args_df, 
-#     results_df, 
-#     on = names(results_df)
-# )
+results_df = vcat(
+    [
+        CSV.read(filepath, DataFrame)
+        for filepath in glob("experiments/subpath_path/02/combined_*.csv")
+    ]...
+) |>
+    x -> select(
+        x, 
+        names(args_df)
+    )
+new_args_df = antijoin(
+    args_df, 
+    results_df, 
+    on = names(results_df)
+)
 new_args_df = args_df
 sort!(
     new_args_df,
