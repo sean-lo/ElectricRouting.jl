@@ -84,6 +84,46 @@ function compute_path_label_modified_cost(
     return reduced_cost
 end
 
+function add_pure_path_label_to_collection!(
+    collection::SortedDict{
+        Tuple{Vararg{Int}}, 
+        PurePathLabel,
+        Base.Order.ForwardOrdering,
+    },
+    key::Tuple{Vararg{Int}},
+    path::PurePathLabel,
+    ;
+    verbose::Bool = false,
+)
+    added = true
+    for (k, p) in pairs(collection)
+        if p.cost ≤ path.cost
+            if all(k .≤ key)
+                added = false
+                if verbose
+                    println("$(key), $(path.cost) dominated by $(k), $(p.cost)")
+                end
+                break
+            end
+        end
+        if path.cost ≤ p.cost
+            if all(key .≤ k)
+                if verbose
+                    println("$(key), $(path.cost) dominates $(k), $(p.cost)")
+                end
+                pop!(collection, k)
+            end
+        end
+    end
+    if added
+        if verbose
+            println("$(key), $(path.cost) added!")
+        end
+        insert!(collection, key, path)
+    end
+    return added
+end
+
 function find_nondominated_paths(
     G,
     data, 
@@ -97,45 +137,6 @@ function find_nondominated_paths(
     christofides::Bool = true,
     time_limit::Float64 = Inf,
 )
-    function add_pure_path_label_to_collection!(
-        collection::SortedDict{
-            Tuple{Vararg{Int}}, 
-            PurePathLabel,
-            Base.Order.ForwardOrdering,
-        },
-        key::Tuple{Vararg{Int}},
-        path::PurePathLabel,
-        ;
-        verbose::Bool = false,
-    )
-        added = true
-        for (k, p) in pairs(collection)
-            if p.cost ≤ path.cost
-                if all(k .≤ key)
-                    added = false
-                    if verbose
-                        println("$(key), $(path.cost) dominated by $(k), $(p.cost)")
-                    end
-                    break
-                end
-            end
-            if path.cost ≤ p.cost
-                if all(key .≤ k)
-                    if verbose
-                        println("$(key), $(path.cost) dominates $(k), $(p.cost)")
-                    end
-                    pop!(collection, k)
-                end
-            end
-        end
-        if added
-            if verbose
-                println("$(key), $(path.cost) added!")
-            end
-            insert!(collection, key, path)
-        end
-        return added
-    end
 
     start_time = time()
     modified_costs = compute_arc_modified_costs(data, ν)
@@ -370,46 +371,6 @@ function find_nondominated_paths_ngroute(
     christofides::Bool = true,
     time_limit::Float64 = Inf,
 )
-
-    function add_pure_path_label_to_collection!(
-        collection::SortedDict{
-            Tuple{Vararg{Int}}, 
-            PurePathLabel,
-            Base.Order.ForwardOrdering,
-        },
-        key::Tuple{Vararg{Int}},
-        path::PurePathLabel,
-        ;
-        verbose::Bool = false,
-    )
-        added = true
-        for (k, p) in pairs(collection)
-            if p.cost ≤ path.cost
-                if all(k .≤ key)
-                    added = false
-                    if verbose
-                        println("$(key), $(path.cost) dominated by $(k), $(p.cost)")
-                    end
-                    break
-                end
-            end
-            if path.cost ≤ p.cost
-                if all(key .≤ k)
-                    if verbose
-                        println("$(key), $(path.cost) dominates $(k), $(p.cost)")
-                    end
-                    pop!(collection, k)
-                end
-            end
-        end
-        if added
-            if verbose
-                println("$(key), $(path.cost) added!")
-            end
-            insert!(collection, key, path)
-        end
-        return added
-    end
 
     start_time = time()
     modified_costs = compute_arc_modified_costs(data, ν)
@@ -646,46 +607,6 @@ function find_nondominated_paths_ngroute_alt(
     christofides::Bool = true,
     time_limit::Float64 = Inf,
 )
-
-    function add_pure_path_label_to_collection!(
-        collection::SortedDict{
-            Tuple{Vararg{Int}}, 
-            PurePathLabel,
-            Base.Order.ForwardOrdering,
-        },
-        key::Tuple{Vararg{Int}},
-        path::PurePathLabel,
-        ;
-        verbose::Bool = false,
-    )
-        added = true
-        for (k, p) in pairs(collection)
-            if p.cost ≤ path.cost
-                if all(k .≤ key)
-                    added = false
-                    if verbose
-                        println("$(key), $(path.cost) dominated by $(k), $(p.cost)")
-                    end
-                    break
-                end
-            end
-            if path.cost ≤ p.cost
-                if all(key .≤ k)
-                    if verbose
-                        println("$(key), $(path.cost) dominates $(k), $(p.cost)")
-                    end
-                    pop!(collection, k)
-                end
-            end
-        end
-        if added
-            if verbose
-                println("$(key), $(path.cost) added!")
-            end
-            insert!(collection, key, path)
-        end
-        return added
-    end
 
     start_time = time()
     modified_costs = compute_arc_modified_costs(data, ν)
