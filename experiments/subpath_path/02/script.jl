@@ -9,6 +9,7 @@ using DataFrames
 
 using JuMP, Gurobi
 
+sleep(rand() * 30.0)
 const GRB_ENV = Gurobi.Env()
 
 TIME_LIMIT = 3600.0
