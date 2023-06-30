@@ -1007,6 +1007,23 @@ function collect_subpath_solution_metrics!(
     return results
 end
 
+
+function compute_objective_from_subpath_solution(
+    results_subpaths::Vector{Tuple{Float64, Subpath}},
+    results_charging_arcs::Vector{Tuple{Float64, ChargingArc}},
+    data,
+)
+    return sum(
+        [val * compute_subpath_cost(data, s)
+        for (val, s) in results_subpaths],
+        init = 0.0,
+    ) + sum(
+        [val * compute_charging_arc_cost(data, a)
+        for (val, a) in results_charging_arcs],
+        init = 0.0,
+    )
+end
+
 function plot_subpath_solution(
     results,
     data,

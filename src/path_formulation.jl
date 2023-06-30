@@ -790,3 +790,14 @@ function collect_path_solution_metrics!(
     collect_solution_metrics!(results, data)
     return results
 end
+
+function compute_objective_from_path_solution(
+    results_paths::Vector{Tuple{Float64, Path}},
+    data,
+)
+    return sum(
+        [val * compute_path_cost(data, p)
+        for (val, p) in results_paths],
+        init = 0.0,
+    )
+end
