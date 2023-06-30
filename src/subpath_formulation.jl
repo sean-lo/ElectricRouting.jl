@@ -262,6 +262,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
     ngroute_neighborhood_charging_depots_size::String = "small",
     verbose::Bool = true,
     time_limit::Float64 = Inf,
+    max_iters::Float64 = Inf,
 )
     function add_message!(
         printlist::Vector, 
@@ -486,6 +487,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
     while (
         !converged
         && time_limit ≥ (time() - start_time)
+        && max_iters > counter
     )
         counter += 1
         mp_solution_start_time = time()
