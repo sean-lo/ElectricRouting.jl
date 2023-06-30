@@ -981,6 +981,7 @@ TIME_LIMIT = 3.0
 include("arc_formulation.jl")
 include("subpath_formulation.jl")
 include("path_formulation.jl")
+include("decomposition_heuristic.jl")
 include("utils.jl")
 
 using CSV, DataFrames
@@ -990,7 +991,7 @@ using Test
 data = generate_instance(
     ;
     n_depots = 4,
-    n_customers = 16,
+    n_customers = 10,
     n_charging = 9,
     n_vehicles = 7,
     depot_pattern = "circular",    
@@ -1007,11 +1008,790 @@ data = generate_instance(
     load_scale = 5.0,
     load_shape = 20.0,
     load_tolerance = 1.3,
-    batch = 4,
+    batch = 1,
     permissiveness = 0.2,
 )
 G = construct_graph(data)
-# plot_instance(data)
+plot_instance(data)
+
+for (time_windows, path_single_service, path_check_customers, christofides, ngroute, ngroute_alt) in [
+    (false, false, false, false, false, false),
+    (false,  true,  true, false, false, false),
+    (false, false, false,  true, false, false),
+    (false,  true,  true,  true, false, false),
+    (false, false, false, false,  true, false),
+    (false, false, false,  true,  true, false),
+    (false, false, false, false,  true,  true),
+    (false, false, false,  true,  true,  true),
+    ( true, false, false, false, false, false),
+    ( true,  true,  true, false, false, false),
+    ( true, false, false,  true, false, false),
+    ( true,  true,  true,  true, false, false),
+    ( true, false, false, false,  true, false),
+    ( true, false, false,  true,  true, false),
+    ( true, false, false, false,  true,  true),
+    ( true, false, false,  true,  true,  true),
+]
+    println("$time_windows, $path_single_service, $path_check_customers, $christofides, $ngroute, $ngroute_alt")
+    @suppress path_formulation_column_generation_nocharge(
+        G, data,
+        ;
+        time_windows = time_windows,
+        path_single_service = path_single_service,
+        path_check_customers = path_check_customers,
+        christofides = christofides,
+        ngroute = ngroute,
+        ngroute_alt = ngroute_alt,
+    )
+end
+
+CGLP_results, CGIP_results, CG_params, CG_printlist, CG_some_paths = path_formulation_column_generation(
+    G, data;
+    time_windows = false,
+    path_single_service = false,
+    path_check_customers = false,
+    christofides = true,
+    ngroute = true,
+    ngroute_alt = false,
+)
+CGLP_results["objective"]
+DH_results_paths = path_formulation_decomposition_heuristic(G, data;
+time_windows = false,
+path_single_service = false,
+path_check_customers = false,
+christofides = true,
+ngroute = true,
+ngroute_alt = false,
+use_integer_paths = true,
+)
+compute_objective_from_path_solution(DH_results_paths, data)
+
+
+time_windows = false
+path_single_service = false
+path_check_customers = false
+christofides = false
+ngroute = false
+ngroute_alt = false
+ngroute_neighborhood_size = Int(ceil(sqrt(data["n_customers"]))) 
+verbose = true
+time_limit = Inf
+max_iters = Inf
+
+time_heuristic_slack = 1.0
+infeasible = false
+CGLP_results, CGIP_results, params, printlist, some_paths = path_formulation_column_generation_nocharge(
+    G, data,
+    ;
+    time_heuristic_slack = 0.3,
+    time_windows = time_windows,
+    path_single_service = path_single_service,
+    path_check_customers = path_check_customers,
+    christofides = christofides,
+    ngroute = ngroute,
+    ngroute_alt = ngroute_alt,
+    ngroute_neighborhood_size = ngroute_neighborhood_size,
+    verbose = verbose,
+    time_limit = time_limit,
+    max_iters = max_iters,
+);
+results_paths = collect_path_solution_support(CGLP_results, some_paths)
+results_paths_withcharge = Tuple{Float64, Path}[]
+feasible = true
+for (val, p) in results_paths
+    if p.artificial 
+        error("Infeasible solution.")
+    end
+    nodelist = vcat(p.subpaths[1].arcs[1][1], [a[2] for a in p.subpaths[1].arcs])
+    if length(nodelist) == 2 && p.subpaths[1].current_time == 0
+        push!(results_paths_withcharge, (val, p))
+    else
+        (p_feasible, pure_path_label) = get_postcharge_shortest_pure_path_label(
+            G, data, nodelist,
+            ;
+            time_windows = time_windows,
+        )
+        println(p_feasible)
+        feasible = feasible && p_feasible
+        if !p_feasible
+            break
+        end
+        p_ = convert_pure_path_label_to_path(pure_path_label, data)
+        push!(results_paths_withcharge, (val, p_))
+    end
+end
+(val, p) = results_paths
+nodelist = vcat(p.subpaths[1].arcs[1][1], [a[2] for a in p.subpaths[1].arcs])
+infeasible = false
+p.subpaths[1].current_time
+results_paths_withcharge
+
+time_heuristic_slack = time_heuristic_slack - 0.05
+
+
+
+
+CGLP_results, CGIP_results, CG_params, printlist, some_paths = path_formulation_column_generation_nocharge(
+    G, data,
+    ;
+    time_windows = false,
+    path_single_service = false,
+    path_check_customers = false,
+    christofides = false,
+    ngroute = false,
+    ngroute_alt = false,
+    # max_iters = 1.0,
+)
+results_paths = collect_path_solution_support(CGLP_results, some_paths)
+nodelists = [
+    vcat(p.subpaths[1].arcs[1][1], [a[2] for a in p.subpaths[1].arcs])
+    for (val, p) in results_paths
+]
+results_paths
+time_windows = false
+
+
+
+start_time = time()
+modified_costs = compute_arc_modified_costs(data, zeros(Float64, (data["n_customers"], data["n_customers"])))
+t = data["t"]
+B = data["B"]
+q = data["q"]
+if time_windows
+    α = data["α"]
+    β = data["β"]
+else
+    α = zeros(Int, data["n_nodes"])
+    β = repeat([data["T"]], data["n_nodes"])
+end
+
+nodelist = nodelists[4]
+
+pure_path_labels = Dict(
+    (nodelist[1:j]...,) => Dict(
+        current_node => SortedDict{
+            Tuple{Vararg{Int}}, 
+            PurePathLabel,
+        }()
+        for current_node in data["N_nodes"]
+    )
+    for j in eachindex(nodelist)
+)
+key = (0, -data["B"], data["B"])
+starting_node = nodelist[1]
+nodeseq = (starting_node,)
+pure_path_labels[nodeseq][starting_node][key] = PurePathLabel(
+    0.0, 
+    [starting_node],
+    Int[],
+    Int[],
+    0,
+    0,
+    data["B"],
+    data["B"],
+    false,
+    zeros(Int, data["n_customers"]),
+    false,
+)
+unexplored_states = SortedSet{Tuple{Vararg{Int}}}()
+push!(unexplored_states, (key..., starting_node, nodeseq...))
+
+nodelist
+pure_path_labels[(12,)]
+pure_path_labels[(12, 1,)]
+pure_path_labels[(12, 1, 7,)]
+pure_path_labels[(12, 1, 7, 8,)]
+pure_path_labels[(12, 1, 7, 8, 2,)]
+pure_path_labels[(12, 1, 7, 8, 2, 13)]
+
+first(pure_path_labels[(12, 1, 7, 8, 2, 13)][13])[2]
+unexplored_states
+while length(unexplored_states) > 0
+# begin
+    # if time_limit < time() - start_time
+    #     error("Time limit reached.")
+    # end
+    state = pop!(unexplored_states)
+    current_node = state[4]
+    current_nodeseq = state[5:end]
+    current_key = state[1:3]
+    if !(current_key in keys(pure_path_labels[current_nodeseq][current_node]))
+        continue
+    end
+    current_path = pure_path_labels[current_nodeseq][current_node][current_key]
+    println("current_path: $(current_path.nodes)")
+    eventual_next_node = nodelist[length(current_nodeseq) + 1]
+    for next_node in setdiff(vcat(eventual_next_node, data["N_charging"]), current_node)
+        # feasibility checks
+        # (1) battery
+        excess = max(
+            0, 
+            q[current_node,next_node] - current_path.charge_mincharge 
+        )
+        # (2) time windows
+        if current_path.time_mincharge + excess + t[current_node,next_node] > β[next_node]
+            # println("$(current_path.time_mincharge), $excess, $(t[current_node,next_node]), $(β[next_node])")
+            # println("not time windows feasible")
+            continue
+        end
+        if current_path.time_mincharge + excess + t[current_node,next_node] + data["min_t"][next_node] > data["T"]
+            continue
+        end
+        # (3) charge interval 
+        if (
+            (current_node in data["N_charging"] && excess > max(B - current_path.charge_mincharge, 0))
+            || 
+            (!(current_node in data["N_charging"]) && excess > max(current_path.charge_maxcharge - current_path.charge_mincharge, 0))
+        )
+            # if current_node in data["N_charging"]
+            #     println("$excess, $(B), $(current_path.charge_mincharge)")
+            # else
+            #     println("$excess, $(current_path.charge_maxcharge), $(current_path.charge_mincharge)")
+            # end
+            # println("not charge feasible")
+            continue
+        end
+        
+        new_path = copy(current_path)
+        push!(new_path.nodes, next_node)
+        if next_node in data["N_customers"]
+            new_path.served[next_node] += 1
+        end
+
+        push!(new_path.excesses, excess)
+        new_path.time_mincharge = max(
+            α[next_node],
+            current_path.time_mincharge + t[current_node,next_node] + excess
+        )
+        if current_node in data["N_charging"]
+            slack = max(
+                # floating point accuracy
+                0, 
+                min(
+                    new_path.time_mincharge - (current_path.time_mincharge + t[current_node,next_node] + excess),
+                    B - (current_path.charge_mincharge + excess),
+                )
+            )
+            push!(new_path.slacks, slack)
+            new_path.time_maxcharge = min(
+                β[next_node],
+                max(
+                    α[next_node],
+                    current_path.time_mincharge + (B - current_path.charge_mincharge) + t[current_node,next_node],
+                )
+            )
+        else
+            slack = max(
+                # floating point accuracy
+                0, 
+                min(
+                    new_path.time_mincharge - (current_path.time_mincharge + t[current_node,next_node] + excess),
+                    current_path.charge_maxcharge - (current_path.charge_mincharge + excess),
+                )
+            )
+            push!(new_path.slacks, slack)
+            new_path.time_maxcharge = min(
+                β[next_node],
+                max(
+                    α[next_node],
+                    current_path.time_maxcharge + t[current_node,next_node],
+                )
+            )
+        end
+        
+        new_path.charge_mincharge = (
+            current_path.charge_mincharge 
+            + excess 
+            + slack
+            - q[current_node,next_node]
+        )
+        new_path.charge_maxcharge = (
+            new_path.charge_mincharge 
+            + new_path.time_maxcharge 
+            - new_path.time_mincharge
+        )
+
+        new_path.cost += modified_costs[current_node,next_node]
+        new_path.cost += data["charge_cost_coeff"] * (slack + excess)
+
+        # add new_path to collection
+        if next_node in union(data["N_customers"], data["N_depots"])
+            new_nodeseq = (current_nodeseq..., next_node)
+        else
+            new_nodeseq = current_nodeseq
+        end
+        new_key = (
+            new_path.time_mincharge, 
+            - new_path.charge_maxcharge, 
+            new_path.time_mincharge - new_path.charge_mincharge,
+        )
+        println("$next_node, $new_nodeseq, $new_key")
+        added = add_pure_path_label_to_collection!(
+            pure_path_labels[new_nodeseq][next_node], 
+            new_key, new_path, 
+            ;
+            verbose = true,
+        )
+        if added && !(next_node in data["N_depots"])
+            new_state = (new_key..., next_node, new_nodeseq...,)
+            push!(unexplored_states, new_state)
+        end
+    end
+    break
+end
+
+println(nodelist)
+pure_path_labels = Dict(
+    (nodelist[1:j]...,) => Dict(
+        current_node => SortedDict{
+            Tuple{Vararg{Int}}, 
+            PurePathLabel,
+        }()
+        for current_node in data["N_nodes"]
+    )
+    for j in eachindex(nodelist)
+)
+key = (0, -data["B"], data["B"], -zeros(Int, data["n_customers"])...)
+unexplored_states = SortedSet{Tuple{Vararg{Int}}}()
+starting_node = nodelist[1]
+pure_path_labels[starting_node][starting_node][key] = PurePathLabel(
+    0.0, 
+    [starting_node],
+    Int[],
+    Int[],
+    0,
+    0,
+    data["B"],
+    data["B"],
+    false,
+    zeros(Int, data["n_customers"]),
+    false,
+)
+push!(unexplored_states, (key..., starting_node, 1))
+
+
+while length(unexplored_states) > 0
+# begin
+    # if time_limit < time() - start_time
+    #     error("Time limit reached.")
+    # end
+    state = pop!(unexplored_states)
+    current_node = state[end-1]
+    current_key = state[1:end-2]
+    if !(current_key in keys(pure_path_labels[starting_node][current_node]))
+        continue
+    end
+    current_path = pure_path_labels[starting_node][current_node][current_key]
+    eventual_next_node = nodelist[state[end] + 1]
+    for next_node in vcat(eventual_next_node, data["N_charging"])
+        # feasibility checks
+        # (1) battery
+        excess = max(
+            0, 
+            q[current_node,next_node] - current_path.charge_mincharge 
+        )
+        # (2) time windows
+        if current_path.time_mincharge + excess + t[current_node,next_node] > β[next_node]
+            # println("$(current_path.time_mincharge), $excess, $(t[current_node,next_node]), $(β[next_node])")
+            # println("not time windows feasible")
+            continue
+        end
+        if current_path.time_mincharge + excess + t[current_node,next_node] + data["min_t"][next_node] > data["T"]
+            continue
+        end
+        # (3) charge interval 
+        if (
+            (current_node in data["N_charging"] && excess > max(B - current_path.charge_mincharge, 0))
+            || 
+            (!(current_node in data["N_charging"]) && excess > max(current_path.charge_maxcharge - current_path.charge_mincharge, 0))
+        )
+            # if current_node in data["N_charging"]
+            #     println("$excess, $(B), $(current_path.charge_mincharge)")
+            # else
+            #     println("$excess, $(current_path.charge_maxcharge), $(current_path.charge_mincharge)")
+            # end
+            # println("not charge feasible")
+            continue
+        end
+        
+        new_path = copy(current_path)
+        push!(new_path.nodes, next_node)
+        if next_node in data["N_customers"]
+            new_path.served[next_node] += 1
+        end
+
+        push!(new_path.excesses, excess)
+        new_path.time_mincharge = max(
+            α[next_node],
+            current_path.time_mincharge + t[current_node,next_node] + excess
+        )
+        if current_node in data["N_charging"]
+            slack = max(
+                # floating point accuracy
+                0, 
+                min(
+                    new_path.time_mincharge - (current_path.time_mincharge + t[current_node,next_node] + excess),
+                    B - (current_path.charge_mincharge + excess),
+                )
+            )
+            push!(new_path.slacks, slack)
+            new_path.time_maxcharge = min(
+                β[next_node],
+                max(
+                    α[next_node],
+                    current_path.time_mincharge + (B - current_path.charge_mincharge) + t[current_node,next_node],
+                )
+            )
+        else
+            slack = max(
+                # floating point accuracy
+                0, 
+                min(
+                    new_path.time_mincharge - (current_path.time_mincharge + t[current_node,next_node] + excess),
+                    current_path.charge_maxcharge - (current_path.charge_mincharge + excess),
+                )
+            )
+            push!(new_path.slacks, slack)
+            new_path.time_maxcharge = min(
+                β[next_node],
+                max(
+                    α[next_node],
+                    current_path.time_maxcharge + t[current_node,next_node],
+                )
+            )
+        end
+        
+        new_path.charge_mincharge = (
+            current_path.charge_mincharge 
+            + excess 
+            + slack
+            - q[current_node,next_node]
+        )
+        new_path.charge_maxcharge = (
+            new_path.charge_mincharge 
+            + new_path.time_maxcharge 
+            - new_path.time_mincharge
+        )
+
+        new_path.cost += modified_costs[current_node,next_node]
+        new_path.cost += data["charge_cost_coeff"] * (slack + excess)
+
+        # add new_path to collection
+        new_key = (
+            new_path.time_mincharge, 
+            - new_path.charge_maxcharge, 
+            new_path.time_mincharge - new_path.charge_mincharge, 
+            - new_path.served...,
+        )
+        added = add_pure_path_label_to_collection!(
+            pure_path_labels[starting_node][next_node], 
+            new_key, new_path, 
+            ;
+            verbose = false,
+        )
+        if added && !(next_node in data["N_depots"])
+            if next_node in data["N_customers"]
+                new_state = (new_key..., next_node, state[end] + 1)
+            else
+                new_state = (new_key..., next_node, state[end])
+            end
+            push!(unexplored_states, new_state)
+        end
+    end
+end
+
+function get_postcharge_shortest_pure_path_label(
+    G,
+    data, 
+    nodelist::Vector{Int},
+    ;
+)
+    modified_costs = compute_arc_modified_costs(data, zeros(Float64, (data["n_customers"], data["n_customers"])))
+    t = data["t"]
+    B = data["B"]
+    q = data["q"]
+    if time_windows
+        α = data["α"]
+        β = data["β"]
+    else
+        α = zeros(Int, data["n_nodes"])
+        β = repeat([data["T"]], data["n_nodes"])
+    end
+
+    pure_path_labels = Dict(
+        (nodelist[1:j]...,) => Dict(
+            current_node => SortedDict{
+                Tuple{Vararg{Int}}, 
+                PurePathLabel,
+            }()
+            for current_node in data["N_nodes"]
+        )
+        for j in eachindex(nodelist)
+    )
+    key = (0, -data["B"], data["B"])
+    starting_node = nodelist[1]
+    nodeseq = (starting_node,)
+    pure_path_labels[nodeseq][starting_node][key] = PurePathLabel(
+        0.0, 
+        [starting_node],
+        Int[],
+        Int[],
+        0,
+        0,
+        data["B"],
+        data["B"],
+        false,
+        zeros(Int, data["n_customers"]),
+        false,
+    )
+    unexplored_states = SortedSet{Tuple{Vararg{Int}}}()
+    push!(unexplored_states, (key..., starting_node, nodeseq...))
+    while length(unexplored_states) > 0
+        state = pop!(unexplored_states)
+        current_node = state[4]
+        current_nodeseq = state[5:end]
+        current_key = state[1:3]
+        if !(current_key in keys(pure_path_labels[current_nodeseq][current_node]))
+            continue
+        end
+        current_path = pure_path_labels[current_nodeseq][current_node][current_key]
+        # println("current_path: $(current_path.nodes)")
+        eventual_next_node = nodelist[length(current_nodeseq) + 1]
+        for next_node in setdiff(vcat(eventual_next_node, data["N_charging"]), current_node)
+            if !(next_node in outneighbors(G, current_node))
+                continue
+            end
+            # feasibility checks
+            # (1) battery
+            excess = max(
+                0, 
+                q[current_node,next_node] - current_path.charge_mincharge 
+            )
+            # (2) time windows
+            if current_path.time_mincharge + excess + t[current_node,next_node] > β[next_node]
+                # println("$(current_path.time_mincharge), $excess, $(t[current_node,next_node]), $(β[next_node])")
+                # println("not time windows feasible")
+                continue
+            end
+            if current_path.time_mincharge + excess + t[current_node,next_node] + data["min_t"][next_node] > data["T"]
+                continue
+            end
+            # (3) charge interval 
+            if (
+                (current_node in data["N_charging"] && excess > max(B - current_path.charge_mincharge, 0))
+                || 
+                (!(current_node in data["N_charging"]) && excess > max(current_path.charge_maxcharge - current_path.charge_mincharge, 0))
+            )
+                # if current_node in data["N_charging"]
+                #     println("$excess, $(B), $(current_path.charge_mincharge)")
+                # else
+                #     println("$excess, $(current_path.charge_maxcharge), $(current_path.charge_mincharge)")
+                # end
+                # println("not charge feasible")
+                continue
+            end
+            
+            new_path = copy(current_path)
+            push!(new_path.nodes, next_node)
+            if next_node in data["N_customers"]
+                new_path.served[next_node] += 1
+            end
+    
+            push!(new_path.excesses, excess)
+            new_path.time_mincharge = max(
+                α[next_node],
+                current_path.time_mincharge + t[current_node,next_node] + excess
+            )
+            if current_node in data["N_charging"]
+                slack = max(
+                    # floating point accuracy
+                    0, 
+                    min(
+                        new_path.time_mincharge - (current_path.time_mincharge + t[current_node,next_node] + excess),
+                        B - (current_path.charge_mincharge + excess),
+                    )
+                )
+                push!(new_path.slacks, slack)
+                new_path.time_maxcharge = min(
+                    β[next_node],
+                    max(
+                        α[next_node],
+                        current_path.time_mincharge + (B - current_path.charge_mincharge) + t[current_node,next_node],
+                    )
+                )
+            else
+                slack = max(
+                    # floating point accuracy
+                    0, 
+                    min(
+                        new_path.time_mincharge - (current_path.time_mincharge + t[current_node,next_node] + excess),
+                        current_path.charge_maxcharge - (current_path.charge_mincharge + excess),
+                    )
+                )
+                push!(new_path.slacks, slack)
+                new_path.time_maxcharge = min(
+                    β[next_node],
+                    max(
+                        α[next_node],
+                        current_path.time_maxcharge + t[current_node,next_node],
+                    )
+                )
+            end
+            
+            new_path.charge_mincharge = (
+                current_path.charge_mincharge 
+                + excess 
+                + slack
+                - q[current_node,next_node]
+            )
+            new_path.charge_maxcharge = (
+                new_path.charge_mincharge 
+                + new_path.time_maxcharge 
+                - new_path.time_mincharge
+            )
+    
+            new_path.cost += modified_costs[current_node,next_node]
+            new_path.cost += data["charge_cost_coeff"] * (slack + excess)
+    
+            # add new_path to collection
+            if next_node in union(data["N_customers"], data["N_depots"])
+                new_nodeseq = (current_nodeseq..., next_node)
+            else
+                new_nodeseq = current_nodeseq
+            end
+            new_key = (
+                new_path.time_mincharge, 
+                - new_path.charge_maxcharge, 
+                new_path.time_mincharge - new_path.charge_mincharge,
+            )
+            # println("$next_node, $new_nodeseq, $new_key")
+            added = add_pure_path_label_to_collection!(
+                pure_path_labels[new_nodeseq][next_node], 
+                new_key, new_path, 
+                ;
+                verbose = false,
+            )
+            if added && !(next_node in data["N_depots"])
+                new_state = (new_key..., next_node, new_nodeseq...,)
+                push!(unexplored_states, new_state)
+            end
+        end
+    end
+    if length(pure_path_labels[(nodelist...)][nodelist[end]]) == 0
+        return (false, nothing)
+    else
+        return (true, first(values(pure_path_labels[(nodelist...)][nodelist[end]])))
+    end
+end
+
+results_paths = collect_path_solution_support
+nodelist
+(infeasible, pure_path_label) = get_postcharge_shortest_pure_path_label(G, data, nodelist)
+get_paths_from_negative_pure_path_labels(data, [pure_path_label])
+
+length(pure_path_labels_list)
+
+
+
+
+include("utils.jl")
+include("path_formulation.jl")
+include("subpath_formulation.jl")
+include("decomposition_heuristic.jl")
+
+
+data_params = collect(Iterators.product(
+    [4], # n_depots
+    20:4:40, # n_customers
+    [7], # n_charging
+    [8], # n_vehicles
+    40000:10000:80000, # T
+    [15000], # B
+))
+method_params = [
+    # method
+    # path_single_service
+    # path_check_customers
+    # christofides
+    # ngroute
+    # ngroute_alt
+    ("ours", false, false, false, false, false),
+    ("ours", false, false,  true, false, false),
+    ("ours", false, false, false,  true, false),
+    ("ours", false, false,  true,  true, false),
+    ("ours", false, false, false,  true,  true),
+    ("ours", false, false,  true,  true,  true),
+    ("ours",  true,  true, false, false, false),
+]
+
+data = generate_instance(
+    ;
+    n_depots = 4,
+    n_customers = 20,
+    n_charging = 7,
+    n_vehicles = 8,
+    depot_pattern = "circular",    
+    customer_pattern = "random_box",
+    charging_pattern = "circular_packing",
+    shrinkage_depots = 1.0,
+    shrinkage_charging = 1.0,
+    T = 40000,
+    seed = 1,
+    B = 15000,
+    μ = 5,
+    travel_cost_coeff = 7,
+    charge_cost_coeff = 3,
+    load_scale = 5.0,
+    load_shape = 20.0,
+    load_tolerance = 1.3,
+    batch = 1,
+    permissiveness = 0.2,
+)
+G = construct_graph(data)
+for method_param in method_params
+    use_time_windows = false
+    method, path_single_service, path_check_customers, christofides, ngroute, ngroute_alt = method_param
+    a = @allocated @suppress begin 
+        CGLP_results, CGIP_results, CG_params, CG_printlist, CG_some_paths = path_formulation_column_generation(
+            G, data,
+            ;
+            method = method,
+            time_windows = use_time_windows,
+            path_single_service = path_single_service,
+            path_check_customers = path_check_customers,
+            christofides = christofides,
+            ngroute = ngroute,
+            ngroute_alt = ngroute_alt,
+        )
+        DHL_results_paths = path_formulation_decomposition_heuristic(
+            G, data,
+            ;
+            time_windows = use_time_windows,
+            path_single_service = path_single_service,
+            path_check_customers = path_check_customers,
+            christofides = christofides,
+            ngroute = ngroute,
+            ngroute_alt = ngroute_alt,
+            use_integer_paths = false,
+        )
+        DHI_results_paths = path_formulation_decomposition_heuristic(
+            G, data,
+            ;
+            time_windows = use_time_windows,
+            path_single_service = path_single_service,
+            path_check_customers = path_check_customers,
+            christofides = christofides,
+            ngroute = ngroute,
+            ngroute_alt = ngroute_alt,
+            use_integer_paths = true,
+        )
+        DHL_objective = compute_objective_from_path_solution(DHL_results_paths, data)
+        DHI_objective = compute_objective_from_path_solution(DHL_results_paths, data)
+    end
+    println("$method_param: $a")
+end
+
+
 
 Env = nothing
 method = "ours"
