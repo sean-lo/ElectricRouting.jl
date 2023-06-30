@@ -340,6 +340,16 @@ function find_nondominated_paths(
             end
         end
     end
+
+    for depot in data["N_depots"]
+        for path in values(pure_path_labels[depot][depot])
+            if length(path.nodes) == 1
+                path.nodes = [depot, depot]
+                path.excesses = [0]
+                path.slacks = [0]
+            end
+        end
+    end
     
     for starting_node in data["N_depots"]
         for end_node in keys(pure_path_labels[starting_node])
@@ -572,6 +582,18 @@ function find_nondominated_paths_ngroute(
         end
     end
     
+    for depot in data["N_depots"]
+        for set in keys(pure_path_labels[starting_node][end_node])
+            for path in values(pure_path_labels[depot][depot][set])
+                if length(path.nodes) == 1
+                    path.nodes = [depot, depot]
+                    path.excesses = [0]
+                    path.slacks = [0]
+                end
+            end
+        end
+    end
+
     for starting_node in data["N_depots"]
         for end_node in keys(pure_path_labels[starting_node])
             for set in keys(pure_path_labels[starting_node][end_node])
@@ -794,6 +816,16 @@ function find_nondominated_paths_ngroute_alt(
         end
     end
     
+    for depot in data["N_depots"]
+        for path in values(pure_path_labels[depot][depot])
+            if length(path.nodes) == 1
+                path.nodes = [depot, depot]
+                path.excesses = [0]
+                path.slacks = [0]
+            end
+        end
+    end
+
     for starting_node in data["N_depots"]
         for end_node in keys(pure_path_labels[starting_node])
             for path in values(pure_path_labels[starting_node][end_node])
