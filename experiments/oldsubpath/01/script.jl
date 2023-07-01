@@ -22,9 +22,8 @@ _, sample_data = generate_instance_pair(
     batch = 3,
 )
 sample_data = preprocess_arcs(sample_data, true, false)
-sample_G = construct_graph(sample_data)
-sample_T_range = 0:50.0:sample_data["T"]
-sample_B_range = 0:50.0:sample_data["B"]
+sample_T_range = 0:50.0:sample_data.T
+sample_B_range = 0:50.0:sample_data.B
 
 (
     sample_cg_results,
@@ -108,9 +107,8 @@ for row_index in task_index:n_tasks:size(args_df, 1)
         batch = batch,
     )
     data = preprocess_arcs(data, true, false)
-    G = construct_graph(data)
-    T_range = 0:T_step:data["T"]
-    B_range = 0:B_step:data["B"]
+    T_range = 0:T_step:data.T
+    B_range = 0:B_step:data.B
 
     (
         cg_results,
@@ -118,7 +116,6 @@ for row_index in task_index:n_tasks:size(args_df, 1)
         cg_printlist,
         cg_subpaths,
     ) = subpath_formulation_column_generation_from_paths(
-        G,
         data, 
         T_range,
         B_range,
@@ -153,7 +150,7 @@ for row_index in task_index:n_tasks:size(args_df, 1)
         ylabel = "Time (s)",
         title = """
         Time of LP relaxation and subproblem, with artificial starting subpaths
-        ($(data["n_customers"]) customers, $(data["n_vehicles"]) vehicles, $(data["n_depots"]) depots, $(data["n_charging"]) charging stations)
+        ($(data.n_customers) customers, $(data.n_vehicles) vehicles, $(data.n_depots) depots, $(data.n_charging) charging stations)
         """,
         size = (800, 600),
     )

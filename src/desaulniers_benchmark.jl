@@ -32,7 +32,7 @@ Base.copy(p::PurePathLabel) = PurePathLabel(
 
 function compute_path_label_cost(
     p::PurePathLabel,
-    data,
+    data::EVRPData,
     M::Float64 = 1e10,
     ;
     verbose = false,
@@ -44,10 +44,10 @@ function compute_path_label_cost(
     end
 
     arcs = collect(zip(p.nodes[1:end-1], p.nodes[2:end]))
-    cost = data["travel_cost_coeff"] * sum(data["c"][a...] for a in arcs)
+    cost = data.travel_cost_coeff * sum(data.c[a...] for a in arcs)
     verbose && @printf("Path cost: \t\t%11.3f\n", cost)
 
-    charging_cost = data["charge_cost_coeff"] * (sum(p.slacks) + sum(p.excesses))
+    charging_cost = data.charge_cost_coeff * (sum(p.slacks) + sum(p.excesses))
     verbose && @printf("Charging cost: \t\t%11.3f\n", charging_cost)
     cost += charging_cost
 
@@ -57,10 +57,10 @@ end
 
 function compute_path_label_modified_cost(
     p::PurePathLabel,
-    data,
-    κ,
-    μ,
-    ν,
+    data::EVRPData,
+    κ::Dict{Int, Float64},
+    μ::Dict{Int, Float64},
+    ν::Vector{Float64}, 
     ;
     verbose = false,
 )
@@ -125,11 +125,10 @@ function add_pure_path_label_to_collection!(
 end
 
 function find_nondominated_paths(
-    G,
-    data, 
-    κ,
-    μ,
-    ν,
+    data::EVRPData, 
+    κ::Dict{Int, Float64},
+    μ::Dict{Int, Float64},
+    ν::Vector{Float64}, 
     ;
     single_service::Bool = false,
     time_windows::Bool = true,
@@ -147,9 +146,9 @@ function find_nondominated_paths(
                 Tuple{Vararg{Int}}, 
                 PurePathLabel,
             }()
-            for current_node in data["N_nodes"]
+            for current_node in data.N_nodes
         )
-        for starting_node in data["N_depots"]
+        for starting_node in data.N_depots
     )
 
     if check_customers
@@ -158,12 +157,12 @@ function find_nondominated_paths(
         # 2) negative of current max charge -B_i(max)
         # 3) difference between min time and min charge, T_i(min) - B_i(min)
         # 4) if applicable, whether i-th customer served
-        key = (0, -data["B"], -data["B"], zeros(Int, data["n_customers"])...)
+        key = (0, -data.B, -data.B, zeros(Int, data.n_customers)...)
     else
-        key = (0, -data["B"], -data["B"])
+        key = (0, -data.B, -data.B)
     end
     unexplored_states = SortedSet{Tuple{Vararg{Int}}}()
-    for depot in data["N_depots"]
+    for depot in data.N_depots
         pure_path_labels[depot][depot][key] = PurePathLabel(
             0.0,
             [depot],
@@ -171,24 +170,24 @@ function find_nondominated_paths(
             Int[],
             0,
             0,
-            data["B"],
-            data["B"],
+            data.B,
+            data.B,
             false,
-            zeros(Int, data["n_customers"]),
+            zeros(Int, data.n_customers),
             false,
         )
         push!(unexplored_states, (key..., depot, depot))
     end
 
-    t = data["t"]
-    B = data["B"]
-    q = data["q"]
+    t = data.t
+    B = data.B
+    q = data.q
     if time_windows
-        α = data["α"]
-        β = data["β"]
+        α = data.α
+        β = data.β
     else
-        α = zeros(Int, data["n_nodes"])
-        β = repeat([data["T"]], data["n_nodes"])
+        α = zeros(Int, data.n_nodes)
+        β = repeat([data.T], data.n_nodes)
     end
 
     while length(unexplored_states) > 0
@@ -203,8 +202,8 @@ function find_nondominated_paths(
             continue
         end
         current_path = pure_path_labels[starting_node][current_node][current_key]
-        for next_node in setdiff(outneighbors(G, current_node), current_node)
-            if next_node in data["N_customers"]
+        for next_node in setdiff(outneighbors(data.G, current_node), current_node)
+            if next_node in data.N_customers
                 # single-service requirement
                 if (
                     single_service 
@@ -233,16 +232,16 @@ function find_nondominated_paths(
                 # println("not time windows feasible")
                 continue
             end
-            if current_path.time_mincharge + excess + t[current_node,next_node] + data["min_t"][next_node] > data["T"]
+            if current_path.time_mincharge + excess + t[current_node,next_node] + data.min_t[next_node] > data.T
                 continue
             end
             # (3) charge interval 
             if (
-                (current_node in data["N_charging"] && excess > max(B - current_path.charge_mincharge, 0))
+                (current_node in data.N_charging && excess > max(B - current_path.charge_mincharge, 0))
                 || 
-                (!(current_node in data["N_charging"]) && excess > max(current_path.charge_maxcharge - current_path.charge_mincharge, 0))
+                (!(current_node in data.N_charging) && excess > max(current_path.charge_maxcharge - current_path.charge_mincharge, 0))
             )
-                # if current_node in data["N_charging"]
+                # if current_node in data.N_charging
                 #     println("$excess, $(B), $(current_path.charge_mincharge)")
                 # else
                 #     println("$excess, $(current_path.charge_maxcharge), $(current_path.charge_mincharge)")
@@ -253,7 +252,7 @@ function find_nondominated_paths(
             
             new_path = copy(current_path)
             push!(new_path.nodes, next_node)
-            if next_node in data["N_customers"]
+            if next_node in data.N_customers
                 new_path.served[next_node] += 1
             end
 
@@ -262,7 +261,7 @@ function find_nondominated_paths(
                 α[next_node],
                 current_path.time_mincharge + t[current_node,next_node] + excess
             )
-            if current_node in data["N_charging"]
+            if current_node in data.N_charging
                 slack = max(
                     # floating point accuracy
                     0, 
@@ -311,7 +310,7 @@ function find_nondominated_paths(
             )
 
             new_path.cost += modified_costs[current_node,next_node]
-            new_path.cost += data["charge_cost_coeff"] * (slack + excess)
+            new_path.cost += data.charge_cost_coeff * (slack + excess)
 
             # add new_path to collection
             if check_customers
@@ -334,14 +333,14 @@ function find_nondominated_paths(
                 ;
                 verbose = false,
             )
-            if added && !(next_node in data["N_depots"])
+            if added && !(next_node in data.N_depots)
                 new_state = (new_key..., starting_node, next_node)
                 push!(unexplored_states, new_state)
             end
         end
     end
 
-    for depot in data["N_depots"]
+    for depot in data.N_depots
         for path in values(pure_path_labels[depot][depot])
             if length(path.nodes) == 1
                 path.nodes = [depot, depot]
@@ -351,7 +350,7 @@ function find_nondominated_paths(
         end
     end
     
-    for starting_node in data["N_depots"]
+    for starting_node in data.N_depots
         for end_node in keys(pure_path_labels[starting_node])
             for path in values(pure_path_labels[starting_node][end_node])
                 path.cost = path.cost - κ[starting_node]
@@ -360,7 +359,7 @@ function find_nondominated_paths(
     end
 
     for starting_node in keys(pure_path_labels)
-        for end_node in intersect(data["N_depots"], keys(pure_path_labels[starting_node]))
+        for end_node in intersect(data.N_depots, keys(pure_path_labels[starting_node]))
             for path in values(pure_path_labels[starting_node][end_node])
                 path.cost = path.cost - μ[end_node]
             end
@@ -371,11 +370,10 @@ function find_nondominated_paths(
 end
 
 function find_nondominated_paths_ngroute(
-    G,
-    data, 
-    κ,
-    μ,
-    ν,
+    data::EVRPData, 
+    κ::Dict{Int, Float64},
+    μ::Dict{Int, Float64},
+    ν::Vector{Float64}, 
     ;
     time_windows::Bool = true,
     christofides::Bool = true,
@@ -394,14 +392,14 @@ function find_nondominated_paths_ngroute(
                     PurePathLabel,
                 },
             }()
-            for current_node in data["N_nodes"]
+            for current_node in data.N_nodes
         )
-        for starting_node in data["N_depots"]
+        for starting_node in data.N_depots
     )
 
     unexplored_states = SortedSet{Tuple{Vararg{Int}}}()
-    for depot in data["N_depots"]
-        key = (0, -data["B"], -data["B"])
+    for depot in data.N_depots
+        key = (0, -data.B, -data.B)
         set = (depot,)
         pure_path_labels[depot][depot][set] = SortedDict{
             Tuple{Vararg{Int}},
@@ -415,25 +413,25 @@ function find_nondominated_paths_ngroute(
                 Int[],
                 0,
                 0,
-                data["B"],
-                data["B"],
+                data.B,
+                data.B,
                 false,
-                zeros(Int, data["n_customers"]),
+                zeros(Int, data.n_customers),
                 false,
             ),
         )
         push!(unexplored_states, (key..., depot, depot))
     end
 
-    t = data["t"]
-    B = data["B"]
-    q = data["q"]
+    t = data.t
+    B = data.B
+    q = data.q
     if time_windows
-        α = data["α"]
-        β = data["β"]
+        α = data.α
+        β = data.β
     else
-        α = zeros(Int, data["n_nodes"])
-        β = repeat([data["T"]], data["n_nodes"])
+        α = zeros(Int, data.n_nodes)
+        β = repeat([data.T], data.n_nodes)
     end
 
     while length(unexplored_states) > 0
@@ -449,13 +447,13 @@ function find_nondominated_paths_ngroute(
                 continue
             end
             current_path = pure_path_labels[starting_node][current_node][current_set][current_key]
-            for next_node in setdiff(outneighbors(G, current_node), current_node)
+            for next_node in setdiff(outneighbors(data.G, current_node), current_node)
                 if next_node in current_set
                     # if next_node is a customer not yet visited, proceed
                     # only if one can extend current_subpath along next_node according to ng-route rules
                     continue
                 end
-                if next_node in data["N_customers"]
+                if next_node in data.N_customers
                     # Preventing customer 2-cycles (Christofides)
                     if christofides 
                         if length(current_path.nodes) ≥ 2 && current_path.nodes[end-1] == next_node
@@ -476,16 +474,16 @@ function find_nondominated_paths_ngroute(
                     # println("not time windows feasible")
                     continue
                 end
-                if current_path.time_mincharge + excess + t[current_node,next_node] + data["min_t"][next_node] > data["T"]
+                if current_path.time_mincharge + excess + t[current_node,next_node] + data.min_t[next_node] > data.T
                     continue
                 end
                 # (3) charge interval 
                 if (
-                    (current_node in data["N_charging"] && excess > max(B - current_path.charge_mincharge, 0))
+                    (current_node in data.N_charging && excess > max(B - current_path.charge_mincharge, 0))
                     || 
-                    (!(current_node in data["N_charging"]) && excess > max(current_path.charge_maxcharge - current_path.charge_mincharge, 0))
+                    (!(current_node in data.N_charging) && excess > max(current_path.charge_maxcharge - current_path.charge_mincharge, 0))
                 )
-                    # if current_node in data["N_charging"]
+                    # if current_node in data.N_charging
                     #     println("$excess, $(B), $(current_path.charge_mincharge)")
                     # else
                     #     println("$excess, $(current_path.charge_maxcharge), $(current_path.charge_mincharge)")
@@ -496,7 +494,7 @@ function find_nondominated_paths_ngroute(
                 
                 new_path = copy(current_path)
                 push!(new_path.nodes, next_node)
-                if next_node in data["N_customers"]
+                if next_node in data.N_customers
                     new_path.served[next_node] += 1
                 end
 
@@ -505,7 +503,7 @@ function find_nondominated_paths_ngroute(
                     α[next_node],
                     current_path.time_mincharge + t[current_node,next_node] + excess
                 )
-                if current_node in data["N_charging"]
+                if current_node in data.N_charging
                     slack = max(
                         # floating point accuracy
                         0, 
@@ -554,7 +552,7 @@ function find_nondominated_paths_ngroute(
                 )
 
                 new_path.cost += modified_costs[current_node,next_node]
-                new_path.cost += data["charge_cost_coeff"] * (slack + excess)
+                new_path.cost += data.charge_cost_coeff * (slack + excess)
 
                 new_set = ngroute_create_set(data, current_set, next_node)
                 if !(new_set in keys(pure_path_labels[starting_node][next_node]))
@@ -574,7 +572,7 @@ function find_nondominated_paths_ngroute(
                     ;
                     verbose = false,
                 )
-                if added && !(next_node in data["N_depots"])
+                if added && !(next_node in data.N_depots)
                     new_state = (new_key..., starting_node, next_node)
                     push!(unexplored_states, new_state)
                 end
@@ -582,7 +580,7 @@ function find_nondominated_paths_ngroute(
         end
     end
     
-    for depot in data["N_depots"]
+    for depot in data.N_depots
         for set in keys(pure_path_labels[starting_node][end_node])
             for path in values(pure_path_labels[depot][depot][set])
                 if length(path.nodes) == 1
@@ -594,7 +592,7 @@ function find_nondominated_paths_ngroute(
         end
     end
 
-    for starting_node in data["N_depots"]
+    for starting_node in data.N_depots
         for end_node in keys(pure_path_labels[starting_node])
             for set in keys(pure_path_labels[starting_node][end_node])
                 for path in values(pure_path_labels[starting_node][end_node][set])
@@ -605,7 +603,7 @@ function find_nondominated_paths_ngroute(
     end
 
     for starting_node in keys(pure_path_labels)
-        for end_node in intersect(data["N_depots"], keys(pure_path_labels[starting_node]))
+        for end_node in intersect(data.N_depots, keys(pure_path_labels[starting_node]))
             for set in keys(pure_path_labels[starting_node][end_node])
                 for path in values(pure_path_labels[starting_node][end_node][set])
                     path.cost = path.cost - μ[end_node]
@@ -619,11 +617,10 @@ end
 
 
 function find_nondominated_paths_ngroute_alt(
-    G,
-    data, 
-    κ,
-    μ,
-    ν,
+    data::EVRPData, 
+    κ::Dict{Int, Float64},
+    μ::Dict{Int, Float64},
+    ν::Vector{Float64}, 
     ;
     time_windows::Bool = true,
     christofides::Bool = true,
@@ -639,16 +636,16 @@ function find_nondominated_paths_ngroute_alt(
                 Tuple{Vararg{Int}}, 
                 PurePathLabel,
             }()
-            for current_node in data["N_nodes"]
+            for current_node in data.N_nodes
         )
-        for starting_node in data["N_depots"]
+        for starting_node in data.N_depots
     )
 
     unexplored_states = SortedSet{Tuple{Vararg{Int}}}()
-    for depot in data["N_depots"]
-        node_labels = zeros(Int, data["n_nodes"])
+    for depot in data.N_depots
+        node_labels = zeros(Int, data.n_nodes)
         node_labels[depot] = 1
-        key = (0, -data["B"], -data["B"], node_labels...)
+        key = (0, -data.B, -data.B, node_labels...)
         pure_path_labels[depot][depot][key] = PurePathLabel(
             0.0,
             [depot],
@@ -656,24 +653,24 @@ function find_nondominated_paths_ngroute_alt(
             Int[],
             0,
             0,
-            data["B"],
-            data["B"],
+            data.B,
+            data.B,
             false,
-            zeros(Int, data["n_customers"]),
+            zeros(Int, data.n_customers),
             false,
         )
         push!(unexplored_states, (key..., depot, depot))
     end
 
-    t = data["t"]
-    B = data["B"]
-    q = data["q"]
+    t = data.t
+    B = data.B
+    q = data.q
     if time_windows
-        α = data["α"]
-        β = data["β"]
+        α = data.α
+        β = data.β
     else
-        α = zeros(Int, data["n_nodes"])
-        β = repeat([data["T"]], data["n_nodes"])
+        α = zeros(Int, data.n_nodes)
+        β = repeat([data.T], data.n_nodes)
     end
 
     while length(unexplored_states) > 0
@@ -689,13 +686,13 @@ function find_nondominated_paths_ngroute_alt(
         end
         current_set = state[4:end-2]
         current_path = pure_path_labels[starting_node][current_node][current_key]
-        for next_node in setdiff(outneighbors(G, current_node), current_node)
-            if next_node in data["N_customers"] && current_set[next_node] == 1
+        for next_node in setdiff(outneighbors(data.G, current_node), current_node)
+            if next_node in data.N_customers && current_set[next_node] == 1
                 # if next_node is a customer not yet visited, proceed
                 # only if one can extend current_subpath along next_node according to ng-route rules
                 continue
             end
-            if next_node in data["N_customers"]
+            if next_node in data.N_customers
                 # Preventing customer 2-cycles (Christofides)
                 if christofides 
                     if length(current_path.nodes) ≥ 2 && current_path.nodes[end-1] == next_node
@@ -716,16 +713,16 @@ function find_nondominated_paths_ngroute_alt(
                 # println("not time windows feasible")
                 continue
             end
-            if current_path.time_mincharge + excess + t[current_node,next_node] + data["min_t"][next_node] > data["T"]
+            if current_path.time_mincharge + excess + t[current_node,next_node] + data.min_t[next_node] > data.T
                 continue
             end
             # (3) charge interval 
             if (
-                (current_node in data["N_charging"] && excess > max(B - current_path.charge_mincharge, 0))
+                (current_node in data.N_charging && excess > max(B - current_path.charge_mincharge, 0))
                 || 
-                (!(current_node in data["N_charging"]) && excess > max(current_path.charge_maxcharge - current_path.charge_mincharge, 0))
+                (!(current_node in data.N_charging) && excess > max(current_path.charge_maxcharge - current_path.charge_mincharge, 0))
             )
-                # if current_node in data["N_charging"]
+                # if current_node in data.N_charging
                 #     println("$excess, $(B), $(current_path.charge_mincharge)")
                 # else
                 #     println("$excess, $(current_path.charge_maxcharge), $(current_path.charge_mincharge)")
@@ -736,7 +733,7 @@ function find_nondominated_paths_ngroute_alt(
             
             new_path = copy(current_path)
             push!(new_path.nodes, next_node)
-            if next_node in data["N_customers"]
+            if next_node in data.N_customers
                 new_path.served[next_node] += 1
             end
 
@@ -745,7 +742,7 @@ function find_nondominated_paths_ngroute_alt(
                 α[next_node],
                 current_path.time_mincharge + t[current_node,next_node] + excess
             )
-            if current_node in data["N_charging"]
+            if current_node in data.N_charging
                 slack = max(
                     # floating point accuracy
                     0, 
@@ -794,7 +791,7 @@ function find_nondominated_paths_ngroute_alt(
             )
 
             new_path.cost += modified_costs[current_node,next_node]
-            new_path.cost += data["charge_cost_coeff"] * (slack + excess)
+            new_path.cost += data.charge_cost_coeff * (slack + excess)
 
             new_set = ngroute_create_set_alt(data, collect(current_set), next_node)
             new_key = (
@@ -809,14 +806,14 @@ function find_nondominated_paths_ngroute_alt(
                 ;
                 verbose = false,
             )
-            if added && !(next_node in data["N_depots"])
+            if added && !(next_node in data.N_depots)
                 new_state = (new_key..., starting_node, next_node)
                 push!(unexplored_states, new_state)
             end
         end
     end
     
-    for depot in data["N_depots"]
+    for depot in data.N_depots
         for path in values(pure_path_labels[depot][depot])
             if length(path.nodes) == 1
                 path.nodes = [depot, depot]
@@ -826,7 +823,7 @@ function find_nondominated_paths_ngroute_alt(
         end
     end
 
-    for starting_node in data["N_depots"]
+    for starting_node in data.N_depots
         for end_node in keys(pure_path_labels[starting_node])
             for path in values(pure_path_labels[starting_node][end_node])
                 path.cost = path.cost - κ[starting_node]
@@ -835,7 +832,7 @@ function find_nondominated_paths_ngroute_alt(
     end
 
     for starting_node in keys(pure_path_labels)
-        for end_node in intersect(data["N_depots"], keys(pure_path_labels[starting_node]))
+        for end_node in intersect(data.N_depots, keys(pure_path_labels[starting_node]))
             for path in values(pure_path_labels[starting_node][end_node])
                 path.cost = path.cost - μ[end_node]
             end
@@ -846,7 +843,7 @@ function find_nondominated_paths_ngroute_alt(
 end
 
 function get_negative_pure_path_labels_from_pure_path_labels(
-    data, 
+    data::EVRPData, 
     pure_path_labels::Dict{Int, Dict{Int, SortedDict{
         Tuple{Vararg{Int}},
         PurePathLabel,
@@ -855,15 +852,15 @@ function get_negative_pure_path_labels_from_pure_path_labels(
 )
     return PurePathLabel[
         path_label
-        for starting_node in data["N_depots"]
-            for end_node in data["N_depots"]
+        for starting_node in data.N_depots
+            for end_node in data.N_depots
                 for (key, path_label) in pure_path_labels[starting_node][end_node]
                     if path_label.cost < -1e-6
     ]
 end
 
 function get_negative_pure_path_labels_from_pure_path_labels_ngroute(
-    data, 
+    data::EVRPData, 
     pure_path_labels::Dict{
         Int, 
         Dict{
@@ -880,8 +877,8 @@ function get_negative_pure_path_labels_from_pure_path_labels_ngroute(
 )
     return PurePathLabel[
         path_label
-        for starting_node in data["N_depots"]
-            for end_node in data["N_depots"]
+        for starting_node in data.N_depots
+            for end_node in data.N_depots
                 for set in keys(pure_path_labels[starting_node][end_node])
                     for (key, path_label) in pure_path_labels[starting_node][end_node][set]
                         if path_label.cost < -1e-6
@@ -889,7 +886,10 @@ function get_negative_pure_path_labels_from_pure_path_labels_ngroute(
 end
 
 function subproblem_iteration_benchmark(
-    G, data, κ, μ, ν,
+    data::EVRPData, 
+    κ::Dict{Int, Float64},
+    μ::Dict{Int, Float64},
+    ν::Vector{Float64}, 
     ;
     ngroute::Bool = false,
     ngroute_alt::Bool = false,
@@ -902,7 +902,7 @@ function subproblem_iteration_benchmark(
     start_time = time()
     if ngroute && !ngroute_alt
         pure_path_labels_result = @timed find_nondominated_paths_ngroute(
-            G, data, κ, μ, ν,
+            data, κ, μ, ν,
             ;
             time_windows = time_windows,
             christofides = christofides,
@@ -910,7 +910,7 @@ function subproblem_iteration_benchmark(
         )
     elseif ngroute && ngroute_alt
         pure_path_labels_result = @timed find_nondominated_paths_ngroute_alt(
-            G, data, κ, μ, ν,
+            data, κ, μ, ν,
             ;
             time_windows = time_windows,
             christofides = christofides,
@@ -918,7 +918,7 @@ function subproblem_iteration_benchmark(
         )
     else
         pure_path_labels_result = @timed find_nondominated_paths(
-            G, data, κ, μ, ν,
+            data, κ, μ, ν,
             ;
             time_windows = time_windows, 
             single_service = path_single_service, 

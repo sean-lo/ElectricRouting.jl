@@ -10,47 +10,49 @@ include("utils.jl")
 include("desaulniers_benchmark.jl")
 include("subpath_stitching.jl")
 
-function generate_artificial_subpaths(data)
+function generate_artificial_subpaths(
+    data::EVRPData,
+)
     artificial_subpaths = Dict{
         Tuple{Tuple{Int, Int, Int}, Tuple{Int, Int, Int}},
         Vector{Subpath},
     }()
-    start_depots = zeros(Int, data["n_vehicles"])
-    for (k, v_list) in pairs(data["V"])
+    start_depots = zeros(Int, data.n_vehicles)
+    for (k, v_list) in pairs(data.V)
         for v in v_list
             start_depots[v] = k
         end
     end
     end_depots = []
-    for k in data["N_depots"]
-        append!(end_depots, repeat([k], data["v_end"][k]))
+    for k in data.N_depots
+        append!(end_depots, repeat([k], data.v_end[k]))
     end
     append!(end_depots,
         repeat(
-            data["N_depots"], 
-            outer = Int(ceil((data["n_vehicles"] - sum(values(data["v_end"]))) / data["n_depots"]))
+            data.N_depots, 
+            outer = Int(ceil((data.n_vehicles - sum(values(data.v_end))) / data.n_depots))
         )
     )
-    end_depots = end_depots[1:data["n_vehicles"]]
+    end_depots = end_depots[1:data.n_vehicles]
 
     for (v, (starting_node, current_node)) in enumerate(zip(start_depots, end_depots))
         starting_time = 0.0
-        starting_charge = data["B"]
+        starting_charge = data.B
         current_time = 0.0
-        current_charge = data["B"]
+        current_charge = data.B
         key = (
             (starting_node, starting_time, starting_charge),  
             (current_node, current_time, current_charge)
         )
         # initialise a proportion of the customers to be served
-        served = zeros(Int, data["n_customers"])
+        served = zeros(Int, data.n_customers)
         for i in 1:length(served)
-            if mod1(i, data["n_vehicles"]) == v
+            if mod1(i, data.n_vehicles) == v
                 served[i] = 1
             end
         end
         s = Subpath(
-            n_customers = data["n_customers"],
+            n_customers = data.n_customers,
             starting_node = starting_node,
             starting_time = starting_time,
             starting_charge = starting_charge,
@@ -106,7 +108,7 @@ function add_charging_arc_to_generated_charging_arcs!(
 end
 
 function get_subpaths_charging_arcs_from_negative_path_labels(
-    data, 
+    data::EVRPData, 
     full_labels = Vector{PathLabel},
 )
     generated_subpaths = Dict{
@@ -124,7 +126,7 @@ function get_subpaths_charging_arcs_from_negative_path_labels(
         Vector{ChargingArc},
     }()
     for path in full_labels
-        current_time, current_charge = (0.0, data["B"])
+        current_time, current_charge = (0.0, data.B)
         prev_time, prev_charge = current_time, current_charge
         s_labels = copy(path.subpath_labels)
         deltas = copy(path.charging_actions)
@@ -135,7 +137,7 @@ function get_subpaths_charging_arcs_from_negative_path_labels(
             current_time = current_time + s_label.time_taken
             current_charge = current_charge - s_label.charge_taken
             s = Subpath(
-                n_customers = data["n_customers"],
+                n_customers = data.n_customers,
                 starting_node = s_label.nodes[1],
                 starting_time = prev_time,
                 starting_charge = prev_charge,
@@ -169,7 +171,7 @@ function get_subpaths_charging_arcs_from_negative_path_labels(
 end
 
 function get_subpaths_charging_arcs_from_negative_pure_path_labels(
-    data, 
+    data::EVRPData, 
     pure_labels = Vector{PurePathLabel},
 )
     generated_subpaths = Dict{
@@ -189,10 +191,10 @@ function get_subpaths_charging_arcs_from_negative_pure_path_labels(
     for path in pure_labels
         states = Tuple{Int, Int, Int}[]
         current_subpath = Subpath(
-            n_customers = data["n_customers"],
+            n_customers = data.n_customers,
             starting_node = path.nodes[1],
             starting_time = 0.0, 
-            starting_charge = data["B"],
+            starting_charge = data.B,
         )
         i = path.nodes[1]
         for (j, e, s) in zip(path.nodes[2:end], path.excesses, path.slacks)
@@ -200,9 +202,9 @@ function get_subpaths_charging_arcs_from_negative_pure_path_labels(
             push!(current_subpath.arcs, (i, j))
             current_subpath.starting_time += (e + s)
             current_subpath.starting_charge += (e + s) 
-            current_subpath.current_time += (data["t"][i,j] + e + s)
-            current_subpath.current_charge += (- data["q"][i,j] + e + s)
-            if j in data["N_charging"]
+            current_subpath.current_time += (data.t[i,j] + e + s)
+            current_subpath.current_charge += (- data.q[i,j] + e + s)
+            if j in data.N_charging
                 push!(
                     states, 
                     (current_subpath.starting_node, current_subpath.starting_time, current_subpath.starting_charge), 
@@ -210,12 +212,12 @@ function get_subpaths_charging_arcs_from_negative_pure_path_labels(
                 )
                 add_subpath_to_generated_subpaths!(generated_subpaths, current_subpath)
                 current_subpath = Subpath(
-                    n_customers = data["n_customers"],
+                    n_customers = data.n_customers,
                     starting_node = j,
                     starting_time = current_subpath.current_time, 
                     starting_charge = current_subpath.current_charge,
                 )
-            elseif j in data["N_customers"]
+            elseif j in data.N_customers
                 current_subpath.served[j] += 1
             end
             i = j
@@ -244,8 +246,7 @@ function get_subpaths_charging_arcs_from_negative_pure_path_labels(
 end
 
 function subpath_formulation_column_generation_integrated_from_paths(
-    G,
-    data, 
+    data::EVRPData, 
     ;
     Env = nothing,
     method::String = "ours",
@@ -258,7 +259,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
     christofides::Bool = false,
     ngroute::Bool = false,
     ngroute_alt::Bool = false,
-    ngroute_neighborhood_size::Int = Int(ceil(sqrt(data["n_customers"]))),
+    ngroute_neighborhood_size::Int = Int(ceil(sqrt(data.n_customers))),
     ngroute_neighborhood_charging_depots_size::String = "small",
     verbose::Bool = true,
     time_limit::Float64 = Inf,
@@ -277,8 +278,6 @@ function subpath_formulation_column_generation_integrated_from_paths(
 
     start_time = time()
 
-    compute_minimum_time_to_nearest_depot!(data, G)
-    compute_minimum_charge_to_nearest_depot_charging_station!(data, G)
     if ngroute
         compute_ngroute_neighborhoods!(
             data, 
@@ -359,10 +358,10 @@ function subpath_formulation_column_generation_integrated_from_paths(
                 charging / depots           %s
 
             """,
-            data["n_customers"],
-            data["n_depots"],
-            data["n_charging"],
-            data["n_vehicles"],
+            data.n_customers,
+            data.n_depots,
+            data.n_charging,
+            data.n_vehicles,
             time_windows,
             method,
             subpath_single_service,
@@ -422,16 +421,16 @@ function subpath_formulation_column_generation_integrated_from_paths(
     }()
     @constraint(
         mp_model,
-        κ[i in data["N_depots"]],
+        κ[i in data.N_depots],
         sum(
             sum(
-                z[((i,0,data["B"]),state2),p]
-                for p in 1:length(some_subpaths[((i,0,data["B"]),state2)])
+                z[((i,0,data.B),state2),p]
+                for p in 1:length(some_subpaths[((i,0,data.B),state2)])
             )        
             for (state1, state2) in keys(some_subpaths)
-                if state1[1] == i && state1[2] == 0 && state1[3] == data["B"]
+                if state1[1] == i && state1[2] == 0 && state1[3] == data.B
         )
-        == data["v_start"][findfirst(x -> (x == i), data["N_depots"])]
+        == data.v_start[findfirst(x -> (x == i), data.N_depots)]
     )
     
     flow_conservation_exprs_s_out = Dict{Tuple{Int, Int, Int}, AffExpr}()
@@ -443,7 +442,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
 
     @constraint(
         mp_model,
-        μ[n2 in data["N_depots"]],
+        μ[n2 in data.N_depots],
         sum(
             sum(
                 z[(state1, state2),p]
@@ -451,11 +450,11 @@ function subpath_formulation_column_generation_integrated_from_paths(
             )
             for (state1, state2) in keys(some_subpaths)
                 if state2[1] == n2
-        ) ≥ data["v_end"][n2]
+        ) ≥ data.v_end[n2]
     )
     @constraint(
         mp_model,
-        ν[j in data["N_customers"]],
+        ν[j in data.N_customers],
         sum(
             sum(
                 subpath_service[((state1, state2),j)][p] * z[(state1, state2),p]
@@ -504,8 +503,8 @@ function subpath_formulation_column_generation_integrated_from_paths(
                 (key, p) => value.(w[(key, p)])
                 for (key, p) in keys(w)
             ),
-            "κ" => Dict(zip(data["N_depots"], dual.(mp_model[:κ]).data)),
-            "μ" => Dict(zip(data["N_depots"], dual.(mp_model[:μ]).data)),
+            "κ" => Dict(zip(data.N_depots, dual.(mp_model[:κ]).data)),
+            "μ" => Dict(zip(data.N_depots, dual.(mp_model[:μ]).data)),
             "ν" => dual.(mp_model[:ν]).data,
             "solution_time_taken" => round(mp_solution_end_time - mp_solution_start_time, digits = 3),
         )
@@ -522,7 +521,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
             try
                 if ngroute
                     (negative_full_labels, _, base_labels_time, full_labels_time) = subproblem_iteration_ours(
-                        G, data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
+                        data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
                         ;
                         ngroute = ngroute,
                         ngroute_alt = ngroute_alt,
@@ -535,7 +534,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
                     )
                 elseif check_customers_accelerated && !checkpoint_reached
                     (negative_full_labels, negative_full_labels_count, base_labels_time, full_labels_time) = subproblem_iteration_ours(
-                        G, data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
+                        data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
                         ;
                         ngroute = false,
                         subpath_single_service = subpath_single_service,        
@@ -548,7 +547,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
                     if negative_full_labels_count == 0
                         checkpoint_reached = true
                         (negative_full_labels, _, base_labels_time_new, full_labels_time_new) = subproblem_iteration_ours(
-                            G, data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
+                            data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
                             ;
                             ngroute = false,
                             subpath_single_service = subpath_single_service,        
@@ -563,7 +562,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
                     end
                 elseif check_customers_accelerated && checkpoint_reached
                     (negative_full_labels, _, base_labels_time, full_labels_time) = subproblem_iteration_ours(
-                        G, data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
+                        data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
                         ;
                         ngroute = false,
                         subpath_single_service = subpath_single_service,        
@@ -575,7 +574,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
                     )
                 else
                     (negative_full_labels, _, base_labels_time, full_labels_time) = subproblem_iteration_ours(
-                        G, data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
+                        data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
                         ;
                         ngroute = false,
                         subpath_single_service = subpath_single_service,        
@@ -610,7 +609,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
             try
                 if ngroute
                     (negative_pure_path_labels, negative_pure_path_labels_count, pure_path_labels_time) = subproblem_iteration_benchmark(
-                        G, data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
+                        data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
                         ;
                         ngroute = ngroute,
                         ngroute_alt = ngroute_alt,
@@ -622,7 +621,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
                     )
                 elseif check_customers_accelerated && !checkpoint_reached
                     (negative_pure_path_labels, negative_pure_path_labels_count, pure_path_labels_time) = subproblem_iteration_benchmark(
-                        G, data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
+                        data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
                         ;
                         time_windows = time_windows,
                         path_single_service = true,
@@ -633,7 +632,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
                     if negative_pure_path_labels_count == 0
                         checkpoint_reached = true
                         (negative_pure_path_labels, _, pure_path_labels_time_new) = subproblem_iteration_benchmark(
-                            G, data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
+                            data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
                             ;
                             time_windows = time_windows,
                             path_single_service = true,
@@ -645,7 +644,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
                     end
                 elseif check_customers_accelerated && checkpoint_reached
                     (negative_pure_path_labels, _, pure_path_labels_time) = subproblem_iteration_benchmark(
-                        G, data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
+                        data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
                         ;
                         time_windows = time_windows,
                         path_single_service = true,
@@ -655,7 +654,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
                     )
                 else
                     (negative_pure_path_labels, _, pure_path_labels_time) = subproblem_iteration_benchmark(
-                        G, data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
+                        data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
                         ;
                         time_windows = time_windows,
                         path_single_service = path_single_service,
@@ -710,7 +709,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
             if !(state_pair in keys(some_subpaths))
                 some_subpaths[state_pair] = []
                 subpath_costs[state_pair] = []
-                for i in 1:data["n_customers"]
+                for i in 1:data.n_customers
                     subpath_service[(state_pair, i)] = []
                 end
                 count = 0
@@ -732,7 +731,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
                         compute_subpath_cost(data, s_new)
                     )
                     # 3: add subpath service
-                    for i in 1:data["n_customers"]
+                    for i in 1:data.n_customers
                         push!(subpath_service[(state_pair, i)], s_new.served[i])
                     end
                     # 4: create variable
@@ -740,18 +739,18 @@ function subpath_formulation_column_generation_integrated_from_paths(
                     z[(state_pair, count)] = @variable(mp_model, lower_bound = 0)
                     (state1, state2) = state_pair
                     # 5: modify constraints starting from depot, ending at depot, and flow conservation
-                    if state1[1] in data["N_depots"] && state1[2] == 0.0 && state1[3] == data["B"]
+                    if state1[1] in data.N_depots && state1[2] == 0.0 && state1[3] == data.B
                         set_normalized_coefficient(κ[state1[1]], z[state_pair,count], 1)
-                    elseif state1[1] in data["N_charging"]
+                    elseif state1[1] in data.N_charging
                         push!(new_charging_states_a_s, state1)
                         if !(state1 in keys(flow_conservation_exprs_s_out))
                             flow_conservation_exprs_s_out[state1] = @expression(mp_model, 0)
                         end
                         add_to_expression!(flow_conservation_exprs_s_out[state1], z[state_pair, count])
                     end
-                    if state2[1] in data["N_depots"]
+                    if state2[1] in data.N_depots
                         set_normalized_coefficient(μ[state2[1]], z[state_pair,count], 1)
-                    elseif state2[1] in data["N_charging"]
+                    elseif state2[1] in data.N_charging
                         push!(new_charging_states_s_a, state2)
                         if !(state2 in keys(flow_conservation_exprs_s_in))
                             flow_conservation_exprs_s_in[state2] = @expression(mp_model, 0)
@@ -759,7 +758,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
                         add_to_expression!(flow_conservation_exprs_s_in[state2], z[state_pair, count])
                     end
                     # 6: modify customer service constraints
-                    for l in data["N_customers"]
+                    for l in data.N_customers
                         set_normalized_coefficient(ν[l], z[state_pair, count], s_new.served[l])
                     end
                     # 7: modify objective
@@ -795,14 +794,14 @@ function subpath_formulation_column_generation_integrated_from_paths(
                     w[(state_pair, count)] = @variable(mp_model, lower_bound = 0)
                     (state1, state2) = state_pair
                     # 5: modify constraints starting from depot, ending at depot, and flow conservation
-                    if state1[1] in data["N_charging"]
+                    if state1[1] in data.N_charging
                         push!(new_charging_states_s_a, state1)
                         if !(state1 in keys(flow_conservation_exprs_a_out))
                             flow_conservation_exprs_a_out[state1] = @expression(mp_model, 0)
                         end
                         add_to_expression!(flow_conservation_exprs_a_out[state1], w[state_pair, count])
                     end
-                    if state2[1] in data["N_charging"]
+                    if state2[1] in data.N_charging
                         push!(new_charging_states_a_s, state2)
                         if !(state2 in keys(flow_conservation_exprs_a_in))
                             flow_conservation_exprs_a_in[state2] = @expression(mp_model, 0)
@@ -997,7 +996,7 @@ end
 
 function collect_subpath_solution_metrics!(
     results,
-    data, 
+    data::EVRPData, 
     subpaths, 
     charging_arcs,
 )
@@ -1011,7 +1010,7 @@ end
 function compute_objective_from_subpath_solution(
     results_subpaths::Vector{Tuple{Float64, Subpath}},
     results_charging_arcs::Vector{Tuple{Float64, ChargingArc}},
-    data,
+    data::EVRPData,
 )
     return sum(
         [val * compute_subpath_cost(data, s)
@@ -1026,7 +1025,7 @@ end
 
 function plot_subpath_solution(
     results,
-    data,
+    data::EVRPData,
     subpaths,
     charging_arcs,
 )
@@ -1043,8 +1042,8 @@ function plot_subpath_solution(
         arcs = vcat(collect(s.arcs for s in path.subpaths)...)
         for (j, arc) in enumerate(arcs)
             plot!(
-                data["coords"][1,collect(arc)],
-                data["coords"][2,collect(arc)],
+                data.coords[1,collect(arc)],
+                data.coords[2,collect(arc)],
                 arrow = true,
                 color = colors[i],
                 alpha = 0.5,
@@ -1069,7 +1068,7 @@ end
 
 function construct_paths_from_subpath_solution(
     results, 
-    data, 
+    data::EVRPData, 
     subpaths::Dict{
         Tuple{
             Tuple{Int, Int, Int}, 
@@ -1103,7 +1102,7 @@ function construct_paths_from_subpath_solution(
         end
         pathlist = []
         current_states = [
-            (depot, 0.0, data["B"]) for depot in data["N_depots"]
+            (depot, 0.0, data.B) for depot in data.N_depots
         ]
         while true
             i = findfirst(
@@ -1116,7 +1115,7 @@ function construct_paths_from_subpath_solution(
             )
             (val, s) = results_subpaths[i]
             push!(pathlist, (val, i, s))
-            if s.current_node in data["N_depots"]
+            if s.current_node in data.N_depots
                 break
             end
             current_states = [(s.current_node, s.current_time, s.current_charge)]
@@ -1167,7 +1166,7 @@ end
 function subpath_results_printout(
     results,
     params,
-    data,
+    data::EVRPData,
     subpaths::Dict{
         Tuple{
             Tuple{Int, Int, Int}, 
@@ -1187,19 +1186,19 @@ function subpath_results_printout(
 
     function print_subpath(
         s::Subpath,
-        data,
+        data::EVRPData,
     )
         subpath_state_list = [(s.starting_node, s.starting_time, s.starting_charge)]
         for arc in s.arcs
             prev_time = subpath_state_list[end][2]
             prev_charge = subpath_state_list[end][3]
-            push!(subpath_state_list, (arc[2], prev_time + data["t"][arc...], prev_charge - data["q"][arc...]))
+            push!(subpath_state_list, (arc[2], prev_time + data.t[arc...], prev_charge - data.q[arc...]))
         end
         for (state1, state2) in zip(subpath_state_list[1:end-2], subpath_state_list[2:end-1])
             @printf(
                 "               %12s (%6.1f,  %6.1f) -> %12s (%6.1f,  %6.1f) |           | \n", 
-                data["node_labels"][state1[1]], state1[2], state1[3],
-                data["node_labels"][state2[1]], state2[2], state2[3],
+                data.node_labels[state1[1]], state1[2], state1[3],
+                data.node_labels[state2[1]], state2[2], state2[3],
             )
         end
         if length(subpath_state_list) > 1
@@ -1212,8 +1211,8 @@ function subpath_results_printout(
         end
         @printf(
             "               %12s (%6.1f,  %6.1f) -> %12s (%6.1f,  %6.1f) | +  %6.1f | -    %6.1f \n", 
-            data["node_labels"][state1[1]], state1[2], state1[3],
-            data["node_labels"][state2[1]], state2[2], state2[3],
+            data.node_labels[state1[1]], state1[2], state1[3],
+            data.node_labels[state2[1]], state2[2], state2[3],
             s.current_time - s.starting_time,
             abs(s.current_charge - s.starting_charge),
         )
@@ -1224,10 +1223,10 @@ function subpath_results_printout(
     )
         @printf(
             "               %12s (%6.1f,  %6.1f) -> %12s (%6.1f,  %6.1f) | +  %6.1f | +    %6.1f \n", 
-            data["node_labels"][a.starting_node],
+            data.node_labels[a.starting_node],
             a.starting_time,
             a.starting_charge,
-            data["node_labels"][a.starting_node],
+            data.node_labels[a.starting_node],
             a.current_time,
             a.current_charge,
             a.delta,

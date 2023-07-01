@@ -39,7 +39,6 @@ begin
         permissiveness = 0.7,
         data_dir = "../../../data/",
     )
-    sample_G = construct_graph(sample_data)
     method_params = [
         # formulation
         # method
@@ -87,7 +86,7 @@ begin
             (
                 LP_results, IP_results, cgparams, printlist, paths
             ) = path_formulation_column_generation(
-                sample_G, sample_data,
+                sample_data,
                 ;
                 Env = GRB_ENV, 
                 method = method_param[2],
@@ -105,7 +104,7 @@ begin
             (
                 LP_results, IP_results, cgparams, printlist, subpaths, charging_arcs
             ) = subpath_formulation_column_generation_integrated_from_paths(
-                sample_G, sample_data,
+                sample_data,
                 ;
                 Env = GRB_ENV, 
                 method = method_param[2],
@@ -193,13 +192,12 @@ for row_index in task_index:n_tasks:size(args_df, 1)
         permissiveness = permissiveness,
         data_dir = "../../../data/",
     )
-    G = construct_graph(data)
 
     if formulation == "subpath"
         (
             r_LP_results, r_IP_results, r_params, r_printlist, r_subpaths, r_charging_arcs
         ) = subpath_formulation_column_generation_integrated_from_paths(
-            G, data, 
+            data, 
             Env = GRB_ENV, 
             method = method, 
             time_windows = use_time_windows,
@@ -224,7 +222,7 @@ for row_index in task_index:n_tasks:size(args_df, 1)
         (
             r_LP_results, r_IP_results, r_params, r_printlist, r_paths
         ) = path_formulation_column_generation(
-            G, data, 
+            data, 
             Env = GRB_ENV, 
             method = method, 
             time_windows = use_time_windows,

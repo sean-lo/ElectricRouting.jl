@@ -108,8 +108,50 @@ Base.copy(p::Path) = Path(
     served = copy(p.served),
 )
 
+Base.@kwdef mutable struct EVRPData
+    n_depots::Int
+    n_customers::Int
+    n_vehicles::Int
+    n_charging::Int
+    n_nodes::Int
+    N_customers::Vector{Int}
+    N_depots::Vector{Int}
+    N_vehicles::Vector{Int}
+    N_charging::Vector{Int}
+    N_nodes::Vector{Int}
+    node_labels::Dict{Int, String}
+    shrinkage_depots::Float64
+    shrinkage_charging::Float64
+    customer_coords::Array{Float64, 2}
+    depot_coords::Array{Float64, 2}
+    charging_coords::Array{Float64, 2}
+    coords::Array{Float64, 2}
+    distances::Array{Float64, 2}
+    G::SimpleDiGraph{Int}
+    V::Dict{Int, Vector{Int}}
+    v_start::Vector{Int}
+    v_end::Dict{Int, Int}
+    c::Array{Int, 2}
+    t::Array{Int, 2}
+    q::Array{Int, 2}
+    d::Vector{Int}
+    C::Int
+    T::Int
+    T_heuristic::Int
+    A::Dict{Tuple{Int64, Int64}, Int64}
+    α::Vector{Int}
+    β::Vector{Int}
+    μ::Int
+    B::Int
+    travel_cost_coeff::Int
+    charge_cost_coeff::Int
+    min_t::Vector{Int}
+    min_q::Vector{Int}
+    neighborhoods::Dict{Int, Vector{Int}}
+end
+
 function compute_subpath_cost(
-    data,
+    data::EVRPData,
     s::Subpath,
     M::Float64 = 1e10,
     ;
@@ -120,18 +162,18 @@ function compute_subpath_cost(
         return 0
     end
 
-    travel_cost = data["travel_cost_coeff"] * sum(
-        data["c"][a...] for a in s.arcs
+    travel_cost = data.travel_cost_coeff * sum(
+        data.c[a...] for a in s.arcs
     )
     return travel_cost
 end
 
 function compute_subpath_modified_cost(
-    data,
+    data::EVRPData,
     s::Subpath,
-    κ,
-    μ,
-    ν,
+    κ::Dict{Int, Float64},
+    μ::Dict{Int, Float64},
+    ν::Vector{Float64}, 
     ;
     verbose = false,
 )
@@ -145,14 +187,14 @@ function compute_subpath_modified_cost(
     verbose && @printf("Service cost: \t\t%11.3f\n", service_cost)
     reduced_cost += service_cost
 
-    if s.starting_node in data["N_depots"]
-        if s.starting_time == 0.0 && s.starting_charge == data["B"]
+    if s.starting_node in data.N_depots
+        if s.starting_time == 0.0 && s.starting_charge == data.B
             verbose && @printf("Starting depot cost: \t%11.3f\n", (- κ[s.starting_node]))
             reduced_cost = reduced_cost - κ[s.starting_node]
         end
     end
 
-    if s.current_node in data["N_depots"]
+    if s.current_node in data.N_depots
         verbose && @printf("Ending depot cost: \t%11.3f\n", ( - μ[s.current_node]))
         reduced_cost = reduced_cost - μ[s.current_node]
     end
@@ -163,7 +205,7 @@ function compute_subpath_modified_cost(
 end
 
 function compute_subpath_costs(
-    data,
+    data::EVRPData,
     all_subpaths,
     M::Float64 = 1e10,
     ;
@@ -179,7 +221,7 @@ function compute_subpath_costs(
 end
 
 function compute_subpath_service(
-    data, 
+    data::EVRPData, 
     all_subpaths,
 )
     subpath_service = Dict(
@@ -187,20 +229,20 @@ function compute_subpath_service(
             s.served[i]
             for s in all_subpaths[key]
         ]
-        for key in keys(all_subpaths), i in 1:data["n_customers"]
+        for key in keys(all_subpaths), i in 1:data.n_customers
     )
     return subpath_service
 end
 
 function compute_charging_arc_cost(
-    data,
+    data::EVRPData,
     a::ChargingArc,
 )
-    return data["charge_cost_coeff"] * a.delta
+    return data.charge_cost_coeff * a.delta
 end
 
 function compute_path_cost(
-    data,
+    data::EVRPData,
     p::Path,
     M::Float64 = 1e10,
     ;
@@ -216,11 +258,11 @@ function compute_path_cost(
 end
 
 function compute_path_modified_cost(
-    data,
+    data::EVRPData,
     p::Path,
-    κ,
-    μ,
-    ν,
+    κ::Dict{Int, Float64},
+    μ::Dict{Int, Float64},
+    ν::Vector{Float64}, 
     ;
     verbose = false,
 )
@@ -239,7 +281,7 @@ function compute_path_modified_cost(
 end
 
 function compute_path_costs(
-    data,
+    data::EVRPData,
     all_paths,
     M::Float64 = 1e10,
     ;
@@ -255,7 +297,7 @@ function compute_path_costs(
 end
 
 function compute_path_service(
-    data, 
+    data::EVRPData, 
     all_paths,
 )
     path_service = Dict(
@@ -263,7 +305,7 @@ function compute_path_service(
             p.served[i]
             for p in all_paths[key]
         ]
-        for key in keys(all_paths), i in 1:data["n_customers"]
+        for key in keys(all_paths), i in 1:data.n_customers
     )
     return path_service
 end
@@ -292,14 +334,18 @@ function generate_instance(
     permissiveness::Float64,
     data_dir::String = "data/",
 )
-    function complex_coords(n)
+    function complex_coords(
+        n::Int,
+    )
         return hcat(
             [round.(collect(reim(exp(2 * pi * j * im / n))), digits = 5)
             for j in 1:n]...
         )
     end
 
-    function get_rectangle(n::Int)
+    function get_rectangle(
+        n::Int,
+    )
         a = Int(ceil(sqrt(n)))
         b = n ÷ a
         while b * a != n
@@ -342,7 +388,10 @@ function generate_instance(
         )
     end
 
-    function complex_coords_random(n, seed)
+    function complex_coords_random(
+        n::Int, 
+        seed::Int,
+    )
         Random.seed!(seed)
         deg = rand(n) * 2 * pi
         scale = rand(n)
@@ -352,7 +401,10 @@ function generate_instance(
         )
     end
 
-    function uniform_coords_random(n, seed)
+    function uniform_coords_random(        
+        n::Int, 
+        seed::Int,
+    )
         Random.seed!(seed)
         return -1 .+ rand(Float64, 2, n) .* 2
     end
@@ -412,10 +464,10 @@ function generate_instance(
     t = Int.(round.(distances .* 10000) .* μ)
     q = Int.(round.(distances .* 10000))
     d = vcat(
-        floor.(rand(Gamma(load_scale, load_shape), n_customers) ./ n_customers),
+        Int.(floor.(rand(Gamma(load_scale, load_shape), n_customers) ./ n_customers)),
         repeat([0], n_depots + n_charging),
     )
-    C = ceil(sum(d) * load_tolerance / n_vehicles)
+    C = Int(ceil(sum(d) * load_tolerance / n_vehicles))
 
     A = merge(
         Dict(
@@ -430,45 +482,58 @@ function generate_instance(
     α_charge = vcat(α, repeat([0], n_depots + n_charging))
     β_charge = vcat(β, repeat([T], n_depots + n_charging))
 
-    data = Dict(
-        "n_depots" => n_depots,
-        "n_customers" => n_customers,
-        "n_vehicles" => n_vehicles,
-        "n_charging" => n_charging,
-        "n_nodes" => n_nodes,
+    G = SimpleDiGraph(n_nodes)
+    for (i, j) in keys(A)
+        add_edge!(G, i, j)
+    end
 
-        "N_customers" => N_customers,
-        "N_depots" => N_depots,
-        "N_vehicles" => N_vehicles,
-        "N_charging" => N_charging,
-        "N_nodes" => N_nodes,
+    t_ds = dijkstra_shortest_paths(G, N_depots, t)
+    q_ds = dijkstra_shortest_paths(G, vcat(N_depots, N_charging), q)
+    neighborhoods = Dict{Int, Vector{Int}}(
+        i => Int[]
+        for i in N_nodes 
+    )
 
-        "node_labels" => node_labels,
-        "shrinkage_depots" => shrinkage_depots,
-        "shrinkage_charging" => shrinkage_charging,
-
-        "customer_coords" => customer_coords,
-        "depot_coords" => depot_coords,
-        "charging_coords" => charging_coords,
-        "coords" => coords,
-        "distances" => distances,
-
-        "V" => V,
-        "v_start" => v_start,
-        "v_end" => v_end,
-        "c" => c,
-        "t" => t,
-        "q" => q,
-        "d" => d,
-        "C" => C,
-        "T" => T * μ,
-        "A" => A,
-        "α" => α_charge * μ,
-        "β" => β_charge * μ,
-        "μ" => μ,
-        "B" => B,
-        "travel_cost_coeff" => travel_cost_coeff,
-        "charge_cost_coeff" => charge_cost_coeff,
+    data = EVRPData(
+        n_depots = n_depots,
+        n_customers = n_customers,
+        n_vehicles = n_vehicles,
+        n_charging = n_charging,
+        n_nodes = n_nodes,
+        N_customers = N_customers,
+        N_depots = N_depots,
+        N_vehicles = N_vehicles,
+        N_charging = N_charging,
+        N_nodes = N_nodes,
+        node_labels = node_labels,
+        shrinkage_depots = shrinkage_depots,
+        shrinkage_charging = shrinkage_charging,
+        customer_coords = customer_coords,
+        depot_coords = depot_coords,
+        charging_coords = charging_coords,
+        coords = coords,
+        distances = distances,
+        G = G,
+        V = V,
+        v_start = v_start,
+        v_end = v_end,
+        c = c,
+        t = t,
+        q = q,
+        d = d,
+        C = C,
+        T = T * μ,
+        T_heuristic = T * μ,
+        A = A,
+        α = α_charge * μ,
+        β = β_charge * μ,
+        μ = μ,
+        B = B,
+        travel_cost_coeff = travel_cost_coeff,
+        charge_cost_coeff = charge_cost_coeff,
+        min_t = t_ds.dists,
+        min_q = q_ds.dists,
+        neighborhoods = neighborhoods,
     )
     return data
 end
@@ -529,14 +594,6 @@ function generate_times(
     return α, β
 end
 
-function construct_graph(data)
-    G = SimpleDiGraph(data["n_nodes"])
-    for (i, j) in keys(data["A"])
-        add_edge!(G, i, j)
-    end
-    return G
-end
-
 function charge_to_specified_level(
     starting_charge::Int, 
     desired_end_charge::Int, 
@@ -550,38 +607,25 @@ function charge_to_specified_level(
     return (delta, end_time, desired_end_charge)
 end
 
-function compute_minimum_time_to_nearest_depot!(data, G)
-    t_ds = dijkstra_shortest_paths(G, data["N_depots"], data["t"])
-    data["min_t"] = t_ds.dists
-    return
-end
-
-function compute_minimum_charge_to_nearest_depot_charging_station!(data, G)
-    q_ds = dijkstra_shortest_paths(G, vcat(data["N_depots"], data["N_charging"]), data["q"])
-    data["min_q"] = q_ds.dists
-    return
-end
-
 function compute_ngroute_neighborhoods!(
-    data, 
+    data::EVRPData, 
     k::Int, 
     ;
     charging_depots_size::String = "small",
 )
-    if !(1 ≤ k ≤ data["n_customers"])
+    if !(1 ≤ k ≤ data.n_customers)
         error()
     end
-    data["neighborhoods"] = Dict{Int, Vector{Int}}()
-    for i in data["N_customers"]
-        data["neighborhoods"][i] = sortperm(data["distances"][i,data["N_customers"]])[1:k]
+    for i in data.N_customers
+        data.neighborhoods[i] = sortperm(data.distances[i,data.N_customers])[1:k]
     end
-    for i in union(data["N_depots"], data["N_charging"])
+    for i in union(data.N_depots, data.N_charging)
         # Option 1:
         if charging_depots_size == "small"
-            data["neighborhoods"][i] = [i]
+            data.neighborhoods[i] = [i]
         # Option 2:
         elseif charging_depots_size == "large"
-            data["neighborhoods"][i] = vcat(data["N_customers"], [i])
+            data.neighborhoods[i] = vcat(data.N_customers, [i])
         else
             error()
         end
@@ -590,26 +634,26 @@ function compute_ngroute_neighborhoods!(
 end
 
 function ngroute_create_set(
-    data, 
+    data::EVRPData, 
     set::Tuple{Vararg{Int}}, 
     next_node::Int,
 )
     new_set = Int[
         node for node in set
-            if node in data["neighborhoods"][next_node]
+            if node in data.neighborhoods[next_node]
     ]
     push!(new_set, next_node) 
     return Tuple(sort(unique(new_set)))
 end
 
 function ngroute_create_set_alt(
-    data, 
+    data::EVRPData, 
     set::Vector{Int},
     next_node::Int,
 )
     new_set = zeros(Int, length(set))
     for node in eachindex(set)
-        if set[node] == 1 && node in data["neighborhoods"][next_node]
+        if set[node] == 1 && node in data.neighborhoods[next_node]
             new_set[node] = 1
         end
     end
@@ -618,60 +662,62 @@ function ngroute_create_set_alt(
 end
 
 function compute_arc_modified_costs(
-    data,
-    ν,
+    data::EVRPData,
+    ν::Vector{Float64}, 
 )
-    modified_costs = data["travel_cost_coeff"] * Float64.(copy(data["c"]))
-    for j in data["N_customers"]
-        for i in data["N_nodes"]
+    modified_costs = data.travel_cost_coeff * Float64.(copy(data.c))
+    for j in data.N_customers
+        for i in data.N_nodes
             modified_costs[i,j] -= ν[j]
         end
     end
     return modified_costs
 end
 
-function plot_instance(data)
+function plot_instance(
+    data::EVRPData,
+)
     p = plot(
         # xlim = (0, 1), ylim = (0, 1),
         aspect_ratio = :equal, 
         fmt = :png, 
     )
     plot!(
-        data["customer_coords"][1,:], data["customer_coords"][2,:],
+        data.customer_coords[1,:], data.customer_coords[2,:],
         seriestype = :scatter, 
         label = "Customer",
         color = :green
     )
     annotate!.(
-        data["customer_coords"][1,:] .+ 0.1, data["customer_coords"][2,:], 
+        data.customer_coords[1,:] .+ 0.1, data.customer_coords[2,:], 
         text.(
-            collect(string(i) for i in 1:data["n_customers"]), 
+            collect(string(i) for i in 1:data.n_customers), 
             :green, :left, 11
         )
     )
     plot!(
-        data["depot_coords"][1,:], data["depot_coords"][2,:],
+        data.depot_coords[1,:], data.depot_coords[2,:],
         seriestype = :scatter, 
         label = "Depots",
         color = :black
     )
     annotate!.(
-        data["depot_coords"][1,:] .+ 0.1, data["depot_coords"][2,:], 
+        data.depot_coords[1,:] .+ 0.1, data.depot_coords[2,:], 
         text.(
-            collect("M" * string(i) for i in 1:data["n_depots"]), 
+            collect("M" * string(i) for i in 1:data.n_depots), 
             :black, :left, 11
         )
     )
     plot!(
-        data["charging_coords"][1,:], data["charging_coords"][2,:],
+        data.charging_coords[1,:], data.charging_coords[2,:],
         seriestype = :scatter, 
         label = "Charging stations",
         color = :grey
     )
     annotate!.(
-        data["charging_coords"][1,:] .+ 0.1, data["charging_coords"][2,:], 
+        data.charging_coords[1,:] .+ 0.1, data.charging_coords[2,:], 
         text.(
-            collect("R" * string(i) for i in 1:data["n_charging"]), 
+            collect("R" * string(i) for i in 1:data.n_charging), 
             :grey, :left, 11
         )
     )

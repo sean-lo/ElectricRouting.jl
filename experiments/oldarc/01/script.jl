@@ -22,9 +22,8 @@ _, sample_data = generate_instance_pair(
     batch = 3,
 )
 sample_data = preprocess_arcs(sample_data, true, false)
-sample_G = construct_graph(sample_data)
-sample_T_range = 0:50.0:sample_data["T"]
-sample_B_range = 0:50.0:sample_data["B"]
+sample_T_range = 0:50.0:sample_data.T
+sample_B_range = 0:50.0:sample_data.B
 
 (
     sample_arc_ip_results, 
@@ -88,9 +87,8 @@ for row_index in task_index:n_tasks:size(args_df, 1)
         batch = batch,
     )
     data = preprocess_arcs(data, true, false)
-    G = construct_graph(data)
-    T_range = 0:T_step:data["T"]
-    B_range = 0:B_step:data["B"]
+    T_range = 0:T_step:data.T
+    B_range = 0:B_step:data.B
 
     (
         arc_ip_results, 

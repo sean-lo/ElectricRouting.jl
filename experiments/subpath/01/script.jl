@@ -30,72 +30,71 @@ begin
         batch = 5,
         permissiveness = 0.7,
     )
-    G = construct_graph(data)
     (
         b_LP_results, b_IP_results, b_params, b_printlist, b_subpaths, b_charging_arcs
     ) = subpath_formulation_column_generation_integrated_from_paths(
-        G, data, method = "benchmark",
+        data, method = "benchmark",
     )
     (
         b_s_LP_results, b_s_IP_results, b_s_params, b_s_printlist, b_s_subpaths, b_s_charging_arcs
     ) = subpath_formulation_column_generation_integrated_from_paths(
-        G, data, method = "benchmark", 
+        data, method = "benchmark", 
         path_single_service = true,
     )
     (
         b_sc_LP_results, b_sc_IP_results, b_sc_params, b_sc_printlist, b_sc_subpaths, b_sc_charging_arcs
     ) = subpath_formulation_column_generation_integrated_from_paths(
-        G, data, method = "benchmark", 
+        data, method = "benchmark", 
         path_single_service = true, path_check_customers = true,
     )
     (
         b_sca_LP_results, b_sca_IP_results, b_sca_params, b_sca_printlist, b_sca_subpaths, b_sca_charging_arcs
     ) = subpath_formulation_column_generation_integrated_from_paths(
-        G, data, method = "benchmark", 
+        data, method = "benchmark", 
         path_single_service = true, path_check_customers = true, check_customers_accelerated = true
     )
     (
         o_LP_results, o_IP_results, o_params, o_printlist, o_subpaths, o_charging_arcs
     ) = subpath_formulation_column_generation_integrated_from_paths(
-        G, data, method = "ours",
+        data, method = "ours",
     )
     (
         o_s_LP_results, o_s_IP_results, o_s_params, o_s_printlist, o_s_subpaths, o_s_charging_arcs
     ) = subpath_formulation_column_generation_integrated_from_paths(
-        G, data, method = "ours", 
+        data, method = "ours", 
         subpath_single_service = true,
     )
     (
         o_sc_LP_results, o_sc_IP_results, o_sc_params, o_sc_printlist, o_sc_subpaths, o_sc_charging_arcs
     ) = subpath_formulation_column_generation_integrated_from_paths(
-        G, data, method = "ours", 
+        data, method = "ours", 
         subpath_single_service = true, subpath_check_customers = true,
     )
     (
         o_sca_LP_results, o_sca_IP_results, o_sca_params, o_sca_printlist, o_sca_subpaths, o_sca_charging_arcs
     ) = subpath_formulation_column_generation_integrated_from_paths(
-        G, data, method = "ours", 
+        data, method = "ours", 
         subpath_single_service = true, subpath_check_customers = true, 
         check_customers_accelerated = true,
     )
     (
         o_ss_LP_results, o_ss_IP_results, o_ss_params, o_ss_printlist, o_ss_subpaths, o_ss_charging_arcs
     ) = subpath_formulation_column_generation_integrated_from_paths(
-        G, data, method = "ours", 
+        data, method = "ours", 
         subpath_single_service = true,
         path_single_service = true,
     )
     (
         o_scsc_LP_results, o_scsc_IP_results, o_scsc_params, o_scsc_printlist, o_scsc_subpaths, o_scsc_charging_arcs
     ) = subpath_formulation_column_generation_integrated_from_paths(
-        G, data, method = "ours", 
+        data, method = "ours", 
         subpath_single_service = true, subpath_check_customers = true,
         path_single_service = true, path_check_customers = true,
     )
     (
         o_scsca_LP_results, o_scsca_IP_results, o_scsca_params, o_scsca_printlist, o_scsca_subpaths, o_scsca_charging_arcs
     ) = subpath_formulation_column_generation_integrated_from_paths(
-        G, data, method = "ours", 
+        data, method = "ours", 
         subpath_single_service = true, subpath_check_customers = true, 
         path_single_service = true, path_check_customers = true,
         check_customers_accelerated = true,
@@ -166,12 +165,11 @@ for row_index in task_index:n_tasks:size(args_df, 1)
         batch = batch,
         permissiveness = permissiveness,
     )
-    G = construct_graph(data)
 
     (
         r_LP_results, r_IP_results, r_params, r_printlist, r_subpaths, r_charging_arcs
     ) = subpath_formulation_column_generation_integrated_from_paths(
-        G, data, 
+        data, 
         method = method, 
         subpath_single_service = subpath_single_service,
         subpath_check_customers = subpath_check_customers,
