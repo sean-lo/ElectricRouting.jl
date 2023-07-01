@@ -12,7 +12,7 @@ using JuMP, Gurobi
 sleep(rand() * 30.0)
 const GRB_ENV = Gurobi.Env()
 
-TIME_LIMIT = 3600.0
+const TIME_LIMIT_SEC = 3600.0
 
 # simple test case to quickly compile 
 begin
@@ -98,7 +98,7 @@ begin
                 ngroute = method_param[9],
                 ngroute_alt = method_param[10],
                 ngroute_neighborhood_charging_depots_size = method_param[11],
-                time_limit = TIME_LIMIT,
+                time_limit = TIME_LIMIT_SEC,
             )
         elseif method_param[1] == "subpath"
             (
@@ -116,7 +116,7 @@ begin
                 ngroute = method_param[9],
                 ngroute_alt = method_param[10],
                 ngroute_neighborhood_charging_depots_size = method_param[11],
-                time_limit = TIME_LIMIT,
+                time_limit = TIME_LIMIT_SEC,
             )
         end
     end
@@ -210,7 +210,7 @@ for row_index in task_index:n_tasks:size(args_df, 1)
             ngroute = ngroute,
             ngroute_alt = ngroute_alt,
             ngroute_neighborhood_charging_depots_size = ngroute_neighborhood_charging_depots_size,
-            time_limit = TIME_LIMIT,
+            time_limit = TIME_LIMIT_SEC,
         )
         try
             collect_subpath_solution_metrics!(r_LP_results, data, r_subpaths, r_charging_arcs)
@@ -230,7 +230,7 @@ for row_index in task_index:n_tasks:size(args_df, 1)
             subpath_check_customers = subpath_check_customers,
             path_single_service = path_single_service,
             path_check_customers = path_check_customers,
-            time_limit = TIME_LIMIT,
+            time_limit = TIME_LIMIT_SEC,
             christofides = christofides,
             ngroute = ngroute,
             ngroute_alt = ngroute_alt,
