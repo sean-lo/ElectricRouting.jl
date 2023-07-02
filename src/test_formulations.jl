@@ -1148,7 +1148,7 @@ time_windows = false
 
 
 start_time = time()
-modified_costs = compute_arc_modified_costs(data, zeros(Float64, (data.n_customers, data.n_customers)))
+modified_costs = compute_arc_modified_costs(data, zeros(Float64, data.n_customers))
 t = data.t
 B = data.B
 q = data.q
@@ -1500,7 +1500,7 @@ function get_postcharge_shortest_pure_path_label(
     nodelist::Vector{Int},
     ;
 )
-    modified_costs = compute_arc_modified_costs(data, zeros(Float64, (data.n_customers, data.n_customers)))
+    modified_costs = compute_arc_modified_costs(data, zeros(Float64, data.n_customers))
     t = data.t
     B = data.B
     q = data.q

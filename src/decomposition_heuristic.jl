@@ -925,7 +925,7 @@ function get_postcharge_shortest_pure_path_label(
     ;
     time_windows::Bool = false,
 )
-    modified_costs = compute_arc_modified_costs(data, zeros(Float64, (data.n_customers, data.n_customers)))
+    modified_costs = compute_arc_modified_costs(data, zeros(Float64, data.n_customers))
     t = data.t
     B = data.B
     q = data.q
@@ -1124,7 +1124,7 @@ function path_formulation_decomposition_heuristic(
     results_paths_withcharge = Tuple{Float64, Path}[]
     while true
         feasible = true
-        CGLP_results, CGIP_results, params, printlist, some_paths = path_formulation_column_generation_nocharge(
+        CGLP_results, CGIP_results, CG_params, printlist, some_paths = path_formulation_column_generation_nocharge(
             data,
             ;
             time_heuristic_slack = time_heuristic_slack,
