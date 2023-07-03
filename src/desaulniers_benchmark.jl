@@ -581,7 +581,7 @@ function find_nondominated_paths_ngroute(
     end
     
     for depot in data.N_depots
-        for set in keys(pure_path_labels[starting_node][end_node])
+        for set in keys(pure_path_labels[depot][depot])
             for path in values(pure_path_labels[depot][depot][set])
                 if length(path.nodes) == 1
                     path.nodes = [depot, depot]
