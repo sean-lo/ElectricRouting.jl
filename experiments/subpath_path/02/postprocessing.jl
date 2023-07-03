@@ -3,27 +3,152 @@ using DataFrames
 using Glob
 using Plots
 
-idnames = [:n_charging, :n_customers]
-methodnames = [:method, :subpath_single_service, :path_single_service, :subpath_check_customers, :path_check_customers, :check_customers_accelerated]
+idnames = [
+    :n_depots,
+    :n_charging, 
+    :n_customers,
+    :n_vehicles,
+    :T,
+    :B,
+]
+methodnames = [
+    :formulation, 
+    :method, 
+    :subpath_single_service, 
+    :subpath_check_customers, 
+    :path_single_service, 
+    :path_check_customers, 
+    :check_customers_accelerated, 
+    :christofides, 
+    :ngroute, 
+    :ngroute_alt, 
+    :ngroute_neighborhood_charging_depots_size, 
+]
 
-tall_results_df = vcat(
-    [CSV.read(filepath, DataFrame)
-    for filepath in glob("experiments/subpath/01/combined_*.csv")]...
-) |>
-    x -> sort(x, vcat(idnames, methodnames, [:seed]))
-
-tall_results_df[!, :methodname] = string.(
-    tall_results_df[!, :method], "_", 
-    tall_results_df[!, :subpath_single_service], "_", 
-    tall_results_df[!, :subpath_check_customers], "_", 
-    tall_results_df[!, :path_single_service], "_", 
-    tall_results_df[!, :path_check_customers], "_", 
-    tall_results_df[!, :check_customers_accelerated]
+(tall_results_df 
+    = vcat(
+        [CSV.read(filepath, DataFrame)
+        for filepath in glob("experiments/subpath_path/02/combined_*.csv")]...
+    ) 
+    |> x -> unique(x, vcat(idnames, methodnames, [:seed])) 
+    |> x -> sort(x, vcat(idnames, methodnames, [:seed]))
 )
 
-time_results_df = unstack(tall_results_df, vcat(idnames, [:seed]), :methodname, :time_taken)
-LP_objective_results_df = unstack(tall_results_df, vcat(idnames, [:seed]), :methodname, :LP_objective)
-IP_objective_results_df = unstack(tall_results_df, vcat(idnames, [:seed]), :methodname, :IP_objective)
+tall_results_df[!, :idname] = join.(eachrow(tall_results_df[!, idnames]), "_")
+tall_results_df[!, :methodname] = join.(eachrow(tall_results_df[!, methodnames]), "_")
+
+tall_results_df.LP_objective = ifelse.(tall_results_df.LP_objective .> 1e8, Inf, tall_results_df.LP_objective)
+tall_results_df.IP_objective = ifelse.(tall_results_df.IP_objective .> 1e8, Inf, tall_results_df.IP_objective)
+
+(time_results_df 
+    = unstack(tall_results_df, vcat(idnames, [:seed]), :methodname, :time_taken) 
+    |> x -> sort(x, vcat(idnames, [:seed]))
+)
+(LP_objective_results_df 
+    = unstack(tall_results_df, vcat(idnames, [:seed]), :methodname, :LP_objective) 
+    |> x -> sort(x, vcat(idnames, [:seed]))
+)
+(IP_objective_results_df 
+    = unstack(tall_results_df, vcat(idnames, [:seed]), :methodname, :IP_objective) 
+    |> x -> sort(x, vcat(idnames, [:seed]))
+)
+
+objective_results_df = innerjoin(
+    LP_objective_results_df, 
+    IP_objective_results_df, 
+    on = vcat(idnames, [:seed]), 
+    renamecols = "_LP" => "_IP",
+)
+
+(objective_results_df[!, "LP_objective_best"] 
+    = objective_results_df
+    |> x -> select(x, names(x, y -> endswith(y, "_LP")))
+    |> x -> select(x, 
+        AsTable(:) => ByRow(
+            y -> maximum([z for z in skipmissing(y) if z != Inf], init = -Inf)
+        ) => "LP_objective_best"
+    )[!, 1]
+)
+(objective_results_df[!, "IP_objective_best"] 
+    = objective_results_df 
+    |> x -> select(x, names(x, y -> endswith(y, "_LP")))
+    |> x -> select(x, 
+        AsTable(:) => ByRow(
+            y -> minimum([z for z in skipmissing(y)], init = Inf)
+        ) => "IP_objective_best"
+    )[!, 1]
+)
+
+objective_results_df[!, ["LP_objective_best", "IP_objective_best"]]
+
+for name in names(objective_results_df, y -> endswith(y, "_LP"))
+    objective_results_df[!, name * "_ratio"] = objective_results_df[!, name] ./ objective_results_df[!, "LP_objective_best"]
+end
+for name in names(objective_results_df, y -> endswith(y, "_IP"))
+    objective_results_df[!, name * "_ratio"] = objective_results_df[!, name] ./ objective_results_df[!, "IP_objective_best"]
+end
+
+(LP_ratio_tall_df 
+    = objective_results_df 
+    |> x -> select(x, idnames, :seed, names(x, y -> endswith(y, "_LP_ratio")))
+    |> x -> stack(x, Not(vcat(idnames, [:seed]))) 
+    |> x -> select(
+        x, 
+        idnames,
+        :seed,
+        :variable => (x -> String.(chopsuffix.(x, "_LP_ratio"))) => :methodname, 
+        :value => :LP_ratio
+    )
+)
+(IP_ratio_tall_df 
+    = objective_results_df 
+    |> x -> select(x, idnames, :seed, names(x, y -> endswith(y, "_IP_ratio")))
+    |> x -> stack(x, Not(vcat(idnames, [:seed]))) 
+    |> x -> select(
+        x, 
+        idnames,
+        :seed,
+        :variable => (x -> String.(chopsuffix.(x, "_IP_ratio"))) => :methodname, 
+        :value => :IP_ratio
+    )
+)
+
+tall_results_df = outerjoin(tall_results_df, LP_ratio_tall_df, IP_ratio_tall_df, on = vcat(idnames, :seed, :methodname))
+tall_results_df[!, :idname] = join.(eachrow(tall_results_df[!, idnames]), "_")
+
+(cdf 
+    = groupby(tall_results_df, vcat(:idname, :methodname)) 
+    |> x -> combine(
+        x, 
+        nrow, 
+        :time_taken => mean ∘ skipmissing => :time_taken_mean,
+        :LP_ratio => (x -> mean([y for y in skipmissing(x) if y != Inf])) => :LP_ratio_mean,
+        :IP_ratio => (x -> mean([y for y in skipmissing(x) if y != Inf])) => :IP_ratio_mean,
+    ) 
+    |> x -> select(x, :time_taken_mean, :nrow, :LP_ratio_mean, :IP_ratio_mean, :idname, :methodname) 
+    |> x -> sort(x, :idname)
+)
+(cdf 
+    |> x -> unstack(x, :methodname, :idname, :nrow) 
+    |> x -> CSV.write("$(@__DIR__)/nrow.csv", x)
+)
+(cdf 
+    |> x -> unstack(x, :methodname, :idname, :time_taken_mean) 
+    |> x -> hcat(x[!, 1], round.(x[!, 2:end], sigdigits = 5)) 
+    |> x -> CSV.write("$(@__DIR__)/time_taken.csv", x)
+)
+
+(cdf 
+    |> x -> unstack(x, :methodname, :idname, :LP_ratio_mean) 
+    # |> x -> hcat(x[!, 1], round.(x[!, 2:end], sigdigits = 5)) 
+    |> x -> CSV.write("$(@__DIR__)/LP_ratio.csv", x)
+)
+(cdf 
+    |> x -> unstack(x, :methodname, :idname, :IP_ratio_mean) 
+    # |> x -> hcat(x[!, 1], round.(x[!, 2:end], sigdigits = 5)) 
+    |> x -> CSV.write("$(@__DIR__)/IP_ratio.csv", x)
+)
+
 
 
 # Objective tests
