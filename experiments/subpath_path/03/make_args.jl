@@ -5,11 +5,12 @@ using Glob
 seed_range = collect(1:20)
 data_params = collect(Iterators.product(
     [4], # n_depots
-    # 20:4:40, # n_customers
-    [20], # n_customers
+    20:4:40, # n_customers
+    # [20], # n_customers
     [7], # n_charging
     [8], # n_vehicles
-    40000:10000:80000, # T
+    # 40000:10000:80000, # T
+    [40000], # T
     [15000], # B
 ))
 setting_params = [
@@ -17,6 +18,49 @@ setting_params = [
     # time windows
     (false, false),
 ]
+# method_params = [
+#     # formulation
+#     # method
+#     # subpath_single_service
+#     # subpath_check_customers
+#     # path_single_service
+#     # path_check_customers
+#     # check_customers_accelerated
+#     # christofides
+#     # ngroute
+#     # ngroute_alt
+#     # ngroute_neighborhood_charging_depots_size
+#     ("subpath", "ours", false, false, false, false, false,  true, false, false, "none"),
+#     ("subpath", "ours", false, false, false, false, false,  true,  true, false, "small"),
+#     ("subpath", "ours", false, false, false, false, false,  true,  true,  true, "small"),
+#     ("subpath", "ours", false, false, false, false, false,  true,  true, false, "large"),
+#     ("subpath", "ours", false, false, false, false, false,  true,  true,  true, "large"),
+#     ("subpath", "ours",  true,  true, false, false,  true,  true, false, false, "none"),
+#     ("subpath", "ours",  true,  true, false, false, false,  true, false, false, "none"),
+#     ("subpath", "ours",  true,  true,  true,  true,  true,  true, false, false, "none"),
+#     ("subpath", "ours",  true,  true,  true,  true, false,  true, false, false, "none"),
+#     ("path", "ours", false, false, false, false, false,  true, false, false, "none"),
+#     ("path", "ours", false, false, false, false, false,  true,  true, false, "small"),
+#     ("path", "ours", false, false, false, false, false,  true,  true,  true, "small"),
+#     ("path", "ours", false, false, false, false, false,  true,  true, false, "large"),
+#     ("path", "ours", false, false, false, false, false,  true,  true,  true, "large"),
+#     ("path", "ours",  true,  true, false, false, false,  true, false, false, "none"),
+#     ("path", "ours",  true,  true,  true,  true, false,  true, false, false, "none"),
+#     ("subpath", "benchmark", false, false, false, false, false,  true, false, false, "none"),
+#     ("subpath", "benchmark", false, false, false, false, false,  true,  true, false, "small"),
+#     ("subpath", "benchmark", false, false, false, false, false,  true,  true,  true, "small"),
+#     ("subpath", "benchmark", false, false, false, false, false,  true,  true, false, "large"),
+#     ("subpath", "benchmark", false, false, false, false, false,  true,  true,  true, "large"),
+#     ("path", "benchmark", false, false, false, false, false,  true, false, false, "none"),
+#     ("path", "benchmark", false, false, false, false, false,  true,  true, false, "small"),
+#     ("path", "benchmark", false, false, false, false, false,  true,  true,  true, "small"),
+#     ("path", "benchmark", false, false, false, false, false,  true,  true, false, "large"),
+#     ("path", "benchmark", false, false, false, false, false,  true,  true,  true, "large"),
+#     ("subpath", "benchmark", false, false,  true,  true, false, false, false, false, "none"),
+#     ("subpath", "benchmark", false, false,  true,  true,  true, false, false, false, "none"),
+#     ("path", "benchmark", false, false,  true,  true, false, false, false, false, "none"),
+# ]
+
 method_params = [
     # formulation
     # method
@@ -29,35 +73,35 @@ method_params = [
     # ngroute
     # ngroute_alt
     # ngroute_neighborhood_charging_depots_size
-    ("subpath", "ours", false, false, false, false, false,  true, false, false, "none"),
-    ("subpath", "ours", false, false, false, false, false,  true,  true, false, "small"),
-    ("subpath", "ours", false, false, false, false, false,  true,  true,  true, "small"),
-    ("subpath", "ours", false, false, false, false, false,  true,  true, false, "large"),
-    ("subpath", "ours", false, false, false, false, false,  true,  true,  true, "large"),
-    ("subpath", "ours",  true,  true, false, false,  true,  true, false, false, "none"),
-    ("subpath", "ours",  true,  true, false, false, false,  true, false, false, "none"),
-    ("subpath", "ours",  true,  true,  true,  true,  true,  true, false, false, "none"),
-    ("subpath", "ours",  true,  true,  true,  true, false,  true, false, false, "none"),
-    ("path", "ours", false, false, false, false, false,  true, false, false, "none"),
-    ("path", "ours", false, false, false, false, false,  true,  true, false, "small"),
-    ("path", "ours", false, false, false, false, false,  true,  true,  true, "small"),
-    ("path", "ours", false, false, false, false, false,  true,  true, false, "large"),
-    ("path", "ours", false, false, false, false, false,  true,  true,  true, "large"),
-    ("path", "ours",  true,  true, false, false, false,  true, false, false, "none"),
-    ("path", "ours",  true,  true,  true,  true, false,  true, false, false, "none"),
-    ("subpath", "benchmark", false, false, false, false, false,  true, false, false, "none"),
-    ("subpath", "benchmark", false, false, false, false, false,  true,  true, false, "small"),
-    ("subpath", "benchmark", false, false, false, false, false,  true,  true,  true, "small"),
-    ("subpath", "benchmark", false, false, false, false, false,  true,  true, false, "large"),
-    ("subpath", "benchmark", false, false, false, false, false,  true,  true,  true, "large"),
     ("path", "benchmark", false, false, false, false, false,  true, false, false, "none"),
-    ("path", "benchmark", false, false, false, false, false,  true,  true, false, "small"),
-    ("path", "benchmark", false, false, false, false, false,  true,  true,  true, "small"),
     ("path", "benchmark", false, false, false, false, false,  true,  true, false, "large"),
+    ("path", "benchmark", false, false, false, false, false,  true,  true, false, "small"),
     ("path", "benchmark", false, false, false, false, false,  true,  true,  true, "large"),
-    ("subpath", "benchmark", false, false,  true,  true, false, false, false, false, "none"),
-    ("subpath", "benchmark", false, false,  true,  true,  true, false, false, false, "none"),
-    ("path", "benchmark", false, false,  true,  true, false, false, false, false, "none"),
+    ("path", "benchmark", false, false, false, false, false,  true,  true,  true, "small"),
+    # ("path", "benchmark", false, false,  true,  true, false, false, false, false, "none"), #
+    ("path", "ours", false, false, false, false, false,  true, false, false, "none"),
+    ("path", "ours", false, false, false, false, false,  true,  true, false, "large"),
+    ("path", "ours", false, false, false, false, false,  true,  true, false, "small"),
+    ("path", "ours", false, false, false, false, false,  true,  true,  true, "large"),
+    ("path", "ours", false, false, false, false, false,  true,  true,  true, "small"),
+    ("path", "ours",  true,  true, false, false, false,  true, false, false, "none"),
+    # ("path", "ours",  true,  true,  true,  true, false,  true, false, false, "none"), #
+    ("subpath", "benchmark", false, false, false, false, false,  true, false, false, "none"),
+    ("subpath", "benchmark", false, false, false, false, false,  true,  true, false, "large"),
+    ("subpath", "benchmark", false, false, false, false, false,  true,  true, false, "small"),
+    ("subpath", "benchmark", false, false, false, false, false,  true,  true,  true, "large"),
+    ("subpath", "benchmark", false, false, false, false, false,  true,  true,  true, "small"),
+    # ("subpath", "benchmark", false, false,  true,  true, false, false, false, false, "none"), #
+    # ("subpath", "benchmark", false, false,  true,  true,  true, false, false, false, "none"), #
+    ("subpath", "ours", false, false, false, false, false,  true, false, false, "none"),
+    ("subpath", "ours", false, false, false, false, false,  true,  true, false, "large"),
+    ("subpath", "ours", false, false, false, false, false,  true,  true, false, "small"),
+    ("subpath", "ours", false, false, false, false, false,  true,  true,  true, "large"),
+    ("subpath", "ours", false, false, false, false, false,  true,  true,  true, "small"),
+    ("subpath", "ours",  true,  true, false, false, false,  true, false, false, "none"),
+    ("subpath", "ours",  true,  true, false, false,  true,  true, false, false, "none"),
+    # ("subpath", "ours",  true,  true,  true,  true, false,  true, false, false, "none"), #
+    # ("subpath", "ours",  true,  true,  true,  true,  true,  true, false, false, "none"), #
 ]
 
 args_df = DataFrame(
@@ -117,22 +161,23 @@ for data_param in data_params, seed in seed_range
         )
     end
 end
-# results_df = vcat(
-#     [
-#         CSV.read(filepath, DataFrame)
-#         for filepath in glob("experiments/subpath_path/02/combined_*.csv")
-#     ]...
-# ) |>
-#     x -> select(
-#         x, 
-#         names(args_df)
-#     )
-# new_args_df = antijoin(
-#     args_df, 
-#     results_df, 
-#     on = names(results_df)
-# )
-new_args_df = args_df
+args_df
+results_df = vcat(
+    [
+        CSV.read(filepath, DataFrame)
+        for filepath in glob("experiments/subpath_path/03/rundata/*.csv")
+    ]...
+) |>
+    x -> select(
+        x, 
+        names(args_df)
+    )
+new_args_df = antijoin(
+    args_df, 
+    results_df, 
+    on = names(results_df)
+)
+# new_args_df = args_df
 sort!(
     new_args_df,
     [
@@ -148,4 +193,8 @@ sort!(
         order(:check_customers_accelerated, rev = true),
     ]
 )
-CSV.write("$(@__DIR__)/args.csv", new_args_df)
+CSV.write(
+    "$(@__DIR__)/args.csv", 
+    new_args_df,
+    # append = true,
+)

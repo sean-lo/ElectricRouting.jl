@@ -25,132 +25,139 @@ methodnames = [
     :ngroute_neighborhood_charging_depots_size, 
 ]
 
-tall_results_df = vcat(
-    [CSV.read(filepath, DataFrame)
-    for filepath in glob("experiments/subpath_path/02/combined_*.csv")]...
-) |>
-    x -> sort(x, vcat(idnames, methodnames, [:seed]))
+(tall_results_df 
+    = vcat(
+        [CSV.read(filepath, DataFrame)
+        for filepath in glob("experiments/subpath_path/03/rundata/*.csv")]...
+    ) 
+    |> x -> sort(x, vcat(idnames, methodnames, [:seed]))
+    |> x -> unique(x, vcat(idnames, methodnames, [:seed]))
+)
 
 tall_results_df[!, :idname] = join.(eachrow(tall_results_df[!, idnames]), "_")
 tall_results_df[!, :methodname] = join.(eachrow(tall_results_df[!, methodnames]), "_")
 
-groupby(tall_results_df, vcat(:idname, :methodname)) |>
-    x -> combine(x, nrow, :time_taken => mean) |>
-    x -> select(x, :time_taken_mean, :nrow, :idname, :methodname) |>
-    x -> sort(x, :idname) |>
-    x -> unstack(x, :methodname, :idname, :nrow) |>
-    x -> CSV.write("$(@__DIR__)/nrow.csv", x)
+tall_results_df.LP_objective = ifelse.(tall_results_df.LP_objective .> 1e8, Inf, tall_results_df.LP_objective)
+tall_results_df.IP_objective = ifelse.(tall_results_df.IP_objective .> 1e8, Inf, tall_results_df.IP_objective)
 
-groupby(tall_results_df, vcat(:idname, :methodname)) |>
-    x -> combine(x, nrow, :time_taken => mean) |>
-    x -> select(x, :time_taken_mean, :nrow, :idname, :methodname) |>
-    x -> sort(x, :idname) |>
-    x -> unstack(x, :methodname, :idname, :time_taken_mean) |>
-    x -> hcat(x[!, 1], round.(x[!, 2:end], sigdigits = 5)) |>
-    x -> CSV.write("$(@__DIR__)/time_taken.csv", x)
+n20_results_df = filter(
+    r -> r.n_customers == 20,
+    tall_results_df, 
+)
 
+(cdf = groupby(n20_results_df, vcat(:idname, :methodname)) 
+    |> x -> combine(
+        x, 
+        nrow, 
+        :time_taken => mean => :time_taken_mean,
+        :LP_IP_gap => mean => :LP_IP_gap_mean,
+    ) 
+    |> x -> select(x, 
+        :time_taken_mean, 
+        :nrow, 
+        :LP_IP_gap_mean, 
+        :idname, 
+        :methodname,
+    ) 
+    |> x -> sort(x, :idname)
+) 
+(cdf 
+    |> x -> unstack(x, :methodname, :idname, :nrow) 
+    |> x -> CSV.write("$(@__DIR__)/results/20_nrow.csv", x)
+)
+(cdf 
+    |> x -> unstack(x, :methodname, :idname, :time_taken_mean) 
+    |> x -> hcat(x[!, 1], round.(x[!, 2:end], sigdigits = 5)) 
+    |> x -> CSV.write("$(@__DIR__)/results/20_time_taken.csv", x)
+)
+(cdf 
+    |> x -> unstack(x, :methodname, :idname, :LP_IP_gap_mean) 
+    |> x -> hcat(x[!, 1], round.(x[!, 2:end], sigdigits = 3)) 
+    |> x -> CSV.write("$(@__DIR__)/results/20_LP_IP_gap.csv", x)
+)
 
-time_results_df = unstack(tall_results_df, vcat(idnames, [:seed]), :methodname, :time_taken)
-LP_objective_results_df = unstack(tall_results_df, vcat(idnames, [:seed]), :methodname, :LP_objective)
-IP_objective_results_df = unstack(tall_results_df, vcat(idnames, [:seed]), :methodname, :IP_objective)
-
-
-# Objective tests
-l = collect(skipmissing(LP_objective_results_df[!, :benchmark_false_false_false_false_false] .- 1e-4 .≤ LP_objective_results_df[!, :benchmark_false_false_true_true_false]))
-count(l) / length(l)
-l = collect(skipmissing(LP_objective_results_df[!, :benchmark_false_false_true_true_false] .- 1e-4 .≤ LP_objective_results_df[!, :benchmark_false_false_true_false_false]))
-count(l) / length(l)
-
-l = collect(skipmissing(LP_objective_results_df[!, :benchmark_false_false_true_true_false] .- 1e-4 .≤ LP_objective_results_df[!, :benchmark_false_false_true_true_true]))
-count(l) / length(l)
-
-# TODO: investigate
-l = collect(skipmissing(LP_objective_results_df[!, :benchmark_false_false_true_true_false] .≈ LP_objective_results_df[!, :benchmark_false_false_true_true_true]))
-count(l) / length(l)
-
-l = collect(skipmissing(LP_objective_results_df[!, :ours_false_false_false_false_false] .- 1e-4 .≤ LP_objective_results_df[!, :ours_true_true_false_false_false]))
-count(l) / length(l)
-
-l = collect(skipmissing(LP_objective_results_df[!, :ours_true_true_false_false_false] .- 1e-4 .≤ LP_objective_results_df[!, :ours_true_false_false_false_false]))
-count(l) / length(l)
-
-l = collect(skipmissing(LP_objective_results_df[!, :ours_true_true_false_false_false] .≈ LP_objective_results_df[!, :ours_true_true_false_false_true]))
-count(l) / length(l)
-
-l = collect(skipmissing(LP_objective_results_df[!, :ours_true_true_false_false_false] .- 1e-4 .≤ LP_objective_results_df[!, :ours_true_false_false_false_false]))
-count(l) / length(l)
-
-l = collect(skipmissing(LP_objective_results_df[!, :ours_true_true_false_false_false] .- 1e-4 .≤ LP_objective_results_df[!, :ours_true_true_true_true_false]))
-count(l) / length(l)
-
-# TODO: investigate
-l = collect(skipmissing(LP_objective_results_df[!, :ours_true_true_true_true_false] .- 1e-4 .≤ LP_objective_results_df[!, :ours_true_false_true_false_false]))
-count(l) / length(l)
-
-# TODO: investigate
-l = collect(skipmissing(LP_objective_results_df[!, :ours_true_true_true_true_false] .≈ LP_objective_results_df[!, :ours_true_true_true_true_true]))
-count(l) / length(l)
-
-LP_objective_results_df[!, :b_b_sc_ratio] .= LP_objective_results_df[!, :benchmark_false_false_false_false_false] ./ LP_objective_results_df[!, :benchmark_false_false_true_true_false]
-LP_objective_results_df[!, :b_s_b_sc_ratio] .= LP_objective_results_df[!, :benchmark_false_false_true_false_false] ./ LP_objective_results_df[!, :benchmark_false_false_true_true_false]
-LP_objective_results_df[!, :b_sca_b_sc_ratio] .= LP_objective_results_df[!, :benchmark_false_false_true_true_true] ./ LP_objective_results_df[!, :benchmark_false_false_true_true_false]
-LP_objective_results_df[!, :o_b_sc_ratio] .= LP_objective_results_df[!, :ours_false_false_false_false_false] ./ LP_objective_results_df[!, :benchmark_false_false_true_true_false]
-LP_objective_results_df[!, :o_s_b_sc_ratio] .= LP_objective_results_df[!, :ours_true_false_false_false_false] ./ LP_objective_results_df[!, :benchmark_false_false_true_true_false]
-LP_objective_results_df[!, :o_sc_b_sc_ratio] .= LP_objective_results_df[!, :ours_true_true_false_false_false] ./ LP_objective_results_df[!, :benchmark_false_false_true_true_false]
-LP_objective_results_df[!, :o_sca_b_sc_ratio] .= LP_objective_results_df[!, :ours_true_true_false_false_true] ./ LP_objective_results_df[!, :benchmark_false_false_true_true_false]
-LP_objective_results_df[!, :o_ss_b_sc_ratio] .= LP_objective_results_df[!, :ours_true_false_true_false_false] ./ LP_objective_results_df[!, :benchmark_false_false_true_true_false]
-LP_objective_results_df[!, :o_scsc_b_sc_ratio] .= LP_objective_results_df[!, :ours_true_true_true_true_false] ./ LP_objective_results_df[!, :benchmark_false_false_true_true_false]
-LP_objective_results_df[!, :o_scsca_b_sc_ratio] .= LP_objective_results_df[!, :ours_true_true_true_true_true] ./ LP_objective_results_df[!, :benchmark_false_false_true_true_false]
-
-mgdf = groupby(tall_results_df, vcat(idnames, [:seed]))
-
-for g in mgdf
-    valdf = filter(
-        r -> (
-            r.method == "benchmark" 
-            && r.path_single_service 
-            && r.path_check_customers
-            && !r.check_customers_accelerated
-        ),
-        g
+(pslength_metrics = n20_results_df 
+    |> x -> filter(
+        r -> (r.LP_objective != Inf && !r.time_limit_reached),
+        x,
     )
-    if nrow(valdf) > 0
-        val = valdf[1, :LP_objective]
-        g[!, :b_sc_ratio] = g[!, :LP_objective] ./ val
-    else
-        g[!, :b_sc_ratio] .= missing
-    end
-end
+    |> x -> groupby(x, idnames) 
+    |> x -> combine(x, 
+        nrow,
+        :lp_weighted_mean_subpath_length 
+        => (x -> mean(filter(!isnan, skipmissing(x))))
+        => :lp_weighted_mean_subpath_length_mean,
+        :lp_weighted_mean_path_length 
+        => (x -> mean(filter(!isnan, skipmissing(x))))
+        => :lp_weighted_mean_path_length_mean,
+        :lp_weighted_mean_ps_length 
+        => (x -> mean(filter(!isnan, skipmissing(x))))
+        => :lp_weighted_mean_ps_length_mean,
+    )
+)
+(pslength_metrics 
+    |> x -> hcat(x[!, 1:end-5], round.(x[!, end-4:end], sigdigits = 3)) 
+    |> x -> CSV.write("$(@__DIR__)/results/20_pslength_metrics.csv", x)
+)
 
-# tall_results_df[!, [idnames..., methodnames..., :seed, :b_sc_ratio]] |>
-#     x -> dropmissing(x, :b_sc_ratio) |>
-#     x -> filter(
-#         r -> (
-#             r.b_sc_ratio > 1
-#             && (r.subpath_check_customers || r.path_check_customers)
-#         ), x)
+t4_results_df = filter(
+    r -> (
+        r.T == 40000
+    ),
+    tall_results_df
+)
 
-full_gdf = groupby(tall_results_df, vcat(idnames, methodnames))
-full_combine_df = combine(
-    full_gdf,
-    :n_depots => first => :n_depots,
-    :n_vehicles => first => :n_vehicles,
-    nrow, 
-    :time_taken .=> [median, std],
-    :b_sc_ratio => median,
-    # :sp_base_time_taken_total .=> [median, std],
-    # :sp_full_time_taken_total .=> [median, std],
-) |>
-    x -> select(x, [:n_depots, :n_customers, :n_charging, :n_vehicles], All())
+(cdf = groupby(t4_results_df, vcat(:idname, :methodname)) 
+    |> x -> combine(
+        x, 
+        nrow, 
+        :time_taken => mean => :time_taken_mean,
+        :LP_IP_gap => mean => :LP_IP_gap_mean,
+    ) 
+    |> x -> select(x, 
+        :time_taken_mean, 
+        :nrow, 
+        :LP_IP_gap_mean, 
+        :idname, 
+        :methodname,
+    ) 
+    |> x -> sort(x, :idname)
+)
+(cdf 
+    |> x -> unstack(x, :methodname, :idname, :nrow) 
+    |> x -> CSV.write("$(@__DIR__)/results/4_nrow.csv", x)
+)
+(cdf 
+    |> x -> unstack(x, :methodname, :idname, :time_taken_mean) 
+    |> x -> hcat(x[!, 1], round.(x[!, 2:end], sigdigits = 5)) 
+    |> x -> CSV.write("$(@__DIR__)/results/4_time_taken.csv", x)
+)
+(cdf 
+    |> x -> unstack(x, :methodname, :idname, :LP_IP_gap_mean) 
+    |> x -> hcat(x[!, 1], round.(x[!, 2:end], sigdigits = 3)) 
+    |> x -> CSV.write("$(@__DIR__)/results/4_LP_IP_gap.csv", x)
+)
 
-gdf = groupby(full_combine_df, idnames)
-
-gdf[1]
-gdf[2]
-gdf[3]
-gdf[4]
-
-gdf[4]
-gdf[5]
-gdf[6]
-gdf[7]
+(pslength_metrics = t4_results_df 
+    |> x -> filter(
+        r -> (r.LP_objective != Inf && !r.time_limit_reached),
+        x,
+    )
+    |> x -> groupby(x, idnames) 
+    |> x -> combine(x, 
+        nrow,
+        :lp_weighted_mean_subpath_length 
+        => (x -> mean(filter(!isnan, skipmissing(x))))
+        => :lp_weighted_mean_subpath_length_mean,
+        :lp_weighted_mean_path_length 
+        => (x -> mean(filter(!isnan, skipmissing(x))))
+        => :lp_weighted_mean_path_length_mean,
+        :lp_weighted_mean_ps_length 
+        => (x -> mean(filter(!isnan, skipmissing(x))))
+        => :lp_weighted_mean_ps_length_mean,
+    )
+)
+(pslength_metrics 
+    |> x -> hcat(x[!, 1:end-5], round.(x[!, end-4:end], sigdigits = 3)) 
+    |> x -> CSV.write("$(@__DIR__)/results/4_pslength_metrics.csv", x)
+)
