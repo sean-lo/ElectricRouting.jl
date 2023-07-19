@@ -9,6 +9,7 @@ function arc_formulation(
     ;
     with_time_windows::Bool = false,
     with_charging::Bool = false,
+    with_load::Bool = false,
     integral::Bool = true,
     time_limit::Union{Float64, Int} = 60.0,
     formulate_only::Bool = false,
@@ -35,8 +36,10 @@ function arc_formulation(
 
     c = data.c
     t = data.t
-    d = data.d
-    C = data.C
+    if with_load
+        d = data.d
+        C = data.C
+    end
 
     T = data.T
     A = data.A
@@ -58,8 +61,10 @@ function arc_formulation(
     end
     @variable(model, τ_reach[N_nodes, N_vehicles] ≥ 0)
     @variable(model, τ_leave[N_nodes, N_vehicles] ≥ 0)
-    @variable(model, l_reach[N_nodes, N_vehicles] ≥ 0)
-    @variable(model, l_leave[N_nodes, N_vehicles] ≥ 0)
+    if with_load
+        @variable(model, l_reach[N_nodes, N_vehicles] ≥ 0)
+        @variable(model, l_leave[N_nodes, N_vehicles] ≥ 0)
+    end
     if with_charging
         @variable(model, b_start[N_nodes, N_vehicles] ≥ 0)
         @variable(model, b_end[N_nodes, N_vehicles] ≥ 0)
@@ -151,32 +156,34 @@ function arc_formulation(
         ); # (1n): time window constraints
     end
     
-    @constraint(
-        model,
-        [i ∈ N_depots, k ∈ N_vehicles],
-        l_leave[i,k] == 0
-    ); # (1o): load leaving depot
-    @constraint(
-        model,
-        [(i,j) in keys(A), k ∈ N_vehicles],
-        l_reach[j,k] ≥ l_leave[i,k] - (1 - x[(i,j),k]) * 2 * C,
-    ); # (1p, 1q, 1r): load after serving a node
-    @constraint(
-        model,
-        [j in setdiff(N_nodes, N_depots), k in N_vehicles],
-        l_leave[j,k] == l_reach[j,k] + d[j]
-    );
-    @constraint(
-        model,
-        [i ∈ N_nodes, k ∈ N_vehicles],
-        0 ≤ l_leave[i,k] ≤ C,
-    ); # (1s): load within capacity
-    @constraint(
-        model,
-        [i ∈ N_nodes, k ∈ N_vehicles],
-        0 ≤ l_reach[i,k] ≤ C,
-    ); # (1s): load within capacity
-    
+    if with_load
+        @constraint(
+            model,
+            [i ∈ N_depots, k ∈ N_vehicles],
+            l_leave[i,k] == 0
+        ); # (1o): load leaving depot
+        @constraint(
+            model,
+            [(i,j) in keys(A), k ∈ N_vehicles],
+            l_reach[j,k] ≥ l_leave[i,k] - (1 - x[(i,j),k]) * 2 * C,
+        ); # (1p, 1q, 1r): load after serving a node
+        @constraint(
+            model,
+            [j in setdiff(N_nodes, N_depots), k in N_vehicles],
+            l_leave[j,k] == l_reach[j,k] + d[j]
+        );
+        @constraint(
+            model,
+            [i ∈ N_nodes, k ∈ N_vehicles],
+            0 ≤ l_leave[i,k] ≤ C,
+        ); # (1s): load within capacity
+        @constraint(
+            model,
+            [i ∈ N_nodes, k ∈ N_vehicles],
+            0 ≤ l_reach[i,k] ≤ C,
+        ); # (1s): load within capacity
+    end
+
     if with_charging
         @constraint(
             model,
@@ -286,8 +293,10 @@ function arc_formulation(
         results["x"] = value.(x[:,:])
         results["τ_reach"] = value.(τ_reach[:,:])
         results["τ_leave"] = value.(τ_leave[:,:])
-        results["l_reach"] = value.(l_reach[:,:])
-        results["l_leave"] = value.(l_leave[:,:])
+        if with_load
+            results["l_reach"] = value.(l_reach[:,:])
+            results["l_leave"] = value.(l_leave[:,:])
+        end
         if with_charging
             results["total_charge_cost"] = value.(total_charge_cost)
             results["b_start"] = value.(b_start)
