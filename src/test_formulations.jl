@@ -10,9 +10,9 @@ using Test
 data = generate_instance(
     ;
     n_depots = 4,
-    n_customers = 16,
-    n_charging = 9,
-    n_vehicles = 7,
+    n_customers = 10,
+    n_charging = 7,
+    n_vehicles = 6,
     depot_pattern = "circular",    
     customer_pattern = "random_box",
     charging_pattern = "circular_packing",
@@ -27,10 +27,14 @@ data = generate_instance(
     load_scale = 5.0,
     load_shape = 20.0,
     load_tolerance = 1.3,
-    batch = 4,
+    batch = 1,
     permissiveness = 0.2,
 )
 plot_instance(data)
+
+
+a_LP_results, a_LP_params = arc_formulation(data, with_charging = true, integral = false)
+a_IP_results, a_IP_params = arc_formulation(data, with_charging = true, integral = true, time_limit = 600)
 
 p_b_LP_results, p_b_IP_results, p_b_params, p_b_printlist, p_b_some_paths = path_formulation_column_generation(data; method = "benchmark", verbose = true);
 p_b_s_LP_results, p_b_s_IP_results, p_b_s_params, p_b_s_printlist, p_b_s_some_paths = path_formulation_column_generation(data; method = "benchmark", path_single_service = true, verbose = true)
@@ -182,6 +186,7 @@ collect_subpath_solution_metrics!(sp_o_ngl_ch_LP_results, data, sp_o_ngl_ch_some
 collect_subpath_solution_metrics!(sp_o_ngsa_ch_LP_results, data, sp_o_ngsa_ch_some_subpaths, sp_o_ngsa_ch_some_charging_arcs)
 collect_subpath_solution_metrics!(sp_o_ngla_ch_LP_results, data, sp_o_ngla_ch_some_subpaths, sp_o_ngla_ch_some_charging_arcs)
 
+a_LP_results["objective"]
 
 p_b_LP_results["objective"]
 p_b_s_LP_results["objective"]
@@ -526,6 +531,7 @@ sp_o_ngla_ch_params["time_taken"]
 
 
 @printf("                                                               \t\tno 2-cycles\n")
+@printf("arc formulation                                                %8.1f\t    ----\n", a_LP_results["objective"])
 @printf("path, benchmark:                                               %8.1f\t%8.1f\n", p_b_LP_results["objective"], p_b_ch_LP_results["objective"])
 @printf("path, benchmark, elementary:                                   %8.1f\t    ----\n", p_b_sc_LP_results["objective"])
 @printf("path, benc, ng-route relaxation (small N at depots/CS):        %8.1f\t%8.1f\n", p_b_ngs_LP_results["objective"], p_b_ngs_ch_LP_results["objective"])
@@ -560,6 +566,7 @@ sp_o_ngla_ch_params["time_taken"]
 
 
 @printf("                                                               \t\tno 2-cycles\n")
+@printf("arc formulation                                                %8.1f\t    ----\n", a_IP_results["objective"])
 @printf("path, benchmark:                                               %8.1f\t%8.1f\n", p_b_IP_results["objective"], p_b_ch_IP_results["objective"])
 @printf("path, benchmark, elementary:                                   %8.1f\t    ----\n", p_b_sc_IP_results["objective"])
 @printf("path, benc, ng-route relaxation (small N at depots/CS):        %8.1f\t%8.1f\n", p_b_ngs_IP_results["objective"], p_b_ngs_ch_IP_results["objective"])
@@ -594,7 +601,16 @@ sp_o_ngla_ch_params["time_taken"]
 
 
 
+## Plotting
 
+include("subpath_formulation.jl")
+plot_subpath_solution(
+    sp_o_ngs_ch_LP_results, 
+    data, 
+    sp_o_ngs_ch_some_subpaths, 
+    sp_o_ngs_ch_some_charging_arcs,
+)
+sp_o_ngs_ch_LP_results["paths"]
 ## trial
 
 print.(p_b_ngs_printlist);
