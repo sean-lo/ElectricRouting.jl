@@ -62,12 +62,11 @@ data = generate_instance(
     batch = batch,
     permissiveness = permissiveness,
 )
-G = construct_graph(data)
 
 (
     r_LP_results, r_IP_results, r_params, r_printlist, r_subpaths, r_charging_arcs
 ) = subpath_formulation_column_generation_integrated_from_paths(
-    G, data, 
+    data, 
     method = method, 
     subpath_single_service = subpath_single_service,
     subpath_check_customers = subpath_check_customers,
@@ -97,7 +96,7 @@ while true
     end
     pathlist = []
     current_states = [
-        (depot, 0.0, data["B"]) for depot in data["N_depots"]
+        (depot, 0.0, data.B) for depot in data.N_depots
     ]
     while true
     # begin
@@ -111,7 +110,7 @@ while true
         )
         (val, s) = results_subpaths[i]
         push!(pathlist, (val, i, s))
-        if s.current_node in data["N_depots"]
+        if s.current_node in data.N_depots
             break
             # println("oh no")
         end

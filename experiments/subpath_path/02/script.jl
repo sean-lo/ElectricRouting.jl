@@ -9,9 +9,10 @@ using DataFrames
 
 using JuMP, Gurobi
 
+sleep(rand() * 30.0)
 const GRB_ENV = Gurobi.Env()
 
-TIME_LIMIT = 3600.0
+const TIME_LIMIT_SEC = 3600.0
 
 # simple test case to quickly compile 
 begin
@@ -38,7 +39,6 @@ begin
         permissiveness = 0.7,
         data_dir = "../../../data/",
     )
-    sample_G = construct_graph(sample_data)
     method_params = [
         # formulation
         # method
@@ -86,7 +86,7 @@ begin
             (
                 LP_results, IP_results, cgparams, printlist, paths
             ) = path_formulation_column_generation(
-                sample_G, sample_data,
+                sample_data,
                 ;
                 Env = GRB_ENV, 
                 method = method_param[2],
@@ -98,13 +98,13 @@ begin
                 ngroute = method_param[9],
                 ngroute_alt = method_param[10],
                 ngroute_neighborhood_charging_depots_size = method_param[11],
-                time_limit = TIME_LIMIT,
+                time_limit = TIME_LIMIT_SEC,
             )
         elseif method_param[1] == "subpath"
             (
-                LP_results, IP_results, cgparams, printlist, paths
-            ) = path_formulation_column_generation(
-                sample_G, sample_data,
+                LP_results, IP_results, cgparams, printlist, subpaths, charging_arcs
+            ) = subpath_formulation_column_generation_integrated_from_paths(
+                sample_data,
                 ;
                 Env = GRB_ENV, 
                 method = method_param[2],
@@ -116,7 +116,7 @@ begin
                 ngroute = method_param[9],
                 ngroute_alt = method_param[10],
                 ngroute_neighborhood_charging_depots_size = method_param[11],
-                time_limit = TIME_LIMIT,
+                time_limit = TIME_LIMIT_SEC,
             )
         end
     end
@@ -192,13 +192,12 @@ for row_index in task_index:n_tasks:size(args_df, 1)
         permissiveness = permissiveness,
         data_dir = "../../../data/",
     )
-    G = construct_graph(data)
 
     if formulation == "subpath"
         (
             r_LP_results, r_IP_results, r_params, r_printlist, r_subpaths, r_charging_arcs
         ) = subpath_formulation_column_generation_integrated_from_paths(
-            G, data, 
+            data, 
             Env = GRB_ENV, 
             method = method, 
             time_windows = use_time_windows,
@@ -207,7 +206,11 @@ for row_index in task_index:n_tasks:size(args_df, 1)
             path_single_service = path_single_service,
             path_check_customers = path_check_customers,
             check_customers_accelerated = check_customers_accelerated,
-            time_limit = TIME_LIMIT,
+            christofides = christofides,
+            ngroute = ngroute,
+            ngroute_alt = ngroute_alt,
+            ngroute_neighborhood_charging_depots_size = ngroute_neighborhood_charging_depots_size,
+            time_limit = TIME_LIMIT_SEC,
         )
         try
             collect_subpath_solution_metrics!(r_LP_results, data, r_subpaths, r_charging_arcs)
@@ -219,7 +222,7 @@ for row_index in task_index:n_tasks:size(args_df, 1)
         (
             r_LP_results, r_IP_results, r_params, r_printlist, r_paths
         ) = path_formulation_column_generation(
-            G, data, 
+            data, 
             Env = GRB_ENV, 
             method = method, 
             time_windows = use_time_windows,
@@ -227,7 +230,11 @@ for row_index in task_index:n_tasks:size(args_df, 1)
             subpath_check_customers = subpath_check_customers,
             path_single_service = path_single_service,
             path_check_customers = path_check_customers,
-            time_limit = TIME_LIMIT,
+            time_limit = TIME_LIMIT_SEC,
+            christofides = christofides,
+            ngroute = ngroute,
+            ngroute_alt = ngroute_alt,
+            ngroute_neighborhood_charging_depots_size = ngroute_neighborhood_charging_depots_size,
         )
         try
             collect_path_solution_metrics!(r_LP_results, data, r_paths)

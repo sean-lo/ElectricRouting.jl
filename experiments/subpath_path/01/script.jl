@@ -35,71 +35,70 @@ begin
         batch = 5,
         permissiveness = 0.7,
     )
-    sample_G = construct_graph(sample_data)
     (
         p_b_LP_results, p_b_IP_results, p_b_params, p_b_printlist, p_b_paths
     ) = path_formulation_column_generation(
-        sample_G, sample_data, 
+        sample_data, 
         Env = GRB_ENV, method = "benchmark",
     )
     (
         p_b_s_LP_results, p_b_s_IP_results, p_b_s_params, p_b_s_printlist, p_b_s_paths
     ) = path_formulation_column_generation(
-        sample_G, sample_data, 
+        sample_data, 
         Env = GRB_ENV, method = "benchmark", 
         path_single_service = true,
     )
     (
         p_b_sc_LP_results, p_b_sc_IP_results, p_b_sc_params, p_b_sc_printlist, p_b_sc_paths
     ) = path_formulation_column_generation(
-        sample_G, sample_data, 
+        sample_data, 
         Env = GRB_ENV, method = "benchmark", 
         path_single_service = true, path_check_customers = true,
     )
     (
         p_b_tw_LP_results, p_b_tw_IP_results, p_b_tw_params, p_b_tw_printlist, p_b_tw_paths
     ) = path_formulation_column_generation(
-        sample_G, sample_data, 
+        sample_data, 
         Env = GRB_ENV, method = "benchmark", time_windows = true,
     )
     (
         p_b_tw_s_LP_results, p_b_tw_s_IP_results, p_b_tw_s_params, p_b_tw_s_printlist, p_b_tw_s_paths
     ) = path_formulation_column_generation(
-        sample_G, sample_data, 
+        sample_data, 
         Env = GRB_ENV, method = "benchmark", time_windows = true,
         path_single_service = true,
     )
     (
         p_b_tw_sc_LP_results, p_b_tw_sc_IP_results, p_b_tw_sc_params, p_b_tw_sc_printlist, p_b_tw_sc_paths
     ) = path_formulation_column_generation(
-        sample_G, sample_data, 
+        sample_data, 
         Env = GRB_ENV, method = "benchmark", time_windows = true,
         path_single_service = true, path_check_customers = true,
     )
     (
         p_o_LP_results, p_o_IP_results, p_o_params, p_o_printlist, p_o_paths
     ) = path_formulation_column_generation(
-        sample_G, sample_data, 
+        sample_data, 
         Env = GRB_ENV, method = "ours",
     )
     (
         p_o_s_LP_results, p_o_s_IP_results, p_o_s_params, p_o_s_printlist, p_o_s_paths
     ) = path_formulation_column_generation(
-        sample_G, sample_data, 
+        sample_data, 
         Env = GRB_ENV, method = "ours", 
         subpath_single_service = true,
     )
     (
         p_o_sc_LP_results, p_o_sc_IP_results, p_o_sc_params, p_o_sc_printlist, p_o_sc_paths
     ) = path_formulation_column_generation(
-        sample_G, sample_data, 
+        sample_data, 
         Env = GRB_ENV, method = "ours", 
         subpath_single_service = true, subpath_check_customers = true,
     )
     (
         p_o_ss_LP_results, p_o_ss_IP_results, p_o_ss_params, p_o_ss_printlist, p_o_ss_paths
     ) = path_formulation_column_generation(
-        sample_G, sample_data, 
+        sample_data, 
         Env = GRB_ENV, method = "ours", 
         subpath_single_service = true,
         path_single_service = true,
@@ -107,7 +106,7 @@ begin
     (
         p_o_scsc_LP_results, p_o_scsc_IP_results, p_o_scsc_params, p_o_scsc_printlist, p_o_scsc_paths
     ) = path_formulation_column_generation(
-        sample_G, sample_data, 
+        sample_data, 
         Env = GRB_ENV, method = "ours", 
         subpath_single_service = true, subpath_check_customers = true,
         path_single_service = true, path_check_customers = true,
@@ -115,81 +114,81 @@ begin
     (
         sp_b_LP_results, sp_b_IP_results, sp_b_params, sp_b_printlist, sp_b_subpaths, sp_b_charging_arcs
     ) = subpath_formulation_column_generation_integrated_from_paths(
-        sample_G, sample_data, 
+        sample_data, 
         Env = GRB_ENV, method = "benchmark",
     )
     (
         sp_b_s_LP_results, sp_b_s_IP_results, sp_b_s_params, sp_b_s_printlist, sp_b_s_subpaths, sp_b_s_charging_arcs
     ) = subpath_formulation_column_generation_integrated_from_paths(
-        sample_G, sample_data, 
+        sample_data, 
         Env = GRB_ENV, method = "benchmark", 
         path_single_service = true,
     )
     (
         sp_b_sc_LP_results, sp_b_sc_IP_results, sp_b_sc_params, sp_b_sc_printlist, sp_b_sc_subpaths, sp_b_sc_charging_arcs
     ) = subpath_formulation_column_generation_integrated_from_paths(
-        sample_G, sample_data, 
+        sample_data, 
         Env = GRB_ENV, method = "benchmark", 
         path_single_service = true, path_check_customers = true,
     )
     (
         sp_b_sca_LP_results, sp_b_sca_IP_results, sp_b_sca_params, sp_b_sca_printlist, sp_b_sca_subpaths, sp_b_sca_charging_arcs
     ) = subpath_formulation_column_generation_integrated_from_paths(
-        sample_G, sample_data, 
+        sample_data, 
         Env = GRB_ENV, method = "benchmark", 
         path_single_service = true, path_check_customers = true, check_customers_accelerated = true
     )
     (
         sp_b_tw_LP_results, sp_b_tw_IP_results, sp_b_tw_params, sp_b_tw_printlist, sp_b_tw_subpaths, sp_b_tw_charging_arcs
     ) = subpath_formulation_column_generation_integrated_from_paths(
-        sample_G, sample_data, 
+        sample_data, 
         Env = GRB_ENV, method = "benchmark", time_windows = true,
     )
     (
         sp_b_tw_s_LP_results, sp_b_tw_s_IP_results, sp_b_tw_s_params, sp_b_tw_s_printlist, sp_b_tw_s_subpaths, sp_b_tw_s_charging_arcs
     ) = subpath_formulation_column_generation_integrated_from_paths(
-        sample_G, sample_data, 
+        sample_data, 
         Env = GRB_ENV, method = "benchmark", time_windows = true,
         path_single_service = true,
     )
     (
         sp_b_tw_sc_LP_results, sp_b_tw_sc_IP_results, sp_b_tw_sc_params, sp_b_tw_sc_printlist, sp_b_tw_sc_subpaths, sp_b_tw_sc_charging_arcs
     ) = subpath_formulation_column_generation_integrated_from_paths(
-        sample_G, sample_data, 
+        sample_data, 
         Env = GRB_ENV, method = "benchmark", time_windows = true,
         path_single_service = true, path_check_customers = true,
     )
     (
         sp_b_tw_sca_LP_results, sp_b_tw_sca_IP_results, sp_b_tw_sca_params, sp_b_tw_sca_printlist, sp_b_tw_sca_subpaths, sp_b_tw_sca_charging_arcs
     ) = subpath_formulation_column_generation_integrated_from_paths(
-        sample_G, sample_data, 
+        sample_data, 
         Env = GRB_ENV, method = "benchmark", time_windows = true,
         path_single_service = true, path_check_customers = true, check_customers_accelerated = true
     )
     (
         sp_o_LP_results, sp_o_IP_results, sp_o_params, sp_o_printlist, sp_o_subpaths, sp_o_charging_arcs
     ) = subpath_formulation_column_generation_integrated_from_paths(
-        sample_G, sample_data, 
+        sample_data, 
         Env = GRB_ENV, method = "ours",
     )
     (
         sp_o_s_LP_results, sp_o_s_IP_results, sp_o_s_params, sp_o_s_printlist, sp_o_s_subpaths, sp_o_s_charging_arcs
     ) = subpath_formulation_column_generation_integrated_from_paths(
-        sample_G, sample_data, 
+        sample_data, 
         Env = GRB_ENV, method = "ours", 
         subpath_single_service = true,
     )
     (
         sp_o_sc_LP_results, sp_o_sc_IP_results, sp_o_sc_params, sp_o_sc_printlist, sp_o_sc_subpaths, sp_o_sc_charging_arcs
     ) = subpath_formulation_column_generation_integrated_from_paths(
-        sample_G, sample_data, 
+        sample_data, 
         Env = GRB_ENV, method = "ours", 
         subpath_single_service = true, subpath_check_customers = true,
     )
     (
         sp_o_sca_LP_results, sp_o_sca_IP_results, sp_o_sca_params, sp_o_sca_printlist, sp_o_sca_subpaths, sp_o_sca_charging_arcs
     ) = subpath_formulation_column_generation_integrated_from_paths(
-        sample_G, sample_data, 
+        sample_data, 
         Env = GRB_ENV, method = "ours", 
         subpath_single_service = true, subpath_check_customers = true, 
         check_customers_accelerated = true,
@@ -197,7 +196,7 @@ begin
     (
         sp_o_ss_LP_results, sp_o_ss_IP_results, sp_o_ss_params, sp_o_ss_printlist, sp_o_ss_subpaths, sp_o_ss_charging_arcs
     ) = subpath_formulation_column_generation_integrated_from_paths(
-        sample_G, sample_data, 
+        sample_data, 
         Env = GRB_ENV, method = "ours", 
         subpath_single_service = true,
         path_single_service = true,
@@ -205,7 +204,7 @@ begin
     (
         sp_o_scsc_LP_results, sp_o_scsc_IP_results, sp_o_scsc_params, sp_o_scsc_printlist, sp_o_scsc_subpaths, sp_o_scsc_charging_arcs
     ) = subpath_formulation_column_generation_integrated_from_paths(
-        sample_G, sample_data, 
+        sample_data, 
         Env = GRB_ENV, method = "ours", 
         subpath_single_service = true, subpath_check_customers = true,
         path_single_service = true, path_check_customers = true,
@@ -213,7 +212,7 @@ begin
     (
         sp_o_scsca_LP_results, sp_o_scsca_IP_results, sp_o_scsca_params, sp_o_scsca_printlist, sp_o_scsca_subpaths, sp_o_scsca_charging_arcs
     ) = subpath_formulation_column_generation_integrated_from_paths(
-        sample_G, sample_data, 
+        sample_data, 
         Env = GRB_ENV, method = "ours", 
         subpath_single_service = true, subpath_check_customers = true, 
         path_single_service = true, path_check_customers = true,
@@ -286,13 +285,12 @@ for row_index in task_index:n_tasks:size(args_df, 1)
         batch = batch,
         permissiveness = permissiveness,
     )
-    G = construct_graph(data)
 
     if formulation == "subpath"
         (
             r_LP_results, r_IP_results, r_params, r_printlist, r_subpaths, r_charging_arcs
         ) = subpath_formulation_column_generation_integrated_from_paths(
-            G, data, 
+            data, 
             Env = GRB_ENV, 
             method = method, 
             time_windows = use_time_windows,
@@ -312,7 +310,7 @@ for row_index in task_index:n_tasks:size(args_df, 1)
         (
             r_LP_results, r_IP_results, r_params, r_printlist, r_paths
         ) = path_formulation_column_generation(
-            G, data, 
+            data, 
             Env = GRB_ENV, 
             method = method, 
             time_windows = use_time_windows,

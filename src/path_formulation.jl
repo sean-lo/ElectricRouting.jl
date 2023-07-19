@@ -7,45 +7,47 @@ include("utils.jl")
 include("desaulniers_benchmark.jl")
 include("subpath_stitching.jl")
 
-function generate_artificial_paths(data)
+function generate_artificial_paths(
+    data::EVRPData,
+)
     artificial_paths = Dict{
         Tuple{Tuple{Int, Int, Int}, Tuple{Int, Int, Int}},
         Vector{Path},
     }()
-    start_depots = zeros(Int, data["n_vehicles"])
-    for (k, v_list) in pairs(data["V"])
+    start_depots = zeros(Int, data.n_vehicles)
+    for (k, v_list) in pairs(data.V)
         for v in v_list
             start_depots[v] = k
         end
     end
     end_depots = []
-    for k in data["N_depots"]
-        append!(end_depots, repeat([k], data["v_end"][k]))
+    for k in data.N_depots
+        append!(end_depots, repeat([k], data.v_end[k]))
     end
     append!(end_depots,
         repeat(
-            data["N_depots"], 
-            outer = Int(ceil((data["n_vehicles"] - sum(values(data["v_end"]))) / data["n_depots"]))
+            data.N_depots, 
+            outer = Int(ceil((data.n_vehicles - sum(values(data.v_end))) / data.n_depots))
         )
     )
-    end_depots = end_depots[1:data["n_vehicles"]]
+    end_depots = end_depots[1:data.n_vehicles]
     
     for (v, (starting_node, current_node)) in enumerate(zip(start_depots, end_depots))
         starting_time = 0.0
-        starting_charge = data["B"]
+        starting_charge = data.B
         key = (
             (starting_node, starting_time, starting_charge),  
             (current_node, starting_time, starting_charge)
         )
         # initialise a proportion of the customers to be served
-        served = zeros(Int, data["n_customers"])
+        served = zeros(Int, data.n_customers)
         for i in 1:length(served)
-            if mod1(i, data["n_vehicles"]) == v
+            if mod1(i, data.n_vehicles) == v
                 served[i] = 1
             end
         end
         s = Subpath(
-            n_customers = data["n_customers"],
+            n_customers = data.n_customers,
             starting_node = starting_node,
             starting_time = starting_time,
             starting_charge = starting_charge,
@@ -87,8 +89,132 @@ function add_path_to_generated_paths!(
     return
 end
 
+function convert_path_label_to_path(
+    path_label::PathLabel,
+    data::EVRPData,
+)
+    current_time, current_charge = (0.0, data.B)
+    prev_time, prev_charge = current_time, current_charge
+    s_labels = copy(path_label.subpath_labels)
+    deltas = copy(path_label.charging_actions)
+    p = Path(
+        subpaths = Subpath[],
+        charging_arcs = ChargingArc[],
+        served = zeros(Int, data.n_customers),
+    )
+    while true
+        s_label = popfirst!(s_labels)
+        prev_time = current_time
+        prev_charge = current_charge
+        current_time = current_time + s_label.time_taken
+        current_charge = current_charge - s_label.charge_taken
+        s = Subpath(
+            n_customers = data.n_customers,
+            starting_node = s_label.nodes[1],
+            starting_time = prev_time,
+            starting_charge = prev_charge,
+            current_node = s_label.nodes[end],
+            arcs = collect(zip(s_label.nodes[1:end-1], s_label.nodes[2:end])),
+            current_time = current_time,
+            current_charge = current_charge,
+            served = s_label.served,
+        )
+        push!(p.subpaths, s)
+        if length(deltas) == 0 
+            break
+        end
+        delta = popfirst!(deltas)
+        prev_time = current_time
+        prev_charge = current_charge
+        current_time = current_time + delta
+        current_charge = current_charge + delta
+        a = ChargingArc(
+            starting_node = s_label.nodes[end], 
+            starting_time = prev_time, 
+            starting_charge = prev_charge, 
+            delta = delta,
+            current_time = current_time, 
+            current_charge = current_charge,
+        )
+        push!(p.charging_arcs, a)
+    end
+    p.served = sum(s.served for s in p.subpaths)
+    return p
+end
+
+function convert_pure_path_label_to_path(
+    pure_path_label::PurePathLabel,
+    data::EVRPData,
+)
+    p = Path(
+        subpaths = Subpath[],
+        charging_arcs = ChargingArc[],
+        served = zeros(Int, data.n_customers),
+    )
+    states = Tuple{Int, Int, Int}[]
+    current_subpath = Subpath(
+        n_customers = data.n_customers,
+        starting_node = pure_path_label.nodes[1],
+        starting_time = 0.0, 
+        starting_charge = data.B,
+    )
+    i = pure_path_label.nodes[1]
+    for (j, e, s) in zip(pure_path_label.nodes[2:end], pure_path_label.excesses, pure_path_label.slacks)
+        current_subpath.current_node = j
+        push!(current_subpath.arcs, (i, j))
+        current_subpath.starting_time += (e + s)
+        current_subpath.starting_charge += (e + s) 
+        current_subpath.current_time += (data.t[i,j] + e + s)
+        current_subpath.current_charge += (- data.q[i,j] + e + s)
+        if j in data.N_charging
+            push!(
+                states, 
+                (current_subpath.starting_node, current_subpath.starting_time, current_subpath.starting_charge), 
+                (current_subpath.current_node, current_subpath.current_time, current_subpath.current_charge), 
+            )
+            push!(
+                p.subpaths,
+                current_subpath,
+            )
+            current_subpath = Subpath(
+                n_customers = data.n_customers,
+                starting_node = j,
+                starting_time = current_subpath.current_time, 
+                starting_charge = current_subpath.current_charge,
+            )
+        elseif j in data.N_customers
+            current_subpath.served[j] += 1
+        end
+        i = j
+    end
+    push!(
+        states, 
+        (current_subpath.starting_node, current_subpath.starting_time, current_subpath.starting_charge), 
+        (current_subpath.current_node, current_subpath.current_time, current_subpath.current_charge), 
+    )
+    push!(
+        p.subpaths,
+        current_subpath,
+    )
+    for i in 1:(length(states)÷2)-1
+        push!(
+            p.charging_arcs, 
+            ChargingArc(
+                states[2*i][1],
+                states[2*i][2],
+                states[2*i][3],
+                states[2*i+1][2] - states[2*i][2],
+                states[2*i+1][2],
+                states[2*i+1][3],
+            )
+        )
+    end
+    p.served = sum(s.served for s in p.subpaths)
+    return p
+end
+
 function get_paths_from_negative_path_labels(
-    data,
+    data::EVRPData,
     path_labels::Vector{PathLabel},
 )
     generated_paths = Dict{
@@ -99,59 +225,14 @@ function get_paths_from_negative_path_labels(
         Vector{Path},
     }()
     for path_label in path_labels
-        current_time, current_charge = (0.0, data["B"])
-        prev_time, prev_charge = current_time, current_charge
-        s_labels = copy(path_label.subpath_labels)
-        deltas = copy(path_label.charging_actions)
-        p = Path(
-            subpaths = Subpath[],
-            charging_arcs = ChargingArc[],
-            served = zeros(Int, data["n_customers"]),
-        )
-        while true
-            s_label = popfirst!(s_labels)
-            prev_time = current_time
-            prev_charge = current_charge
-            current_time = current_time + s_label.time_taken
-            current_charge = current_charge - s_label.charge_taken
-            s = Subpath(
-                n_customers = data["n_customers"],
-                starting_node = s_label.nodes[1],
-                starting_time = prev_time,
-                starting_charge = prev_charge,
-                current_node = s_label.nodes[end],
-                arcs = collect(zip(s_label.nodes[1:end-1], s_label.nodes[2:end])),
-                current_time = current_time,
-                current_charge = current_charge,
-                served = s_label.served,
-            )
-            push!(p.subpaths, s)
-            if length(deltas) == 0 
-                break
-            end
-            delta = popfirst!(deltas)
-            prev_time = current_time
-            prev_charge = current_charge
-            current_time = current_time + delta
-            current_charge = current_charge + delta
-            a = ChargingArc(
-                starting_node = s_label.nodes[end], 
-                starting_time = prev_time, 
-                starting_charge = prev_charge, 
-                delta = delta,
-                current_time = current_time, 
-                current_charge = current_charge,
-            )
-            push!(p.charging_arcs, a)
-        end
-        p.served = sum(s.served for s in p.subpaths)
+        p = convert_path_label_to_path(path_label, data)
         add_path_to_generated_paths!(generated_paths, p)
     end
     return generated_paths
 end
 
 function get_paths_from_negative_pure_path_labels(
-    data, 
+    data::EVRPData, 
     pure_path_labels::Vector{PurePathLabel},
 )
     generated_paths = Dict{
@@ -161,79 +242,15 @@ function get_paths_from_negative_pure_path_labels(
         }, 
         Vector{Path},
     }()
-    for path_label in pure_path_labels
-        p = Path(
-            subpaths = Subpath[],
-            charging_arcs = ChargingArc[],
-            served = zeros(Int, data["n_customers"]),
-        )
-        states = Tuple{Int, Int, Int}[]
-        current_subpath = Subpath(
-            n_customers = data["n_customers"],
-            starting_node = path_label.nodes[1],
-            starting_time = 0.0, 
-            starting_charge = data["B"],
-        )
-        i = path_label.nodes[1]
-        for (j, e, s) in zip(path_label.nodes[2:end], path_label.excesses, path_label.slacks)
-            current_subpath.current_node = j
-            push!(current_subpath.arcs, (i, j))
-            current_subpath.starting_time += (e + s)
-            current_subpath.starting_charge += (e + s) 
-            current_subpath.current_time += (data["t"][i,j] + e + s)
-            current_subpath.current_charge += (- data["q"][i,j] + e + s)
-            if j in data["N_charging"]
-                push!(
-                    states, 
-                    (current_subpath.starting_node, current_subpath.starting_time, current_subpath.starting_charge), 
-                    (current_subpath.current_node, current_subpath.current_time, current_subpath.current_charge), 
-                )
-                push!(
-                    p.subpaths,
-                    current_subpath,
-                )
-                current_subpath = Subpath(
-                    n_customers = data["n_customers"],
-                    starting_node = j,
-                    starting_time = current_subpath.current_time, 
-                    starting_charge = current_subpath.current_charge,
-                )
-            elseif j in data["N_customers"]
-                current_subpath.served[j] += 1
-            end
-            i = j
-        end
-        push!(
-            states, 
-            (current_subpath.starting_node, current_subpath.starting_time, current_subpath.starting_charge), 
-            (current_subpath.current_node, current_subpath.current_time, current_subpath.current_charge), 
-        )
-        push!(
-            p.subpaths,
-            current_subpath,
-        )
-        for i in 1:(length(states)÷2)-1
-            push!(
-                p.charging_arcs, 
-                ChargingArc(
-                    states[2*i][1],
-                    states[2*i][2],
-                    states[2*i][3],
-                    states[2*i+1][2] - states[2*i][2],
-                    states[2*i+1][2],
-                    states[2*i+1][3],
-                )
-            )
-        end
-        p.served = sum(s.served for s in p.subpaths)
+    for pure_path_label in pure_path_labels
+        p = convert_pure_path_label_to_path(pure_path_label, data)
         add_path_to_generated_paths!(generated_paths, p)
     end
     return generated_paths
 end
 
 function path_formulation_column_generation(
-    G,
-    data, 
+    data::EVRPData, 
     ;
     Env = nothing,
     method::String = "ours",
@@ -245,10 +262,11 @@ function path_formulation_column_generation(
     christofides::Bool = false,
     ngroute::Bool = false,
     ngroute_alt::Bool = false,
-    ngroute_neighborhood_size::Int = Int(ceil(sqrt(data["n_customers"]))),
+    ngroute_neighborhood_size::Int = Int(ceil(sqrt(data.n_customers))),
     ngroute_neighborhood_charging_depots_size::String = "small",
     verbose::Bool = true,
     time_limit::Float64 = Inf,
+    max_iters::Float64 = Inf,
 )
     function add_message!(
         printlist::Vector, 
@@ -263,8 +281,6 @@ function path_formulation_column_generation(
 
     start_time = time()
 
-    compute_minimum_time_to_nearest_depot!(data, G)
-    compute_minimum_charge_to_nearest_depot_charging_station!(data, G)
     if ngroute
         compute_ngroute_neighborhoods!(
             data, 
@@ -324,10 +340,10 @@ function path_formulation_column_generation(
                 charging / depots           %s
 
             """,
-            data["n_customers"],
-            data["n_depots"],
-            data["n_charging"],
-            data["n_vehicles"],
+            data.n_customers,
+            data.n_depots,
+            data.n_charging,
+            data.n_vehicles,
             time_windows,
             method,
             subpath_single_service,
@@ -376,20 +392,20 @@ function path_formulation_column_generation(
     )
     @constraint(
         mp_model,
-        κ[i in data["N_depots"]],
+        κ[i in data.N_depots],
         sum(
             sum(
-                z[((i,0,data["B"]),state2),p]
-                for p in 1:length(some_paths[((i,0,data["B"]),state2)])
+                z[((i,0,data.B),state2),p]
+                for p in 1:length(some_paths[((i,0,data.B),state2)])
             )        
             for (state1, state2) in keys(some_paths)
-                if state1[1] == i && state1[2] == 0 && state1[3] == data["B"]
+                if state1[1] == i && state1[2] == 0 && state1[3] == data.B
         )
-        == data["v_start"][findfirst(x -> (x == i), data["N_depots"])]
+        == data.v_start[findfirst(x -> (x == i), data.N_depots)]
     )
     @constraint(
         mp_model,
-        μ[n2 in data["N_depots"]],
+        μ[n2 in data.N_depots],
         sum(
             sum(
                 z[(state1, state2),p]
@@ -397,11 +413,11 @@ function path_formulation_column_generation(
             )
             for (state1, state2) in keys(some_paths)
                 if state2[1] == n2
-        ) ≥ data["v_end"][n2]
+        ) ≥ data.v_end[n2]
     )
     @constraint(
         mp_model,
-        ν[j in data["N_customers"]],
+        ν[j in data.N_customers],
         sum(
             sum(
                 path_service[((state1, state2),j)][p] * z[(state1, state2),p]
@@ -426,6 +442,7 @@ function path_formulation_column_generation(
     while (
         !converged
         && time_limit ≥ (time() - start_time)
+        && max_iters > counter
     )
         counter += 1
         mp_solution_start_time = time()
@@ -438,8 +455,8 @@ function path_formulation_column_generation(
                 (key, p) => value.(z[(key, p)])
                 for (key, p) in keys(z)
             ),
-            "κ" => Dict(zip(data["N_depots"], dual.(mp_model[:κ]).data)),
-            "μ" => Dict(zip(data["N_depots"], dual.(mp_model[:μ]).data)),
+            "κ" => Dict(zip(data.N_depots, dual.(mp_model[:κ]).data)),
+            "μ" => Dict(zip(data.N_depots, dual.(mp_model[:μ]).data)),
             "ν" => dual.(mp_model[:ν]).data,
             "solution_time_taken" => round(mp_solution_end_time - mp_solution_start_time, digits = 3),
         )
@@ -450,17 +467,25 @@ function path_formulation_column_generation(
         push!(params["lp_relaxation_solution_time_taken"], mp_results["solution_time_taken"])
 
         if method == "ours"
-            (negative_full_labels, _, base_labels_time, full_labels_time) = subproblem_iteration_ours(
-                G, data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
-                ;
-                ngroute = ngroute,
-                ngroute_alt = ngroute_alt,
-                subpath_single_service = subpath_single_service,
-                subpath_check_customers = subpath_check_customers,
-                path_single_service = path_single_service,
-                path_check_customers = path_check_customers,
-                christofides = christofides,
-            )
+            negative_full_labels = nothing  
+            base_labels_time = 0.0
+            full_labels_time = 0.0
+            try
+                (negative_full_labels, _, base_labels_time, full_labels_time) = subproblem_iteration_ours(
+                    data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
+                    ;
+                    ngroute = ngroute,
+                    ngroute_alt = ngroute_alt,
+                    subpath_single_service = subpath_single_service,
+                    subpath_check_customers = subpath_check_customers,
+                    path_single_service = path_single_service,
+                    path_check_customers = path_check_customers,
+                    christofides = christofides,
+                    time_limit = time_limit - (time() - start_time),
+                )
+            catch
+                break
+            end
             (generated_paths) = get_paths_from_negative_path_labels(
                 data, negative_full_labels,
             )
@@ -477,16 +502,23 @@ function path_formulation_column_generation(
                 round(base_labels_time + full_labels_time, digits=3)
             )
         elseif method == "benchmark"
-            (negative_pure_path_labels, _, pure_path_labels_time) = subproblem_iteration_benchmark(
-                G, data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
-                ;
-                ngroute = ngroute, 
-                ngroute_alt = ngroute_alt,
-                time_windows = time_windows,
-                path_single_service = path_single_service,
-                path_check_customers = path_check_customers,
-                christofides = christofides,
-            )
+            negative_pure_path_labels = nothing  
+            pure_path_labels_time = 0.0
+            try
+                (negative_pure_path_labels, _, pure_path_labels_time) = subproblem_iteration_benchmark(
+                    data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
+                    ;
+                    ngroute = ngroute, 
+                    ngroute_alt = ngroute_alt,
+                    time_windows = time_windows,
+                    path_single_service = path_single_service,
+                    path_check_customers = path_check_customers,
+                    christofides = christofides,
+                    time_limit = time_limit - (time() - start_time),
+                )
+            catch
+                break
+            end
             generated_paths = get_paths_from_negative_pure_path_labels(
                 data, negative_pure_path_labels,
             )
@@ -519,7 +551,7 @@ function path_formulation_column_generation(
             if !(state_pair in keys(some_paths))
                 some_paths[state_pair] = []
                 path_costs[state_pair] = []
-                for i in 1:data["n_customers"]
+                for i in 1:data.n_customers
                     path_service[(state_pair, i)] = []
                 end
                 count = 0
@@ -541,7 +573,7 @@ function path_formulation_column_generation(
                         compute_path_cost(data, p_new)
                     )
                     # 3: add path service
-                    for i in 1:data["n_customers"]
+                    for i in 1:data.n_customers
                         push!(path_service[(state_pair, i)], p_new.served[i])
                     end
                     # 4: create variable
@@ -552,7 +584,7 @@ function path_formulation_column_generation(
                     set_normalized_coefficient(κ[state1[1]], z[state_pair,count], 1)
                     set_normalized_coefficient(μ[state2[1]], z[state_pair,count], 1)
                     # 6: modify customer service constraints
-                    for l in data["N_customers"]
+                    for l in data.N_customers
                         set_normalized_coefficient(ν[l], z[state_pair, count], p_new.served[l])
                     end
                     # 7: modify objective
@@ -617,7 +649,7 @@ function path_formulation_column_generation(
     time_taken = round(end_time - start_time, digits = 3)
     params["time_taken"] = time_taken
     params["time_limit_reached"] = (time_taken > time_limit)
-    params["lp_relaxation_time_taken"] = params["lp_relaxation_constraint_time_taken"] .+ params["lp_relaxation_solution_time_taken"]
+    params["lp_relaxation_time_taken"] = sum.(zip(params["lp_relaxation_constraint_time_taken"], params["lp_relaxation_solution_time_taken"]))
     params["lp_relaxation_time_taken_total"] = sum(params["lp_relaxation_time_taken"])
     params["sp_base_time_taken_total"] = sum(params["sp_base_time_taken"])
     params["sp_full_time_taken_total"] = sum(params["sp_full_time_taken"])
@@ -627,7 +659,7 @@ function path_formulation_column_generation(
     params["sp_full_time_taken_mean"] = params["sp_full_time_taken_total"] / length(params["sp_full_time_taken"])
     params["sp_time_taken_mean"] = params["sp_base_time_taken_mean"] + params["sp_full_time_taken_mean"]
 
-    params["LP_IP_gap"] = CGIP_results["objective"] / CGLP_results["objective"] - 1.0
+    params["LP_IP_gap"] = 1.0 - CGLP_results["objective"] / CGIP_results["objective"]
 
     for message in [
         @sprintf("\n"),
@@ -654,6 +686,7 @@ function collect_path_solution_support(
             Tuple{Int, Int, Int},
         }
     },
+    data::EVRPData,
     ;
 )
     results_paths = Tuple{Float64, Path}[]
@@ -665,12 +698,17 @@ function collect_path_solution_support(
             end
         end
     end
+
+    sort!(
+        results_paths,
+        by = x -> (-compute_path_cost(data, x[2]), -x[1]),
+    )
     return results_paths
 end
 
 function collect_solution_metrics!(
     results, 
-    data,
+    data::EVRPData,
 )
     if !("paths" in keys(results))
         error()
@@ -740,9 +778,9 @@ function collect_solution_metrics!(
     results["mean_ps_length"] = total_ps_length / num_paths
     results["weighted_mean_ps_length"] = weighted_total_ps_length / weighted_num_paths
 
-    results["utilization"] = utilization_total / (weighted_num_paths * data["T"])
-    results["driving_time_proportion"] = driving_time_total / (weighted_num_paths * data["T"])
-    results["charging_time_proportion"] = charging_time_total / (weighted_num_paths * data["T"])
+    results["utilization"] = utilization_total / (weighted_num_paths * data.T)
+    results["driving_time_proportion"] = driving_time_total / (weighted_num_paths * data.T)
+    results["charging_time_proportion"] = charging_time_total / (weighted_num_paths * data.T)
 
     return results
 
@@ -750,10 +788,21 @@ end
 
 function collect_path_solution_metrics!(
     results,
-    data, 
+    data::EVRPData, 
     paths,
 )
-    results["paths"] = collect_path_solution_support(results, paths)
+    results["paths"] = collect_path_solution_support(results, paths, data)
     collect_solution_metrics!(results, data)
     return results
+end
+
+function compute_objective_from_path_solution(
+    results_paths::Vector{Tuple{Float64, Path}},
+    data::EVRPData,
+)
+    return sum(
+        [val * compute_path_cost(data, p)
+        for (val, p) in results_paths],
+        init = 0.0,
+    )
 end

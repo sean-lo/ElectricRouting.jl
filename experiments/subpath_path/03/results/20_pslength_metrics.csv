@@ -1,0 +1,6 @@
+n_depots,n_charging,n_customers,n_vehicles,T,B,nrow,lp_weighted_mean_subpath_length_mean,lp_weighted_mean_path_length_mean,lp_weighted_mean_ps_length_mean
+4,7,20,8,40000,15000.0,579.0,3.4,7.97,2.36
+4,7,20,8,50000,15000.0,553.0,3.49,8.91,2.57
+4,7,20,8,60000,15000.0,523.0,3.53,9.45,2.7
+4,7,20,8,70000,15000.0,499.0,3.55,9.58,2.72
+4,7,20,8,80000,15000.0,478.0,3.56,9.73,2.75

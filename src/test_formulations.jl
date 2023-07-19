@@ -10,15 +10,15 @@ using Test
 data = generate_instance(
     ;
     n_depots = 4,
-    n_customers = 40,
-    n_charging = 9,
-    n_vehicles = 8,
+    n_customers = 10,
+    n_charging = 7,
+    n_vehicles = 6,
     depot_pattern = "circular",    
     customer_pattern = "random_box",
     charging_pattern = "circular_packing",
     shrinkage_depots = 1.0,
     shrinkage_charging = 1.0,
-    T = 80000,
+    T = 40000,
     seed = 6,
     B = 15000,
     μ = 5,
@@ -27,88 +27,91 @@ data = generate_instance(
     load_scale = 5.0,
     load_shape = 20.0,
     load_tolerance = 1.3,
-    batch = 4,
+    batch = 1,
     permissiveness = 0.2,
 )
-G = construct_graph(data)
 plot_instance(data)
 
-p_b_LP_results, p_b_IP_results, p_b_params, p_b_printlist, p_b_some_paths = @timev path_formulation_column_generation(G, data; method = "benchmark", verbose = true);
-p_b_s_LP_results, p_b_s_IP_results, p_b_s_params, p_b_s_printlist, p_b_s_some_paths = path_formulation_column_generation(G, data; method = "benchmark", path_single_service = true, verbose = true)
-p_b_sc_LP_results, p_b_sc_IP_results, p_b_sc_params, p_b_sc_printlist, p_b_sc_some_paths = path_formulation_column_generation(G, data; method = "benchmark", path_single_service = true, path_check_customers = true, verbose = true)
-p_b_ngs_LP_results, p_b_ngs_IP_results, p_b_ngs_params, p_b_ngs_printlist, p_b_ngs_some_paths = path_formulation_column_generation(G, data; method = "benchmark", ngroute = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true)
-p_b_ngl_LP_results, p_b_ngl_IP_results, p_b_ngl_params, p_b_ngl_printlist, p_b_ngl_some_paths = path_formulation_column_generation(G, data; method = "benchmark", ngroute = true, ngroute_neighborhood_charging_depots_size = "large", verbose = true)
-p_b_ngsa_LP_results, p_b_ngsa_IP_results, p_b_ngsa_params, p_b_ngsa_printlist, p_b_ngsa_some_paths = path_formulation_column_generation(G, data; method = "benchmark", ngroute = true, ngroute_alt = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true)
-p_b_ngla_LP_results, p_b_ngla_IP_results, p_b_ngla_params, p_b_ngla_printlist, p_b_ngla_some_paths = path_formulation_column_generation(G, data; method = "benchmark", ngroute = true, ngroute_alt = true, ngroute_neighborhood_charging_depots_size = "large", verbose = true)
 
-p_b_ch_LP_results, p_b_ch_IP_results, p_b_ch_params, p_b_ch_printlist, p_b_ch_some_paths = path_formulation_column_generation(G, data; method = "benchmark", verbose = true, christofides = true)
-p_b_ngs_ch_LP_results, p_b_ngs_ch_IP_results, p_b_ngs_ch_params, p_b_ngs_ch_printlist, p_b_ngs_ch_some_paths = path_formulation_column_generation(G, data; method = "benchmark", ngroute = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true, christofides = true)
-p_b_ngl_ch_LP_results, p_b_ngl_ch_IP_results, p_b_ngl_ch_params, p_b_ngl_ch_printlist, p_b_ngl_ch_some_paths = path_formulation_column_generation(G, data; method = "benchmark", ngroute = true, ngroute_neighborhood_charging_depots_size = "large", verbose = true, christofides = true)
-p_b_ngsa_ch_LP_results, p_b_ngsa_ch_IP_results, p_b_ngsa_ch_params, p_b_ngsa_ch_printlist, p_b_ngsa_ch_some_paths = path_formulation_column_generation(G, data; method = "benchmark", ngroute = true, ngroute_alt = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true, christofides = true)
-p_b_ngla_ch_LP_results, p_b_ngla_ch_IP_results, p_b_ngla_ch_params, p_b_ngla_ch_printlist, p_b_ngla_ch_some_paths = path_formulation_column_generation(G, data; method = "benchmark", ngroute = true, ngroute_alt = true, ngroute_neighborhood_charging_depots_size = "large", verbose = true, christofides = true)
+a_LP_results, a_LP_params = arc_formulation(data, with_charging = true, integral = false)
+a_IP_results, a_IP_params = arc_formulation(data, with_charging = true, integral = true, time_limit = 600)
 
-p_o_LP_results, p_o_IP_results, p_o_params, p_o_printlist, p_o_some_paths = path_formulation_column_generation(G, data; method = "ours", verbose = true)
-p_o_s_LP_results, p_o_s_IP_results, p_o_s_params, p_o_s_printlist, p_o_s_some_paths = path_formulation_column_generation(G, data; method = "ours", subpath_single_service = true, verbose = true)
-p_o_sc_LP_results, p_o_sc_IP_results, p_o_sc_params, p_o_sc_printlist, p_o_sc_some_paths = path_formulation_column_generation(G, data; method = "ours", subpath_single_service = true, subpath_check_customers = true, verbose = true)
-p_o_ss_LP_results, p_o_ss_IP_results, p_o_ss_params, p_o_ss_printlist, p_o_ss_some_paths = path_formulation_column_generation(G, data; method = "ours", subpath_single_service = true, path_single_service = true, verbose = true)
-p_o_scsc_LP_results, p_o_scsc_IP_results, p_o_scsc_params, p_o_scsc_printlist, p_o_scsc_some_paths = path_formulation_column_generation(G, data; method = "ours", subpath_single_service = true, subpath_check_customers = true, path_single_service = true, path_check_customers = true, verbose = true)
-p_o_ngs_LP_results, p_o_ngs_IP_results, p_o_ngs_params, p_o_ngs_printlist, p_o_ngs_some_paths = path_formulation_column_generation(G, data; method = "ours", ngroute = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true)
-p_o_ngl_LP_results, p_o_ngl_IP_results, p_o_ngl_params, p_o_ngl_printlist, p_o_ngl_some_paths = path_formulation_column_generation(G, data; method = "ours", ngroute = true, ngroute_neighborhood_charging_depots_size = "large", verbose = true)
-p_o_ngsa_LP_results, p_o_ngsa_IP_results, p_o_ngsa_params, p_o_ngsa_printlist, p_o_ngsa_some_paths = path_formulation_column_generation(G, data; method = "ours", ngroute = true, ngroute_alt = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true)
-p_o_ngla_LP_results, p_o_ngla_IP_results, p_o_ngla_params, p_o_ngla_printlist, p_o_ngla_some_paths = path_formulation_column_generation(G, data; method = "ours", ngroute = true, ngroute_alt = true, ngroute_neighborhood_charging_depots_size = "large", verbose = true)
+p_b_LP_results, p_b_IP_results, p_b_params, p_b_printlist, p_b_some_paths = path_formulation_column_generation(data; method = "benchmark", verbose = true);
+p_b_s_LP_results, p_b_s_IP_results, p_b_s_params, p_b_s_printlist, p_b_s_some_paths = path_formulation_column_generation(data; method = "benchmark", path_single_service = true, verbose = true)
+p_b_sc_LP_results, p_b_sc_IP_results, p_b_sc_params, p_b_sc_printlist, p_b_sc_some_paths = path_formulation_column_generation(data; method = "benchmark", path_single_service = true, path_check_customers = true, verbose = true)
+p_b_ngs_LP_results, p_b_ngs_IP_results, p_b_ngs_params, p_b_ngs_printlist, p_b_ngs_some_paths = path_formulation_column_generation(data; method = "benchmark", ngroute = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true)
+p_b_ngl_LP_results, p_b_ngl_IP_results, p_b_ngl_params, p_b_ngl_printlist, p_b_ngl_some_paths = path_formulation_column_generation(data; method = "benchmark", ngroute = true, ngroute_neighborhood_charging_depots_size = "large", verbose = true)
+p_b_ngsa_LP_results, p_b_ngsa_IP_results, p_b_ngsa_params, p_b_ngsa_printlist, p_b_ngsa_some_paths = path_formulation_column_generation(data; method = "benchmark", ngroute = true, ngroute_alt = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true)
+p_b_ngla_LP_results, p_b_ngla_IP_results, p_b_ngla_params, p_b_ngla_printlist, p_b_ngla_some_paths = path_formulation_column_generation(data; method = "benchmark", ngroute = true, ngroute_alt = true, ngroute_neighborhood_charging_depots_size = "large", verbose = true)
 
+p_b_ch_LP_results, p_b_ch_IP_results, p_b_ch_params, p_b_ch_printlist, p_b_ch_some_paths = path_formulation_column_generation(data; method = "benchmark", verbose = true, christofides = true)
+p_b_ngs_ch_LP_results, p_b_ngs_ch_IP_results, p_b_ngs_ch_params, p_b_ngs_ch_printlist, p_b_ngs_ch_some_paths = path_formulation_column_generation(data; method = "benchmark", ngroute = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true, christofides = true)
+p_b_ngl_ch_LP_results, p_b_ngl_ch_IP_results, p_b_ngl_ch_params, p_b_ngl_ch_printlist, p_b_ngl_ch_some_paths = path_formulation_column_generation(data; method = "benchmark", ngroute = true, ngroute_neighborhood_charging_depots_size = "large", verbose = true, christofides = true)
+p_b_ngsa_ch_LP_results, p_b_ngsa_ch_IP_results, p_b_ngsa_ch_params, p_b_ngsa_ch_printlist, p_b_ngsa_ch_some_paths = path_formulation_column_generation(data; method = "benchmark", ngroute = true, ngroute_alt = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true, christofides = true)
+p_b_ngla_ch_LP_results, p_b_ngla_ch_IP_results, p_b_ngla_ch_params, p_b_ngla_ch_printlist, p_b_ngla_ch_some_paths = path_formulation_column_generation(data; method = "benchmark", ngroute = true, ngroute_alt = true, ngroute_neighborhood_charging_depots_size = "large", verbose = true, christofides = true)
 
-p_o_ch_LP_results, p_o_ch_IP_results, p_o_ch_params, p_o_ch_printlist, p_o_ch_some_paths = path_formulation_column_generation(G, data; method = "ours", verbose = true, christofides = true)
-p_o_s_ch_LP_results, p_o_s_ch_IP_results, p_o_s_ch_params, p_o_s_ch_printlist, p_o_s_ch_some_paths = path_formulation_column_generation(G, data; method = "ours", subpath_single_service = true, verbose = true, christofides = true)
-p_o_sc_ch_LP_results, p_o_sc_ch_IP_results, p_o_sc_ch_params, p_o_sc_ch_printlist, p_o_sc_ch_some_paths = path_formulation_column_generation(G, data; method = "ours", subpath_single_service = true, subpath_check_customers = true, verbose = true, christofides = true)
-p_o_ss_ch_LP_results, p_o_ss_ch_IP_results, p_o_ss_ch_params, p_o_ss_ch_printlist, p_o_ss_ch_some_paths = path_formulation_column_generation(G, data; method = "ours", subpath_single_service = true, path_single_service = true, verbose = true, christofides = true)
-p_o_scsc_ch_LP_results, p_o_scsc_ch_IP_results, p_o_scsc_ch_params, p_o_scsc_ch_printlist, p_o_scsc_ch_some_paths = path_formulation_column_generation(G, data; method = "ours", subpath_single_service = true, subpath_check_customers = true, path_single_service = true, path_check_customers = true, verbose = true, christofides = true)
-p_o_ngs_ch_LP_results, p_o_ngs_ch_IP_results, p_o_ngs_ch_params, p_o_ngs_ch_printlist, p_o_ngs_ch_some_paths = path_formulation_column_generation(G, data; method = "ours", ngroute = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true, christofides = true)
-p_o_ngl_ch_LP_results, p_o_ngl_ch_IP_results, p_o_ngl_ch_params, p_o_ngl_ch_printlist, p_o_ngl_ch_some_paths = path_formulation_column_generation(G, data; method = "ours", ngroute = true, ngroute_neighborhood_charging_depots_size = "large", verbose = true, christofides = true)
-p_o_ngsa_ch_LP_results, p_o_ngsa_ch_IP_results, p_o_ngsa_ch_params, p_o_ngsa_ch_printlist, p_o_ngsa_ch_some_paths = path_formulation_column_generation(G, data; method = "ours", ngroute = true, ngroute_alt = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true, christofides = true)
-p_o_ngla_ch_LP_results, p_o_ngla_ch_IP_results, p_o_ngla_ch_params, p_o_ngla_ch_printlist, p_o_ngla_ch_some_paths = path_formulation_column_generation(G, data; method = "ours", ngroute = true, ngroute_alt = true, ngroute_neighborhood_charging_depots_size = "large", verbose = true, christofides = true)
-
-sp_b_LP_results, sp_b_IP_results, sp_b_params, sp_b_printlist, sp_b_some_subpaths, sp_b_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "benchmark", verbose = true)
-sp_b_s_LP_results, sp_b_s_IP_results, sp_b_s_params, sp_b_s_printlist, sp_b_s_some_subpaths, sp_b_s_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "benchmark", path_single_service = true, verbose = true)
-sp_b_sc_LP_results, sp_b_sc_IP_results, sp_b_sc_params, sp_b_sc_printlist, sp_b_sc_some_subpaths, sp_b_sc_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "benchmark", path_single_service = true, path_check_customers = true, verbose = true)
-sp_b_sca_LP_results, sp_b_sca_IP_results, sp_b_sca_params, sp_b_sca_printlist, sp_b_sca_some_subpaths, sp_b_sca_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "benchmark", path_single_service = true, path_check_customers = true, check_customers_accelerated = true, verbose = true)
-sp_b_ngs_LP_results, sp_b_ngs_IP_results, sp_b_ngs_params, sp_b_ngs_printlist, sp_b_ngs_some_subpaths, sp_b_ngs_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "benchmark", ngroute = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true)
-sp_b_ngl_LP_results, sp_b_ngl_IP_results, sp_b_ngl_params, sp_b_ngl_printlist, sp_b_ngl_some_subpaths, sp_b_ngl_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "benchmark", ngroute = true, ngroute_neighborhood_charging_depots_size = "large", verbose = true)
-sp_b_ngsa_LP_results, sp_b_ngsa_IP_results, sp_b_ngsa_params, sp_b_ngsa_printlist, sp_b_ngsa_some_subpaths, sp_b_ngsa_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "benchmark", ngroute = true, ngroute_alt = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true)
-sp_b_ngla_LP_results, sp_b_ngla_IP_results, sp_b_ngla_params, sp_b_ngla_printlist, sp_b_ngla_some_subpaths, sp_b_ngla_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "benchmark", ngroute = true, ngroute_alt = true, ngroute_neighborhood_charging_depots_size = "large", verbose = true)
-
-sp_b_ngs_ch_LP_results, sp_b_ngs_ch_IP_results, sp_b_ngs_ch_params, sp_b_ngs_ch_printlist, sp_b_ngs_ch_some_subpaths, sp_b_ngs_ch_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "benchmark", ngroute = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true, christofides = true)
-sp_b_ngl_ch_LP_results, sp_b_ngl_ch_IP_results, sp_b_ngl_ch_params, sp_b_ngl_ch_printlist, sp_b_ngl_ch_some_subpaths, sp_b_ngl_ch_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "benchmark", ngroute = true, ngroute_neighborhood_charging_depots_size = "large", verbose = true, christofides = true)
-sp_b_ngsa_ch_LP_results, sp_b_ngsa_ch_IP_results, sp_b_ngsa_ch_params, sp_b_ngsa_ch_printlist, sp_b_ngsa_ch_some_subpaths, sp_b_ngsa_ch_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "benchmark", ngroute = true, ngroute_alt = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true, christofides = true)
-sp_b_ngla_ch_LP_results, sp_b_ngla_ch_IP_results, sp_b_ngla_ch_params, sp_b_ngla_ch_printlist, sp_b_ngla_ch_some_subpaths, sp_b_ngla_ch_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "benchmark", ngroute = true, ngroute_alt = true, ngroute_neighborhood_charging_depots_size = "large", verbose = true, christofides = true)
+p_o_LP_results, p_o_IP_results, p_o_params, p_o_printlist, p_o_some_paths = path_formulation_column_generation(data; method = "ours", verbose = true)
+p_o_s_LP_results, p_o_s_IP_results, p_o_s_params, p_o_s_printlist, p_o_s_some_paths = path_formulation_column_generation(data; method = "ours", subpath_single_service = true, verbose = true)
+p_o_sc_LP_results, p_o_sc_IP_results, p_o_sc_params, p_o_sc_printlist, p_o_sc_some_paths = path_formulation_column_generation(data; method = "ours", subpath_single_service = true, subpath_check_customers = true, verbose = true)
+p_o_ss_LP_results, p_o_ss_IP_results, p_o_ss_params, p_o_ss_printlist, p_o_ss_some_paths = path_formulation_column_generation(data; method = "ours", subpath_single_service = true, path_single_service = true, verbose = true)
+p_o_scsc_LP_results, p_o_scsc_IP_results, p_o_scsc_params, p_o_scsc_printlist, p_o_scsc_some_paths = path_formulation_column_generation(data; method = "ours", subpath_single_service = true, subpath_check_customers = true, path_single_service = true, path_check_customers = true, verbose = true)
+p_o_ngs_LP_results, p_o_ngs_IP_results, p_o_ngs_params, p_o_ngs_printlist, p_o_ngs_some_paths = path_formulation_column_generation(data; method = "ours", ngroute = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true)
+p_o_ngl_LP_results, p_o_ngl_IP_results, p_o_ngl_params, p_o_ngl_printlist, p_o_ngl_some_paths = path_formulation_column_generation(data; method = "ours", ngroute = true, ngroute_neighborhood_charging_depots_size = "large", verbose = true)
+p_o_ngsa_LP_results, p_o_ngsa_IP_results, p_o_ngsa_params, p_o_ngsa_printlist, p_o_ngsa_some_paths = path_formulation_column_generation(data; method = "ours", ngroute = true, ngroute_alt = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true)
+p_o_ngla_LP_results, p_o_ngla_IP_results, p_o_ngla_params, p_o_ngla_printlist, p_o_ngla_some_paths = path_formulation_column_generation(data; method = "ours", ngroute = true, ngroute_alt = true, ngroute_neighborhood_charging_depots_size = "large", verbose = true)
 
 
+p_o_ch_LP_results, p_o_ch_IP_results, p_o_ch_params, p_o_ch_printlist, p_o_ch_some_paths = path_formulation_column_generation(data; method = "ours", verbose = true, christofides = true)
+p_o_s_ch_LP_results, p_o_s_ch_IP_results, p_o_s_ch_params, p_o_s_ch_printlist, p_o_s_ch_some_paths = path_formulation_column_generation(data; method = "ours", subpath_single_service = true, verbose = true, christofides = true)
+p_o_sc_ch_LP_results, p_o_sc_ch_IP_results, p_o_sc_ch_params, p_o_sc_ch_printlist, p_o_sc_ch_some_paths = path_formulation_column_generation(data; method = "ours", subpath_single_service = true, subpath_check_customers = true, verbose = true, christofides = true)
+p_o_ss_ch_LP_results, p_o_ss_ch_IP_results, p_o_ss_ch_params, p_o_ss_ch_printlist, p_o_ss_ch_some_paths = path_formulation_column_generation(data; method = "ours", subpath_single_service = true, path_single_service = true, verbose = true, christofides = true)
+p_o_scsc_ch_LP_results, p_o_scsc_ch_IP_results, p_o_scsc_ch_params, p_o_scsc_ch_printlist, p_o_scsc_ch_some_paths = path_formulation_column_generation(data; method = "ours", subpath_single_service = true, subpath_check_customers = true, path_single_service = true, path_check_customers = true, verbose = true, christofides = true)
+p_o_ngs_ch_LP_results, p_o_ngs_ch_IP_results, p_o_ngs_ch_params, p_o_ngs_ch_printlist, p_o_ngs_ch_some_paths = path_formulation_column_generation(data; method = "ours", ngroute = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true, christofides = true)
+p_o_ngl_ch_LP_results, p_o_ngl_ch_IP_results, p_o_ngl_ch_params, p_o_ngl_ch_printlist, p_o_ngl_ch_some_paths = path_formulation_column_generation(data; method = "ours", ngroute = true, ngroute_neighborhood_charging_depots_size = "large", verbose = true, christofides = true)
+p_o_ngsa_ch_LP_results, p_o_ngsa_ch_IP_results, p_o_ngsa_ch_params, p_o_ngsa_ch_printlist, p_o_ngsa_ch_some_paths = path_formulation_column_generation(data; method = "ours", ngroute = true, ngroute_alt = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true, christofides = true)
+p_o_ngla_ch_LP_results, p_o_ngla_ch_IP_results, p_o_ngla_ch_params, p_o_ngla_ch_printlist, p_o_ngla_ch_some_paths = path_formulation_column_generation(data; method = "ours", ngroute = true, ngroute_alt = true, ngroute_neighborhood_charging_depots_size = "large", verbose = true, christofides = true)
 
-sp_b_ch_LP_results, sp_b_ch_IP_results, sp_b_ch_params, sp_b_ch_printlist, sp_b_ch_some_subpaths, sp_b_ch_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "benchmark", verbose = true, christofides = true)
+sp_b_LP_results, sp_b_IP_results, sp_b_params, sp_b_printlist, sp_b_some_subpaths, sp_b_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(data; method = "benchmark", verbose = true)
+sp_b_s_LP_results, sp_b_s_IP_results, sp_b_s_params, sp_b_s_printlist, sp_b_s_some_subpaths, sp_b_s_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(data; method = "benchmark", path_single_service = true, verbose = true)
+sp_b_sc_LP_results, sp_b_sc_IP_results, sp_b_sc_params, sp_b_sc_printlist, sp_b_sc_some_subpaths, sp_b_sc_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(data; method = "benchmark", path_single_service = true, path_check_customers = true, verbose = true)
+sp_b_sca_LP_results, sp_b_sca_IP_results, sp_b_sca_params, sp_b_sca_printlist, sp_b_sca_some_subpaths, sp_b_sca_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(data; method = "benchmark", path_single_service = true, path_check_customers = true, check_customers_accelerated = true, verbose = true)
+sp_b_ngs_LP_results, sp_b_ngs_IP_results, sp_b_ngs_params, sp_b_ngs_printlist, sp_b_ngs_some_subpaths, sp_b_ngs_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(data; method = "benchmark", ngroute = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true)
+sp_b_ngl_LP_results, sp_b_ngl_IP_results, sp_b_ngl_params, sp_b_ngl_printlist, sp_b_ngl_some_subpaths, sp_b_ngl_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(data; method = "benchmark", ngroute = true, ngroute_neighborhood_charging_depots_size = "large", verbose = true)
+sp_b_ngsa_LP_results, sp_b_ngsa_IP_results, sp_b_ngsa_params, sp_b_ngsa_printlist, sp_b_ngsa_some_subpaths, sp_b_ngsa_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(data; method = "benchmark", ngroute = true, ngroute_alt = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true)
+sp_b_ngla_LP_results, sp_b_ngla_IP_results, sp_b_ngla_params, sp_b_ngla_printlist, sp_b_ngla_some_subpaths, sp_b_ngla_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(data; method = "benchmark", ngroute = true, ngroute_alt = true, ngroute_neighborhood_charging_depots_size = "large", verbose = true)
 
-sp_o_LP_results, sp_o_IP_results, sp_o_params, sp_o_printlist, sp_o_some_subpaths, sp_o_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "ours", verbose = true)
-sp_o_s_LP_results, sp_o_s_IP_results, sp_o_s_params, sp_o_s_printlist, sp_o_s_some_subpaths, sp_o_s_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "ours", subpath_single_service = true, verbose = true)
-sp_o_sc_LP_results, sp_o_sc_IP_results, sp_o_sc_params, sp_o_sc_printlist, sp_o_sc_some_subpaths, sp_o_sc_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "ours", subpath_single_service = true, subpath_check_customers = true, verbose = true)
-sp_o_sca_LP_results, sp_o_sca_IP_results, sp_o_sca_params, sp_o_sca_printlist, sp_o_sca_some_subpaths, sp_o_sca_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "ours", subpath_single_service = true, subpath_check_customers = true, check_customers_accelerated = true, verbose = true)
-sp_o_ss_LP_results, sp_o_ss_IP_results, sp_o_ss_params, sp_o_ss_printlist, sp_o_ss_some_subpaths, sp_o_ss_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "ours", subpath_single_service = true, path_single_service = true, verbose = true)
-sp_o_scsc_LP_results, sp_o_scsc_IP_results, sp_o_scsc_params, sp_o_scsc_printlist, sp_o_scsc_some_subpaths, sp_o_scsc_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "ours", subpath_single_service = true, subpath_check_customers = true, path_single_service = true, path_check_customers = true, verbose = true)
-sp_o_scsca_LP_results, sp_o_scsca_IP_results, sp_o_scsca_params, sp_o_scsca_printlist, sp_o_scsca_some_subpaths, sp_o_scsca_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "ours", subpath_single_service = true, subpath_check_customers = true, path_single_service = true, path_check_customers = true, check_customers_accelerated = true, verbose = true)
-sp_o_ngs_LP_results, sp_o_ngs_IP_results, sp_o_ngs_params, sp_o_ngs_printlist, sp_o_ngs_some_subpaths, sp_o_ngs_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "ours", ngroute = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true)
-sp_o_ngl_LP_results, sp_o_ngl_IP_results, sp_o_ngl_params, sp_o_ngl_printlist, sp_o_ngl_some_subpaths, sp_o_ngl_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "ours", ngroute = true, ngroute_neighborhood_charging_depots_size = "large", verbose = true)
-sp_o_ngsa_LP_results, sp_o_ngsa_IP_results, sp_o_ngsa_params, sp_o_ngsa_printlist, sp_o_ngsa_some_subpaths, sp_o_ngsa_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "ours", ngroute = true, ngroute_alt = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true)
-sp_o_ngla_LP_results, sp_o_ngla_IP_results, sp_o_ngla_params, sp_o_ngla_printlist, sp_o_ngla_some_subpaths, sp_o_ngla_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "ours", ngroute = true, ngroute_alt = true, ngroute_neighborhood_charging_depots_size = "large", verbose = true)
+sp_b_ngs_ch_LP_results, sp_b_ngs_ch_IP_results, sp_b_ngs_ch_params, sp_b_ngs_ch_printlist, sp_b_ngs_ch_some_subpaths, sp_b_ngs_ch_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(data; method = "benchmark", ngroute = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true, christofides = true)
+sp_b_ngl_ch_LP_results, sp_b_ngl_ch_IP_results, sp_b_ngl_ch_params, sp_b_ngl_ch_printlist, sp_b_ngl_ch_some_subpaths, sp_b_ngl_ch_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(data; method = "benchmark", ngroute = true, ngroute_neighborhood_charging_depots_size = "large", verbose = true, christofides = true)
+sp_b_ngsa_ch_LP_results, sp_b_ngsa_ch_IP_results, sp_b_ngsa_ch_params, sp_b_ngsa_ch_printlist, sp_b_ngsa_ch_some_subpaths, sp_b_ngsa_ch_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(data; method = "benchmark", ngroute = true, ngroute_alt = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true, christofides = true)
+sp_b_ngla_ch_LP_results, sp_b_ngla_ch_IP_results, sp_b_ngla_ch_params, sp_b_ngla_ch_printlist, sp_b_ngla_ch_some_subpaths, sp_b_ngla_ch_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(data; method = "benchmark", ngroute = true, ngroute_alt = true, ngroute_neighborhood_charging_depots_size = "large", verbose = true, christofides = true)
 
-sp_o_ch_LP_results, sp_o_ch_IP_results, sp_o_ch_params, sp_o_ch_printlist, sp_o_ch_some_subpaths, sp_o_ch_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "ours", verbose = true, christofides = true)
-sp_o_s_ch_LP_results, sp_o_s_ch_IP_results, sp_o_s_ch_params, sp_o_s_ch_printlist, sp_o_s_ch_some_subpaths, sp_o_s_ch_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "ours", subpath_single_service = true, verbose = true, christofides = true)
-sp_o_sc_ch_LP_results, sp_o_sc_ch_IP_results, sp_o_sc_ch_params, sp_o_sc_ch_printlist, sp_o_sc_ch_some_subpaths, sp_o_sc_ch_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "ours", subpath_single_service = true, subpath_check_customers = true, verbose = true, christofides = true)
-sp_o_sca_ch_LP_results, sp_o_sca_ch_IP_results, sp_o_sca_ch_params, sp_o_sca_ch_printlist, sp_o_sca_ch_some_subpaths, sp_o_sca_ch_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "ours", subpath_single_service = true, subpath_check_customers = true, check_customers_accelerated = true, verbose = true, christofides = true)
-sp_o_ss_ch_LP_results, sp_o_ss_ch_IP_results, sp_o_ss_ch_params, sp_o_ss_ch_printlist, sp_o_ss_ch_some_subpaths, sp_o_ss_ch_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "ours", subpath_single_service = true, path_single_service = true, verbose = true, christofides = true)
-sp_o_scsc_ch_LP_results, sp_o_scsc_ch_IP_results, sp_o_scsc_ch_params, sp_o_scsc_ch_printlist, sp_o_scsc_ch_some_subpaths, sp_o_scsc_ch_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "ours", subpath_single_service = true, subpath_check_customers = true, path_single_service = true, path_check_customers = true, verbose = true, christofides = true)
-sp_o_scsca_ch_LP_results, sp_o_scsca_ch_IP_results, sp_o_scsca_ch_params, sp_o_scsca_ch_printlist, sp_o_scsca_ch_some_subpaths, sp_o_scsca_ch_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "ours", subpath_single_service = true, subpath_check_customers = true, path_single_service = true, path_check_customers = true, check_customers_accelerated = true, verbose = true, christofides = true)
-sp_o_ngs_ch_LP_results, sp_o_ngs_ch_IP_results, sp_o_ngs_ch_params, sp_o_ngs_ch_printlist, sp_o_ngs_ch_some_subpaths, sp_o_ngs_ch_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "ours", ngroute = true, ngroute_neighborhood_charging_depots_size = "small", christofides = true, verbose = true)
-sp_o_ngl_ch_LP_results, sp_o_ngl_ch_IP_results, sp_o_ngl_ch_params, sp_o_ngl_ch_printlist, sp_o_ngl_ch_some_subpaths, sp_o_ngl_ch_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "ours", ngroute = true, ngroute_neighborhood_charging_depots_size = "large", christofides = true, verbose = true)
-sp_o_ngsa_ch_LP_results, sp_o_ngsa_ch_IP_results, sp_o_ngsa_ch_params, sp_o_ngsa_ch_printlist, sp_o_ngsa_ch_some_subpaths, sp_o_ngsa_ch_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "ours", ngroute = true, ngroute_alt = true, ngroute_neighborhood_charging_depots_size = "small", christofides = true, verbose = true)
-sp_o_ngla_ch_LP_results, sp_o_ngla_ch_IP_results, sp_o_ngla_ch_params, sp_o_ngla_ch_printlist, sp_o_ngla_ch_some_subpaths, sp_o_ngla_ch_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data; method = "ours", ngroute = true, ngroute_alt = true, ngroute_neighborhood_charging_depots_size = "large", christofides = true, verbose = true)
+
+
+sp_b_ch_LP_results, sp_b_ch_IP_results, sp_b_ch_params, sp_b_ch_printlist, sp_b_ch_some_subpaths, sp_b_ch_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(data; method = "benchmark", verbose = true, christofides = true)
+
+sp_o_LP_results, sp_o_IP_results, sp_o_params, sp_o_printlist, sp_o_some_subpaths, sp_o_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(data; method = "ours", verbose = true)
+sp_o_s_LP_results, sp_o_s_IP_results, sp_o_s_params, sp_o_s_printlist, sp_o_s_some_subpaths, sp_o_s_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(data; method = "ours", subpath_single_service = true, verbose = true)
+sp_o_sc_LP_results, sp_o_sc_IP_results, sp_o_sc_params, sp_o_sc_printlist, sp_o_sc_some_subpaths, sp_o_sc_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(data; method = "ours", subpath_single_service = true, subpath_check_customers = true, verbose = true)
+sp_o_sca_LP_results, sp_o_sca_IP_results, sp_o_sca_params, sp_o_sca_printlist, sp_o_sca_some_subpaths, sp_o_sca_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(data; method = "ours", subpath_single_service = true, subpath_check_customers = true, check_customers_accelerated = true, verbose = true)
+sp_o_ss_LP_results, sp_o_ss_IP_results, sp_o_ss_params, sp_o_ss_printlist, sp_o_ss_some_subpaths, sp_o_ss_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(data; method = "ours", subpath_single_service = true, path_single_service = true, verbose = true)
+sp_o_scsc_LP_results, sp_o_scsc_IP_results, sp_o_scsc_params, sp_o_scsc_printlist, sp_o_scsc_some_subpaths, sp_o_scsc_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(data; method = "ours", subpath_single_service = true, subpath_check_customers = true, path_single_service = true, path_check_customers = true, verbose = true)
+sp_o_scsca_LP_results, sp_o_scsca_IP_results, sp_o_scsca_params, sp_o_scsca_printlist, sp_o_scsca_some_subpaths, sp_o_scsca_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(data; method = "ours", subpath_single_service = true, subpath_check_customers = true, path_single_service = true, path_check_customers = true, check_customers_accelerated = true, verbose = true)
+sp_o_ngs_LP_results, sp_o_ngs_IP_results, sp_o_ngs_params, sp_o_ngs_printlist, sp_o_ngs_some_subpaths, sp_o_ngs_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(data; method = "ours", ngroute = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true)
+sp_o_ngl_LP_results, sp_o_ngl_IP_results, sp_o_ngl_params, sp_o_ngl_printlist, sp_o_ngl_some_subpaths, sp_o_ngl_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(data; method = "ours", ngroute = true, ngroute_neighborhood_charging_depots_size = "large", verbose = true)
+sp_o_ngsa_LP_results, sp_o_ngsa_IP_results, sp_o_ngsa_params, sp_o_ngsa_printlist, sp_o_ngsa_some_subpaths, sp_o_ngsa_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(data; method = "ours", ngroute = true, ngroute_alt = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true)
+sp_o_ngla_LP_results, sp_o_ngla_IP_results, sp_o_ngla_params, sp_o_ngla_printlist, sp_o_ngla_some_subpaths, sp_o_ngla_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(data; method = "ours", ngroute = true, ngroute_alt = true, ngroute_neighborhood_charging_depots_size = "large", verbose = true)
+
+sp_o_ch_LP_results, sp_o_ch_IP_results, sp_o_ch_params, sp_o_ch_printlist, sp_o_ch_some_subpaths, sp_o_ch_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(data; method = "ours", verbose = true, christofides = true)
+sp_o_s_ch_LP_results, sp_o_s_ch_IP_results, sp_o_s_ch_params, sp_o_s_ch_printlist, sp_o_s_ch_some_subpaths, sp_o_s_ch_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(data; method = "ours", subpath_single_service = true, verbose = true, christofides = true)
+sp_o_sc_ch_LP_results, sp_o_sc_ch_IP_results, sp_o_sc_ch_params, sp_o_sc_ch_printlist, sp_o_sc_ch_some_subpaths, sp_o_sc_ch_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(data; method = "ours", subpath_single_service = true, subpath_check_customers = true, verbose = true, christofides = true)
+sp_o_sca_ch_LP_results, sp_o_sca_ch_IP_results, sp_o_sca_ch_params, sp_o_sca_ch_printlist, sp_o_sca_ch_some_subpaths, sp_o_sca_ch_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(data; method = "ours", subpath_single_service = true, subpath_check_customers = true, check_customers_accelerated = true, verbose = true, christofides = true)
+sp_o_ss_ch_LP_results, sp_o_ss_ch_IP_results, sp_o_ss_ch_params, sp_o_ss_ch_printlist, sp_o_ss_ch_some_subpaths, sp_o_ss_ch_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(data; method = "ours", subpath_single_service = true, path_single_service = true, verbose = true, christofides = true)
+sp_o_scsc_ch_LP_results, sp_o_scsc_ch_IP_results, sp_o_scsc_ch_params, sp_o_scsc_ch_printlist, sp_o_scsc_ch_some_subpaths, sp_o_scsc_ch_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(data; method = "ours", subpath_single_service = true, subpath_check_customers = true, path_single_service = true, path_check_customers = true, verbose = true, christofides = true)
+sp_o_scsca_ch_LP_results, sp_o_scsca_ch_IP_results, sp_o_scsca_ch_params, sp_o_scsca_ch_printlist, sp_o_scsca_ch_some_subpaths, sp_o_scsca_ch_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(data; method = "ours", subpath_single_service = true, subpath_check_customers = true, path_single_service = true, path_check_customers = true, check_customers_accelerated = true, verbose = true, christofides = true)
+sp_o_ngs_ch_LP_results, sp_o_ngs_ch_IP_results, sp_o_ngs_ch_params, sp_o_ngs_ch_printlist, sp_o_ngs_ch_some_subpaths, sp_o_ngs_ch_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(data; method = "ours", ngroute = true, ngroute_neighborhood_charging_depots_size = "small", christofides = true, verbose = true)
+sp_o_ngl_ch_LP_results, sp_o_ngl_ch_IP_results, sp_o_ngl_ch_params, sp_o_ngl_ch_printlist, sp_o_ngl_ch_some_subpaths, sp_o_ngl_ch_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(data; method = "ours", ngroute = true, ngroute_neighborhood_charging_depots_size = "large", christofides = true, verbose = true)
+sp_o_ngsa_ch_LP_results, sp_o_ngsa_ch_IP_results, sp_o_ngsa_ch_params, sp_o_ngsa_ch_printlist, sp_o_ngsa_ch_some_subpaths, sp_o_ngsa_ch_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(data; method = "ours", ngroute = true, ngroute_alt = true, ngroute_neighborhood_charging_depots_size = "small", christofides = true, verbose = true)
+sp_o_ngla_ch_LP_results, sp_o_ngla_ch_IP_results, sp_o_ngla_ch_params, sp_o_ngla_ch_printlist, sp_o_ngla_ch_some_subpaths, sp_o_ngla_ch_some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(data; method = "ours", ngroute = true, ngroute_alt = true, ngroute_neighborhood_charging_depots_size = "large", christofides = true, verbose = true)
 
 
 collect_path_solution_metrics!(p_b_LP_results, data, p_b_some_paths)
@@ -183,6 +186,7 @@ collect_subpath_solution_metrics!(sp_o_ngl_ch_LP_results, data, sp_o_ngl_ch_some
 collect_subpath_solution_metrics!(sp_o_ngsa_ch_LP_results, data, sp_o_ngsa_ch_some_subpaths, sp_o_ngsa_ch_some_charging_arcs)
 collect_subpath_solution_metrics!(sp_o_ngla_ch_LP_results, data, sp_o_ngla_ch_some_subpaths, sp_o_ngla_ch_some_charging_arcs)
 
+a_LP_results["objective"]
 
 p_b_LP_results["objective"]
 p_b_s_LP_results["objective"]
@@ -527,6 +531,7 @@ sp_o_ngla_ch_params["time_taken"]
 
 
 @printf("                                                               \t\tno 2-cycles\n")
+@printf("arc formulation                                                %8.1f\t    ----\n", a_LP_results["objective"])
 @printf("path, benchmark:                                               %8.1f\t%8.1f\n", p_b_LP_results["objective"], p_b_ch_LP_results["objective"])
 @printf("path, benchmark, elementary:                                   %8.1f\t    ----\n", p_b_sc_LP_results["objective"])
 @printf("path, benc, ng-route relaxation (small N at depots/CS):        %8.1f\t%8.1f\n", p_b_ngs_LP_results["objective"], p_b_ngs_ch_LP_results["objective"])
@@ -561,6 +566,7 @@ sp_o_ngla_ch_params["time_taken"]
 
 
 @printf("                                                               \t\tno 2-cycles\n")
+@printf("arc formulation                                                %8.1f\t    ----\n", a_IP_results["objective"])
 @printf("path, benchmark:                                               %8.1f\t%8.1f\n", p_b_IP_results["objective"], p_b_ch_IP_results["objective"])
 @printf("path, benchmark, elementary:                                   %8.1f\t    ----\n", p_b_sc_IP_results["objective"])
 @printf("path, benc, ng-route relaxation (small N at depots/CS):        %8.1f\t%8.1f\n", p_b_ngs_IP_results["objective"], p_b_ngs_ch_IP_results["objective"])
@@ -595,7 +601,16 @@ sp_o_ngla_ch_params["time_taken"]
 
 
 
+## Plotting
 
+include("subpath_formulation.jl")
+plot_subpath_solution(
+    sp_o_ngs_ch_LP_results, 
+    data, 
+    sp_o_ngs_ch_some_subpaths, 
+    sp_o_ngs_ch_some_charging_arcs,
+)
+sp_o_ngs_ch_LP_results["paths"]
 ## trial
 
 print.(p_b_ngs_printlist);
@@ -675,9 +690,8 @@ for (n_customers, n_vehicles, T, n_charging) in Iterators.product(
         batch = 4,
         permissiveness = 0.2,
     )
-    G = construct_graph(data)
     # plot_instance(data)
-    LP_results, IP_results, cgparams, printlist, some_subpaths, some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(G, data;
+    LP_results, IP_results, cgparams, printlist, some_subpaths, some_charging_arcs = subpath_formulation_column_generation_integrated_from_paths(data;
         method = "ours",
         time_windows = false,
         ngroute = true,
@@ -757,7 +771,7 @@ df |>
 
 time_feas_results = []
 for (n_customers, n_vehicles, T, n_charging) in Iterators.product(
-    20:4:28,
+    [16],
     [8],
     [40000],
     [7],
@@ -785,9 +799,8 @@ for (n_customers, n_vehicles, T, n_charging) in Iterators.product(
         batch = 4,
         permissiveness = 0.2,
     )
-    G = construct_graph(data)
     # plot_instance(data)
-    LP_results, IP_results, cgparams, printlist, some_paths = path_formulation_column_generation(G, data;
+    LP_results, IP_results, cgparams, printlist, some_paths = path_formulation_column_generation(data;
         method = "benchmark",
         path_single_service = true,
         path_check_customers = true,
@@ -864,7 +877,114 @@ df |>
     x -> filter(r -> r.n_vehicles == 6, df) |>
     x -> unstack(x, :n_customers, :T, :LP_weighted_mean_path_length)
 
-    
+include("path_formulation.jl")
+include("subpath_formulation.jl")
+include("utils.jl")
+TIME_LIMIT_SEC = 3.0
+# simple test case to quickly compile 
+
+    sample_data = generate_instance(
+        n_depots = 4,
+        n_customers = 10,
+        n_charging = 9,
+        n_vehicles = 7,
+        depot_pattern = "circular",    
+        customer_pattern = "random_box",
+        charging_pattern = "circular_packing",
+        shrinkage_depots = 1.0,
+        shrinkage_charging = 0.7,
+        T = 40000,
+        seed = 3,
+        B = 15000,
+        μ = 5,
+        travel_cost_coeff = 7,
+        charge_cost_coeff = 3,
+        load_scale = 5.0,
+        load_shape = 20.0,
+        load_tolerance = 1.3,
+        batch = 5,
+        permissiveness = 0.7,
+        # data_dir = "../../../data/",
+    )
+    method_params = [
+        # formulation
+        # method
+        # subpath_single_service
+        # subpath_check_customers
+        # path_single_service
+        # path_check_customers
+        # check_customers_accelerated
+        # christofides
+        # ngroute
+        # ngroute_alt
+        # ngroute_neighborhood_charging_depots_size
+        ("path", "benchmark", false, false, false, false, false,  true, false, false, "none"),
+        ("path", "benchmark", false, false,  true,  true, false, false, false, false, "none"),
+        ("path", "benchmark", false, false, false, false, false,  true,  true, false, "small"),
+        ("path", "benchmark", false, false, false, false, false,  true,  true, false, "large"),
+        ("path", "benchmark", false, false, false, false, false,  true,  true,  true, "small"),
+        ("path", "benchmark", false, false, false, false, false,  true,  true,  true, "large"),
+        ("path", "ours", false, false, false, false, false,  true, false, false, "none"),
+        ("path", "ours",  true,  true, false, false, false,  true, false, false, "none"),
+        ("path", "ours",  true,  true,  true,  true, false,  true, false, false, "none"),
+        ("path", "ours", false, false, false, false, false,  true,  true, false, "small"),
+        ("path", "ours", false, false, false, false, false,  true,  true, false, "large"),
+        ("path", "ours", false, false, false, false, false,  true,  true,  true, "small"),
+        ("path", "ours", false, false, false, false, false,  true,  true,  true, "large"),
+        ("subpath", "benchmark", false, false, false, false, false,  true, false, false, "none"),
+        ("subpath", "benchmark", false, false,  true,  true, false, false, false, false, "none"),
+        ("subpath", "benchmark", false, false,  true,  true,  true, false, false, false, "none"),
+        ("subpath", "benchmark", false, false, false, false, false,  true,  true, false, "small"),
+        ("subpath", "benchmark", false, false, false, false, false,  true,  true, false, "large"),
+        ("subpath", "benchmark", false, false, false, false, false,  true,  true,  true, "small"),
+        ("subpath", "benchmark", false, false, false, false, false,  true,  true,  true, "large"),
+        ("subpath", "ours", false, false, false, false, false,  true, false, false, "none"),
+        ("subpath", "ours",  true,  true, false, false, false,  true, false, false, "none"),
+        ("subpath", "ours",  true,  true, false, false,  true,  true, false, false, "none"),
+        ("subpath", "ours",  true,  true,  true,  true, false,  true, false, false, "none"),
+        ("subpath", "ours",  true,  true,  true,  true,  true,  true, false, false, "none"),
+        ("subpath", "ours", false, false, false, false, false,  true,  true, false, "small"),
+        ("subpath", "ours", false, false, false, false, false,  true,  true, false, "large"),
+        ("subpath", "ours", false, false, false, false, false,  true,  true,  true, "small"),
+        ("subpath", "ours", false, false, false, false, false,  true,  true,  true, "large"),
+    ]
+    for method_param in method_params
+        if method_param[1] == "path"
+            (
+                LP_results, IP_results, cgparams, printlist, paths
+            ) = path_formulation_column_generation(
+                sample_data,
+                ;
+                method = method_param[2],
+                subpath_single_service = method_param[3],
+                subpath_check_customers = method_param[4],
+                path_single_service = method_param[5],
+                path_check_customers = method_param[6],
+                christofides = method_param[8],
+                ngroute = method_param[9],
+                ngroute_alt = method_param[10],
+                ngroute_neighborhood_charging_depots_size = method_param[11],
+                time_limit = TIME_LIMIT_SEC,
+            )
+        elseif method_param[1] == "subpath"
+            (
+                LP_results, IP_results, cgparams, printlist, subpaths, charging_arcs
+            ) = subpath_formulation_column_generation_integrated_from_paths(
+                sample_data,
+                ;
+                method = method_param[2],
+                subpath_single_service = method_param[3],
+                subpath_check_customers = method_param[4],
+                path_single_service = method_param[5],
+                path_check_customers = method_param[6],
+                christofides = method_param[8],
+                ngroute = method_param[9],
+                ngroute_alt = method_param[10],
+                ngroute_neighborhood_charging_depots_size = method_param[11],
+                time_limit = TIME_LIMIT_SEC,
+            )
+        end
+    end
 
 
 
@@ -873,6 +993,7 @@ df |>
 include("arc_formulation.jl")
 include("subpath_formulation.jl")
 include("path_formulation.jl")
+include("decomposition_heuristic.jl")
 include("utils.jl")
 
 using CSV, DataFrames
@@ -882,7 +1003,7 @@ using Test
 data = generate_instance(
     ;
     n_depots = 4,
-    n_customers = 16,
+    n_customers = 10,
     n_charging = 9,
     n_vehicles = 7,
     depot_pattern = "circular",    
@@ -899,11 +1020,817 @@ data = generate_instance(
     load_scale = 5.0,
     load_shape = 20.0,
     load_tolerance = 1.3,
-    batch = 4,
+    batch = 1,
     permissiveness = 0.2,
 )
-G = construct_graph(data)
-# plot_instance(data)
+plot_instance(data)
+
+for (time_windows, path_single_service, path_check_customers, christofides, ngroute, ngroute_alt) in [
+    (false, false, false, false, false, false),
+    (false,  true,  true, false, false, false),
+    (false, false, false,  true, false, false),
+    (false,  true,  true,  true, false, false),
+    (false, false, false, false,  true, false),
+    (false, false, false,  true,  true, false),
+    (false, false, false, false,  true,  true),
+    (false, false, false,  true,  true,  true),
+    ( true, false, false, false, false, false),
+    ( true,  true,  true, false, false, false),
+    ( true, false, false,  true, false, false),
+    ( true,  true,  true,  true, false, false),
+    ( true, false, false, false,  true, false),
+    ( true, false, false,  true,  true, false),
+    ( true, false, false, false,  true,  true),
+    ( true, false, false,  true,  true,  true),
+]
+    println("$time_windows, $path_single_service, $path_check_customers, $christofides, $ngroute, $ngroute_alt")
+    @suppress path_formulation_column_generation_nocharge(
+        data,
+        ;
+        time_windows = time_windows,
+        path_single_service = path_single_service,
+        path_check_customers = path_check_customers,
+        christofides = christofides,
+        ngroute = ngroute,
+        ngroute_alt = ngroute_alt,
+    )
+end
+
+CGLP_results, CGIP_results, CG_params, CG_printlist, CG_some_paths = path_formulation_column_generation(
+    data;
+    time_windows = false,
+    path_single_service = false,
+    path_check_customers = false,
+    christofides = true,
+    ngroute = true,
+    ngroute_alt = false,
+)
+CGLP_results["objective"]
+DH_results_paths = path_formulation_decomposition_heuristic(data;
+time_windows = false,
+path_single_service = false,
+path_check_customers = false,
+christofides = true,
+ngroute = true,
+ngroute_alt = false,
+use_integer_paths = true,
+)
+compute_objective_from_path_solution(DH_results_paths, data)
+
+
+time_windows = false
+path_single_service = false
+path_check_customers = false
+christofides = false
+ngroute = false
+ngroute_alt = false
+ngroute_neighborhood_size = Int(ceil(sqrt(data.n_customers))) 
+verbose = true
+time_limit = Inf
+max_iters = Inf
+
+time_heuristic_slack = 1.0
+infeasible = false
+CGLP_results, CGIP_results, params, printlist, some_paths = path_formulation_column_generation_nocharge(
+    data,
+    ;
+    time_heuristic_slack = 0.3,
+    time_windows = time_windows,
+    path_single_service = path_single_service,
+    path_check_customers = path_check_customers,
+    christofides = christofides,
+    ngroute = ngroute,
+    ngroute_alt = ngroute_alt,
+    ngroute_neighborhood_size = ngroute_neighborhood_size,
+    verbose = verbose,
+    time_limit = time_limit,
+    max_iters = max_iters,
+);
+results_paths = collect_path_solution_support(CGLP_results, some_paths, data)
+results_paths_withcharge = Tuple{Float64, Path}[]
+feasible = true
+for (val, p) in results_paths
+    if p.artificial 
+        error("Infeasible solution.")
+    end
+    nodelist = vcat(p.subpaths[1].arcs[1][1], [a[2] for a in p.subpaths[1].arcs])
+    if length(nodelist) == 2 && p.subpaths[1].current_time == 0
+        push!(results_paths_withcharge, (val, p))
+    else
+        (p_feasible, pure_path_label) = get_postcharge_shortest_pure_path_label(
+            data, nodelist,
+            ;
+            time_windows = time_windows,
+        )
+        println(p_feasible)
+        feasible = feasible && p_feasible
+        if !p_feasible
+            break
+        end
+        p_ = convert_pure_path_label_to_path(pure_path_label, data)
+        push!(results_paths_withcharge, (val, p_))
+    end
+end
+(val, p) = results_paths
+nodelist = vcat(p.subpaths[1].arcs[1][1], [a[2] for a in p.subpaths[1].arcs])
+infeasible = false
+p.subpaths[1].current_time
+results_paths_withcharge
+
+time_heuristic_slack = time_heuristic_slack - 0.05
+
+
+
+
+CGLP_results, CGIP_results, CG_params, printlist, some_paths = path_formulation_column_generation_nocharge(
+    data,
+    ;
+    time_windows = false,
+    path_single_service = false,
+    path_check_customers = false,
+    christofides = false,
+    ngroute = false,
+    ngroute_alt = false,
+    # max_iters = 1.0,
+)
+results_paths = collect_path_solution_support(CGLP_results, some_paths, data)
+nodelists = [
+    vcat(p.subpaths[1].arcs[1][1], [a[2] for a in p.subpaths[1].arcs])
+    for (val, p) in results_paths
+]
+results_paths
+time_windows = false
+
+
+
+start_time = time()
+modified_costs = compute_arc_modified_costs(data, zeros(Float64, data.n_customers))
+t = data.t
+B = data.B
+q = data.q
+if time_windows
+    α = data.α
+    β = data.β
+else
+    α = zeros(Int, data.n_nodes)
+    β = repeat([data.T], data.n_nodes)
+end
+
+nodelist = nodelists[4]
+
+pure_path_labels = Dict(
+    (nodelist[1:j]...,) => Dict(
+        current_node => SortedDict{
+            Tuple{Vararg{Int}}, 
+            PurePathLabel,
+        }()
+        for current_node in data.N_nodes
+    )
+    for j in eachindex(nodelist)
+)
+key = (0, -data.B, data.B)
+starting_node = nodelist[1]
+nodeseq = (starting_node,)
+pure_path_labels[nodeseq][starting_node][key] = PurePathLabel(
+    0.0, 
+    [starting_node],
+    Int[],
+    Int[],
+    0,
+    0,
+    data.B,
+    data.B,
+    false,
+    zeros(Int, data.n_customers),
+    false,
+)
+unexplored_states = SortedSet{Tuple{Vararg{Int}}}()
+push!(unexplored_states, (key..., starting_node, nodeseq...))
+
+nodelist
+pure_path_labels[(12,)]
+pure_path_labels[(12, 1,)]
+pure_path_labels[(12, 1, 7,)]
+pure_path_labels[(12, 1, 7, 8,)]
+pure_path_labels[(12, 1, 7, 8, 2,)]
+pure_path_labels[(12, 1, 7, 8, 2, 13)]
+
+first(pure_path_labels[(12, 1, 7, 8, 2, 13)][13])[2]
+unexplored_states
+while length(unexplored_states) > 0
+# begin
+    # if time_limit < time() - start_time
+    #     error("Time limit reached.")
+    # end
+    state = pop!(unexplored_states)
+    current_node = state[4]
+    current_nodeseq = state[5:end]
+    current_key = state[1:3]
+    if !(current_key in keys(pure_path_labels[current_nodeseq][current_node]))
+        continue
+    end
+    current_path = pure_path_labels[current_nodeseq][current_node][current_key]
+    println("current_path: $(current_path.nodes)")
+    eventual_next_node = nodelist[length(current_nodeseq) + 1]
+    for next_node in setdiff(vcat(eventual_next_node, data.N_charging), current_node)
+        # feasibility checks
+        # (1) battery
+        excess = max(
+            0, 
+            q[current_node,next_node] - current_path.charge_mincharge 
+        )
+        # (2) time windows
+        if current_path.time_mincharge + excess + t[current_node,next_node] > β[next_node]
+            # println("$(current_path.time_mincharge), $excess, $(t[current_node,next_node]), $(β[next_node])")
+            # println("not time windows feasible")
+            continue
+        end
+        if current_path.time_mincharge + excess + t[current_node,next_node] + data.min_t[next_node] > data.T
+            continue
+        end
+        # (3) charge interval 
+        if (
+            (current_node in data.N_charging && excess > max(B - current_path.charge_mincharge, 0))
+            || 
+            (!(current_node in data.N_charging) && excess > max(current_path.charge_maxcharge - current_path.charge_mincharge, 0))
+        )
+            # if current_node in data.N_charging
+            #     println("$excess, $(B), $(current_path.charge_mincharge)")
+            # else
+            #     println("$excess, $(current_path.charge_maxcharge), $(current_path.charge_mincharge)")
+            # end
+            # println("not charge feasible")
+            continue
+        end
+        
+        new_path = copy(current_path)
+        push!(new_path.nodes, next_node)
+        if next_node in data.N_customers
+            new_path.served[next_node] += 1
+        end
+
+        push!(new_path.excesses, excess)
+        new_path.time_mincharge = max(
+            α[next_node],
+            current_path.time_mincharge + t[current_node,next_node] + excess
+        )
+        if current_node in data.N_charging
+            slack = max(
+                # floating point accuracy
+                0, 
+                min(
+                    new_path.time_mincharge - (current_path.time_mincharge + t[current_node,next_node] + excess),
+                    B - (current_path.charge_mincharge + excess),
+                )
+            )
+            push!(new_path.slacks, slack)
+            new_path.time_maxcharge = min(
+                β[next_node],
+                max(
+                    α[next_node],
+                    current_path.time_mincharge + (B - current_path.charge_mincharge) + t[current_node,next_node],
+                )
+            )
+        else
+            slack = max(
+                # floating point accuracy
+                0, 
+                min(
+                    new_path.time_mincharge - (current_path.time_mincharge + t[current_node,next_node] + excess),
+                    current_path.charge_maxcharge - (current_path.charge_mincharge + excess),
+                )
+            )
+            push!(new_path.slacks, slack)
+            new_path.time_maxcharge = min(
+                β[next_node],
+                max(
+                    α[next_node],
+                    current_path.time_maxcharge + t[current_node,next_node],
+                )
+            )
+        end
+        
+        new_path.charge_mincharge = (
+            current_path.charge_mincharge 
+            + excess 
+            + slack
+            - q[current_node,next_node]
+        )
+        new_path.charge_maxcharge = (
+            new_path.charge_mincharge 
+            + new_path.time_maxcharge 
+            - new_path.time_mincharge
+        )
+
+        new_path.cost += modified_costs[current_node,next_node]
+        new_path.cost += data.charge_cost_coeff * (slack + excess)
+
+        # add new_path to collection
+        if next_node in union(data.N_customers, data.N_depots)
+            new_nodeseq = (current_nodeseq..., next_node)
+        else
+            new_nodeseq = current_nodeseq
+        end
+        new_key = (
+            new_path.time_mincharge, 
+            - new_path.charge_maxcharge, 
+            new_path.time_mincharge - new_path.charge_mincharge,
+        )
+        println("$next_node, $new_nodeseq, $new_key")
+        added = add_pure_path_label_to_collection!(
+            pure_path_labels[new_nodeseq][next_node], 
+            new_key, new_path, 
+            ;
+            verbose = true,
+        )
+        if added && !(next_node in data.N_depots)
+            new_state = (new_key..., next_node, new_nodeseq...,)
+            push!(unexplored_states, new_state)
+        end
+    end
+    break
+end
+
+println(nodelist)
+pure_path_labels = Dict(
+    (nodelist[1:j]...,) => Dict(
+        current_node => SortedDict{
+            Tuple{Vararg{Int}}, 
+            PurePathLabel,
+        }()
+        for current_node in data.N_nodes
+    )
+    for j in eachindex(nodelist)
+)
+key = (0, -data.B, data.B, -zeros(Int, data.n_customers)...)
+unexplored_states = SortedSet{Tuple{Vararg{Int}}}()
+starting_node = nodelist[1]
+pure_path_labels[starting_node][starting_node][key] = PurePathLabel(
+    0.0, 
+    [starting_node],
+    Int[],
+    Int[],
+    0,
+    0,
+    data.B,
+    data.B,
+    false,
+    zeros(Int, data.n_customers),
+    false,
+)
+push!(unexplored_states, (key..., starting_node, 1))
+
+
+while length(unexplored_states) > 0
+# begin
+    # if time_limit < time() - start_time
+    #     error("Time limit reached.")
+    # end
+    state = pop!(unexplored_states)
+    current_node = state[end-1]
+    current_key = state[1:end-2]
+    if !(current_key in keys(pure_path_labels[starting_node][current_node]))
+        continue
+    end
+    current_path = pure_path_labels[starting_node][current_node][current_key]
+    eventual_next_node = nodelist[state[end] + 1]
+    for next_node in vcat(eventual_next_node, data.N_charging)
+        # feasibility checks
+        # (1) battery
+        excess = max(
+            0, 
+            q[current_node,next_node] - current_path.charge_mincharge 
+        )
+        # (2) time windows
+        if current_path.time_mincharge + excess + t[current_node,next_node] > β[next_node]
+            # println("$(current_path.time_mincharge), $excess, $(t[current_node,next_node]), $(β[next_node])")
+            # println("not time windows feasible")
+            continue
+        end
+        if current_path.time_mincharge + excess + t[current_node,next_node] + data.min_t[next_node] > data.T
+            continue
+        end
+        # (3) charge interval 
+        if (
+            (current_node in data.N_charging && excess > max(B - current_path.charge_mincharge, 0))
+            || 
+            (!(current_node in data.N_charging) && excess > max(current_path.charge_maxcharge - current_path.charge_mincharge, 0))
+        )
+            # if current_node in data.N_charging
+            #     println("$excess, $(B), $(current_path.charge_mincharge)")
+            # else
+            #     println("$excess, $(current_path.charge_maxcharge), $(current_path.charge_mincharge)")
+            # end
+            # println("not charge feasible")
+            continue
+        end
+        
+        new_path = copy(current_path)
+        push!(new_path.nodes, next_node)
+        if next_node in data.N_customers
+            new_path.served[next_node] += 1
+        end
+
+        push!(new_path.excesses, excess)
+        new_path.time_mincharge = max(
+            α[next_node],
+            current_path.time_mincharge + t[current_node,next_node] + excess
+        )
+        if current_node in data.N_charging
+            slack = max(
+                # floating point accuracy
+                0, 
+                min(
+                    new_path.time_mincharge - (current_path.time_mincharge + t[current_node,next_node] + excess),
+                    B - (current_path.charge_mincharge + excess),
+                )
+            )
+            push!(new_path.slacks, slack)
+            new_path.time_maxcharge = min(
+                β[next_node],
+                max(
+                    α[next_node],
+                    current_path.time_mincharge + (B - current_path.charge_mincharge) + t[current_node,next_node],
+                )
+            )
+        else
+            slack = max(
+                # floating point accuracy
+                0, 
+                min(
+                    new_path.time_mincharge - (current_path.time_mincharge + t[current_node,next_node] + excess),
+                    current_path.charge_maxcharge - (current_path.charge_mincharge + excess),
+                )
+            )
+            push!(new_path.slacks, slack)
+            new_path.time_maxcharge = min(
+                β[next_node],
+                max(
+                    α[next_node],
+                    current_path.time_maxcharge + t[current_node,next_node],
+                )
+            )
+        end
+        
+        new_path.charge_mincharge = (
+            current_path.charge_mincharge 
+            + excess 
+            + slack
+            - q[current_node,next_node]
+        )
+        new_path.charge_maxcharge = (
+            new_path.charge_mincharge 
+            + new_path.time_maxcharge 
+            - new_path.time_mincharge
+        )
+
+        new_path.cost += modified_costs[current_node,next_node]
+        new_path.cost += data.charge_cost_coeff * (slack + excess)
+
+        # add new_path to collection
+        new_key = (
+            new_path.time_mincharge, 
+            - new_path.charge_maxcharge, 
+            new_path.time_mincharge - new_path.charge_mincharge, 
+            - new_path.served...,
+        )
+        added = add_pure_path_label_to_collection!(
+            pure_path_labels[starting_node][next_node], 
+            new_key, new_path, 
+            ;
+            verbose = false,
+        )
+        if added && !(next_node in data.N_depots)
+            if next_node in data.N_customers
+                new_state = (new_key..., next_node, state[end] + 1)
+            else
+                new_state = (new_key..., next_node, state[end])
+            end
+            push!(unexplored_states, new_state)
+        end
+    end
+end
+
+function get_postcharge_shortest_pure_path_label(
+    data, 
+    nodelist::Vector{Int},
+    ;
+)
+    modified_costs = compute_arc_modified_costs(data, zeros(Float64, data.n_customers))
+    t = data.t
+    B = data.B
+    q = data.q
+    if time_windows
+        α = data.α
+        β = data.β
+    else
+        α = zeros(Int, data.n_nodes)
+        β = repeat([data.T], data.n_nodes)
+    end
+
+    pure_path_labels = Dict(
+        (nodelist[1:j]...,) => Dict(
+            current_node => SortedDict{
+                Tuple{Vararg{Int}}, 
+                PurePathLabel,
+            }()
+            for current_node in data.N_nodes
+        )
+        for j in eachindex(nodelist)
+    )
+    key = (0, -data.B, data.B)
+    starting_node = nodelist[1]
+    nodeseq = (starting_node,)
+    pure_path_labels[nodeseq][starting_node][key] = PurePathLabel(
+        0.0, 
+        [starting_node],
+        Int[],
+        Int[],
+        0,
+        0,
+        data.B,
+        data.B,
+        false,
+        zeros(Int, data.n_customers),
+        false,
+    )
+    unexplored_states = SortedSet{Tuple{Vararg{Int}}}()
+    push!(unexplored_states, (key..., starting_node, nodeseq...))
+    while length(unexplored_states) > 0
+        state = pop!(unexplored_states)
+        current_node = state[4]
+        current_nodeseq = state[5:end]
+        current_key = state[1:3]
+        if !(current_key in keys(pure_path_labels[current_nodeseq][current_node]))
+            continue
+        end
+        current_path = pure_path_labels[current_nodeseq][current_node][current_key]
+        # println("current_path: $(current_path.nodes)")
+        eventual_next_node = nodelist[length(current_nodeseq) + 1]
+        for next_node in setdiff(vcat(eventual_next_node, data.N_charging), current_node)
+            if !(next_node in outneighbors(data.data.G, current_node))
+                continue
+            end
+            # feasibility checks
+            # (1) battery
+            excess = max(
+                0, 
+                q[current_node,next_node] - current_path.charge_mincharge 
+            )
+            # (2) time windows
+            if current_path.time_mincharge + excess + t[current_node,next_node] > β[next_node]
+                # println("$(current_path.time_mincharge), $excess, $(t[current_node,next_node]), $(β[next_node])")
+                # println("not time windows feasible")
+                continue
+            end
+            if current_path.time_mincharge + excess + t[current_node,next_node] + data.min_t[next_node] > data.T
+                continue
+            end
+            # (3) charge interval 
+            if (
+                (current_node in data.N_charging && excess > max(B - current_path.charge_mincharge, 0))
+                || 
+                (!(current_node in data.N_charging) && excess > max(current_path.charge_maxcharge - current_path.charge_mincharge, 0))
+            )
+                # if current_node in data.N_charging
+                #     println("$excess, $(B), $(current_path.charge_mincharge)")
+                # else
+                #     println("$excess, $(current_path.charge_maxcharge), $(current_path.charge_mincharge)")
+                # end
+                # println("not charge feasible")
+                continue
+            end
+            
+            new_path = copy(current_path)
+            push!(new_path.nodes, next_node)
+            if next_node in data.N_customers
+                new_path.served[next_node] += 1
+            end
+    
+            push!(new_path.excesses, excess)
+            new_path.time_mincharge = max(
+                α[next_node],
+                current_path.time_mincharge + t[current_node,next_node] + excess
+            )
+            if current_node in data.N_charging
+                slack = max(
+                    # floating point accuracy
+                    0, 
+                    min(
+                        new_path.time_mincharge - (current_path.time_mincharge + t[current_node,next_node] + excess),
+                        B - (current_path.charge_mincharge + excess),
+                    )
+                )
+                push!(new_path.slacks, slack)
+                new_path.time_maxcharge = min(
+                    β[next_node],
+                    max(
+                        α[next_node],
+                        current_path.time_mincharge + (B - current_path.charge_mincharge) + t[current_node,next_node],
+                    )
+                )
+            else
+                slack = max(
+                    # floating point accuracy
+                    0, 
+                    min(
+                        new_path.time_mincharge - (current_path.time_mincharge + t[current_node,next_node] + excess),
+                        current_path.charge_maxcharge - (current_path.charge_mincharge + excess),
+                    )
+                )
+                push!(new_path.slacks, slack)
+                new_path.time_maxcharge = min(
+                    β[next_node],
+                    max(
+                        α[next_node],
+                        current_path.time_maxcharge + t[current_node,next_node],
+                    )
+                )
+            end
+            
+            new_path.charge_mincharge = (
+                current_path.charge_mincharge 
+                + excess 
+                + slack
+                - q[current_node,next_node]
+            )
+            new_path.charge_maxcharge = (
+                new_path.charge_mincharge 
+                + new_path.time_maxcharge 
+                - new_path.time_mincharge
+            )
+    
+            new_path.cost += modified_costs[current_node,next_node]
+            new_path.cost += data.charge_cost_coeff * (slack + excess)
+    
+            # add new_path to collection
+            if next_node in union(data.N_customers, data.N_depots)
+                new_nodeseq = (current_nodeseq..., next_node)
+            else
+                new_nodeseq = current_nodeseq
+            end
+            new_key = (
+                new_path.time_mincharge, 
+                - new_path.charge_maxcharge, 
+                new_path.time_mincharge - new_path.charge_mincharge,
+            )
+            # println("$next_node, $new_nodeseq, $new_key")
+            added = add_pure_path_label_to_collection!(
+                pure_path_labels[new_nodeseq][next_node], 
+                new_key, new_path, 
+                ;
+                verbose = false,
+            )
+            if added && !(next_node in data.N_depots)
+                new_state = (new_key..., next_node, new_nodeseq...,)
+                push!(unexplored_states, new_state)
+            end
+        end
+    end
+    if length(pure_path_labels[(nodelist...)][nodelist[end]]) == 0
+        return (false, nothing)
+    else
+        return (true, first(values(pure_path_labels[(nodelist...)][nodelist[end]])))
+    end
+end
+
+nodelist
+(infeasible, pure_path_label) = get_postcharge_shortest_pure_path_label(data, nodelist)
+get_paths_from_negative_pure_path_labels(data, [pure_path_label])
+
+length(pure_path_labels_list)
+
+
+
+
+include("utils.jl")
+include("path_formulation.jl")
+include("subpath_formulation.jl")
+include("decomposition_heuristic.jl")
+
+using Profile
+
+
+data_params = collect(Iterators.product(
+    [4], # n_depots
+    20:4:40, # n_customers
+    [7], # n_charging
+    [8], # n_vehicles
+    40000:10000:80000, # T
+    [15000], # B
+))
+method_params = [
+    # method
+    # path_single_service
+    # path_check_customers
+    # christofides
+    # ngroute
+    # ngroute_alt
+    ("ours", false, false, false, false, false),
+    ("ours", false, false,  true, false, false),
+    ("ours", false, false, false,  true, false),
+    ("ours", false, false,  true,  true, false),
+    ("ours", false, false, false,  true,  true),
+    ("ours", false, false,  true,  true,  true),
+    ("ours",  true,  true, false, false, false),
+]
+
+data = generate_instance(
+    ;
+    n_depots = 4,
+    n_customers = 20,
+    n_charging = 7,
+    n_vehicles = 8,
+    depot_pattern = "circular",    
+    customer_pattern = "random_box",
+    charging_pattern = "circular_packing",
+    shrinkage_depots = 1.0,
+    shrinkage_charging = 1.0,
+    T = 40000,
+    seed = 1,
+    B = 15000,
+    μ = 5,
+    travel_cost_coeff = 7,
+    charge_cost_coeff = 3,
+    load_scale = 5.0,
+    load_shape = 20.0,
+    load_tolerance = 1.3,
+    batch = 1,
+    permissiveness = 0.2,
+)
+for method_param in method_params
+    use_time_windows = false
+    method, path_single_service, path_check_customers, christofides, ngroute, ngroute_alt = method_param
+    a = @allocated @suppress begin 
+        CGLP_results, CGIP_results, CG_params, CG_printlist, CG_some_paths = path_formulation_column_generation(
+            data,
+            ;
+            method = method,
+            time_windows = use_time_windows,
+            path_single_service = path_single_service,
+            path_check_customers = path_check_customers,
+            christofides = christofides,
+            ngroute = ngroute,
+            ngroute_alt = ngroute_alt,
+        )
+        DHL_results_paths = path_formulation_decomposition_heuristic(
+            data,
+            ;
+            time_windows = use_time_windows,
+            path_single_service = path_single_service,
+            path_check_customers = path_check_customers,
+            christofides = christofides,
+            ngroute = ngroute,
+            ngroute_alt = ngroute_alt,
+            use_integer_paths = false,
+        )
+        DHI_results_paths = path_formulation_decomposition_heuristic(
+            data,
+            ;
+            time_windows = use_time_windows,
+            path_single_service = path_single_service,
+            path_check_customers = path_check_customers,
+            christofides = christofides,
+            ngroute = ngroute,
+            ngroute_alt = ngroute_alt,
+            use_integer_paths = true,
+        )
+        DHL_objective = compute_objective_from_path_solution(DHL_results_paths, data)
+        DHI_objective = compute_objective_from_path_solution(DHL_results_paths, data)
+    end
+    println("$method_param: $a")
+end
+
+data
+(method, path_single_service, path_check_customers, christofides, ngroute, ngroute_alt) = ("ours", false, false, false, false, false)
+use_time_windows = false
+
+@profile path_formulation_column_generation(
+    data,
+    ;
+    method = method,
+    time_windows = use_time_windows,
+    path_single_service = path_single_service,
+    path_check_customers = path_check_customers,
+    christofides = christofides,
+    ngroute = ngroute,
+    ngroute_alt = ngroute_alt,
+)
+
+Profile.print(format = :flat)
+
+@code_warntype  path_formulation_column_generation(
+    data,
+    ;
+    method = method,
+    time_windows = use_time_windows,
+    path_single_service = path_single_service,
+    path_check_customers = path_check_customers,
+    christofides = christofides,
+    ngroute = ngroute,
+    ngroute_alt = ngroute_alt,
+)
+
 
 Env = nothing
 method = "ours"
@@ -916,9 +1843,7 @@ christofides = true
 verbose = true
 
 ### Beginning debug of path_formulation_column_generation()
-compute_minimum_time_to_nearest_depot!(data, G)
-compute_minimum_charge_to_nearest_depot_charging_station!(data, G)
-compute_ngroute_neighborhoods!(data, Int(floor(sqrt(data["n_customers"]))))
+compute_ngroute_neighborhoods!(data, Int(floor(sqrt(data.n_customers))))
 
 some_paths = generate_artificial_paths(data)
 path_costs = compute_path_costs(
@@ -970,20 +1895,20 @@ z = Dict{
 )
 @constraint(
     mp_model,
-    κ[i in data["N_depots"]],
+    κ[i in data.N_depots],
     sum(
         sum(
-            z[((i,0,data["B"]),state2),p]
-            for p in 1:length(some_paths[((i,0,data["B"]),state2)])
+            z[((i,0,data.B),state2),p]
+            for p in 1:length(some_paths[((i,0,data.B),state2)])
         )        
         for (state1, state2) in keys(some_paths)
-            if state1[1] == i && state1[2] == 0 && state1[3] == data["B"]
+            if state1[1] == i && state1[2] == 0 && state1[3] == data.B
     )
-    == data["v_start"][findfirst(x -> (x == i), data["N_depots"])]
+    == data.v_start[findfirst(x -> (x == i), data.N_depots)]
 )
 @constraint(
     mp_model,
-    μ[n2 in data["N_depots"]],
+    μ[n2 in data.N_depots],
     sum(
         sum(
             z[(state1, state2),p]
@@ -991,11 +1916,11 @@ z = Dict{
         )
         for (state1, state2) in keys(some_paths)
             if state2[1] == n2
-    ) ≥ data["v_end"][n2]
+    ) ≥ data.v_end[n2]
 )
 @constraint(
     mp_model,
-    ν[j in data["N_customers"]],
+    ν[j in data.N_customers],
     sum(
         sum(
             path_service[((state1, state2),j)][p] * z[(state1, state2),p]
@@ -1033,8 +1958,8 @@ begin
             (key, p) => value.(z[(key, p)])
             for (key, p) in keys(z)
         ),
-        "κ" => Dict(zip(data["N_depots"], dual.(mp_model[:κ]).data)),
-        "μ" => Dict(zip(data["N_depots"], dual.(mp_model[:μ]).data)),
+        "κ" => Dict(zip(data.N_depots, dual.(mp_model[:κ]).data)),
+        "μ" => Dict(zip(data.N_depots, dual.(mp_model[:μ]).data)),
         "ν" => dual.(mp_model[:ν]).data,
         "solution_time_taken" => round(mp_solution_end_time - mp_solution_start_time, digits = 3),
     )
@@ -1046,7 +1971,7 @@ begin
 
     if method == "ours"
         (negative_full_labels, _, base_labels_time, full_labels_time) = subproblem_iteration_ours(
-            G, data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
+            data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
             ;
             subpath_single_service = subpath_single_service,
             subpath_check_customers = subpath_check_customers,
@@ -1071,7 +1996,7 @@ begin
         )
     elseif method == "benchmark"
         (negative_pure_path_labels, _, pure_path_labels_time) = subproblem_iteration_benchmark(
-            G, data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
+            data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
             ;
             time_windows = time_windows,
             path_single_service = path_single_service,
@@ -1110,7 +2035,7 @@ begin
         if !(state_pair in keys(some_paths))
             some_paths[state_pair] = []
             path_costs[state_pair] = []
-            for i in 1:data["n_customers"]
+            for i in 1:data.n_customers
                 path_service[(state_pair, i)] = []
             end
             count = 0
@@ -1132,7 +2057,7 @@ begin
                     compute_path_cost(data, p_new)
                 )
                 # 3: add path service
-                for i in 1:data["n_customers"]
+                for i in 1:data.n_customers
                     push!(path_service[(state_pair, i)], p_new.served[i])
                 end
                 # 4: create variable
@@ -1143,7 +2068,7 @@ begin
                 set_normalized_coefficient(κ[state1[1]], z[state_pair,count], 1)
                 set_normalized_coefficient(μ[state2[1]], z[state_pair,count], 1)
                 # 6: modify customer service constraints
-                for l in data["N_customers"]
+                for l in data.N_customers
                     set_normalized_coefficient(ν[l], z[state_pair, count], p_new.served[l])
                 end
                 # 7: modify objective
@@ -1169,16 +2094,16 @@ params["sp_full_time_taken"]
 include("utils.jl")
 include("subpath_stitching.jl")
 compute_ngroute_neighborhoods!(data, 4)
-# compute_ngroute_neighborhoods!(data, Int(floor(sqrt(data["n_customers"]))))
+# compute_ngroute_neighborhoods!(data, Int(floor(sqrt(data.n_customers))))
 
-base_labels = @time generate_base_labels_ngroute(G, data, κ, μ, ν, christofides = true)
+base_labels = @time generate_base_labels_ngroute(data, κ, μ, ν, christofides = true)
 full_labels = @time find_nondominated_paths_notimewindows_ngroute(data, base_labels, κ, μ, christofides = true)
 
 
-base_labels = @time generate_base_labels_singleservice(G, data, κ, μ, ν, check_customers = true, christofides = true)
+base_labels = @time generate_base_labels_singleservice(data, κ, μ, ν, check_customers = true, christofides = true)
 full_labels = @time find_nondominated_paths_notimewindows(data, base_labels, κ, μ, single_service = true, check_customers = true, christofides = true)
 
-base_labels = @time generate_base_labels_nonsingleservice(G, data, κ, μ, ν, christofides = true)
+base_labels = @time generate_base_labels_nonsingleservice(data, κ, μ, ν, christofides = true)
 full_labels = @time find_nondominated_paths_notimewindows(data, base_labels, κ, μ, single_service = false, check_customers = false, christofides = true)
 
 [p.served for set in keys(full_labels[20][20]) for p in values(full_labels[20][20][set])]
@@ -1189,9 +2114,9 @@ full_labels = @time find_nondominated_paths_notimewindows(data, base_labels, κ,
 
 base_labels[19][22]
 base_labels[22][21]
-sort(data["neighborhoods"])
+sort(data.neighborhoods)
 
-data["neighborhoods"]
+data.neighborhoods
 collect((1,2,))
 
 function ngroute_extend_partial_path_check(
@@ -1206,7 +2131,7 @@ function ngroute_extend_partial_path_check(
         end
         new_set = [
             node for node in new_set
-                if node in data["neighborhoods"][next_node]
+                if node in data.neighborhoods[next_node]
         ]
         push!(new_set, next_node)
         println("$next_node, $new_set")
@@ -1230,25 +2155,12 @@ ngroute_extend_partial_path_check(data, set, s)
 #     end
 #     ind = findlast(x -> x == next_node, nodes)
 #     for j in nodes[ind+1:end]
-#         if !(next_node in data["neighborhoods"][j])
+#         if !(next_node in data.neighborhoods[j])
 #             return true
 #         end
 #     end
 #     return false
 # end
-
-function ngroute_create_set(
-    data, 
-    set::Tuple{Vararg{Int}}, 
-    next_node::Int,
-)
-    new_set = Int[
-        node for node in set
-            if node in data["neighborhoods"][next_node]
-    ]
-    push!(new_set, next_node) 
-    return Tuple(sort(unique(new_set)))
-end
 
 function add_subpath_longlabel_to_collection!(
     collection::SortedDict{
@@ -1292,13 +2204,7 @@ function add_subpath_longlabel_to_collection!(
     return added
 end
 
-modified_costs = data["travel_cost_coeff"] * Float64.(copy(data["c"]))
-for j in data["N_customers"]
-    for i in data["N_nodes"]
-        modified_costs[i,j] -= ν[j]
-    end
-end
-
+modified_costs = compute_arc_modified_costs(data, ν)
 
 base_labels = Dict(
     starting_node => Dict(
@@ -1306,14 +2212,14 @@ base_labels = Dict(
             Tuple{Vararg{Int}}, 
             SortedDict{Int, BaseSubpathLabel},
         }()
-        for current_node in data["N_nodes"]
+        for current_node in data.N_nodes
     )
-    for starting_node in union(data["N_depots"], data["N_charging"])
+    for starting_node in union(data.N_depots, data.N_charging)
 )
-for node in union(data["N_depots"], data["N_charging"])
+for node in union(data.N_depots, data.N_charging)
     base_labels[node][node][(node,)] = SortedDict(
         0 => BaseSubpathLabel(
-            0, 0, 0.0, [node,], zeros(Int, data["n_customers"]),
+            0, 0, 0.0, [node,], zeros(Int, data.n_customers),
         )
     )
 end
@@ -1321,7 +2227,7 @@ end
 unexplored_states = SortedSet(
     [
         (0.0, node, node)
-        for node in union(data["N_depots"], data["N_charging"])
+        for node in union(data.N_depots, data.N_charging)
     ]
 );
 
@@ -1338,10 +2244,10 @@ unexplored_states = SortedSet(
         end
         current_subpath = base_labels[starting_node][current_node][set][state[1]]
         println("$starting_node, $current_node, $set, $(state[1]): $(current_subpath.nodes)")
-        for next_node in setdiff(outneighbors(G, current_node), current_node)
+        for next_node in setdiff(outneighbors(data.G, current_node), current_node)
             println("exploring next node $next_node")
             # if next_node is not a customer, proceed
-            if next_node in data["N_customers"]
+            if next_node in data.N_customers
                 # if next_node is a customer not yet visited, proceed
                 # only if one can extend current_subpath along next_node according to ng-route rules
                 if !ngroute_customer_check(data, current_subpath.nodes, next_node)
@@ -1359,19 +2265,19 @@ unexplored_states = SortedSet(
                 end
             end
             # time and charge feasibility
-            # if current_subpath.time_taken + data["t"][current_node, next_node] + data["min_t"][next_node] > data["T"]
+            # if current_subpath.time_taken + data.t[current_node, next_node] + data.min_t[next_node] > data.T
             #     continue
             # end 
-            if current_subpath.charge_taken + data["q"][current_node, next_node] + data["min_q"][next_node] > data["B"]
+            if current_subpath.charge_taken + data.q[current_node, next_node] + data.min_q[next_node] > data.B
                 println("not charge feasible")
                 continue
             end
             new_subpath = copy(current_subpath)
-            new_subpath.time_taken += data["t"][current_node, next_node]
-            new_subpath.charge_taken += data["q"][current_node, next_node]
+            new_subpath.time_taken += data.t[current_node, next_node]
+            new_subpath.charge_taken += data.q[current_node, next_node]
             new_subpath.cost += modified_costs[current_node, next_node]
             push!(new_subpath.nodes, next_node)
-            if next_node in data["N_customers"]
+            if next_node in data.N_customers
                 new_subpath.served[next_node] += 1
             end
             new_set = ngroute_create_set(data, set, next_node)
@@ -1389,7 +2295,7 @@ unexplored_states = SortedSet(
                 verbose = true,
             )
             println("added = $added")
-            if added && next_node in data["N_customers"]
+            if added && next_node in data.N_customers
                 new_state = (new_subpath.time_taken, starting_node, next_node)
                 push!(unexplored_states, new_state)
                 println("added next state: $new_state")
@@ -1401,14 +2307,14 @@ end
 unexplored_states
 base_labels
 
-for starting_node in vcat(data["N_depots"], data["N_charging"])
-    for end_node in data["N_customers"]
+for starting_node in vcat(data.N_depots, data.N_charging)
+    for end_node in data.N_customers
         delete!(base_labels[starting_node], end_node)
     end
 end
 
-for starting_node in data["N_depots"]
-    for end_node in vcat(data["N_depots"], data["N_charging"])
+for starting_node in data.N_depots
+    for end_node in vcat(data.N_depots, data.N_charging)
         for set in keys(base_labels[starting_node][end_node])
             for v in values(base_labels[starting_node][end_node][set])
                 v.cost = v.cost - κ[starting_node]
@@ -1416,8 +2322,8 @@ for starting_node in data["N_depots"]
         end
     end
 end
-for end_node in data["N_depots"]
-    for starting_node in vcat(data["N_depots"], data["N_charging"])
+for end_node in data.N_depots
+    for starting_node in vcat(data.N_depots, data.N_charging)
         for set in keys(base_labels[starting_node][end_node])
             for v in values(base_labels[starting_node][end_node][set])
                 v.cost = v.cost - μ[end_node]
@@ -1427,7 +2333,7 @@ for end_node in data["N_depots"]
 end
 
 # remove self-loops with nonnegative cost
-for node in union(data["N_depots"], data["N_charging"])
+for node in union(data.N_depots, data.N_charging)
     for set in keys(base_labels[node][node])
         for (k, v) in pairs(base_labels[node][node][set])
             if v.cost ≥ 0.0
@@ -1439,10 +2345,10 @@ end
 
 *("3", "3", "4")
 
-for starting_node in union(data["N_depots"], data["N_charging"])
+for starting_node in union(data.N_depots, data.N_charging)
     vals = [
         length(keys(base_labels[starting_node][end_node]))
-        for end_node in data["N_nodes"]
+        for end_node in data.N_nodes
     ]
     # vals = [
     #     sum(
@@ -1450,7 +2356,7 @@ for starting_node in union(data["N_depots"], data["N_charging"])
     #         for set in keys(base_labels[starting_node][end_node])],
     #         init = 0,
     #     )
-    #     for end_node in data["N_nodes"]
+    #     for end_node in data.N_nodes
     # ]
     println(*(["$val\t" for val in vals]...))
 end
@@ -1459,14 +2365,14 @@ end
 base_labels[28][24]
 sum(
     length(base_labels[starting_node][end_node][set])
-    for starting_node in union(data["N_depots"], data["N_charging"])
-        for end_node in union(data["N_depots"], data["N_charging"])
+    for starting_node in union(data.N_depots, data.N_charging)
+        for end_node in union(data.N_depots, data.N_charging)
             for set in keys(base_labels[starting_node][end_node])
 )
 sum(
     length(base_labels[starting_node][end_node])
-    for starting_node in union(data["N_depots"], data["N_charging"])
-        for end_node in union(data["N_depots"], data["N_charging"])
+    for starting_node in union(data.N_depots, data.N_charging)
+        for end_node in union(data.N_depots, data.N_charging)
 )
 
 plot_instance(data)
@@ -1485,7 +2391,7 @@ S = Int[]
 initial_pure_path_labels = nothing
 
 pure_path_labels = find_nondominated_paths_S(
-    G, data, κ, μ, ν,
+    data, κ, μ, ν,
     ;
     S = S,
     time_windows = time_windows, 
@@ -1495,7 +2401,7 @@ pure_path_labels = find_nondominated_paths_S(
 )
 pure_path_labels_count = sum(
     length(pure_path_labels[starting_node][end_node]) 
-    for starting_node in data["N_depots"]
+    for starting_node in data.N_depots
         for end_node in keys(pure_path_labels[starting_node]) 
 )
 # filter for path labels: (i) ending at depot, 
@@ -1505,7 +2411,7 @@ d_pure_path_labels = get_depot_pure_path_labels(data, pure_path_labels);
 n_d_pure_path_labels = get_negative_pure_path_labels_from_pure_path_labels(data, d_pure_path_labels);
 n_d_pure_path_labels_count = sum(
     length(n_d_pure_path_labels[starting_node][end_node]) 
-    for starting_node in data["N_depots"]
+    for starting_node in data.N_depots
         for end_node in keys(n_d_pure_path_labels[starting_node]) 
 )
 if n_d_pure_path_labels_count == 0
@@ -1514,11 +2420,11 @@ if n_d_pure_path_labels_count == 0
 end
 (e_n_d_pure_path_labels, ne_n_d_pure_path_labels) = get_elementary_nonelementary_pure_path_labels(
     data, n_d_pure_path_labels; 
-    S = data["N_customers"]
+    S = data.N_customers
 );
 e_n_d_pure_path_labels_count = sum(
     length(e_n_d_pure_path_labels[starting_node][end_node]) 
-    for starting_node in data["N_depots"]
+    for starting_node in data.N_depots
         for end_node in keys(e_n_d_pure_path_labels[starting_node]) 
 )
 if e_n_d_pure_path_labels_count > 0
@@ -1528,13 +2434,13 @@ end
 
 # else, expand S
 # println(length(S))
-if length(S) == data["n_customers"]
+if length(S) == data.n_customers
     error()
 end
 
 max_freq = 0
 max_custs = Int[]
-for starting_node in data["N_depots"]
+for starting_node in data.N_depots
     for end_node in keys(n_d_pure_path_labels[starting_node])
         for (key, path_label) in pairs(n_d_pure_path_labels[starting_node][end_node])
             freq = maximum(path_label.served)
