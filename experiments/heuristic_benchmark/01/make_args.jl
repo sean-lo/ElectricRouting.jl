@@ -5,8 +5,8 @@ using Glob
 seed_range = collect(1:20)
 data_params = collect(Iterators.product(
     [4], # n_depots
-    # 20:4:40, # n_customers
-    24:4:40,
+    20:4:40, # n_customers
+    # 24:4:40,
     [7], # n_charging
     [8], # n_vehicles
     40000:10000:80000, # T
@@ -88,7 +88,7 @@ end
 results_df = vcat(
     [
         CSV.read(filepath, DataFrame)
-        for filepath in glob("experiments/heuristic_benchmark/01/combined_*.csv")
+        for filepath in glob("experiments/heuristic_benchmark/01/rundata/combined_23263344.csv")
     ]...
 ) |>
     x -> select(
