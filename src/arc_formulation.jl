@@ -203,7 +203,7 @@ function arc_formulation(
         @constraint(
             model,
             [i ∈ N_charging, k ∈ N_vehicles],
-            b_end[i,k] ≤ b_start[i,k] + μ * δ[i,k]
+            b_end[i,k] ≤ b_start[i,k] + δ[i,k]
         ); # (1w): charge leaving not more than charge reaching a node + amount charged (charging stations)
         @constraint(
             model,
@@ -218,7 +218,7 @@ function arc_formulation(
         @constraint(
             model,
             δ0[i ∈ N_charging, k ∈ N_vehicles],
-            δ[i,k] ≤ sum(x[(j,i),k] for j in N_nodes if (j,i) in keys(A)) * 2 * (B / μ)
+            δ[i,k] ≤ sum(x[(j,i),k] for j in N_nodes if (j,i) in keys(A)) * 2 * B
         )
     end
     
