@@ -1090,7 +1090,7 @@ CGLP_results, CGIP_results, params, printlist, some_paths = path_formulation_col
     time_limit = time_limit,
     max_iters = max_iters,
 );
-results_paths = collect_path_solution_support(CGLP_results, some_paths)
+results_paths = collect_path_solution_support(CGLP_results, some_paths, data)
 results_paths_withcharge = Tuple{Float64, Path}[]
 feasible = true
 for (val, p) in results_paths
@@ -1137,7 +1137,7 @@ CGLP_results, CGIP_results, CG_params, printlist, some_paths = path_formulation_
     ngroute_alt = false,
     # max_iters = 1.0,
 )
-results_paths = collect_path_solution_support(CGLP_results, some_paths)
+results_paths = collect_path_solution_support(CGLP_results, some_paths, data)
 nodelists = [
     vcat(p.subpaths[1].arcs[1][1], [a[2] for a in p.subpaths[1].arcs])
     for (val, p) in results_paths
@@ -1678,7 +1678,6 @@ function get_postcharge_shortest_pure_path_label(
     end
 end
 
-results_paths = collect_path_solution_support
 nodelist
 (infeasible, pure_path_label) = get_postcharge_shortest_pure_path_label(data, nodelist)
 get_paths_from_negative_pure_path_labels(data, [pure_path_label])

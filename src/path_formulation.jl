@@ -686,6 +686,7 @@ function collect_path_solution_support(
             Tuple{Int, Int, Int},
         }
     },
+    data::EVRPData,
     ;
 )
     results_paths = Tuple{Float64, Path}[]
@@ -697,6 +698,11 @@ function collect_path_solution_support(
             end
         end
     end
+
+    sort!(
+        results_paths,
+        by = x -> (-compute_path_cost(data, x[2]), -x[1]),
+    )
     return results_paths
 end
 
@@ -785,7 +791,7 @@ function collect_path_solution_metrics!(
     data::EVRPData, 
     paths,
 )
-    results["paths"] = collect_path_solution_support(results, paths)
+    results["paths"] = collect_path_solution_support(results, paths, data)
     collect_solution_metrics!(results, data)
     return results
 end

@@ -1044,7 +1044,6 @@ function plot_subpath_solution(
             plot!(
                 data.coords[1,collect(arc)],
                 data.coords[2,collect(arc)],
-                arrow = true,
                 color = colors[i],
                 alpha = 0.5,
                 lw = 1,
@@ -1160,6 +1159,11 @@ function construct_paths_from_subpath_solution(
         push!(all_paths, (minval, path))
     end
     
+    # Sort paths by (1) path length, (2) minval
+    sort!(
+        all_paths,
+        by = x -> (-compute_path_cost(data, x[2]), -x[1]),
+    )
     return all_paths
 end
 

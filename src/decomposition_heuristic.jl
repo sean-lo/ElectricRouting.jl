@@ -1141,9 +1141,9 @@ function path_formulation_decomposition_heuristic(
             max_iters = max_iters,
         )
         if use_integer_paths
-            results_paths = collect_path_solution_support(CGIP_results, some_paths)
+            results_paths = collect_path_solution_support(CGIP_results, some_paths, data)
         else
-            results_paths = collect_path_solution_support(CGLP_results, some_paths)
+            results_paths = collect_path_solution_support(CGLP_results, some_paths, data)
         end
         results_paths_withcharge = Tuple{Float64, Path}[]
         for (val, p) in results_paths
