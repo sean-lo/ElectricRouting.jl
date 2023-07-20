@@ -146,7 +146,6 @@ struct EVRPData
     charge_cost_coeff::Int
     min_t::Vector{Int}
     min_q::Vector{Int}
-    neighborhoods::Dict{Int, Vector{Int}}
 end
 
 struct TimeLimitException <: Exception end
@@ -490,10 +489,6 @@ function generate_instance(
 
     t_ds = dijkstra_shortest_paths(G, N_depots, t)
     q_ds = dijkstra_shortest_paths(G, vcat(N_depots, N_charging), q)
-    neighborhoods = Dict{Int, Vector{Int}}(
-        i => Int[]
-        for i in N_nodes 
-    )
 
     data = EVRPData(
         n_depots,
@@ -533,7 +528,6 @@ function generate_instance(
         charge_cost_coeff,
         t_ds.dists,
         q_ds.dists,
-        neighborhoods,
     )
     return data
 end
@@ -607,7 +601,7 @@ function charge_to_specified_level(
     return (delta, end_time, desired_end_charge)
 end
 
-function compute_ngroute_neighborhoods!(
+function compute_ngroute_neighborhoods(
     data::EVRPData, 
     k::Int, 
     ;
@@ -616,44 +610,47 @@ function compute_ngroute_neighborhoods!(
     if !(1 ≤ k ≤ data.n_customers)
         error()
     end
-    for i in data.N_customers
-        data.neighborhoods[i] = sortperm(data.distances[i,data.N_customers])[1:k]
+    customer_neighborhoods = [
+        (sortperm(data.distances[i, data.N_customers])[1:k]...,)
+        for i in data.N_customers
+    ]
+    if charging_depots_size == "small"
+        depots_charging_neighborhoods = [
+            (i,)
+            for i in union(data.N_depots, data.N_charging)
+        ]
+    elseif charging_depots_size == "large"
+        depots_charging_neighborhoods = [
+            (data.N_customers..., i)
+            for i in union(data.N_depots, data.N_charging)
+        ]
+    else
+        error("`charging_depots_size` argument not recognized.")
     end
-    for i in union(data.N_depots, data.N_charging)
-        # Option 1:
-        if charging_depots_size == "small"
-            data.neighborhoods[i] = [i]
-        # Option 2:
-        elseif charging_depots_size == "large"
-            data.neighborhoods[i] = vcat(data.N_customers, [i])
-        else
-            error()
-        end
-    end
-    return
+    return Tuple(vcat(customer_neighborhoods, depots_charging_neighborhoods))
 end
 
 function ngroute_create_set(
-    data::EVRPData, 
+    neighborhoods::Tuple{Vararg{Tuple{Vararg{Int}}}},
     set::Tuple{Vararg{Int}}, 
     next_node::Int,
 )
     new_set = Int[
         node for node in set
-            if node in data.neighborhoods[next_node]
+            if node in neighborhoods[next_node]
     ]
     push!(new_set, next_node) 
     return Tuple(sort(unique(new_set)))
 end
 
 function ngroute_create_set_alt(
-    data::EVRPData, 
+    neighborhoods::Tuple{Vararg{Tuple{Vararg{Int}}}},
     set::Vector{Int},
     next_node::Int,
 )
     new_set = zeros(Int, length(set))
     for node in eachindex(set)
-        if set[node] == 1 && node in data.neighborhoods[next_node]
+        if set[node] == 1 && node in neighborhoods[next_node]
             new_set[node] = 1
         end
     end

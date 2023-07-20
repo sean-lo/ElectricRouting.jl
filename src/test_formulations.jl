@@ -1843,7 +1843,7 @@ christofides = true
 verbose = true
 
 ### Beginning debug of path_formulation_column_generation()
-compute_ngroute_neighborhoods!(data, Int(floor(sqrt(data.n_customers))))
+neighborhoods = compute_ngroute_neighborhoods(data, Int(floor(sqrt(data.n_customers))))
 
 some_paths = generate_artificial_paths(data)
 path_costs = compute_path_costs(
@@ -2093,11 +2093,11 @@ params["sp_full_time_taken"]
 ### Starting debug of generate_base_labels_ngroute
 include("utils.jl")
 include("subpath_stitching.jl")
-compute_ngroute_neighborhoods!(data, 4)
-# compute_ngroute_neighborhoods!(data, Int(floor(sqrt(data.n_customers))))
+neighborhoods = compute_ngroute_neighborhoods(data, 4)
+# neighborhoods = compute_ngroute_neighborhoods(data, Int(floor(sqrt(data.n_customers))))
 
-base_labels = @time generate_base_labels_ngroute(data, κ, μ, ν, christofides = true)
-full_labels = @time find_nondominated_paths_notimewindows_ngroute(data, base_labels, κ, μ, christofides = true)
+base_labels = @time generate_base_labels_ngroute(data, neighborhoods, κ, μ, ν, christofides = true)
+full_labels = @time find_nondominated_paths_notimewindows_ngroute(data, neighorhoods, base_labels, κ, μ, christofides = true)
 
 
 base_labels = @time generate_base_labels_singleservice(data, κ, μ, ν, check_customers = true, christofides = true)
@@ -2114,13 +2114,13 @@ full_labels = @time find_nondominated_paths_notimewindows(data, base_labels, κ,
 
 base_labels[19][22]
 base_labels[22][21]
-sort(data.neighborhoods)
+sort(neighborhoods)
 
-data.neighborhoods
+neighborhoods
 collect((1,2,))
 
 function ngroute_extend_partial_path_check(
-    data,
+    neighborhoods::Tuple{Vararg{Tuple{Vararg{Int}}}},
     set::Tuple{Vararg{Int}},
     s::BaseSubpathLabel,
 )
@@ -2131,7 +2131,7 @@ function ngroute_extend_partial_path_check(
         end
         new_set = [
             node for node in new_set
-                if node in data.neighborhoods[next_node]
+                if node in neighborhoods[next_node]
         ]
         push!(new_set, next_node)
         println("$next_node, $new_set")
@@ -2141,7 +2141,7 @@ end
 
 set = (8,16,22)
 s = base_labels[22][21][(7,21)][end]
-ngroute_extend_partial_path_check(data, set, s)
+ngroute_extend_partial_path_check(neighborhoods, set, s)
 
 # function ngroute_customer_check(
 #     data, 
@@ -2155,7 +2155,7 @@ ngroute_extend_partial_path_check(data, set, s)
 #     end
 #     ind = findlast(x -> x == next_node, nodes)
 #     for j in nodes[ind+1:end]
-#         if !(next_node in data.neighborhoods[j])
+#         if !(next_node in neighborhoods[j])
 #             return true
 #         end
 #     end
@@ -2280,7 +2280,7 @@ unexplored_states = SortedSet(
             if next_node in data.N_customers
                 new_subpath.served[next_node] += 1
             end
-            new_set = ngroute_create_set(data, set, next_node)
+            new_set = ngroute_create_set(neighborhoods, set, next_node)
             println("set: $set, next_node: $next_node, new_set: $new_set")
             if !(new_set in keys(base_labels[starting_node][next_node]))
                 base_labels[starting_node][next_node][new_set] = SortedDict{

@@ -282,11 +282,13 @@ function path_formulation_column_generation(
     start_time = time()
 
     if ngroute
-        compute_ngroute_neighborhoods!(
+        neighborhoods = compute_ngroute_neighborhoods(
             data, 
             ngroute_neighborhood_size; 
             charging_depots_size = ngroute_neighborhood_charging_depots_size,
         )
+    else
+        neighborhoods = ()
     end
 
     some_paths = generate_artificial_paths(data)
@@ -474,6 +476,7 @@ function path_formulation_column_generation(
                 (negative_full_labels, _, base_labels_time, full_labels_time) = subproblem_iteration_ours(
                     data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
                     ;
+                    neighborhoods = neighborhoods,
                     ngroute = ngroute,
                     ngroute_alt = ngroute_alt,
                     subpath_single_service = subpath_single_service,
@@ -512,6 +515,7 @@ function path_formulation_column_generation(
                 (negative_pure_path_labels, _, pure_path_labels_time) = subproblem_iteration_benchmark(
                     data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
                     ;
+                    neighborhoods = neighborhoods, 
                     ngroute = ngroute, 
                     ngroute_alt = ngroute_alt,
                     time_windows = time_windows,

@@ -371,6 +371,7 @@ end
 
 function find_nondominated_paths_ngroute(
     data::EVRPData, 
+    neighborhoods::Tuple{Vararg{Tuple{Vararg{Int}}}},
     κ::Dict{Int, Float64},
     μ::Dict{Int, Float64},
     ν::Vector{Float64}, 
@@ -554,7 +555,7 @@ function find_nondominated_paths_ngroute(
                 new_path.cost += modified_costs[current_node,next_node]
                 new_path.cost += data.charge_cost_coeff * (slack + excess)
 
-                new_set = ngroute_create_set(data, current_set, next_node)
+                new_set = ngroute_create_set(neighborhoods, current_set, next_node)
                 if !(new_set in keys(pure_path_labels[starting_node][next_node]))
                     pure_path_labels[starting_node][next_node][new_set] = SortedDict{
                         Tuple{Vararg{Int}},
@@ -618,6 +619,7 @@ end
 
 function find_nondominated_paths_ngroute_alt(
     data::EVRPData, 
+    neighborhoods::Tuple{Vararg{Tuple{Vararg{Int}}}},
     κ::Dict{Int, Float64},
     μ::Dict{Int, Float64},
     ν::Vector{Float64}, 
@@ -793,7 +795,7 @@ function find_nondominated_paths_ngroute_alt(
             new_path.cost += modified_costs[current_node,next_node]
             new_path.cost += data.charge_cost_coeff * (slack + excess)
 
-            new_set = ngroute_create_set_alt(data, collect(current_set), next_node)
+            new_set = ngroute_create_set_alt(neighborhoods, collect(current_set), next_node)
             new_key = (
                 new_path.time_mincharge, 
                 - new_path.charge_maxcharge, 
@@ -891,6 +893,7 @@ function subproblem_iteration_benchmark(
     μ::Dict{Int, Float64},
     ν::Vector{Float64}, 
     ;
+    neighborhoods::Tuple{Vararg{Tuple{Vararg{Int}}}} = (),
     ngroute::Bool = false,
     ngroute_alt::Bool = false,
     time_windows::Bool = false,
@@ -902,7 +905,7 @@ function subproblem_iteration_benchmark(
     start_time = time()
     if ngroute && !ngroute_alt
         pure_path_labels_result = @timed find_nondominated_paths_ngroute(
-            data, κ, μ, ν,
+            data, neighborhoods, κ, μ, ν,
             ;
             time_windows = time_windows,
             christofides = christofides,
@@ -910,7 +913,7 @@ function subproblem_iteration_benchmark(
         )
     elseif ngroute && ngroute_alt
         pure_path_labels_result = @timed find_nondominated_paths_ngroute_alt(
-            data, κ, μ, ν,
+            data, neighborhoods, κ, μ, ν,
             ;
             time_windows = time_windows,
             christofides = christofides,
