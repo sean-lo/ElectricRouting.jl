@@ -1220,7 +1220,7 @@ unexplored_states
 while length(unexplored_states) > 0
 # begin
     # if time_limit < time() - start_time
-    #     error("Time limit reached.")
+    #     throw(TimeLimitException())
     # end
     state = pop!(unexplored_states)
     current_node = state[4]
@@ -1384,7 +1384,7 @@ push!(unexplored_states, (key..., starting_node, 1))
 while length(unexplored_states) > 0
 # begin
     # if time_limit < time() - start_time
-    #     error("Time limit reached.")
+    #     throw(TimeLimitException())
     # end
     state = pop!(unexplored_states)
     current_node = state[end-1]

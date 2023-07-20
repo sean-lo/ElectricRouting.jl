@@ -515,9 +515,9 @@ function subpath_formulation_column_generation_integrated_from_paths(
         push!(params["lp_relaxation_solution_time_taken"], mp_results["solution_time_taken"])
 
         if method == "ours"
-            negative_full_labels = nothing
-            base_labels_time = 0.0
-            full_labels_time = 0.0
+            local negative_full_labels
+            local base_labels_time
+            local full_labels_time
             try
                 if ngroute
                     (negative_full_labels, _, base_labels_time, full_labels_time) = subproblem_iteration_ours(
@@ -585,8 +585,12 @@ function subpath_formulation_column_generation_integrated_from_paths(
                         time_limit = time_limit - (time() - start_time),
                     )
                 end
-            catch
-                break
+            catch e
+                if isa(e, TimeLimitException)
+                    break
+                else
+                    throw(e)
+                end
             end
             (generated_subpaths, generated_charging_arcs) = get_subpaths_charging_arcs_from_negative_path_labels(
                 data, negative_full_labels,
@@ -604,8 +608,8 @@ function subpath_formulation_column_generation_integrated_from_paths(
                 round(base_labels_time + full_labels_time, digits=3)
             )
         elseif method == "benchmark"
-            negative_pure_path_labels = nothing
-            pure_path_labels_time = 0.0
+            local negative_pure_path_labels
+            local pure_path_labels_time
             try
                 if ngroute
                     (negative_pure_path_labels, negative_pure_path_labels_count, pure_path_labels_time) = subproblem_iteration_benchmark(
@@ -663,8 +667,12 @@ function subpath_formulation_column_generation_integrated_from_paths(
                         time_limit = time_limit - (time() - start_time),
                     )
                 end
-            catch
-                break
+            catch e
+                if isa(e, TimeLimitException)
+                    break
+                else
+                    throw(e)
+                end
             end
             (generated_subpaths, generated_charging_arcs) = get_subpaths_charging_arcs_from_negative_pure_path_labels(
                 data, negative_pure_path_labels,

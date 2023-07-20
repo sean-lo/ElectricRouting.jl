@@ -467,9 +467,9 @@ function path_formulation_column_generation(
         push!(params["lp_relaxation_solution_time_taken"], mp_results["solution_time_taken"])
 
         if method == "ours"
-            negative_full_labels = nothing  
-            base_labels_time = 0.0
-            full_labels_time = 0.0
+            local negative_full_labels  
+            local base_labels_time
+            local full_labels_time
             try
                 (negative_full_labels, _, base_labels_time, full_labels_time) = subproblem_iteration_ours(
                     data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
@@ -483,8 +483,12 @@ function path_formulation_column_generation(
                     christofides = christofides,
                     time_limit = time_limit - (time() - start_time),
                 )
-            catch
-                break
+            catch e
+                if isa(e, TimeLimitException)
+                    break
+                else
+                    throw(e)
+                end
             end
             (generated_paths) = get_paths_from_negative_path_labels(
                 data, negative_full_labels,
@@ -502,8 +506,8 @@ function path_formulation_column_generation(
                 round(base_labels_time + full_labels_time, digits=3)
             )
         elseif method == "benchmark"
-            negative_pure_path_labels = nothing  
-            pure_path_labels_time = 0.0
+            local negative_pure_path_labels  
+            local pure_path_labels_time
             try
                 (negative_pure_path_labels, _, pure_path_labels_time) = subproblem_iteration_benchmark(
                     data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
@@ -516,8 +520,12 @@ function path_formulation_column_generation(
                     christofides = christofides,
                     time_limit = time_limit - (time() - start_time),
                 )
-            catch
-                break
+            catch e
+                if isa(e, TimeLimitException)
+                    break
+                else
+                    throw(e)
+                end
             end
             generated_paths = get_paths_from_negative_pure_path_labels(
                 data, negative_pure_path_labels,

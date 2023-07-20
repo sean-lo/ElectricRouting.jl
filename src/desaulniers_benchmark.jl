@@ -192,7 +192,7 @@ function find_nondominated_paths(
 
     while length(unexplored_states) > 0
         if time_limit < time() - start_time
-            error("Time limit reached.")
+            throw(TimeLimitException())
         end
         state = pop!(unexplored_states)
         starting_node = state[end-1]
@@ -436,7 +436,7 @@ function find_nondominated_paths_ngroute(
 
     while length(unexplored_states) > 0
         if time_limit < time() - start_time
-            error("Time limit reached.")
+            throw(TimeLimitException())
         end
         state = pop!(unexplored_states)
         starting_node = state[end-1]
@@ -675,7 +675,7 @@ function find_nondominated_paths_ngroute_alt(
 
     while length(unexplored_states) > 0
         if time_limit < time() - start_time
-            error("Time limit reached.")
+            throw(TimeLimitException())
         end
         state = pop!(unexplored_states)
         starting_node = state[end-1]

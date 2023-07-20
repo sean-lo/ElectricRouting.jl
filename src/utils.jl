@@ -150,6 +150,8 @@ Base.@kwdef mutable struct EVRPData
     neighborhoods::Dict{Int, Vector{Int}}
 end
 
+struct TimeLimitException <: Exception end
+
 function compute_subpath_cost(
     data::EVRPData,
     s::Subpath,

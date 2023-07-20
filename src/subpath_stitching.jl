@@ -150,7 +150,7 @@ function generate_base_labels_nonsingleservice(
 
     while length(unexplored_states) > 0
         if time_limit < time() - start_time
-            error("Time limit reached.")
+            throw(TimeLimitException())
         end
         state = pop!(unexplored_states)
         starting_node = state[end-1]
@@ -383,8 +383,8 @@ function generate_base_labels_singleservice(
                 if true
                     for (k1, s1) in pairs(base_labels[starting_node][new_node])
                         for (k2, s2) in pairs(base_labels[new_node][end_node])
-                            if !(time_limit ≥ time() - start_time)
-                                error("Time limit reached.")
+                            if time_limit < time() - start_time
+                                throw(TimeLimitException())
                             end
                             # Preventing customer 2-cycles (Christofides)
                             if christofides && s1.nodes[end-1] in data.N_customers && s1.nodes[end-1] == s2.nodes[2]
@@ -499,7 +499,7 @@ function generate_base_labels_ngroute(
 
     while length(unexplored_states) > 0
         if time_limit < time() - start_time
-            error("Time limit reached.")
+            throw(TimeLimitException())
         end
         state = pop!(unexplored_states)
         starting_node = state[end-1]
@@ -636,7 +636,7 @@ function generate_base_labels_ngroute_alt(
 
     while length(unexplored_states) > 0
         if time_limit < time() - start_time
-            error("Time limit reached.")
+            throw(TimeLimitException())
         end
         state = pop!(unexplored_states)
         starting_node = state[end-1]
@@ -780,7 +780,7 @@ function find_nondominated_paths_notimewindows(
 
     while length(unexplored_states) > 0
         if time_limit < time() - start_time
-            error("Time limit reached.")
+            throw(TimeLimitException())
         end
         state = pop!(unexplored_states)
         starting_node = state[end-1]
@@ -981,7 +981,7 @@ function find_nondominated_paths_notimewindows_ngroute(
 
     while length(unexplored_states) > 0
         if time_limit < time() - start_time
-            error("Time limit reached.")
+            throw(TimeLimitException())
         end
         state = pop!(unexplored_states)
         starting_node = state[end-1]
@@ -1168,7 +1168,7 @@ function find_nondominated_paths_notimewindows_ngroute_alt(
 
     while length(unexplored_states) > 0
         if time_limit < time() - start_time
-            error("Time limit reached.")
+            throw(TimeLimitException())
         end
         state = pop!(unexplored_states)
         starting_node = state[end-1]
