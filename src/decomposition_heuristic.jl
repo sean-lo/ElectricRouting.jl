@@ -13,6 +13,7 @@ function find_nondominated_paths_nocharge(
     κ::Dict{Int, Float64},
     μ::Dict{Int, Float64},
     ν::Vector{Float64}, 
+    T_heuristic::Int,
     ;
     time_windows::Bool = false,
     christofides::Bool = false,
@@ -78,7 +79,7 @@ function find_nondominated_paths_nocharge(
                     continue
                 end
             else
-                if new_time_taken + data.min_t[next_node] > data.T_heuristic
+                if new_time_taken + data.min_t[next_node] > T_heuristic
                     continue
                 end
             end
@@ -147,6 +148,7 @@ function find_nondominated_paths_nocharge_ngroute(
     κ::Dict{Int, Float64},
     μ::Dict{Int, Float64},
     ν::Vector{Float64}, 
+    T_heuristic::Int,
     ;
     time_windows::Bool = false,
     christofides::Bool = false,
@@ -214,7 +216,7 @@ function find_nondominated_paths_nocharge_ngroute(
                         continue
                     end
                 else
-                    if new_time_taken + data.min_t[next_node] > data.T_heuristic
+                    if new_time_taken + data.min_t[next_node] > T_heuristic
                         continue
                     end
                 end
@@ -293,6 +295,7 @@ function find_nondominated_paths_nocharge_ngroute_alt(
     κ::Dict{Int, Float64},
     μ::Dict{Int, Float64},
     ν::Vector{Float64}, 
+    T_heuristic::Int,
     ;
     time_windows::Bool = false,
     christofides::Bool = false,
@@ -354,7 +357,7 @@ function find_nondominated_paths_nocharge_ngroute_alt(
                     continue
                 end
             else
-                if new_time_taken + data.min_t[next_node] > data.T_heuristic
+                if new_time_taken + data.min_t[next_node] > T_heuristic
                     continue
                 end
             end
@@ -470,6 +473,7 @@ function subproblem_iteration_nocharge(
     κ::Dict{Int, Float64},
     μ::Dict{Int, Float64},
     ν::Vector{Float64}, 
+    T_heuristic::Int,
     ;
     time_windows::Bool = false,
     single_service::Bool = false,
@@ -480,21 +484,21 @@ function subproblem_iteration_nocharge(
 )
     if ngroute && !ngroute_alt
         base_labels_result = @timed find_nondominated_paths_nocharge_ngroute(
-            data, κ, μ, ν,
+            data, κ, μ, ν, T_heuristic,
             ;
             time_windows = time_windows,
             christofides = christofides,
         )
     elseif ngroute && ngroute_alt
         base_labels_result = @timed find_nondominated_paths_nocharge_ngroute_alt(
-            data, κ, μ, ν,
+            data, κ, μ, ν, T_heuristic,
             ;
             time_windows = time_windows,
             christofides = christofides,
         )
     else
         base_labels_result = @timed find_nondominated_paths_nocharge(
-            data, κ, μ, ν,
+            data, κ, μ, ν, T_heuristic,
             ;
             time_windows = time_windows,
             christofides = christofides,
@@ -579,7 +583,7 @@ function path_formulation_column_generation_nocharge(
             ngroute_neighborhood_size;
         )
     end
-    data.T_heuristic = Int(round(time_heuristic_slack * (data.T + data.B) * data.μ / (1 + data.μ)))
+    T_heuristic = Int(round(time_heuristic_slack * (data.T + data.B) * data.μ / (1 + data.μ)))
 
     some_paths = generate_artificial_paths(data)
     path_costs = compute_path_costs(
@@ -751,7 +755,7 @@ function path_formulation_column_generation_nocharge(
         push!(params["lp_relaxation_solution_time_taken"], mp_results["solution_time_taken"])
 
         (negative_base_labels, _, base_labels_time) = subproblem_iteration_nocharge(
-            data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
+            data, mp_results["κ"], mp_results["μ"], mp_results["ν"], T_heuristic,
             ;
             time_windows = time_windows,
             single_service = path_single_service,

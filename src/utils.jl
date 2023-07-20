@@ -108,7 +108,7 @@ Base.copy(p::Path) = Path(
     served = copy(p.served),
 )
 
-Base.@kwdef mutable struct EVRPData
+struct EVRPData
     n_depots::Int
     n_customers::Int
     n_vehicles::Int
@@ -137,7 +137,6 @@ Base.@kwdef mutable struct EVRPData
     d::Vector{Int}
     C::Int
     T::Int
-    T_heuristic::Int
     A::Dict{Tuple{Int64, Int64}, Int64}
     α::Vector{Int}
     β::Vector{Int}
@@ -497,45 +496,44 @@ function generate_instance(
     )
 
     data = EVRPData(
-        n_depots = n_depots,
-        n_customers = n_customers,
-        n_vehicles = n_vehicles,
-        n_charging = n_charging,
-        n_nodes = n_nodes,
-        N_customers = N_customers,
-        N_depots = N_depots,
-        N_vehicles = N_vehicles,
-        N_charging = N_charging,
-        N_nodes = N_nodes,
-        node_labels = node_labels,
-        shrinkage_depots = shrinkage_depots,
-        shrinkage_charging = shrinkage_charging,
-        customer_coords = customer_coords,
-        depot_coords = depot_coords,
-        charging_coords = charging_coords,
-        coords = coords,
-        distances = distances,
-        G = G,
-        V = V,
-        v_start = v_start,
-        v_end = v_end,
-        c = c,
-        t = t,
-        q = q,
-        d = d,
-        C = C,
-        T = T * μ,
-        T_heuristic = T * μ,
-        A = A,
-        α = α_charge * μ,
-        β = β_charge * μ,
-        μ = μ,
-        B = B,
-        travel_cost_coeff = travel_cost_coeff,
-        charge_cost_coeff = charge_cost_coeff,
-        min_t = t_ds.dists,
-        min_q = q_ds.dists,
-        neighborhoods = neighborhoods,
+        n_depots,
+        n_customers,
+        n_vehicles,
+        n_charging,
+        n_nodes,
+        N_customers,
+        N_depots,
+        N_vehicles,
+        N_charging,
+        N_nodes,
+        node_labels,
+        shrinkage_depots,
+        shrinkage_charging,
+        customer_coords,
+        depot_coords,
+        charging_coords,
+        coords,
+        distances,
+        G,
+        V,
+        v_start,
+        v_end,
+        c,
+        t,
+        q,
+        d,
+        C,
+        T * μ,
+        A,
+        α_charge * μ,
+        β_charge * μ,
+        μ,
+        B,
+        travel_cost_coeff,
+        charge_cost_coeff,
+        t_ds.dists,
+        q_ds.dists,
+        neighborhoods,
     )
     return data
 end
