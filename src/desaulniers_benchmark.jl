@@ -2,7 +2,7 @@ include("utils.jl")
 using DataStructures
 using Printf
 
-@kwdef struct PurePathLabel
+Base.@kwdef mutable struct PurePathLabel
     cost::Float64
     nodes::Vector{Int}
     excesses::Vector{Int}
@@ -15,6 +15,20 @@ using Printf
     served::Vector{Int}
     artificial::Bool = false
 end
+
+Base.copy(p::PurePathLabel) = PurePathLabel(
+    p.cost,
+    copy(p.nodes),
+    copy(p.excesses),
+    copy(p.slacks),
+    p.time_mincharge,
+    p.time_maxcharge,
+    p.charge_mincharge,
+    p.charge_maxcharge,
+    p.explored,
+    copy(p.served),
+    p.artificial,
+)
 
 function compute_path_label_cost(
     p::PurePathLabel,
@@ -236,12 +250,14 @@ function find_nondominated_paths(
                 continue
             end
             
-            served = copy(current_path.served)
+            new_path = copy(current_path)
+            push!(new_path.nodes, next_node)
             if next_node in data.N_customers
-                served[next_node] += 1
+                new_path.served[next_node] += 1
             end
 
-            time_mincharge = max(
+            push!(new_path.excesses, excess)
+            new_path.time_mincharge = max(
                 α[next_node],
                 current_path.time_mincharge + t[current_node,next_node] + excess
             )
@@ -250,11 +266,12 @@ function find_nondominated_paths(
                     # floating point accuracy
                     0, 
                     min(
-                        time_mincharge - (current_path.time_mincharge + t[current_node,next_node] + excess),
+                        new_path.time_mincharge - (current_path.time_mincharge + t[current_node,next_node] + excess),
                         B - (current_path.charge_mincharge + excess),
                     )
                 )
-                time_maxcharge = min(
+                push!(new_path.slacks, slack)
+                new_path.time_maxcharge = min(
                     β[next_node],
                     max(
                         α[next_node],
@@ -266,11 +283,12 @@ function find_nondominated_paths(
                     # floating point accuracy
                     0, 
                     min(
-                        time_mincharge - (current_path.time_mincharge + t[current_node,next_node] + excess),
+                        new_path.time_mincharge - (current_path.time_mincharge + t[current_node,next_node] + excess),
                         current_path.charge_maxcharge - (current_path.charge_mincharge + excess),
                     )
                 )
-                time_maxcharge = min(
+                push!(new_path.slacks, slack)
+                new_path.time_maxcharge = min(
                     β[next_node],
                     max(
                         α[next_node],
@@ -279,48 +297,34 @@ function find_nondominated_paths(
                 )
             end
             
-            charge_mincharge = (
+            new_path.charge_mincharge = (
                 current_path.charge_mincharge 
                 + excess 
                 + slack
                 - q[current_node,next_node]
             )
-            charge_maxcharge = (
-                charge_mincharge 
-                + time_maxcharge 
-                - time_mincharge
+            new_path.charge_maxcharge = (
+                new_path.charge_mincharge 
+                + new_path.time_maxcharge 
+                - new_path.time_mincharge
             )
-            new_path = PurePathLabel(
-                (
-                    current_path.cost 
-                    + modified_costs[current_node, next_node] 
-                    + data.charge_cost_coeff * (slack + excess)
-                ),
-                vcat(current_path.nodes, next_node),
-                vcat(current_path.excesses, excess),
-                vcat(current_path.slacks, slack),
-                time_mincharge, 
-                time_maxcharge,
-                charge_mincharge,
-                charge_maxcharge,
-                current_path.explored,
-                served,
-                false,
-            )
+
+            new_path.cost += modified_costs[current_node,next_node]
+            new_path.cost += data.charge_cost_coeff * (slack + excess)
 
             # add new_path to collection
             if check_customers
                 new_key = (
-                    time_mincharge, 
-                    - charge_maxcharge, 
-                    time_mincharge - charge_mincharge, 
-                    served...,
+                    new_path.time_mincharge, 
+                    - new_path.charge_maxcharge, 
+                    new_path.time_mincharge - new_path.charge_mincharge, 
+                    new_path.served...,
                 )
             else
                 new_key = (
-                    time_mincharge, 
-                    - charge_maxcharge, 
-                    time_mincharge - charge_mincharge
+                    new_path.time_mincharge, 
+                    - new_path.charge_maxcharge, 
+                    new_path.time_mincharge - new_path.charge_mincharge
                 )
             end
             added = add_pure_path_label_to_collection!(
@@ -335,32 +339,29 @@ function find_nondominated_paths(
             end
         end
     end
+
+    for depot in data.N_depots
+        for path in values(pure_path_labels[depot][depot])
+            if length(path.nodes) == 1
+                path.nodes = [depot, depot]
+                path.excesses = [0]
+                path.slacks = [0]
+            end
+        end
+    end
     
     for starting_node in data.N_depots
-        for end_node in data.N_depots
-            for (k, path) in pairs(pure_path_labels[starting_node][end_node])
-                if starting_node == end_node && length(path.nodes) == 1
-                    nodes = [starting_node, end_node]
-                    excesses = [0]
-                    slacks = [0]
-                else
-                    nodes = path.nodes
-                    excesses = path.excesses
-                    slacks = path.slacks
-                end
-                pure_path_labels[starting_node][end_node][k] = PurePathLabel(
-                    path.cost - κ[starting_node] - μ[end_node],
-                    nodes,
-                    excesses,
-                    slacks,
-                    path.time_mincharge,
-                    path.time_maxcharge,
-                    path.charge_mincharge,
-                    path.charge_maxcharge,
-                    path.explored,
-                    path.served,
-                    path.artificial,
-                )
+        for end_node in keys(pure_path_labels[starting_node])
+            for path in values(pure_path_labels[starting_node][end_node])
+                path.cost = path.cost - κ[starting_node]
+            end
+        end
+    end
+
+    for starting_node in keys(pure_path_labels)
+        for end_node in intersect(data.N_depots, keys(pure_path_labels[starting_node]))
+            for path in values(pure_path_labels[starting_node][end_node])
+                path.cost = path.cost - μ[end_node]
             end
         end
     end
@@ -492,12 +493,14 @@ function find_nondominated_paths_ngroute(
                     continue
                 end
                 
-                served = copy(current_path.served)
+                new_path = copy(current_path)
+                push!(new_path.nodes, next_node)
                 if next_node in data.N_customers
-                    served[next_node] += 1
+                    new_path.served[next_node] += 1
                 end
 
-                time_mincharge = max(
+                push!(new_path.excesses, excess)
+                new_path.time_mincharge = max(
                     α[next_node],
                     current_path.time_mincharge + t[current_node,next_node] + excess
                 )
@@ -506,11 +509,12 @@ function find_nondominated_paths_ngroute(
                         # floating point accuracy
                         0, 
                         min(
-                            time_mincharge - (current_path.time_mincharge + t[current_node,next_node] + excess),
+                            new_path.time_mincharge - (current_path.time_mincharge + t[current_node,next_node] + excess),
                             B - (current_path.charge_mincharge + excess),
                         )
                     )
-                    time_maxcharge = min(
+                    push!(new_path.slacks, slack)
+                    new_path.time_maxcharge = min(
                         β[next_node],
                         max(
                             α[next_node],
@@ -522,11 +526,12 @@ function find_nondominated_paths_ngroute(
                         # floating point accuracy
                         0, 
                         min(
-                            time_mincharge - (current_path.time_mincharge + t[current_node,next_node] + excess),
+                            new_path.time_mincharge - (current_path.time_mincharge + t[current_node,next_node] + excess),
                             current_path.charge_maxcharge - (current_path.charge_mincharge + excess),
                         )
                     )
-                    time_maxcharge = min(
+                    push!(new_path.slacks, slack)
+                    new_path.time_maxcharge = min(
                         β[next_node],
                         max(
                             α[next_node],
@@ -535,34 +540,20 @@ function find_nondominated_paths_ngroute(
                     )
                 end
                 
-                charge_mincharge = (
+                new_path.charge_mincharge = (
                     current_path.charge_mincharge 
                     + excess 
                     + slack
                     - q[current_node,next_node]
                 )
-                charge_maxcharge = (
-                    charge_mincharge 
-                    + time_maxcharge 
-                    - time_mincharge
+                new_path.charge_maxcharge = (
+                    new_path.charge_mincharge 
+                    + new_path.time_maxcharge 
+                    - new_path.time_mincharge
                 )
-                new_path = PurePathLabel(
-                    (
-                        current_path.cost 
-                        + modified_costs[current_node, next_node] 
-                        + data.charge_cost_coeff * (slack + excess)
-                    ),
-                    vcat(current_path.nodes, next_node),
-                    vcat(current_path.excesses, excess),
-                    vcat(current_path.slacks, slack),
-                    time_mincharge, 
-                    time_maxcharge,
-                    charge_mincharge,
-                    charge_maxcharge,
-                    current_path.explored,
-                    served,
-                    false,
-                )
+
+                new_path.cost += modified_costs[current_node,next_node]
+                new_path.cost += data.charge_cost_coeff * (slack + excess)
 
                 new_set = ngroute_create_set(neighborhoods, current_set, next_node)
                 if !(new_set in keys(pure_path_labels[starting_node][next_node]))
@@ -572,9 +563,9 @@ function find_nondominated_paths_ngroute(
                     }()
                 end
                 new_key = (
-                    time_mincharge, 
-                    - charge_maxcharge, 
-                    time_mincharge - charge_mincharge
+                    new_path.time_mincharge, 
+                    - new_path.charge_maxcharge, 
+                    new_path.time_mincharge - new_path.charge_mincharge
                 )
                 added = add_pure_path_label_to_collection!(
                     pure_path_labels[starting_node][next_node][new_set], 
@@ -590,32 +581,33 @@ function find_nondominated_paths_ngroute(
         end
     end
     
+    for depot in data.N_depots
+        for set in keys(pure_path_labels[depot][depot])
+            for path in values(pure_path_labels[depot][depot][set])
+                if length(path.nodes) == 1
+                    path.nodes = [depot, depot]
+                    path.excesses = [0]
+                    path.slacks = [0]
+                end
+            end
+        end
+    end
+
     for starting_node in data.N_depots
-        for end_node in data.N_depots
+        for end_node in keys(pure_path_labels[starting_node])
             for set in keys(pure_path_labels[starting_node][end_node])
-                for (k, path) in pairs(pure_path_labels[starting_node][end_node][set])
-                    if starting_node == end_node && length(path.nodes) == 1
-                        nodes = [starting_node, end_node]
-                        excesses = [0]
-                        slacks = [0]
-                    else
-                        nodes = path.nodes
-                        excesses = path.excesses
-                        slacks = path.slacks
-                    end
-                    pure_path_labels[starting_node][end_node][set][k] = PurePathLabel(
-                        path.cost - κ[starting_node] - μ[end_node],
-                        nodes,
-                        excesses,
-                        slacks,
-                        path.time_mincharge,
-                        path.time_maxcharge,
-                        path.charge_mincharge,
-                        path.charge_maxcharge,
-                        path.explored,
-                        path.served,
-                        path.artificial,
-                    )
+                for path in values(pure_path_labels[starting_node][end_node][set])
+                    path.cost = path.cost - κ[starting_node]
+                end
+            end
+        end
+    end
+
+    for starting_node in keys(pure_path_labels)
+        for end_node in intersect(data.N_depots, keys(pure_path_labels[starting_node]))
+            for set in keys(pure_path_labels[starting_node][end_node])
+                for path in values(pure_path_labels[starting_node][end_node][set])
+                    path.cost = path.cost - μ[end_node]
                 end
             end
         end
@@ -741,12 +733,14 @@ function find_nondominated_paths_ngroute_alt(
                 continue
             end
             
-            served = copy(current_path.served)
+            new_path = copy(current_path)
+            push!(new_path.nodes, next_node)
             if next_node in data.N_customers
-                served[next_node] += 1
+                new_path.served[next_node] += 1
             end
 
-            time_mincharge = max(
+            push!(new_path.excesses, excess)
+            new_path.time_mincharge = max(
                 α[next_node],
                 current_path.time_mincharge + t[current_node,next_node] + excess
             )
@@ -755,11 +749,12 @@ function find_nondominated_paths_ngroute_alt(
                     # floating point accuracy
                     0, 
                     min(
-                        time_mincharge - (current_path.time_mincharge + t[current_node,next_node] + excess),
+                        new_path.time_mincharge - (current_path.time_mincharge + t[current_node,next_node] + excess),
                         B - (current_path.charge_mincharge + excess),
                     )
                 )
-                time_maxcharge = min(
+                push!(new_path.slacks, slack)
+                new_path.time_maxcharge = min(
                     β[next_node],
                     max(
                         α[next_node],
@@ -771,11 +766,12 @@ function find_nondominated_paths_ngroute_alt(
                     # floating point accuracy
                     0, 
                     min(
-                        time_mincharge - (current_path.time_mincharge + t[current_node,next_node] + excess),
+                        new_path.time_mincharge - (current_path.time_mincharge + t[current_node,next_node] + excess),
                         current_path.charge_maxcharge - (current_path.charge_mincharge + excess),
                     )
                 )
-                time_maxcharge = min(
+                push!(new_path.slacks, slack)
+                new_path.time_maxcharge = min(
                     β[next_node],
                     max(
                         α[next_node],
@@ -784,40 +780,26 @@ function find_nondominated_paths_ngroute_alt(
                 )
             end
             
-            charge_mincharge = (
+            new_path.charge_mincharge = (
                 current_path.charge_mincharge 
                 + excess 
                 + slack
                 - q[current_node,next_node]
             )
-            charge_maxcharge = (
-                charge_mincharge 
-                + time_maxcharge 
-                - time_mincharge
+            new_path.charge_maxcharge = (
+                new_path.charge_mincharge 
+                + new_path.time_maxcharge 
+                - new_path.time_mincharge
             )
-            new_path = PurePathLabel(
-                (
-                    current_path.cost 
-                    + modified_costs[current_node, next_node] 
-                    + data.charge_cost_coeff * (slack + excess)
-                ),
-                vcat(current_path.nodes, next_node),
-                vcat(current_path.excesses, excess),
-                vcat(current_path.slacks, slack),
-                time_mincharge, 
-                time_maxcharge,
-                charge_mincharge,
-                charge_maxcharge,
-                current_path.explored,
-                served,
-                false,
-            )
+
+            new_path.cost += modified_costs[current_node,next_node]
+            new_path.cost += data.charge_cost_coeff * (slack + excess)
 
             new_set = ngroute_create_set_alt(neighborhoods, collect(current_set), next_node)
             new_key = (
-                time_mincharge, 
-                - charge_maxcharge, 
-                time_mincharge - charge_mincharge,
+                new_path.time_mincharge, 
+                - new_path.charge_maxcharge, 
+                new_path.time_mincharge - new_path.charge_mincharge,
                 new_set...,
             )
             added = add_pure_path_label_to_collection!(
@@ -833,31 +815,28 @@ function find_nondominated_paths_ngroute_alt(
         end
     end
     
+    for depot in data.N_depots
+        for path in values(pure_path_labels[depot][depot])
+            if length(path.nodes) == 1
+                path.nodes = [depot, depot]
+                path.excesses = [0]
+                path.slacks = [0]
+            end
+        end
+    end
+
     for starting_node in data.N_depots
-        for end_node in data.N_depots
-            for (k, path) in pairs(pure_path_labels[starting_node][end_node])
-                if starting_node == end_node && length(path.nodes) == 1
-                    nodes = [starting_node, end_node]
-                    excesses = [0]
-                    slacks = [0]
-                else
-                    nodes = path.nodes
-                    excesses = path.excesses
-                    slacks = path.slacks
-                end
-                pure_path_labels[starting_node][end_node][k] = PurePathLabel(
-                    path.cost - κ[starting_node] - μ[end_node],
-                    nodes,
-                    excesses,
-                    slacks,
-                    path.time_mincharge,
-                    path.time_maxcharge,
-                    path.charge_mincharge,
-                    path.charge_maxcharge,
-                    path.explored,
-                    path.served,
-                    path.artificial,
-                )
+        for end_node in keys(pure_path_labels[starting_node])
+            for path in values(pure_path_labels[starting_node][end_node])
+                path.cost = path.cost - κ[starting_node]
+            end
+        end
+    end
+
+    for starting_node in keys(pure_path_labels)
+        for end_node in intersect(data.N_depots, keys(pure_path_labels[starting_node]))
+            for path in values(pure_path_labels[starting_node][end_node])
+                path.cost = path.cost - μ[end_node]
             end
         end
     end
