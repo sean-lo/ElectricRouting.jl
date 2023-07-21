@@ -2,7 +2,7 @@ include("utils.jl")
 using DataStructures
 using Printf
 
-struct BaseSubpathLabel
+mutable struct BaseSubpathLabel
     time_taken::Int
     charge_taken::Int
     cost::Float64
@@ -10,6 +10,13 @@ struct BaseSubpathLabel
     served::Vector{Int}
 end
 
+Base.copy(s::BaseSubpathLabel) = BaseSubpathLabel(
+    s.time_taken,
+    s.charge_taken,
+    s.cost, 
+    copy(s.nodes),
+    copy(s.served),
+)
 
 struct PathLabel
     cost::Float64
@@ -161,17 +168,14 @@ function generate_base_labels_nonsingleservice(
                 continue
             end
 
-            served = copy(current_subpath.served)
+            new_subpath = copy(current_subpath)
+            new_subpath.time_taken += data.t[current_node, next_node]
+            new_subpath.charge_taken += data.q[current_node, next_node]
+            new_subpath.cost += modified_costs[current_node, next_node]
+            push!(new_subpath.nodes, next_node)
             if next_node in data.N_customers
-                served[next_node] += 1
+                new_subpath.served[next_node] += 1
             end
-            new_subpath = BaseSubpathLabel(
-                current_subpath.time_taken + data.t[current_node, next_node],
-                current_subpath.charge_taken + data.q[current_node, next_node],
-                current_subpath.cost + modified_costs[current_node, next_node],
-                vcat(current_subpath.nodes, [next_node]),
-                served,
-            )
 
             new_key = (new_subpath.time_taken,)
             added = add_subpath_longlabel_to_collection!(
@@ -195,30 +199,16 @@ function generate_base_labels_nonsingleservice(
 
     for starting_node in data.N_depots
         for end_node in vcat(data.N_depots, data.N_charging)
-            base_labels[starting_node][end_node] = SortedDict{Tuple{Vararg{Int}}, BaseSubpathLabel}(
-                k => BaseSubpathLabel(
-                    v.time_taken,
-                    v.charge_taken,
-                    v.cost - κ[starting_node],
-                    v.nodes,
-                    v.served,
-                )
-                for (k, v) in pairs(base_labels[starting_node][end_node])
-            )
+            for v in values(base_labels[starting_node][end_node])
+                v.cost = v.cost - κ[starting_node]
+            end
         end
     end
     for end_node in data.N_depots
         for starting_node in vcat(data.N_depots, data.N_charging)
-            base_labels[starting_node][end_node] = SortedDict{Tuple{Vararg{Int}}, BaseSubpathLabel}(
-                k => BaseSubpathLabel(
-                    v.time_taken,
-                    v.charge_taken,
-                    v.cost - μ[end_node],
-                    v.nodes,
-                    v.served,
-                )
-                for (k, v) in pairs(base_labels[starting_node][end_node])
-            )
+            for v in values(base_labels[starting_node][end_node])
+                v.cost = v.cost - μ[end_node]
+            end
         end
     end
 
@@ -434,30 +424,16 @@ function generate_base_labels_singleservice(
 
     for starting_node in data.N_depots
         for end_node in vcat(data.N_depots, data.N_charging)
-            base_labels[starting_node][end_node] = SortedDict{Tuple{Vararg{Int}}, BaseSubpathLabel}(
-                k => BaseSubpathLabel(
-                    v.time_taken,
-                    v.charge_taken,
-                    v.cost - κ[starting_node],
-                    v.nodes,
-                    v.served,
-                )
-                for (k, v) in pairs(base_labels[starting_node][end_node])
-            )
+            for v in values(base_labels[starting_node][end_node])
+                v.cost = v.cost - κ[starting_node]
+            end
         end
     end
     for end_node in data.N_depots
         for starting_node in vcat(data.N_depots, data.N_charging)
-            base_labels[starting_node][end_node] = SortedDict{Tuple{Vararg{Int}}, BaseSubpathLabel}(
-                k => BaseSubpathLabel(
-                    v.time_taken,
-                    v.charge_taken,
-                    v.cost - μ[end_node],
-                    v.nodes,
-                    v.served,
-                )
-                for (k, v) in pairs(base_labels[starting_node][end_node])
-            )
+            for v in values(base_labels[starting_node][end_node])
+                v.cost = v.cost - μ[end_node]
+            end
         end
     end
 
@@ -548,17 +524,14 @@ function generate_base_labels_ngroute(
                     continue
                 end
 
-                served = copy(current_subpath.served)
+                new_subpath = copy(current_subpath)
+                new_subpath.time_taken += data.t[current_node, next_node]
+                new_subpath.charge_taken += data.q[current_node, next_node]
+                new_subpath.cost += modified_costs[current_node, next_node]
+                push!(new_subpath.nodes, next_node)
                 if next_node in data.N_customers
-                    served[next_node] += 1
+                    new_subpath.served[next_node] += 1
                 end
-                new_subpath = BaseSubpathLabel(
-                    current_subpath.time_taken + data.t[current_node, next_node],
-                    current_subpath.charge_taken + data.q[current_node, next_node],
-                    current_subpath.cost + modified_costs[current_node, next_node],
-                    vcat(current_subpath.nodes, [next_node]),
-                    served,
-                )
 
                 new_set = ngroute_create_set(neighborhoods, current_set, next_node)
                 if !(new_set in keys(base_labels[starting_node][next_node]))
@@ -591,32 +564,18 @@ function generate_base_labels_ngroute(
     for starting_node in data.N_depots
         for end_node in vcat(data.N_depots, data.N_charging)
             for set in keys(base_labels[starting_node][end_node])
-                base_labels[starting_node][end_node][set] = SortedDict{Tuple{Vararg{Int}}, BaseSubpathLabel}(
-                    k => BaseSubpathLabel(
-                        v.time_taken,
-                        v.charge_taken,
-                        v.cost - κ[starting_node],
-                        v.nodes,
-                        v.served,
-                    )
-                    for (k, v) in pairs(base_labels[starting_node][end_node][set])
-                )
+                for v in values(base_labels[starting_node][end_node][set])
+                    v.cost = v.cost - κ[starting_node]
+                end
             end
         end
     end
     for end_node in data.N_depots
         for starting_node in vcat(data.N_depots, data.N_charging)
             for set in keys(base_labels[starting_node][end_node])
-                base_labels[starting_node][end_node][set] = SortedDict{Tuple{Vararg{Int}}, BaseSubpathLabel}(
-                    k => BaseSubpathLabel(
-                        v.time_taken,
-                        v.charge_taken,
-                        v.cost - μ[end_node],
-                        v.nodes,
-                        v.served,
-                    )
-                    for (k, v) in pairs(base_labels[starting_node][end_node][set])
-                )
+                for v in values(base_labels[starting_node][end_node][set])
+                    v.cost = v.cost - μ[end_node]
+                end
             end
         end
     end
@@ -703,17 +662,14 @@ function generate_base_labels_ngroute_alt(
                 continue
             end
 
-            served = copy(current_subpath.served)
+            new_subpath = copy(current_subpath)
+            new_subpath.time_taken += data.t[current_node, next_node]
+            new_subpath.charge_taken += data.q[current_node, next_node]
+            new_subpath.cost += modified_costs[current_node, next_node]
+            push!(new_subpath.nodes, next_node)
             if next_node in data.N_customers
-                served[next_node] += 1
+                new_subpath.served[next_node] += 1
             end
-            new_subpath = BaseSubpathLabel(
-                current_subpath.time_taken + data.t[current_node, next_node],
-                current_subpath.charge_taken + data.q[current_node, next_node],
-                current_subpath.cost + modified_costs[current_node, next_node],
-                vcat(current_subpath.nodes, [next_node]),
-                served,
-            )
 
             new_set = ngroute_create_set_alt(neighborhoods, collect(current_set), next_node)
             new_key = (new_subpath.time_taken, new_set...)
@@ -738,30 +694,16 @@ function generate_base_labels_ngroute_alt(
 
     for starting_node in data.N_depots
         for end_node in vcat(data.N_depots, data.N_charging)
-            base_labels[starting_node][end_node] = SortedDict{Tuple{Vararg{Int}}, BaseSubpathLabel}(
-                k => BaseSubpathLabel(
-                    v.time_taken,
-                    v.charge_taken,
-                    v.cost - κ[starting_node],
-                    v.nodes,
-                    v.served,
-                )
-                for (k, v) in pairs(base_labels[starting_node][end_node])
-            )
+            for v in values(base_labels[starting_node][end_node])
+                v.cost = v.cost - κ[starting_node]
+            end
         end
     end
     for end_node in data.N_depots
         for starting_node in vcat(data.N_depots, data.N_charging)
-            base_labels[starting_node][end_node] = SortedDict{Tuple{Vararg{Int}}, BaseSubpathLabel}(
-                k => BaseSubpathLabel(
-                    v.time_taken,
-                    v.charge_taken,
-                    v.cost - μ[end_node],
-                    v.nodes,
-                    v.served,
-                )
-                for (k, v) in pairs(base_labels[starting_node][end_node])
-            )
+            for v in values(base_labels[starting_node][end_node])
+                v.cost = v.cost - μ[end_node]
+            end
         end
     end
 
