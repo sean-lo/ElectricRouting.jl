@@ -18,12 +18,19 @@ Base.copy(s::BaseSubpathLabel) = BaseSubpathLabel(
     copy(s.served),
 )
 
-struct PathLabel
+mutable struct PathLabel
     cost::Float64
     subpath_labels::Vector{BaseSubpathLabel}
     charging_actions::Vector{Int}
     served::Vector{Int}
 end
+
+Base.copy(p::PathLabel) = PathLabel(
+    p.cost,
+    [s for s in p.subpath_labels],
+    [t for t in p.charging_actions],
+    copy(p.served),
+)
 
 function add_subpath_longlabel_to_collection!(
     collection::SortedDict{
@@ -824,20 +831,13 @@ function find_nondominated_paths_notimewindows(
                     continue
                 end
 
+                new_path = copy(current_path)
+                new_path.cost += s.cost
+                push!(new_path.subpath_labels, s)
+                new_path.served += s.served
                 if length(current_path.subpath_labels) > 0
-                    new_path = PathLabel(
-                        current_path.cost + s.cost + data.charge_cost_coeff * delta,
-                        vcat(current_path.subpath_labels, s),
-                        vcat(current_path.charging_actions, delta),
-                        current_path.served .+ s.served,
-                    )
-                else
-                    new_path = PathLabel(
-                        current_path.cost + s.cost,
-                        vcat(current_path.subpath_labels, s),
-                        current_path.charging_actions,
-                        current_path.served .+ s.served,
-                    )
+                    push!(new_path.charging_actions, delta)
+                    new_path.cost += data.charge_cost_coeff * delta
                 end
 
                 if check_customers
@@ -1033,20 +1033,13 @@ function find_nondominated_paths_notimewindows_ngroute(
                             continue
                         end
 
+                        new_path = copy(current_path)
+                        new_path.cost += s.cost
+                        push!(new_path.subpath_labels, s)
+                        new_path.served += s.served
                         if length(current_path.subpath_labels) > 0
-                            new_path = PathLabel(
-                                current_path.cost + s.cost + data.charge_cost_coeff * delta,
-                                vcat(current_path.subpath_labels, s),
-                                vcat(current_path.charging_actions, delta),
-                                current_path.served .+ s.served,
-                            )
-                        else
-                            new_path = PathLabel(
-                                current_path.cost + s.cost,
-                                vcat(current_path.subpath_labels, s),
-                                current_path.charging_actions,
-                                current_path.served .+ s.served,
-                            )
+                            push!(new_path.charging_actions, delta)
+                            new_path.cost += data.charge_cost_coeff * delta
                         end
 
                         new_key = (
@@ -1228,20 +1221,13 @@ function find_nondominated_paths_notimewindows_ngroute_alt(
                     continue
                 end
 
+                new_path = copy(current_path)
+                new_path.cost += s.cost
+                push!(new_path.subpath_labels, s)
+                new_path.served += s.served
                 if length(current_path.subpath_labels) > 0
-                    new_path = PathLabel(
-                        current_path.cost + s.cost + data.charge_cost_coeff * delta,
-                        vcat(current_path.subpath_labels, s),
-                        vcat(current_path.charging_actions, delta),
-                        current_path.served .+ s.served,
-                    )
-                else
-                    new_path = PathLabel(
-                        current_path.cost + s.cost,
-                        vcat(current_path.subpath_labels, s),
-                        current_path.charging_actions,
-                        current_path.served .+ s.served,
-                    )
+                    push!(new_path.charging_actions, delta)
+                    new_path.cost += data.charge_cost_coeff * delta
                 end
 
                 new_key = (
