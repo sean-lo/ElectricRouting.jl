@@ -288,7 +288,7 @@ function path_formulation_column_generation(
             charging_depots_size = ngroute_neighborhood_charging_depots_size,
         )
     else
-        neighborhoods = ()
+        neighborhoods = nothing
     end
 
     some_paths = generate_artificial_paths(data)

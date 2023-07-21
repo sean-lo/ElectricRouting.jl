@@ -459,7 +459,7 @@ end
 
 function generate_base_labels_ngroute(
     data::EVRPData, 
-    neighborhoods::Tuple{Vararg{Tuple{Vararg{Int}}}},
+    neighborhoods::NGRouteNeighborhood,
     κ::Dict{Int, Float64},
     μ::Dict{Int, Float64},
     ν::Vector{Float64}, 
@@ -603,7 +603,7 @@ end
 
 function generate_base_labels_ngroute_alt(
     data::EVRPData, 
-    neighborhoods::Tuple{Vararg{Tuple{Vararg{Int}}}}, 
+    neighborhoods::NGRouteNeighborhood, 
     κ::Dict{Int, Float64},
     μ::Dict{Int, Float64},
     ν::Vector{Float64}, 
@@ -907,7 +907,7 @@ end
 
 function find_nondominated_paths_notimewindows_ngroute(
     data::EVRPData,
-    neighborhoods::Tuple{Vararg{Tuple{Vararg{Int}}}},
+    neighborhoods::NGRouteNeighborhood,
     base_labels::Dict{
         Int, 
         Dict{
@@ -929,7 +929,7 @@ function find_nondominated_paths_notimewindows_ngroute(
 )
 
     function ngroute_extend_partial_path_check(
-        neighborhoods::Tuple{Vararg{Tuple{Vararg{Int}}}},
+        neighborhoods::NGRouteNeighborhood,
         set::Tuple{Vararg{Int}},
         s::BaseSubpathLabel,
     )
@@ -940,7 +940,7 @@ function find_nondominated_paths_notimewindows_ngroute(
             end
             new_set = [
                 node for node in new_set
-                    if node in neighborhoods[next_node]
+                    if node in neighborhoods.x[next_node]
             ]
             push!(new_set, next_node)
             # println("$next_node, $new_set")
@@ -1104,7 +1104,7 @@ end
 
 function find_nondominated_paths_notimewindows_ngroute_alt(
     data::EVRPData,
-    neighborhoods::Tuple{Vararg{Tuple{Vararg{Int}}}},
+    neighborhoods::NGRouteNeighborhood,
     base_labels::Dict{
         Int, 
         Dict{
@@ -1124,7 +1124,7 @@ function find_nondominated_paths_notimewindows_ngroute_alt(
 )
 
     function ngroute_extend_partial_path_check_alt(
-        neighborhoods::Tuple{Vararg{Tuple{Vararg{Int}}}},
+        neighborhoods::NGRouteNeighborhood,
         set::Vector{Int},
         s::BaseSubpathLabel,
     )
@@ -1134,7 +1134,7 @@ function find_nondominated_paths_notimewindows_ngroute_alt(
                 return (nothing, false)
             end
             for node in data.N_nodes
-                if new_set[node] == 1 && !(node in neighborhoods[next_node])
+                if new_set[node] == 1 && !(node in neighborhoods.x[next_node])
                     new_set[node] = 0
                 end
             end
@@ -1332,7 +1332,7 @@ function subproblem_iteration_ours(
     μ::Dict{Int, Float64},
     ν::Vector{Float64}, 
     ;
-    neighborhoods::Tuple{Vararg{Tuple{Vararg{Int}}}} = (),
+    neighborhoods::Union{Nothing, NGRouteNeighborhood} = nothing,
     ngroute::Bool = false,
     ngroute_alt::Bool = false,
     subpath_single_service::Bool = true,        

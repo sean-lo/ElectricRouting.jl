@@ -371,7 +371,7 @@ end
 
 function find_nondominated_paths_ngroute(
     data::EVRPData, 
-    neighborhoods::Tuple{Vararg{Tuple{Vararg{Int}}}},
+    neighborhoods::NGRouteNeighborhood,
     κ::Dict{Int, Float64},
     μ::Dict{Int, Float64},
     ν::Vector{Float64}, 
@@ -619,7 +619,7 @@ end
 
 function find_nondominated_paths_ngroute_alt(
     data::EVRPData, 
-    neighborhoods::Tuple{Vararg{Tuple{Vararg{Int}}}},
+    neighborhoods::NGRouteNeighborhood,
     κ::Dict{Int, Float64},
     μ::Dict{Int, Float64},
     ν::Vector{Float64}, 
@@ -893,7 +893,7 @@ function subproblem_iteration_benchmark(
     μ::Dict{Int, Float64},
     ν::Vector{Float64}, 
     ;
-    neighborhoods::Tuple{Vararg{Tuple{Vararg{Int}}}} = (),
+    neighborhoods::Union{Nothing, NGRouteNeighborhood} = nothing,
     ngroute::Bool = false,
     ngroute_alt::Bool = false,
     time_windows::Bool = false,

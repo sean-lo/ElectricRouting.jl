@@ -145,7 +145,7 @@ end
 
 function find_nondominated_paths_nocharge_ngroute(
     data::EVRPData,
-    neighborhoods::Tuple{Vararg{Tuple{Vararg{Int}}}},
+    neighborhoods::NGRouteNeighborhood,
     κ::Dict{Int, Float64},
     μ::Dict{Int, Float64},
     ν::Vector{Float64}, 
@@ -293,7 +293,7 @@ end
 
 function find_nondominated_paths_nocharge_ngroute_alt(
     data::EVRPData,
-    neighborhoods::Tuple{Vararg{Tuple{Vararg{Int}}}},
+    neighborhoods::NGRouteNeighborhood,
     κ::Dict{Int, Float64},
     μ::Dict{Int, Float64},
     ν::Vector{Float64}, 
@@ -477,7 +477,7 @@ function subproblem_iteration_nocharge(
     ν::Vector{Float64}, 
     T_heuristic::Int,
     ;
-    neighborhoods::Tuple{Vararg{Tuple{Vararg{Int}}}} = (),
+    neighborhoods::Union{Nothing, NGRouteNeighborhood} = nothing,
     time_windows::Bool = false,
     single_service::Bool = false,
     check_customers::Bool = false,
@@ -586,7 +586,7 @@ function path_formulation_column_generation_nocharge(
             ngroute_neighborhood_size;
         )
     else
-        neighborhoods = ()
+        neighborhoods = nothing
     end
     T_heuristic = Int(round(time_heuristic_slack * (data.T + data.B) * data.μ / (1 + data.μ)))
 

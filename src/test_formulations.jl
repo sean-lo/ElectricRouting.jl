@@ -2120,7 +2120,7 @@ neighborhoods
 collect((1,2,))
 
 function ngroute_extend_partial_path_check(
-    neighborhoods::Tuple{Vararg{Tuple{Vararg{Int}}}},
+    neighborhoods::NGRouteNeighborhood,
     set::Tuple{Vararg{Int}},
     s::BaseSubpathLabel,
 )
@@ -2131,7 +2131,7 @@ function ngroute_extend_partial_path_check(
         end
         new_set = [
             node for node in new_set
-                if node in neighborhoods[next_node]
+                if node in neighborhoods.x[next_node]
         ]
         push!(new_set, next_node)
         println("$next_node, $new_set")
@@ -2155,7 +2155,7 @@ ngroute_extend_partial_path_check(neighborhoods, set, s)
 #     end
 #     ind = findlast(x -> x == next_node, nodes)
 #     for j in nodes[ind+1:end]
-#         if !(next_node in neighborhoods[j])
+#         if !(next_node in neighborhoods.x[j])
 #             return true
 #         end
 #     end

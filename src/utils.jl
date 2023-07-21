@@ -148,6 +148,10 @@ struct EVRPData
     min_q::Vector{Int}
 end
 
+struct NGRouteNeighborhood 
+    x::Vector{Vector{Int}}
+end
+
 struct TimeLimitException <: Exception end
 
 function compute_subpath_cost(
@@ -611,46 +615,46 @@ function compute_ngroute_neighborhoods(
         error()
     end
     customer_neighborhoods = [
-        (sortperm(data.distances[i, data.N_customers])[1:k]...,)
+        sortperm(data.distances[i, data.N_customers])[1:k]
         for i in data.N_customers
     ]
     if charging_depots_size == "small"
         depots_charging_neighborhoods = [
-            (i,)
+            [i]
             for i in union(data.N_depots, data.N_charging)
         ]
     elseif charging_depots_size == "large"
         depots_charging_neighborhoods = [
-            (data.N_customers..., i)
+            vcat(data.N_customers, i) 
             for i in union(data.N_depots, data.N_charging)
         ]
     else
         error("`charging_depots_size` argument not recognized.")
     end
-    return Tuple(vcat(customer_neighborhoods, depots_charging_neighborhoods))
+    return NGRouteNeighborhood(vcat(customer_neighborhoods, depots_charging_neighborhoods))
 end
 
 function ngroute_create_set(
-    neighborhoods::Tuple{Vararg{Tuple{Vararg{Int}}}},
+    neighborhoods::NGRouteNeighborhood, 
     set::Tuple{Vararg{Int}}, 
     next_node::Int,
 )
     new_set = Int[
         node for node in set
-            if node in neighborhoods[next_node]
+            if node in neighborhoods.x[next_node]
     ]
     push!(new_set, next_node) 
     return Tuple(sort(unique(new_set)))
 end
 
 function ngroute_create_set_alt(
-    neighborhoods::Tuple{Vararg{Tuple{Vararg{Int}}}},
+    neighborhoods::NGRouteNeighborhood, 
     set::Vector{Int},
     next_node::Int,
 )
     new_set = zeros(Int, length(set))
     for node in eachindex(set)
-        if set[node] == 1 && node in neighborhoods[next_node]
+        if set[node] == 1 && node in neighborhoods.x[next_node]
             new_set[node] = 1
         end
     end
