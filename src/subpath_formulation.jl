@@ -57,7 +57,7 @@ function generate_artificial_subpaths(
             starting_time = starting_time,
             starting_charge = starting_charge,
             current_node = current_node,
-            arcs = [],
+            arcs = [(starting_node, current_node)],
             current_time = current_time,
             current_charge = current_charge,
             served = served,
@@ -962,7 +962,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
     ]
         add_message!(printlist, message, verbose)
     end
-    return CGLP_results, CGIP_results, params, printlist, some_subpaths, some_charging_arcs
+    return CGLP_results, CGIP_results, params, printlist, some_subpaths, some_charging_arcs, mp_model
 end
 
 function collect_subpath_solution_support(

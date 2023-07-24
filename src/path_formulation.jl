@@ -62,6 +62,7 @@ function generate_artificial_paths(
             subpaths = [s],
             charging_arcs = ChargingArc[],
             served = served,
+            arcs = [(starting_node, current_node)],
         )
         if !(key in keys(artificial_paths))
             artificial_paths[key] = []
@@ -101,6 +102,7 @@ function convert_path_label_to_path(
         subpaths = Subpath[],
         charging_arcs = ChargingArc[],
         served = zeros(Int, data.n_customers),
+        arcs = Tuple{Int, Int}[],
     )
     while true
         s_label = popfirst!(s_labels)
@@ -139,6 +141,7 @@ function convert_path_label_to_path(
         push!(p.charging_arcs, a)
     end
     p.served = sum(s.served for s in p.subpaths)
+    p.arcs = vcat([s.arcs for s in p.subpaths]...)
     return p
 end
 
@@ -150,6 +153,7 @@ function convert_pure_path_label_to_path(
         subpaths = Subpath[],
         charging_arcs = ChargingArc[],
         served = zeros(Int, data.n_customers),
+        arcs = Tuple{Int, Int}[],
     )
     states = Tuple{Int, Int, Int}[]
     current_subpath = Subpath(
@@ -210,6 +214,7 @@ function convert_pure_path_label_to_path(
         )
     end
     p.served = sum(s.served for s in p.subpaths)
+    p.arcs = vcat([s.arcs for s in p.subpaths]...)
     return p
 end
 
@@ -561,8 +566,8 @@ function path_formulation_column_generation(
         mp_constraint_start_time = time()
         for state_pair in keys(generated_paths)
             if !(state_pair in keys(some_paths))
-                some_paths[state_pair] = []
-                path_costs[state_pair] = []
+                some_paths[state_pair] = Path[]
+                path_costs[state_pair] = Float64[]
                 for i in 1:data.n_customers
                     path_service[(state_pair, i)] = []
                 end
@@ -572,11 +577,12 @@ function path_formulation_column_generation(
             end
             for p_new in generated_paths[state_pair]
                 if state_pair in keys(some_paths)
-                    add = !any(isequal(p_new, s) for s in some_paths[state_pair])
+                    add = !any(isequal(p_new, p) for p in some_paths[state_pair])
                 else
                     add = true
                 end
                 if add
+                    count += 1
                     # 1: include in some_paths
                     push!(some_paths[state_pair], p_new)
                     # 2: add path cost
@@ -589,7 +595,6 @@ function path_formulation_column_generation(
                         push!(path_service[(state_pair, i)], p_new.served[i])
                     end
                     # 4: create variable
-                    count += 1
                     z[(state_pair, count)] = @variable(mp_model, lower_bound = 0)
                     (state1, state2) = state_pair
                     # 5: modify constraints starting from depot, ending at depot
@@ -687,7 +692,7 @@ function path_formulation_column_generation(
     ]
         add_message!(printlist, message, verbose)
     end
-    return CGLP_results, CGIP_results, params, printlist, some_paths
+    return CGLP_results, CGIP_results, params, printlist, some_paths, mp_model
 end
 
 function collect_path_solution_support(

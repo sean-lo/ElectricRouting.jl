@@ -12,7 +12,7 @@ Base.@kwdef mutable struct Subpath
     starting_time::Int
     starting_charge::Int
     current_node::Int = starting_node
-    arcs::Vector{Tuple} = []
+    arcs::Vector{Tuple{Int, Int}} = []
     current_time::Int = starting_time
     current_charge::Int = starting_charge
     served::Vector{Int} = zeros(Int, n_customers)
@@ -29,7 +29,7 @@ Base.copy(s::Subpath) = Subpath(
     current_time = s.current_time,
     current_charge = s.current_charge,
     served = copy(s.served),
-    artificial = s.artificial
+    artificial = s.artificial,
 )
 
 Base.show(io::IO, s::Subpath) = begin
@@ -94,18 +94,21 @@ Base.@kwdef mutable struct Path
     subpaths::Vector{Subpath}
     charging_arcs::Vector{ChargingArc}
     served::Vector{Int} = sum(s.served for s in subpaths)
+    arcs::Vector{Tuple{Int, Int}} = vcat([s.arcs for s in subpaths]...)
 end
 
 Base.isequal(p1::Path, p2::Path) = (
     all(isequal(s1, s2) for (s1, s2) in zip(p1.subpaths, p2.subpaths))
     && all(isequal(a1, a2) for (a1, a2) in zip(p1.charging_arcs, p2.charging_arcs))
     && p1.served == p2.served
+    && p1.arcs == p2.arcs
 )
 
 Base.copy(p::Path) = Path(
     subpaths = [copy(s) for s in p.subpaths],
     charging_arcs = [copy(a) for a in p.charging_arcs],
     served = copy(p.served),
+    arcs = copy(p.arcs),
 )
 
 struct EVRPData
@@ -210,7 +213,7 @@ end
 
 function compute_subpath_costs(
     data::EVRPData,
-    all_subpaths,
+    all_subpaths::Dict{Tuple{Tuple{Int, Int, Int}, Tuple{Int, Int, Int}}, Vector{Subpath}},
     M::Float64 = 1e10,
     ;
 )
@@ -226,7 +229,7 @@ end
 
 function compute_subpath_service(
     data::EVRPData, 
-    all_subpaths,
+    all_subpaths::Dict{Tuple{Tuple{Int, Int, Int}, Tuple{Int, Int, Int}}, Vector{Subpath}},
 )
     subpath_service = Dict(
         (key, i) => [
@@ -286,7 +289,7 @@ end
 
 function compute_path_costs(
     data::EVRPData,
-    all_paths,
+    all_paths::Dict{Tuple{Tuple{Int, Int, Int}, Tuple{Int, Int, Int}}, Vector{Path}},
     M::Float64 = 1e10,
     ;
 )
@@ -302,7 +305,7 @@ end
 
 function compute_path_service(
     data::EVRPData, 
-    all_paths,
+    all_paths::Dict{Tuple{Tuple{Int, Int, Int}, Tuple{Int, Int, Int}}, Vector{Path}},
 )
     path_service = Dict(
         (key, i) => [
