@@ -823,3 +823,49 @@ function compute_objective_from_path_solution(
         init = 0.0,
     )
 end
+
+function plot_path_solution(
+    results,
+    data::EVRPData,
+    paths,
+)
+    results["paths"] = collect_path_solution_support(results, paths, data)
+    return plot_solution(results, data)
+end
+
+
+function plot_solution(
+    results, 
+    data::EVRPData,
+)
+    p = plot_instance(data)
+    
+    n_paths = length(results["paths"]) 
+    colors = get(ColorSchemes.tol_bright, collect(0:1:(n_paths-1)) ./(n_paths-1))
+
+    all_plots = []
+    for (i, (val, path)) in enumerate(results["paths"])
+        p = plot_instance(data)
+        arcs = vcat(collect(s.arcs for s in path.subpaths)...)
+        for (j, arc) in enumerate(arcs)
+            plot!(
+                data.coords[1,collect(arc)],
+                data.coords[2,collect(arc)],
+                color = colors[i],
+                alpha = 0.5,
+                lw = 1,
+            )
+        end
+        plot!(title = "Vehicle $i: $val")
+        push!(all_plots, p)
+    end
+
+    P = plot(
+        all_plots..., 
+        layout = (n_paths, 1), 
+        size = (500, 400 * n_paths), 
+        legend = false,
+        fmt = :png,
+    )
+    return P
+end
