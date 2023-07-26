@@ -34,14 +34,14 @@ Base.copy(p::PathLabel) = PathLabel(
 
 function add_subpath_longlabel_to_collection!(
     collection::SortedDict{
-        Tuple{Vararg{Int}},
+        NTuple{N, Int},
         BaseSubpathLabel,
     },
-    k1::Tuple{Vararg{Int}},
+    k1::NTuple{N, Int},
     v1::BaseSubpathLabel,
     ;
     verbose::Bool = false,
-)
+) where {N}
     added = true
     for (k2, v2) in pairs(collection)
         # println(k2)
@@ -76,15 +76,15 @@ end
 
 function add_path_label_to_collection!(
     collection::SortedDict{
-        Tuple{Vararg{Int}},
+        NTuple{N, Int},
         PathLabel,
         Base.ForwardOrdering,
     },
-    k1::Tuple{Vararg{Int}},
+    k1::NTuple{N, Int},
     v1::PathLabel,
     ;
     verbose::Bool = false,
-)
+) where {N}
     added = true
     for (k2, v2) in pairs(collection)
         # println(k2)
@@ -133,14 +133,14 @@ function generate_base_labels_nonsingleservice(
     base_labels = Dict(
         starting_node => Dict(
             current_node => SortedDict{
-                Tuple{Vararg{Int}}, 
+                NTuple{1, Int}, 
                 BaseSubpathLabel,
             }()
             for current_node in data.N_nodes
         )
         for starting_node in union(data.N_depots, data.N_charging)
     )
-    unexplored_states = SortedSet{Tuple{Vararg{Int}}}()
+    unexplored_states = SortedSet{NTuple{3, Int}}()
     for node in union(data.N_depots, data.N_charging)
         base_labels[node][node][(0,)] = BaseSubpathLabel(
             0, 0, 0.0, [node,], zeros(Int, data.n_customers),
@@ -338,10 +338,11 @@ function generate_base_labels_singleservice(
     start_time = time()
     modified_costs = compute_arc_modified_costs(data, ν)
 
+    keylen = check_customers ? data.n_customers + 1 : 1
     base_labels = Dict(
         starting_node => Dict(
             current_node => SortedDict{
-                Tuple{Vararg{Int}}, 
+                NTuple{keylen, Int}, 
                 BaseSubpathLabel,
             }()
             for current_node in data.N_nodes
@@ -476,7 +477,7 @@ function generate_base_labels_ngroute(
             current_node => Dict{
                 Tuple{Vararg{Int}}, 
                 SortedDict{
-                    Tuple{Vararg{Int}}, 
+                    NTuple{1, Int}, 
                     BaseSubpathLabel,
                 },
             }()
@@ -484,10 +485,10 @@ function generate_base_labels_ngroute(
         )
         for starting_node in union(data.N_depots, data.N_charging)
     )
-    unexplored_states = SortedSet{Tuple{Vararg{Int}}}()
+    unexplored_states = SortedSet{NTuple{3, Int}}()
     for node in union(data.N_depots, data.N_charging)
         base_labels[node][node][(node,)] = SortedDict{
-            Tuple{Vararg{Int}},
+            NTuple{1, Int},
             BaseSubpathLabel,
         }(
             Base.Order.ForwardOrdering(),
@@ -618,14 +619,14 @@ function generate_base_labels_ngroute_alt(
     base_labels = Dict(
         starting_node => Dict(
             current_node => SortedDict{
-                Tuple{Vararg{Int}}, 
+                NTuple{data.n_nodes + 1, Int}, 
                 BaseSubpathLabel,
             }()
             for current_node in data.N_nodes
         )
         for starting_node in union(data.N_depots, data.N_charging)
     )
-    unexplored_states = SortedSet{Tuple{Vararg{Int}}}()
+    unexplored_states = SortedSet{NTuple{data.n_nodes + 3, Int}}()
     for node in union(data.N_depots, data.N_charging)
         node_labels = zeros(Int, data.n_nodes)
         node_labels[node] = 1
@@ -733,7 +734,7 @@ function find_nondominated_paths_notimewindows(
         Dict{
             Int, 
             SortedDict{
-                Tuple{Vararg{Int}},
+                T,
                 BaseSubpathLabel,
                 Base.Order.ForwardOrdering,
             },
@@ -746,13 +747,15 @@ function find_nondominated_paths_notimewindows(
     check_customers::Bool = false,
     christofides::Bool = false,
     time_limit::Float64 = Inf,
-)
+) where {T <: Tuple{Vararg{Int}}}
 
     start_time = time()
+
+    keylen = check_customers ? data.n_customers + 2 : 2
     full_labels = Dict(
         starting_node => Dict(
             current_node => SortedDict{
-                Tuple{Vararg{Int}}, 
+                NTuple{keylen, Int}, 
                 PathLabel,
             }()
             for current_node in union(data.N_depots, data.N_charging)
@@ -769,7 +772,7 @@ function find_nondominated_paths_notimewindows(
     else
         key = (0, -data.B)
     end
-    unexplored_states = SortedSet{Tuple{Vararg{Int}}}()
+    unexplored_states = SortedSet{NTuple{keylen + 2, Int}}()
     for depot in data.N_depots
         full_labels[depot][depot][key] = PathLabel(
             0.0,
@@ -915,7 +918,7 @@ function find_nondominated_paths_notimewindows_ngroute(
             Dict{
                 Tuple{Vararg{Int}},
                 SortedDict{
-                    Tuple{Vararg{Int}},
+                    NTuple{1, Int},
                     BaseSubpathLabel,
                 },
             },
@@ -954,7 +957,7 @@ function find_nondominated_paths_notimewindows_ngroute(
             current_node => Dict{
                 Tuple{Vararg{Int}}, 
                 SortedDict{
-                    Tuple{Vararg{Int}}, 
+                    NTuple{2, Int}, 
                     PathLabel,
                 },
             }()
@@ -963,12 +966,12 @@ function find_nondominated_paths_notimewindows_ngroute(
         for starting_node in data.N_depots
     )
 
-    unexplored_states = SortedSet{Tuple{Vararg{Int}}}()
+    unexplored_states = SortedSet{NTuple{4, Int}}()
     for depot in data.N_depots
         key = (0, -data.B)
         set = (depot,)
         full_labels[depot][depot][set] = SortedDict{
-            Tuple{Vararg{Int}},
+            NTuple{2, Int},
             PathLabel,
         }(
             Base.Order.ForwardOrdering(),
@@ -1110,7 +1113,7 @@ function find_nondominated_paths_notimewindows_ngroute_alt(
         Dict{
             Int, 
             SortedDict{
-                Tuple{Vararg{Int}},
+                T,
                 BaseSubpathLabel,
                 Base.Order.ForwardOrdering,
             },
@@ -1121,7 +1124,7 @@ function find_nondominated_paths_notimewindows_ngroute_alt(
     ;
     christofides::Bool = false,
     time_limit::Float64 = Inf,
-)
+) where {T <: Tuple{Vararg{Int}}}
 
     function ngroute_extend_partial_path_check_alt(
         neighborhoods::NGRouteNeighborhood,
@@ -1148,7 +1151,7 @@ function find_nondominated_paths_notimewindows_ngroute_alt(
     full_labels = Dict(
         starting_node => Dict(
             current_node => SortedDict{
-                Tuple{Vararg{Int}}, 
+                NTuple{data.n_nodes + 2, Int}, 
                 PathLabel,
             }()
             for current_node in union(data.N_depots, data.N_charging)
@@ -1156,7 +1159,7 @@ function find_nondominated_paths_notimewindows_ngroute_alt(
         for starting_node in data.N_depots
     )
 
-    unexplored_states = SortedSet{Tuple{Vararg{Int}}}()
+    unexplored_states = SortedSet{NTuple{data.n_nodes + 4, Int}}()
     for depot in data.N_depots
         node_labels = zeros(Int, data.n_nodes)
         node_labels[depot] = 1
@@ -1285,12 +1288,18 @@ end
 
 function get_negative_path_labels_from_path_labels(
     data::EVRPData, 
-    path_labels::Dict{Int, Dict{Int, SortedDict{
-        Tuple{Vararg{Int}},
-        PathLabel,
-        Base.Order.ForwardOrdering,
-    }}}
-)
+    path_labels::Dict{
+        Int, 
+        Dict{
+            Int, 
+            SortedDict{
+                T,
+                PathLabel,
+                Base.Order.ForwardOrdering,
+            },
+        },
+    },
+) where {T <: Tuple{Vararg{Int}}}
     return PathLabel[
         path_label
         for starting_node in data.N_depots
@@ -1309,7 +1318,7 @@ function get_negative_path_labels_from_path_labels_ngroute(
             Dict{
                 Tuple{Vararg{Int}}, 
                 SortedDict{
-                    Tuple{Vararg{Int}},
+                    NTuple{2, Int},
                     PathLabel,
                 },
             },

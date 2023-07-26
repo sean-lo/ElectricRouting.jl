@@ -86,15 +86,15 @@ end
 
 function add_pure_path_label_to_collection!(
     collection::SortedDict{
-        Tuple{Vararg{Int}}, 
+        NTuple{N, Int},
         PurePathLabel,
         Base.Order.ForwardOrdering,
     },
-    key::Tuple{Vararg{Int}},
+    key::NTuple{N, Int},
     path::PurePathLabel,
     ;
     verbose::Bool = false,
-)
+) where {N}
     added = true
     for (k, p) in pairs(collection)
         if p.cost ≤ path.cost
@@ -140,10 +140,11 @@ function find_nondominated_paths(
     start_time = time()
     modified_costs = compute_arc_modified_costs(data, ν)
 
+    keylen = check_customers ? data.n_customers + 3 : 3
     pure_path_labels = Dict(
         starting_node => Dict(
             current_node => SortedDict{
-                Tuple{Vararg{Int}}, 
+                NTuple{keylen, Int}, 
                 PurePathLabel,
             }()
             for current_node in data.N_nodes
@@ -161,7 +162,8 @@ function find_nondominated_paths(
     else
         key = (0, -data.B, -data.B)
     end
-    unexplored_states = SortedSet{Tuple{Vararg{Int}}}()
+
+    unexplored_states = SortedSet{NTuple{keylen + 2, Int}}()
     for depot in data.N_depots
         pure_path_labels[depot][depot][key] = PurePathLabel(
             0.0,
@@ -389,7 +391,7 @@ function find_nondominated_paths_ngroute(
             current_node => Dict{
                 Tuple{Vararg{Int}}, 
                 SortedDict{
-                    Tuple{Vararg{Int}}, 
+                    NTuple{3, Int}, 
                     PurePathLabel,
                 },
             }()
@@ -398,12 +400,12 @@ function find_nondominated_paths_ngroute(
         for starting_node in data.N_depots
     )
 
-    unexplored_states = SortedSet{Tuple{Vararg{Int}}}()
+    unexplored_states = SortedSet{NTuple{5, Int}}()
     for depot in data.N_depots
         key = (0, -data.B, -data.B)
-        set = (depot,)
+        set = (depot,) # NG
         pure_path_labels[depot][depot][set] = SortedDict{
-            Tuple{Vararg{Int}},
+            NTuple{3, Int},
             PurePathLabel,
         }(
             Base.Order.ForwardOrdering(),
@@ -421,7 +423,14 @@ function find_nondominated_paths_ngroute(
                 false,
             ),
         )
-        push!(unexplored_states, (key..., depot, depot))
+        push!(
+            unexplored_states, 
+            (
+                key..., 
+                depot, # starting_node
+                depot, # current_node 
+            )
+        )
     end
 
     t = data.t
@@ -558,7 +567,7 @@ function find_nondominated_paths_ngroute(
                 new_set = ngroute_create_set(neighborhoods, current_set, next_node)
                 if !(new_set in keys(pure_path_labels[starting_node][next_node]))
                     pure_path_labels[starting_node][next_node][new_set] = SortedDict{
-                        Tuple{Vararg{Int}},
+                        NTuple{3, Int},
                         PurePathLabel,
                     }()
                 end
@@ -635,7 +644,7 @@ function find_nondominated_paths_ngroute_alt(
     pure_path_labels = Dict(
         starting_node => Dict(
             current_node => SortedDict{
-                Tuple{Vararg{Int}}, 
+                NTuple{data.n_nodes + 3, Int}, 
                 PurePathLabel,
             }()
             for current_node in data.N_nodes
@@ -643,7 +652,7 @@ function find_nondominated_paths_ngroute_alt(
         for starting_node in data.N_depots
     )
 
-    unexplored_states = SortedSet{Tuple{Vararg{Int}}}()
+    unexplored_states = SortedSet{NTuple{data.n_nodes + 5, Int}}()
     for depot in data.N_depots
         node_labels = zeros(Int, data.n_nodes)
         node_labels[depot] = 1
@@ -846,12 +855,18 @@ end
 
 function get_negative_pure_path_labels_from_pure_path_labels(
     data::EVRPData, 
-    pure_path_labels::Dict{Int, Dict{Int, SortedDict{
-        Tuple{Vararg{Int}},
-        PurePathLabel,
-        Base.Order.ForwardOrdering,
-    }}}
-)
+    pure_path_labels::Dict{
+        Int, 
+        Dict{
+            Int, 
+            SortedDict{
+                T,
+                PurePathLabel,
+                Base.Order.ForwardOrdering,
+            },
+        },
+    },
+) where T <: Tuple{Vararg{Int}}
     return PurePathLabel[
         path_label
         for starting_node in data.N_depots
@@ -870,7 +885,7 @@ function get_negative_pure_path_labels_from_pure_path_labels_ngroute(
             Dict{
                 Tuple{Vararg{Int}},
                 SortedDict{
-                    Tuple{Vararg{Int}},
+                    NTuple{3, Int},
                     PurePathLabel,
                 },
             },
