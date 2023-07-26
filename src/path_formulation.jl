@@ -63,6 +63,7 @@ function generate_artificial_paths(
             charging_arcs = ChargingArc[],
             served = served,
             arcs = [(starting_node, current_node)],
+            customer_arcs = Tuple{Int, Int}[],
         )
         if !(key in keys(artificial_paths))
             artificial_paths[key] = []
@@ -103,6 +104,7 @@ function convert_path_label_to_path(
         charging_arcs = ChargingArc[],
         served = zeros(Int, data.n_customers),
         arcs = Tuple{Int, Int}[],
+        customer_arcs = Tuple{Int, Int}[],
     )
     while true
         s_label = popfirst!(s_labels)
@@ -142,6 +144,8 @@ function convert_path_label_to_path(
     end
     p.served = sum(s.served for s in p.subpaths)
     p.arcs = vcat([s.arcs for s in p.subpaths]...)
+    customers = [a[1] for a in p.arcs if a[1] in data.N_customers]
+    p.customer_arcs = collect(zip(customers[1:end-1], customers[2:end]))
     return p
 end
 
@@ -154,6 +158,7 @@ function convert_pure_path_label_to_path(
         charging_arcs = ChargingArc[],
         served = zeros(Int, data.n_customers),
         arcs = Tuple{Int, Int}[],
+        customer_arcs = Tuple{Int, Int}[],
     )
     states = Tuple{Int, Int, Int}[]
     current_subpath = Subpath(
@@ -215,6 +220,8 @@ function convert_pure_path_label_to_path(
     end
     p.served = sum(s.served for s in p.subpaths)
     p.arcs = vcat([s.arcs for s in p.subpaths]...)
+    customers = [a[1] for a in p.arcs if a[1] in data.N_customers]
+    p.customer_arcs = collect(zip(customers[1:end-1], customers[2:end]))
     return p
 end
 

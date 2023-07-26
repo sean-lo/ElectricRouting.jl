@@ -95,6 +95,7 @@ Base.@kwdef mutable struct Path
     charging_arcs::Vector{ChargingArc}
     served::Vector{Int} = sum(s.served for s in subpaths)
     arcs::Vector{Tuple{Int, Int}} = vcat([s.arcs for s in subpaths]...)
+    customer_arcs::Vector{Tuple{Int, Int}} = Tuple{Int, Int}[]
 end
 
 Base.isequal(p1::Path, p2::Path) = (
@@ -102,6 +103,7 @@ Base.isequal(p1::Path, p2::Path) = (
     && all(isequal(a1, a2) for (a1, a2) in zip(p1.charging_arcs, p2.charging_arcs))
     && p1.served == p2.served
     && p1.arcs == p2.arcs
+    && p1.customer_arcs == p2.customer_arcs
 )
 
 Base.copy(p::Path) = Path(
@@ -109,6 +111,7 @@ Base.copy(p::Path) = Path(
     charging_arcs = [copy(a) for a in p.charging_arcs],
     served = copy(p.served),
     arcs = copy(p.arcs),
+    customer_arcs = copy(p.customer_arcs),
 )
 
 struct EVRPData

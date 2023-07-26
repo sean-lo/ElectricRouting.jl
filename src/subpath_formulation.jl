@@ -1136,6 +1136,8 @@ function construct_paths_from_subpath_solution(
             subpaths = [x[3] for (i, x) in enumerate(pathlist) if i % 2 == 1],
             charging_arcs = [x[3] for (i, x) in enumerate(pathlist) if i % 2 == 0],
         )
+        customers = [a[1] for a in p.arcs if a[1] in data.N_customers]
+        path.customer_arcs = collect(zip(customers[1:end-1], customers[2:end]))
         push!(all_paths, (minval, path))
     end
     
