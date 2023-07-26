@@ -163,7 +163,7 @@ struct TimeLimitException <: Exception end
 function compute_subpath_cost(
     data::EVRPData,
     s::Subpath,
-    M::Float64 = 1e10,
+    M::Int = Int(1e10),
     ;
 )
     if s.artificial 
@@ -217,11 +217,11 @@ end
 function compute_subpath_costs(
     data::EVRPData,
     all_subpaths::Dict{Tuple{Tuple{Int, Int, Int}, Tuple{Int, Int, Int}}, Vector{Subpath}},
-    M::Float64 = 1e10,
+    M::Int = Int(1e10),
     ;
 )
     subpath_costs = Dict(
-        key => [
+        key => Int[
             compute_subpath_cost(data, s, M;)
             for s in all_subpaths[key]
         ]
@@ -235,7 +235,7 @@ function compute_subpath_service(
     all_subpaths::Dict{Tuple{Tuple{Int, Int, Int}, Tuple{Int, Int, Int}}, Vector{Subpath}},
 )
     subpath_service = Dict(
-        (key, i) => [
+        (key, i) => Int[
             s.served[i]
             for s in all_subpaths[key]
         ]
@@ -254,7 +254,7 @@ end
 function compute_path_cost(
     data::EVRPData,
     p::Path,
-    M::Float64 = 1e10,
+    M::Int = Int(1e10),
     ;
     verbose = false,
 )
@@ -293,11 +293,11 @@ end
 function compute_path_costs(
     data::EVRPData,
     all_paths::Dict{Tuple{Tuple{Int, Int, Int}, Tuple{Int, Int, Int}}, Vector{Path}},
-    M::Float64 = 1e10,
+    M::Int = Int(1e10),
     ;
 )
     path_costs = Dict(
-        key => [
+        key => Int[
             compute_path_cost(data, p, M;)
             for p in all_paths[key]
         ]
@@ -311,7 +311,7 @@ function compute_path_service(
     all_paths::Dict{Tuple{Tuple{Int, Int, Int}, Tuple{Int, Int, Int}}, Vector{Path}},
 )
     path_service = Dict(
-        (key, i) => [
+        (key, i) => Int[
             p.served[i]
             for p in all_paths[key]
         ]
