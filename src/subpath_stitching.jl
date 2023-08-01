@@ -727,6 +727,57 @@ function generate_base_labels_ngroute_alt(
     return base_labels
 end
 
+
+function compute_new_path(
+    current_path::PathLabel,
+    s::BaseSubpathLabel,
+    state::NTuple{3, Int},
+    next_node::Int,
+    data::EVRPData,
+    christofides::Bool,
+)
+    # don't count initial subpath again
+    if (
+        next_node in data.N_depots
+        && s.time_taken == 0
+    )
+        return (false, nothing)
+    end
+    # Preventing customer 2-cycles (Christofides)
+    if christofides
+        if length(current_path.subpath_labels) ≥ 1
+            prev_subpath = current_path.subpath_labels[end]
+            if (
+                prev_subpath.nodes[end-1] in data.N_customers 
+                && prev_subpath.nodes[end-1] == s.nodes[2]
+            )
+                return (false, nothing)
+            end
+        end
+    end
+
+    # time horizon and charge feasibility
+    (delta, end_time, end_charge) = charge_to_specified_level(
+        - state[2], # current charge
+        s.charge_taken, 
+        state[1], # current time
+    )
+    if end_time + s.time_taken + data.min_t[next_node] > data.T
+        return (false, nothing)
+    end
+
+    new_path = copy(current_path)
+    new_path.cost += s.cost
+    push!(new_path.subpath_labels, s)
+    new_path.served += s.served
+    if length(current_path.subpath_labels) > 0
+        push!(new_path.charging_actions, delta)
+        new_path.cost += data.charge_cost_coeff * delta
+    end
+
+    return (true, new_path)
+end
+
 function find_nondominated_paths_notimewindows(
     data::EVRPData,    
     base_labels::Dict{
@@ -797,13 +848,6 @@ function find_nondominated_paths_notimewindows(
         current_path = full_labels[starting_node][current_node][current_key]
         for next_node in union(data.N_depots, data.N_charging)
             for s in values(base_labels[current_node][next_node])
-                # don't count initial subpath again
-                if (
-                    next_node in data.N_depots
-                    && s.time_taken == 0
-                )
-                    continue
-                end
                 # single-service requirement
                 if (
                     single_service
@@ -811,36 +855,12 @@ function find_nondominated_paths_notimewindows(
                 )
                     continue
                 end
-                # Preventing customer 2-cycles (Christofides)
-                if christofides
-                    if length(current_path.subpath_labels) ≥ 1
-                        prev_subpath = current_path.subpath_labels[end]
-                        if (
-                            prev_subpath.nodes[end-1] in data.N_customers 
-                            && prev_subpath.nodes[end-1] == s.nodes[2]
-                        )
-                            continue
-                        end
-                    end
-                end
-
-                # time horizon and charge feasibility
-                (delta, end_time, end_charge) = charge_to_specified_level(
-                    - state[2], # current charge
-                    s.charge_taken, 
-                    state[1], # current time
+                (feasible, new_path) = compute_new_path(
+                    current_path, s, state, next_node, 
+                    data, christofides,
                 )
-                if end_time + s.time_taken + data.min_t[next_node] > data.T
+                if !feasible
                     continue
-                end
-
-                new_path = copy(current_path)
-                new_path.cost += s.cost
-                push!(new_path.subpath_labels, s)
-                new_path.served += s.served
-                if length(current_path.subpath_labels) > 0
-                    push!(new_path.charging_actions, delta)
-                    new_path.cost += data.charge_cost_coeff * delta
                 end
 
                 if check_customers
@@ -1001,48 +1021,17 @@ function find_nondominated_paths_notimewindows_ngroute(
             for next_node in union(data.N_depots, data.N_charging)
                 for set in keys(base_labels[current_node][next_node])
                     for s in values(base_labels[current_node][next_node][set])
-                        # don't count initial subpath again
-                        if (
-                            next_node in data.N_depots
-                            && s.time_taken == 0
-                        )
-                            continue
-                        end
-                        # Preventing customer 2-cycles (Christofides)
-                        if christofides
-                            if length(current_path.subpath_labels) ≥ 1
-                                prev_subpath = current_path.subpath_labels[end]
-                                if (
-                                    prev_subpath.nodes[end-1] in data.N_customers 
-                                    && prev_subpath.nodes[end-1] == s.nodes[2]
-                                )
-                                    continue
-                                end
-                            end
-                        end
                         # ngroute stitching subpaths check
                         (new_set, check) = ngroute_extend_partial_path_check(neighborhoods, current_set, s)
                         if !check
                             continue
                         end
-
-                        # time horizon and charge feasibility
-                        (delta, end_time, end_charge) = charge_to_specified_level(
-                            - state[2], # current charge
-                            s.charge_taken, 
-                            state[1], # current time
+                        (feasible, new_path) = compute_new_path(
+                            current_path, s, state, next_node, 
+                            data, christofides,
                         )
-                        if end_time + s.time_taken + data.min_t[next_node] > data.T
+                        if !feasible
                             continue
-                        end
-
-                        new_path = copy(current_path)
-                        new_path.cost += s.cost
-                        push!(new_path.subpath_labels, s)
-                        new_path.served += s.served
-                        if length(current_path.subpath_labels) > 0
-                            push!(new_path.charging_actions, delta)
-                            new_path.cost += data.charge_cost_coeff * delta
                         end
 
                         new_key = (
@@ -1188,49 +1177,17 @@ function find_nondominated_paths_notimewindows_ngroute_alt(
         current_path = full_labels[starting_node][current_node][current_key]
         for next_node in union(data.N_depots, data.N_charging)
             for s in values(base_labels[current_node][next_node])
-                # don't count initial subpath again
-                if (
-                    next_node in data.N_depots
-                    && s.time_taken == 0
-                )
-                    continue
-                end
-                # Preventing customer 2-cycles (Christofides)
-                if christofides
-                    if length(current_path.subpath_labels) ≥ 1
-                        prev_subpath = current_path.subpath_labels[end]
-                        if (
-                            prev_subpath.nodes[end-1] in data.N_customers 
-                            && prev_subpath.nodes[end-1] == s.nodes[2]
-                        )
-                            continue
-                        end
-                    end
-                end
-
                 # ngroute stitching subpaths check
                 (new_set, check) = ngroute_extend_partial_path_check_alt(neighborhoods, collect(current_set), s)
                 if !check
                     continue
                 end
-
-                # time horizon and charge feasibility
-                (delta, end_time, end_charge) = charge_to_specified_level(
-                    - state[2], # current charge
-                    s.charge_taken, 
-                    state[1], # current time
+                (feasible, new_path) = compute_new_path(
+                    current_path, s, state, next_node, 
+                    data, christofides,
                 )
-                if end_time + s.time_taken + data.min_t[next_node] > data.T
+                if !feasible
                     continue
-                end
-
-                new_path = copy(current_path)
-                new_path.cost += s.cost
-                push!(new_path.subpath_labels, s)
-                new_path.served += s.served
-                if length(current_path.subpath_labels) > 0
-                    push!(new_path.charging_actions, delta)
-                    new_path.cost += data.charge_cost_coeff * delta
                 end
 
                 new_key = (
