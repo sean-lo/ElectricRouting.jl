@@ -11,7 +11,7 @@ function generate_artificial_paths(
     data::EVRPData,
 )
     artificial_paths = Dict{
-        Tuple{Tuple{Int, Int, Int}, Tuple{Int, Int, Int}},
+        Tuple{NTuple{3, Int}, NTuple{3, Int}},
         Vector{Path},
     }()
     start_depots = zeros(Int, data.n_vehicles)
@@ -63,7 +63,7 @@ function generate_artificial_paths(
             charging_arcs = ChargingArc[],
             served = served,
             arcs = [(starting_node, current_node)],
-            customer_arcs = Tuple{Int, Int}[],
+            customer_arcs = NTuple{2, Int}[],
         )
         if !(key in keys(artificial_paths))
             artificial_paths[key] = []
@@ -74,7 +74,10 @@ function generate_artificial_paths(
 end
 
 function add_path_to_generated_paths!(
-    generated_paths::Dict{Tuple{Tuple{Int, Int, Int}, Tuple{Int, Int, Int}}, Vector{Path}},
+    generated_paths::Dict{
+        Tuple{NTuple{3, Int}, NTuple{3, Int}}, 
+        Vector{Path},
+    },
     p::Path,
 )
     state_pair = (
@@ -103,8 +106,8 @@ function convert_path_label_to_path(
         subpaths = Subpath[],
         charging_arcs = ChargingArc[],
         served = zeros(Int, data.n_customers),
-        arcs = Tuple{Int, Int}[],
-        customer_arcs = Tuple{Int, Int}[],
+        arcs = NTuple{2, Int}[],
+        customer_arcs = NTuple{2, Int}[],
     )
     while true
         s_label = popfirst!(s_labels)
@@ -157,10 +160,10 @@ function convert_pure_path_label_to_path(
         subpaths = Subpath[],
         charging_arcs = ChargingArc[],
         served = zeros(Int, data.n_customers),
-        arcs = Tuple{Int, Int}[],
-        customer_arcs = Tuple{Int, Int}[],
+        arcs = NTuple{2, Int}[],
+        customer_arcs = NTuple{2, Int}[],
     )
-    states = Tuple{Int, Int, Int}[]
+    states = NTuple{3, Int}[]
     current_subpath = Subpath(
         n_customers = data.n_customers,
         starting_node = pure_path_label.nodes[1],
@@ -230,10 +233,7 @@ function get_paths_from_negative_path_labels(
     path_labels::Vector{PathLabel},
 )
     generated_paths = Dict{
-        Tuple{
-            Tuple{Int, Int, Int}, 
-            Tuple{Int, Int, Int}
-        }, 
+        Tuple{NTuple{3, Int}, NTuple{3, Int}}, 
         Vector{Path},
     }()
     for path_label in path_labels
@@ -248,10 +248,7 @@ function get_paths_from_negative_pure_path_labels(
     pure_path_labels::Vector{PurePathLabel},
 )
     generated_paths = Dict{
-        Tuple{
-            Tuple{Int, Int, Int}, 
-            Tuple{Int, Int, Int}
-        }, 
+        Tuple{NTuple{3, Int}, NTuple{3, Int}}, 
         Vector{Path},
     }()
     for pure_path_label in pure_path_labels
@@ -261,7 +258,523 @@ function get_paths_from_negative_pure_path_labels(
     return generated_paths
 end
 
-function path_formulation_column_generation(
+function path_formulation_build_model(
+    data::EVRPData,
+    some_paths::Dict{
+        Tuple{NTuple{3, Int}, NTuple{3, Int}}, 
+        Vector{Path},
+    },
+    path_costs::Dict{
+        Tuple{NTuple{3, Int}, NTuple{3, Int}}, 
+        Vector{Int},
+    },
+    path_service::Dict{
+        Tuple{
+            Tuple{NTuple{3, Int}, NTuple{3, Int}}, 
+            Int,
+        }, 
+        Vector{Int}
+    },
+    ;
+    Env = nothing,
+)
+    if isnothing(Env)
+        model = @suppress Model(Gurobi.Optimizer)
+    else
+        model = @suppress Model(() -> Gurobi.Optimizer(Env))
+    end
+    JuMP.set_attribute(model, "MIPGapAbs", 1e-3)
+    JuMP.set_string_names_on_creation(model, false)
+
+    z = Dict{
+        Tuple{
+            Tuple{NTuple{3, Int}, NTuple{3, Int}},
+            Int,
+        },
+        VariableRef,
+    }(
+        (key, p) => @variable(model, lower_bound = 0)
+        for key in keys(some_paths)
+            for p in 1:length(some_paths[key])
+    )
+    @constraint(
+        model, 
+        κ[i in data.N_depots],
+        sum(
+            sum(
+                z[((i,0,data.B),state2),p]
+                for p in 1:length(some_paths[((i,0,data.B),state2)])
+            )
+            for (state1, state2) in keys(some_paths)
+                if state1[1] == i && state1[2] == 0 && state1[3] == data.B
+        )
+        == data.v_start[findfirst(x -> (x == i), data.N_depots)]
+    )
+    @constraint(
+        model,
+        μ[n2 in data.N_depots],
+        sum(
+            sum(
+                z[(state1, state2),p]
+                for p in 1:length(some_paths[(state1, state2)])
+            )
+            for (state1, state2) in keys(some_paths)
+                if state2[1] == n2
+        )
+        ≥ data.v_end[n2]
+    )
+    @constraint(
+        model,
+        ν[j in data.N_customers],
+        sum(
+            sum(
+                path_service[((state1, state2), j)][p] * z[(state1, state2), p]
+                for p in 1:length(some_paths[(state1, state2)])
+            )
+            for (state1, state2) in keys(some_paths)
+        )
+        == 1
+    )
+    @expression(
+        model, 
+        path_costs_expr,
+        sum(
+            sum(
+                path_costs[state_pair][p] * z[state_pair,p]
+                for p in 1:length(some_paths[state_pair])
+            )
+            for state_pair in keys(some_paths)
+        )
+    )
+    @objective(model, Min, path_costs_expr)
+
+    return model, z
+end
+
+function add_paths_to_path_model!(
+    model::Model,
+    z::Dict{
+        Tuple{
+            Tuple{NTuple{3, Int}, NTuple{3, Int}}, 
+            Int,
+        }, 
+        VariableRef,
+    },
+    some_paths::Dict{
+        Tuple{NTuple{3, Int}, NTuple{3, Int}},
+        Vector{Path},
+    },
+    path_costs::Dict{
+        Tuple{NTuple{3, Int}, NTuple{3, Int}},
+        Vector{Int},
+    },
+    path_service::Dict{
+        Tuple{
+            Tuple{NTuple{3, Int}, NTuple{3, Int}},
+            Int,
+        },
+        Vector{Int},
+    },
+    generated_paths::Dict{
+        Tuple{NTuple{3, Int}, NTuple{3, Int}},
+        Vector{Path},
+    },
+    data::EVRPData,
+)
+    mp_constraint_start_time = time()
+    for state_pair in keys(generated_paths)
+        if !(state_pair in keys(some_paths))
+            some_paths[state_pair] = Path[]
+            path_costs[state_pair] = Int[]
+            for i in 1:data.n_customers
+                path_service[(state_pair, i)] = Int[]
+            end
+            count = 0
+        else
+            count = length(some_paths[state_pair])
+        end
+        for p_new in generated_paths[state_pair]
+            if state_pair in keys(some_paths)
+                add = !any(isequal(p_new, p) for p in some_paths[state_pair])
+            else
+                add = true
+            end
+            if add
+                count += 1
+                # 1: include in some_paths
+                push!(some_paths[state_pair], p_new)
+                # 2: add path cost
+                push!(
+                    path_costs[state_pair], 
+                    compute_path_cost(data, p_new)
+                )
+                # 3: add path service
+                for i in 1:data.n_customers
+                    push!(path_service[(state_pair, i)], p_new.served[i])
+                end
+                # 4: create variable
+                z[(state_pair, count)] = @variable(model, lower_bound = 0)
+                (state1, state2) = state_pair
+                # 5: modify constraints starting from depot, ending at depot
+                set_normalized_coefficient(model[:κ][state1[1]], z[state_pair,count], 1)
+                set_normalized_coefficient(model[:μ][state2[1]], z[state_pair,count], 1)
+                # 6: modify customer service constraints
+                for l in data.N_customers
+                    set_normalized_coefficient(model[:ν][l], z[state_pair, count], p_new.served[l])
+                end
+                # 7: modify objective
+                set_objective_coefficient(model, z[state_pair, count], path_costs[state_pair][count])
+            end
+        end
+    end
+    mp_constraint_end_time = time()
+    mp_constraint_time = round(mp_constraint_end_time - mp_constraint_start_time, digits = 3)
+    return mp_constraint_time
+end
+
+function path_formulation_column_generation!(
+    model::Model,
+    z::Dict{
+        Tuple{
+            Tuple{NTuple{3, Int}, NTuple{3, Int}},
+            Int,
+        },
+        VariableRef,
+    },
+    WSR3_constraints::Dict{
+        NTuple{3, Int}, 
+        ConstraintRef,
+    },
+    data::EVRPData,
+    some_paths::Dict{
+        Tuple{NTuple{3, Int}, NTuple{3, Int}},
+        Vector{Path},
+    },
+    path_costs::Dict{
+        Tuple{NTuple{3, Int}, NTuple{3, Int}},
+        Vector{Int},
+    },
+    path_service::Dict{
+        Tuple{
+            Tuple{NTuple{3, Int}, NTuple{3, Int}},
+            Int,
+        },
+        Vector{Int},
+    },
+    printlist::Vector{String},
+    ;
+    method::String = "ours",
+    time_windows::Bool = false,
+    subpath_single_service::Bool = false,
+    subpath_check_customers::Bool = false,
+    path_single_service::Bool = false,
+    path_check_customers::Bool = false,
+    christofides::Bool = false,
+    neighborhoods::Union{Nothing, NGRouteNeighborhood} = nothing,
+    ngroute::Bool = false,
+    ngroute_alt::Bool = false,
+    verbose::Bool = true,
+    time_limit::Float64 = Inf,
+    max_iters::Float64 = Inf,
+)
+
+    start_time = time()
+    counter = 0
+    converged = false
+    local CGLP_results
+
+    CG_params = Dict{String, Any}()
+    CG_params["number_of_paths"] = [sum(length(v) for v in values(some_paths))]
+    CG_params["objective"] = Float64[]
+    CG_params["κ"] = Dict{Int, Float64}[]
+    CG_params["μ"] = Dict{Int, Float64}[]
+    CG_params["ν"] = Vector{Float64}[]
+    CG_params["σ"] = Dict{NTuple{3, Int}, Float64}[]
+    CG_params["lp_relaxation_solution_time_taken"] = Float64[]
+    CG_params["sp_base_time_taken"] = Float64[]
+    CG_params["sp_full_time_taken"] = Float64[]
+    CG_params["sp_total_time_taken"] = Float64[]
+    CG_params["lp_relaxation_constraint_time_taken"] = Float64[]
+    CG_params["number_of_new_paths"] = Int[]
+
+    while (
+        !converged
+        && time_limit ≥ (time() - start_time)
+        && max_iters > counter
+    )
+        counter += 1
+        mp_solution_start_time = time()
+        @suppress optimize!(model)
+        mp_solution_end_time = time()
+        CGLP_results = Dict(
+            "objective" => objective_value(model),
+            "z" => Dict(
+                (key, p) => value.(z[(key, p)])
+                for (key, p) in keys(z)
+            ),
+            "κ" => Dict(zip(data.N_depots, dual.(model[:κ]).data)),
+            "μ" => Dict(zip(data.N_depots, dual.(model[:μ]).data)),
+            "ν" => dual.(model[:ν]).data,
+            "σ" => Dict{NTuple{3, Int}, Float64}(
+                S => dual(WSR3_constraints[S])
+                for S in keys(WSR3_constraints)
+            )
+        )
+        push!(CG_params["objective"], CGLP_results["objective"])
+        push!(CG_params["κ"], CGLP_results["κ"])
+        push!(CG_params["μ"], CGLP_results["μ"])
+        push!(CG_params["ν"], CGLP_results["ν"])
+        push!(CG_params["σ"], CGLP_results["σ"])
+        push!(CG_params["lp_relaxation_solution_time_taken"], round(mp_solution_end_time - mp_solution_start_time, digits = 3))
+
+        if method == "ours"
+            local negative_full_labels  
+            local base_labels_time
+            local full_labels_time
+            try
+                (negative_full_labels, _, base_labels_time, full_labels_time) = subproblem_iteration_ours(
+                    data, CGLP_results["κ"], CGLP_results["μ"], CGLP_results["ν"],
+                    ;
+                    neighborhoods = neighborhoods,
+                    ngroute = ngroute,
+                    ngroute_alt = ngroute_alt,
+                    subpath_single_service = subpath_single_service,
+                    subpath_check_customers = subpath_check_customers,
+                    path_single_service = path_single_service,
+                    path_check_customers = path_check_customers,
+                    christofides = christofides,
+                    time_limit = time_limit - (time() - start_time),
+                )
+            catch e
+                if isa(e, TimeLimitException)
+                    break
+                else
+                    throw(e)
+                end
+            end
+            (generated_paths) = get_paths_from_negative_path_labels(
+                data, negative_full_labels,
+            )
+            push!(
+                CG_params["sp_base_time_taken"],
+                round(base_labels_time, digits=3)
+            )
+            push!(
+                CG_params["sp_full_time_taken"],
+                round(full_labels_time, digits=3)
+            )
+            push!(
+                CG_params["sp_total_time_taken"],
+                round(base_labels_time + full_labels_time, digits=3)
+            )
+        elseif method == "benchmark"
+            local negative_pure_path_labels  
+            local pure_path_labels_time
+            try
+                (negative_pure_path_labels, _, pure_path_labels_time) = subproblem_iteration_benchmark(
+                    data, CGLP_results["κ"], CGLP_results["μ"], CGLP_results["ν"], CGLP_results["σ"]
+                    ;
+                    neighborhoods = neighborhoods, 
+                    ngroute = ngroute, 
+                    ngroute_alt = ngroute_alt,
+                    time_windows = time_windows,
+                    path_single_service = path_single_service,
+                    path_check_customers = path_check_customers,
+                    christofides = christofides,
+                    time_limit = time_limit - (time() - start_time),
+                )
+            catch e
+                if isa(e, TimeLimitException)
+                    break
+                else
+                    throw(e)
+                end
+            end
+            generated_paths = get_paths_from_negative_pure_path_labels(
+                data, negative_pure_path_labels,
+            )
+            push!(
+                CG_params["sp_base_time_taken"],
+                0.0
+            )
+            push!(
+                CG_params["sp_full_time_taken"],
+                round(pure_path_labels_time, digits=3)
+            )
+            push!(
+                CG_params["sp_total_time_taken"],
+                round(pure_path_labels_time, digits=3)
+            )
+        end
+        
+        if length(generated_paths) == 0
+            push!(CG_params["number_of_new_paths"], 0)
+            converged = true
+        else
+            push!(
+                CG_params["number_of_new_paths"],
+                sum(length(v) for v in values(generated_paths))
+            )
+        end
+
+        mp_constraint_time = add_paths_to_path_model!(
+            model,
+            z,
+            some_paths, 
+            path_costs,
+            path_service,
+            generated_paths,
+            data,
+        )
+
+        push!(
+            CG_params["number_of_paths"], 
+            sum(length(v) for v in values(some_paths))
+        )
+        push!(
+            CG_params["lp_relaxation_constraint_time_taken"],
+            mp_constraint_time,
+        )
+        add_message!(
+            printlist, 
+            @sprintf(
+                "Iteration %3d | %.4e | %10d | %9.3f | %9.3f | %9.3f | %9.3f | %10d \n", 
+                counter,
+                CG_params["objective"][counter],
+                CG_params["number_of_paths"][counter],
+                CG_params["lp_relaxation_solution_time_taken"][counter],
+                CG_params["sp_base_time_taken"][counter],
+                CG_params["sp_full_time_taken"][counter],                
+                CG_params["lp_relaxation_constraint_time_taken"][counter],
+                CG_params["number_of_new_paths"][counter],
+            ),
+            verbose,
+        )
+    end
+
+    CG_params["converged"] = converged
+    CG_params["counter"] = counter
+    end_time = time() 
+    time_taken = round(end_time - start_time, digits = 3)
+    CG_params["time_taken"] = time_taken
+    CG_params["time_limit_reached"] = (time_taken > time_limit)
+    CG_params["lp_relaxation_time_taken"] = sum.(zip(CG_params["lp_relaxation_constraint_time_taken"], CG_params["lp_relaxation_solution_time_taken"]))
+    CG_params["lp_relaxation_time_taken_total"] = sum(CG_params["lp_relaxation_time_taken"])
+    CG_params["sp_base_time_taken_total"] = sum(CG_params["sp_base_time_taken"])
+    CG_params["sp_full_time_taken_total"] = sum(CG_params["sp_full_time_taken"])
+    CG_params["sp_time_taken_total"] = CG_params["sp_base_time_taken_total"] + CG_params["sp_full_time_taken_total"]
+    CG_params["lp_relaxation_time_taken_mean"] = CG_params["lp_relaxation_time_taken_total"] / length(CG_params["lp_relaxation_time_taken"])
+    CG_params["sp_base_time_taken_mean"] = CG_params["sp_base_time_taken_total"] / length(CG_params["sp_base_time_taken"])
+    CG_params["sp_full_time_taken_mean"] = CG_params["sp_full_time_taken_total"] / length(CG_params["sp_full_time_taken"])
+    CG_params["sp_time_taken_mean"] = CG_params["sp_base_time_taken_mean"] + CG_params["sp_full_time_taken_mean"]
+
+    add_message!(
+        printlist, 
+        @sprintf(
+            "Total         |            | %10d | %9.3f | %9.3f | %9.3f | %9.3f | \n", 
+            CG_params["number_of_paths"][end],
+            sum(CG_params["lp_relaxation_solution_time_taken"]),
+            sum(CG_params["sp_base_time_taken"]),
+            sum(CG_params["sp_full_time_taken"]),
+            sum(CG_params["lp_relaxation_constraint_time_taken"]),
+        ),
+        verbose,
+    )
+
+    return CGLP_results, CG_params
+end
+
+function path_formulation_solve_integer_model!(
+    model::Model,
+    z::Dict{
+        Tuple{
+            Tuple{NTuple{3, Int}, NTuple{3, Int}},
+            Int,
+        },
+        VariableRef,
+    },
+)
+    for (key, p) in keys(z)
+        JuMP.set_integer(z[key, p])
+    end
+
+    CGIP_solution_start_time = time()
+    @suppress optimize!(model)
+    CGIP_solution_end_time = time()
+
+    CGIP_results = Dict(
+        "objective" => objective_value(model),
+        "z" => Dict(
+            (key, p) => value.(z[key, p])
+            for (key, p) in keys(z)
+        ),
+        "time_taken" => round(CGIP_solution_end_time - CGIP_solution_start_time, digits = 3),
+    )
+
+    for (key, p) in keys(z)
+        JuMP.unset_integer(z[key, p])
+    end
+
+    return CGIP_results
+end
+
+function enumerate_violated_path_WSR3_inequalities(
+    paths::Vector{Tuple{Float64, Path}},
+    data::EVRPData,
+)
+    S_list = Tuple{Float64, NTuple{3, Int}}[]
+    for S in combinations(data.N_customers, 3)
+        violation = sum(
+            [
+                val 
+                for (val, p) in values(paths)
+                    if !isdisjoint(p.customer_arcs, Tuple.(permutations(S, 2)))
+            ],
+            init = 0.0
+        ) - 1.0
+        if violation > 1e-6
+            push!(S_list, (violation, Tuple(S)))
+        end
+    end
+    sort!(S_list, by = x -> x[1], rev = true)
+    return S_list
+end
+
+function add_WSR3_constraints_to_path_model!(
+    model::Model,
+    z::Dict{
+        Tuple{
+            Tuple{NTuple{3, Int}, NTuple{3, Int}},
+            Int,
+        },
+        VariableRef,
+    },
+    some_paths::Dict{
+        Tuple{NTuple{3, Int}, NTuple{3, Int}},
+        Vector{Path},
+    },
+    WSR3_constraints::Dict{
+        NTuple{3, Int},
+        ConstraintRef,
+    },
+    generated_WSR3_list::Vector{Tuple{Float64, NTuple{3, Int}}},
+)
+    for (_, S) in generated_WSR3_list
+        WSR3_constraints[S] = @constraint(
+            model,
+            sum(
+                sum(
+                    z[(state1, state2), p_ind]
+                    for (p_ind, p) in enumerate(some_paths[(state1, state2)])
+                        if !isdisjoint(p.customer_arcs, Tuple.(permutations(S, 2)))
+                )
+                for (state1, state2) in keys(some_paths)
+            ) ≤ 1
+        )
+    end
+end
+
+function path_formulation_column_generation_with_cuts(
     data::EVRPData, 
     ;
     Env = nothing,
@@ -280,17 +793,6 @@ function path_formulation_column_generation(
     time_limit::Float64 = Inf,
     max_iters::Float64 = Inf,
 )
-    function add_message!(
-        printlist::Vector, 
-        message::String, 
-        verbose::Bool,
-    )
-        push!(printlist, message)
-        if verbose
-            print(message)
-        end
-    end
-
     start_time = time()
 
     if ngroute
@@ -312,23 +814,8 @@ function path_formulation_column_generation(
         data, 
         some_paths,
     )
-    mp_results = Dict()
-    params = Dict()
-    params["number_of_paths"] = [sum(length(v) for v in values(some_paths))]
-    params["objective"] = Float64[]
-    params["κ"] = Dict{Int, Float64}[]
-    params["μ"] = Dict{Int, Float64}[]
-    params["ν"] = Vector{Float64}[]
-    params["lp_relaxation_solution_time_taken"] = Float64[]
-    params["sp_base_time_taken"] = Float64[]
-    params["sp_full_time_taken"] = Float64[]
-    params["sp_total_time_taken"] = Float64[]
-    params["lp_relaxation_constraint_time_taken"] = Float64[]
-    params["number_of_new_paths"] = Int[]
 
     printlist = String[]
-    counter = 0
-    converged = false
 
     add_message!(
         printlist,
@@ -383,332 +870,94 @@ function path_formulation_column_generation(
         verbose,
     )
 
-    if isnothing(Env)
-        mp_model = @suppress Model(Gurobi.Optimizer)
-    else
-        mp_model = @suppress Model(() -> Gurobi.Optimizer(Env))
-    end
-    JuMP.set_attribute(mp_model, "MIPGapAbs", 1e-3)
-    JuMP.set_string_names_on_creation(mp_model, false)
-    z = Dict{
-        Tuple{
-            Tuple{
-                Tuple{Int, Int, Int}, 
-                Tuple{Int, Int, Int}
-            }, 
-            Int
-        }, 
-        VariableRef
-    }(
-        (key, p) => @variable(mp_model, lower_bound = 0)
-        for key in keys(some_paths)
-            for p in 1:length(some_paths[key])
+    model, z = path_formulation_build_model(
+        data, some_paths, path_costs, path_service,
+        ; 
+        Env = Env,
     )
-    @constraint(
-        mp_model,
-        κ[i in data.N_depots],
-        sum(
-            sum(
-                z[((i,0,data.B),state2),p]
-                for p in 1:length(some_paths[((i,0,data.B),state2)])
-            )        
-            for (state1, state2) in keys(some_paths)
-                if state1[1] == i && state1[2] == 0 && state1[3] == data.B
-        )
-        == data.v_start[findfirst(x -> (x == i), data.N_depots)]
-    )
-    @constraint(
-        mp_model,
-        μ[n2 in data.N_depots],
-        sum(
-            sum(
-                z[(state1, state2),p]
-                for p in 1:length(some_paths[(state1, state2)])
-            )
-            for (state1, state2) in keys(some_paths)
-                if state2[1] == n2
-        ) ≥ data.v_end[n2]
-    )
-    @constraint(
-        mp_model,
-        ν[j in data.N_customers],
-        sum(
-            sum(
-                path_service[((state1, state2),j)][p] * z[(state1, state2),p]
-                for p in 1:length(some_paths[(state1, state2)])
-            )
-            for (state1, state2) in keys(some_paths)
-        ) == 1
-    )
-    @expression(
-        mp_model,
-        path_costs_expr,
-        sum(
-            sum(
-                path_costs[state_pair][p] * z[state_pair,p]
-                for p in 1:length(some_paths[state_pair])
-            )
-            for state_pair in keys(some_paths)
-        )
-    )
-    @objective(mp_model, Min, path_costs_expr)
 
-    while (
-        !converged
-        && time_limit ≥ (time() - start_time)
-        && max_iters > counter
-    )
-        counter += 1
-        mp_solution_start_time = time()
-        @suppress optimize!(mp_model)
-        mp_solution_end_time = time()
-        mp_results = Dict(
-            "model" => mp_model,
-            "objective" => objective_value(mp_model),
-            "z" => Dict(
-                (key, p) => value.(z[(key, p)])
-                for (key, p) in keys(z)
-            ),
-            "κ" => Dict(zip(data.N_depots, dual.(mp_model[:κ]).data)),
-            "μ" => Dict(zip(data.N_depots, dual.(mp_model[:μ]).data)),
-            "ν" => dual.(mp_model[:ν]).data,
-            "solution_time_taken" => round(mp_solution_end_time - mp_solution_start_time, digits = 3),
-        )
-        push!(params["objective"], mp_results["objective"])
-        push!(params["κ"], mp_results["κ"])
-        push!(params["μ"], mp_results["μ"])
-        push!(params["ν"], mp_results["ν"])
-        push!(params["lp_relaxation_solution_time_taken"], mp_results["solution_time_taken"])
+    local CGLP_results
+    local CG_params
+    local CGIP_results
+    local converged = false
 
-        if method == "ours"
-            local negative_full_labels  
-            local base_labels_time
-            local full_labels_time
-            try
-                (negative_full_labels, _, base_labels_time, full_labels_time) = subproblem_iteration_ours(
-                    data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
-                    ;
-                    neighborhoods = neighborhoods,
-                    ngroute = ngroute,
-                    ngroute_alt = ngroute_alt,
-                    subpath_single_service = subpath_single_service,
-                    subpath_check_customers = subpath_check_customers,
-                    path_single_service = path_single_service,
-                    path_check_customers = path_check_customers,
-                    christofides = christofides,
-                    time_limit = time_limit - (time() - start_time),
-                )
-            catch e
-                if isa(e, TimeLimitException)
-                    break
-                else
-                    throw(e)
-                end
-            end
-            (generated_paths) = get_paths_from_negative_path_labels(
-                data, negative_full_labels,
-            )
-            push!(
-                params["sp_base_time_taken"],
-                round(base_labels_time, digits=3)
-            )
-            push!(
-                params["sp_full_time_taken"],
-                round(full_labels_time, digits=3)
-            )
-            push!(
-                params["sp_total_time_taken"],
-                round(base_labels_time + full_labels_time, digits=3)
-            )
-        elseif method == "benchmark"
-            local negative_pure_path_labels  
-            local pure_path_labels_time
-            try
-                (negative_pure_path_labels, _, pure_path_labels_time) = subproblem_iteration_benchmark(
-                    data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
-                    ;
-                    neighborhoods = neighborhoods, 
-                    ngroute = ngroute, 
-                    ngroute_alt = ngroute_alt,
-                    time_windows = time_windows,
-                    path_single_service = path_single_service,
-                    path_check_customers = path_check_customers,
-                    christofides = christofides,
-                    time_limit = time_limit - (time() - start_time),
-                )
-            catch e
-                if isa(e, TimeLimitException)
-                    break
-                else
-                    throw(e)
-                end
-            end
-            generated_paths = get_paths_from_negative_pure_path_labels(
-                data, negative_pure_path_labels,
-            )
-            push!(
-                params["sp_base_time_taken"],
-                0.0
-            )
-            push!(
-                params["sp_full_time_taken"],
-                round(pure_path_labels_time, digits=3)
-            )
-            push!(
-                params["sp_total_time_taken"],
-                round(pure_path_labels_time, digits=3)
-            )
+    WSR3_constraints = Dict{NTuple{3, Int}, ConstraintRef}()
+    WSR3_list = Tuple{Float64, NTuple{3, Int}}[]
+
+    while true
+        CGLP_results, CG_params = path_formulation_column_generation!(
+            model, z, WSR3_constraints,
+            data,
+            some_paths, path_costs, path_service,
+            printlist,
+            ;
+            method = method,
+            time_windows = time_windows,
+            subpath_single_service = subpath_single_service,
+            subpath_check_customers = subpath_check_customers,
+            path_single_service = path_single_service,
+            path_check_customers = path_check_customers,
+            christofides = christofides,
+            neighborhoods = neighborhoods,
+            ngroute = ngroute,
+            ngroute_alt = ngroute_alt,
+            verbose = verbose,
+            time_limit = time_limit - (time() - start_time),
+            max_iters = max_iters,
+        )
+        CGIP_results = path_formulation_solve_integer_model!(
+            model,
+            z,
+        )
+
+        # Termination criteria
+        CG_params["LP_IP_gap"] = 1.0 - CGLP_results["objective"] / CGIP_results["objective"]
+        for message in [
+            @sprintf("\n"),
+            @sprintf("Time taken (s):       %9.3f s\n", CG_params["time_taken"]),
+            @sprintf("(CGLP) Objective:         %.4e\n", CGLP_results["objective"]),
+            @sprintf("(CGIP) Objective:         %.4e\n", CGIP_results["objective"]),
+            @sprintf("%% gap:                %9.3f %%\n", CG_params["LP_IP_gap"] * 100.0),
+        ]
+            add_message!(printlist, message, verbose)
         end
-        
-        if length(generated_paths) == 0
-            push!(params["number_of_new_paths"], 0)
+        if CGIP_results["objective"] ≈ CGLP_results["objective"]
             converged = true
+            break
         else
-            push!(
-                params["number_of_new_paths"],
-                sum(length(v) for v in values(generated_paths))
+            CGLP_results["paths"] = collect_path_solution_support(
+                CGLP_results, some_paths, data,
             )
-        end
-
-        mp_constraint_start_time = time()
-        for state_pair in keys(generated_paths)
-            if !(state_pair in keys(some_paths))
-                some_paths[state_pair] = Path[]
-                path_costs[state_pair] = Float64[]
-                for i in 1:data.n_customers
-                    path_service[(state_pair, i)] = []
-                end
-                count = 0
-            else
-                count = length(some_paths[state_pair])
+            generated_WSR3_list = enumerate_violated_path_WSR3_inequalities(CGLP_results["paths"], data)
+            if length(generated_WSR3_list) == 0
+                break
             end
-            for p_new in generated_paths[state_pair]
-                if state_pair in keys(some_paths)
-                    add = !any(isequal(p_new, p) for p in some_paths[state_pair])
-                else
-                    add = true
-                end
-                if add
-                    count += 1
-                    # 1: include in some_paths
-                    push!(some_paths[state_pair], p_new)
-                    # 2: add path cost
-                    push!(
-                        path_costs[state_pair], 
-                        compute_path_cost(data, p_new)
-                    )
-                    # 3: add path service
-                    for i in 1:data.n_customers
-                        push!(path_service[(state_pair, i)], p_new.served[i])
+            append!(WSR3_list, generated_WSR3_list)
+            add_WSR3_constraints_to_path_model!(
+                model, z, some_paths, 
+                WSR3_constraints, generated_WSR3_list, 
+            )
+            if ngroute
+                for (_, S) in generated_WSR3_list
+                    for i in S
+                        neighborhoods.x[i] = union(neighborhoods.x[i], S)
                     end
-                    # 4: create variable
-                    z[(state_pair, count)] = @variable(mp_model, lower_bound = 0)
-                    (state1, state2) = state_pair
-                    # 5: modify constraints starting from depot, ending at depot
-                    set_normalized_coefficient(κ[state1[1]], z[state_pair,count], 1)
-                    set_normalized_coefficient(μ[state2[1]], z[state_pair,count], 1)
-                    # 6: modify customer service constraints
-                    for l in data.N_customers
-                        set_normalized_coefficient(ν[l], z[state_pair, count], p_new.served[l])
-                    end
-                    # 7: modify objective
-                    set_objective_coefficient(mp_model, z[state_pair, count], path_costs[state_pair][count])
                 end
             end
         end
-        mp_constraint_end_time = time()
-
-        push!(
-            params["number_of_paths"], 
-            sum(length(v) for v in values(some_paths))
-        )
-        push!(
-            params["lp_relaxation_constraint_time_taken"],
-            round(mp_constraint_end_time - mp_constraint_start_time, digits = 3)
-        )
-        add_message!(
-            printlist, 
-            @sprintf(
-                "Iteration %3d | %.4e | %10d | %9.3f | %9.3f | %9.3f | %9.3f | %10d \n", 
-                counter,
-                params["objective"][counter],
-                params["number_of_paths"][counter],
-                params["lp_relaxation_solution_time_taken"][counter],
-                params["sp_base_time_taken"][counter],
-                params["sp_full_time_taken"][counter],                
-                params["lp_relaxation_constraint_time_taken"][counter],
-                params["number_of_new_paths"][counter],
-            ),
-            verbose,
-        )
     end
 
-    for key in keys(some_paths)
-        for p in 1:length(some_paths[key])
-            JuMP.set_integer(z[key,p])
-        end
-    end
-    cgip_solution_start_time = time()
-    @suppress optimize!(mp_model)
-    cgip_solution_end_time = time()
-
-    CGLP_results = Dict(
-        "objective" => mp_results["objective"],
-        "z" => mp_results["z"],
-        "κ" => mp_results["κ"],
-        "μ" => mp_results["μ"],
-        "ν" => mp_results["ν"],
+    return (
+        CGLP_results, CGIP_results, CG_params, printlist, 
+        some_paths, model, z, WSR3_constraints
     )
-    CGIP_results = Dict(
-        "objective" => objective_value(mp_model),
-        "z" => Dict(
-            (key, p) => value.(z[(key, p)])
-            for (key, p) in keys(z)
-        ),
-    )
-    params["CGIP_time_taken"] = round(cgip_solution_end_time - cgip_solution_start_time, digits = 3)
-    params["converged"] = converged
-    params["counter"] = counter
-    end_time = time() 
-    time_taken = round(end_time - start_time, digits = 3)
-    params["time_taken"] = time_taken
-    params["time_limit_reached"] = (time_taken > time_limit)
-    params["lp_relaxation_time_taken"] = sum.(zip(params["lp_relaxation_constraint_time_taken"], params["lp_relaxation_solution_time_taken"]))
-    params["lp_relaxation_time_taken_total"] = sum(params["lp_relaxation_time_taken"])
-    params["sp_base_time_taken_total"] = sum(params["sp_base_time_taken"])
-    params["sp_full_time_taken_total"] = sum(params["sp_full_time_taken"])
-    params["sp_time_taken_total"] = params["sp_base_time_taken_total"] + params["sp_full_time_taken_total"]
-    params["lp_relaxation_time_taken_mean"] = params["lp_relaxation_time_taken_total"] / length(params["lp_relaxation_time_taken"])
-    params["sp_base_time_taken_mean"] = params["sp_base_time_taken_total"] / length(params["sp_base_time_taken"])
-    params["sp_full_time_taken_mean"] = params["sp_full_time_taken_total"] / length(params["sp_full_time_taken"])
-    params["sp_time_taken_mean"] = params["sp_base_time_taken_mean"] + params["sp_full_time_taken_mean"]
-
-    params["LP_IP_gap"] = 1.0 - CGLP_results["objective"] / CGIP_results["objective"]
-
-    for message in [
-        @sprintf("\n"),
-        @sprintf("(CG) Objective:               %.4e\n", CGLP_results["objective"]),
-        @sprintf("Total time (LP):              %10.3f s\n", sum(params["lp_relaxation_solution_time_taken"])),
-        @sprintf("Total time (SP base):         %10.3f s\n", sum(params["sp_base_time_taken"])),
-        @sprintf("Total time (SP full):         %10.3f s\n", sum(params["sp_full_time_taken"])),
-        @sprintf("Total time (LP construction): %10.3f s\n", sum(params["lp_relaxation_constraint_time_taken"])),
-        @sprintf("Total time:                   %10.3f s\n", time_taken),
-        @sprintf("\n"),
-        @sprintf("(CGIP) Objective:             %.4e\n", CGIP_results["objective"]),
-        @sprintf("(CGIP) Total time:            %10.3f s\n", params["CGIP_time_taken"]),
-    ]
-        add_message!(printlist, message, verbose)
-    end
-    return CGLP_results, CGIP_results, params, printlist, some_paths, mp_model
 end
 
 function collect_path_solution_support(
     results, 
     paths::Dict{
-        Tuple{
-            Tuple{Int, Int, Int},
-            Tuple{Int, Int, Int},
-        }
+        Tuple{NTuple{3, Int}, NTuple{3, Int}},
+        Vector{Path},
     },
     data::EVRPData,
     ;

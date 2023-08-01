@@ -777,7 +777,7 @@ function find_nondominated_paths_notimewindows(
         full_labels[depot][depot][key] = PathLabel(
             0.0,
             BaseSubpathLabel[],
-            Tuple{Int, Int}[],
+            NTuple{2, Int}[],
             zeros(Int, data.n_customers),
         )
         push!(unexplored_states, (key..., depot, depot))
@@ -978,7 +978,7 @@ function find_nondominated_paths_notimewindows_ngroute(
             key => PathLabel(
                 0.0,
                 BaseSubpathLabel[],
-                Tuple{Int, Int}[],
+                NTuple{2, Int}[],
                 zeros(Int, data.n_customers),
             ),
         )
@@ -1167,7 +1167,7 @@ function find_nondominated_paths_notimewindows_ngroute_alt(
         full_labels[depot][depot][key] = PathLabel(
             0.0,
             BaseSubpathLabel[],
-            Tuple{Int, Int}[],
+            NTuple{2, Int}[],
             zeros(Int, data.n_customers),
         )
         push!(unexplored_states, (key..., depot, depot))

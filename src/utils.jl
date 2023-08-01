@@ -12,7 +12,7 @@ Base.@kwdef mutable struct Subpath
     starting_time::Int
     starting_charge::Int
     current_node::Int = starting_node
-    arcs::Vector{Tuple{Int, Int}} = []
+    arcs::Vector{NTuple{2, Int}} = []
     current_time::Int = starting_time
     current_charge::Int = starting_charge
     served::Vector{Int} = zeros(Int, n_customers)
@@ -94,8 +94,8 @@ Base.@kwdef mutable struct Path
     subpaths::Vector{Subpath}
     charging_arcs::Vector{ChargingArc}
     served::Vector{Int} = sum(s.served for s in subpaths)
-    arcs::Vector{Tuple{Int, Int}} = vcat([s.arcs for s in subpaths]...)
-    customer_arcs::Vector{Tuple{Int, Int}} = Tuple{Int, Int}[]
+    arcs::Vector{NTuple{2, Int}} = vcat([s.arcs for s in subpaths]...)
+    customer_arcs::Vector{NTuple{2, Int}} = NTuple{2, Int}[]
 end
 
 Base.isequal(p1::Path, p2::Path) = (
@@ -160,6 +160,17 @@ end
 
 struct TimeLimitException <: Exception end
 
+function add_message!(
+    printlist::Vector{String}, 
+    message::String, 
+    verbose::Bool,
+)
+    push!(printlist, message)
+    if verbose
+        print(message)
+    end
+end
+
 function compute_subpath_cost(
     data::EVRPData,
     s::Subpath,
@@ -216,7 +227,10 @@ end
 
 function compute_subpath_costs(
     data::EVRPData,
-    all_subpaths::Dict{Tuple{Tuple{Int, Int, Int}, Tuple{Int, Int, Int}}, Vector{Subpath}},
+    all_subpaths::Dict{
+        Tuple{NTuple{3, Int}, NTuple{3, Int}}, 
+        Vector{Subpath},
+    },
     M::Int = Int(1e10),
     ;
 )
@@ -232,7 +246,10 @@ end
 
 function compute_subpath_service(
     data::EVRPData, 
-    all_subpaths::Dict{Tuple{Tuple{Int, Int, Int}, Tuple{Int, Int, Int}}, Vector{Subpath}},
+    all_subpaths::Dict{
+        Tuple{NTuple{3, Int}, NTuple{3, Int}}, 
+        Vector{Subpath},
+    },
 )
     subpath_service = Dict(
         (key, i) => Int[
@@ -292,7 +309,10 @@ end
 
 function compute_path_costs(
     data::EVRPData,
-    all_paths::Dict{Tuple{Tuple{Int, Int, Int}, Tuple{Int, Int, Int}}, Vector{Path}},
+    all_paths::Dict{
+        Tuple{NTuple{3, Int}, NTuple{3, Int}}, 
+        Vector{Path},
+    },
     M::Int = Int(1e10),
     ;
 )
@@ -308,7 +328,10 @@ end
 
 function compute_path_service(
     data::EVRPData, 
-    all_paths::Dict{Tuple{Tuple{Int, Int, Int}, Tuple{Int, Int, Int}}, Vector{Path}},
+    all_paths::Dict{
+        Tuple{NTuple{3, Int}, NTuple{3, Int}}, 
+        Vector{Path},
+    },
 )
     path_service = Dict(
         (key, i) => Int[
@@ -679,6 +702,64 @@ function compute_arc_modified_costs(
         end
     end
     return modified_costs
+end
+
+function compute_WSR3_sigma_2costs(
+    σ::Dict{NTuple{3, Int}, Float64},
+    data::EVRPData,
+)
+    σ_costs = Dict{NTuple{4, Int}, Float64}()
+    for (prev_prev_node, prev_node, current_node, next_node) in Iterators.product(
+        data.N_nodes,
+        data.N_customers,
+        data.N_customers,
+        data.N_customers,
+    )
+        σ_costs[(prev_prev_node, prev_node, current_node, next_node)] = - sum(
+            [
+                σ[S] for S in keys(σ)
+                if next_node in S && current_node in S && !(prev_node in S)
+            ], 
+            init = 0.0
+        )
+    end
+    for (prev_prev_node, prev_node, current_node, next_node) in Iterators.product(
+        data.N_customers,
+        data.N_charging,
+        data.N_customers,
+        data.N_customers,
+    )
+        σ_costs[(prev_prev_node, prev_node, current_node, next_node)] = - sum(
+            [
+                σ[S] for S in keys(σ)
+                if next_node in S && current_node in S && !(prev_prev_node in S)
+            ], 
+            init = 0.0
+        )
+    end
+    for (prev_prev_node, prev_node, current_node, next_node) in Iterators.product(
+        data.N_customers,
+        data.N_customers,
+        data.N_charging,
+        data.N_customers,
+    )
+        σ_costs[(prev_prev_node, prev_node, current_node, next_node)] = - sum(
+            [
+                σ[S] for S in keys(σ)
+                if next_node in S && prev_node in S && !(prev_prev_node in S)
+            ], 
+            init = 0.0
+        )
+    end
+    for (prev_prev_node, prev_node, current_node, next_node) in setdiff(
+        Iterators.product(
+            data.N_nodes, data.N_nodes, data.N_nodes, data.N_nodes,
+        ),
+        keys(σ_costs),
+    )
+        σ_costs[(prev_prev_node, prev_node, current_node, next_node)] = 0.0
+    end
+    return σ_costs
 end
 
 function plot_instance(

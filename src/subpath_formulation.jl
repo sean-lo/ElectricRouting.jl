@@ -14,7 +14,7 @@ function generate_artificial_subpaths(
     data::EVRPData,
 )
     artificial_subpaths = Dict{
-        Tuple{Tuple{Int, Int, Int}, Tuple{Int, Int, Int}},
+        Tuple{NTuple{3, Int}, NTuple{3, Int}},
         Vector{Subpath},
     }()
     start_depots = zeros(Int, data.n_vehicles)
@@ -72,7 +72,10 @@ function generate_artificial_subpaths(
 end
 
 function add_subpath_to_generated_subpaths!(
-    generated_subpaths::Dict{Tuple{Tuple{Int, Int, Int}, Tuple{Int, Int, Int}}, Vector{Subpath}},
+    generated_subpaths::Dict{
+        Tuple{NTuple{3, Int}, NTuple{3, Int}}, 
+        Vector{Subpath},
+    },
     subpath::Subpath,
 )
     state_pair = (
@@ -90,7 +93,10 @@ function add_subpath_to_generated_subpaths!(
 end
 
 function add_charging_arc_to_generated_charging_arcs!(
-    generated_charging_arcs::Dict{Tuple{Tuple{Int, Int, Int}, Tuple{Int, Int, Int}}, Vector{ChargingArc}},
+    generated_charging_arcs::Dict{
+        Tuple{NTuple{3, Int}, NTuple{3, Int}}, 
+        Vector{ChargingArc},
+    },
     charging_arc::ChargingArc,
 )
     state_pair = (
@@ -112,17 +118,11 @@ function get_subpaths_charging_arcs_from_negative_path_labels(
     full_labels = Vector{PathLabel},
 )
     generated_subpaths = Dict{
-        Tuple{
-            Tuple{Int, Int, Int}, 
-            Tuple{Int, Int, Int}
-        }, 
+        Tuple{NTuple{3, Int}, NTuple{3, Int}}, 
         Vector{Subpath},
     }()
     generated_charging_arcs = Dict{
-        Tuple{
-            Tuple{Int, Int, Int}, 
-            Tuple{Int, Int, Int}
-        }, 
+        Tuple{NTuple{3, Int}, NTuple{3, Int}}, 
         Vector{ChargingArc},
     }()
     for path in full_labels
@@ -175,21 +175,15 @@ function get_subpaths_charging_arcs_from_negative_pure_path_labels(
     pure_labels = Vector{PurePathLabel},
 )
     generated_subpaths = Dict{
-        Tuple{
-            Tuple{Int, Int, Int}, 
-            Tuple{Int, Int, Int}
-        }, 
+        Tuple{NTuple{3, Int}, NTuple{3, Int}}, 
         Vector{Subpath},
     }()
     generated_charging_arcs = Dict{
-        Tuple{
-            Tuple{Int, Int, Int}, 
-            Tuple{Int, Int, Int}
-        }, 
+        Tuple{NTuple{3, Int}, NTuple{3, Int}}, 
         Vector{ChargingArc},
     }()
     for path in pure_labels
-        states = Tuple{Int, Int, Int}[]
+        states = NTuple{3, Int}[]
         current_subpath = Subpath(
             n_customers = data.n_customers,
             starting_node = path.nodes[1],
@@ -265,16 +259,6 @@ function subpath_formulation_column_generation_integrated_from_paths(
     time_limit::Float64 = Inf,
     max_iters::Float64 = Inf,
 )
-    function add_message!(
-        printlist::Vector, 
-        message::String, 
-        verbose::Bool,
-    )
-        push!(printlist, message)
-        if verbose
-            print(message)
-        end
-    end
 
     start_time = time()
 
@@ -296,38 +280,32 @@ function subpath_formulation_column_generation_integrated_from_paths(
         some_subpaths,
     )
     some_charging_arcs = Dict{
-        Tuple{
-            Tuple{Int, Int, Int}, 
-            Tuple{Int, Int, Int}
-        }, 
-        Vector{ChargingArc}
+        Tuple{NTuple{3, Int}, NTuple{3, Int}}, 
+        Vector{ChargingArc},
     }()
     charging_arc_costs = Dict{
-        Tuple{
-            Tuple{Int, Int, Int}, 
-            Tuple{Int, Int, Int}
-        }, 
-        Vector{Int}
+        Tuple{NTuple{3, Int}, NTuple{3, Int}}, 
+        Vector{Int},
     }()
-    charging_states_a_s = Set()
-    charging_states_s_a = Set()
-    mp_results = Dict()
-    params = Dict()
-    params["number_of_subpaths"] = [sum(length(v) for v in values(some_subpaths))]
-    params["number_of_charging_arcs"] = [0]
-    params["objective"] = Float64[]
-    params["κ"] = Dict{Int, Float64}[]
-    params["μ"] = Dict{Int, Float64}[]
-    params["ν"] = Vector{Float64}[]
-    params["lp_relaxation_solution_time_taken"] = Float64[]
-    params["sp_base_time_taken"] = Float64[]
-    params["sp_full_time_taken"] = Float64[]
-    params["sp_total_time_taken"] = Float64[]
-    params["lp_relaxation_constraint_time_taken"] = Float64[]
-    params["number_of_new_subpaths"] = Int[]
-    params["number_of_new_charging_arcs"] = Int[]
-    params["number_of_new_charging_states"] = Int[]
-    params["number_of_charging_states"] = Int[]
+    charging_states_a_s = Set{NTuple{3, Int}}()
+    charging_states_s_a = Set{NTuple{3, Int}}()
+    CGLP_results = Dict{String, Any}()
+    CG_params = Dict{String, Any}()
+    CG_params["number_of_subpaths"] = [sum(length(v) for v in values(some_subpaths))]
+    CG_params["number_of_charging_arcs"] = [0]
+    CG_params["objective"] = Float64[]
+    CG_params["κ"] = Dict{Int, Float64}[]
+    CG_params["μ"] = Dict{Int, Float64}[]
+    CG_params["ν"] = Vector{Float64}[]
+    CG_params["lp_relaxation_solution_time_taken"] = Float64[]
+    CG_params["sp_base_time_taken"] = Float64[]
+    CG_params["sp_full_time_taken"] = Float64[]
+    CG_params["sp_total_time_taken"] = Float64[]
+    CG_params["lp_relaxation_constraint_time_taken"] = Float64[]
+    CG_params["number_of_new_subpaths"] = Int[]
+    CG_params["number_of_new_charging_arcs"] = Int[]
+    CG_params["number_of_new_charging_states"] = Int[]
+    CG_params["number_of_charging_states"] = Int[]
 
     printlist = String[]
     counter = 0
@@ -389,38 +367,32 @@ function subpath_formulation_column_generation_integrated_from_paths(
     )
 
     if isnothing(Env)
-        mp_model = @suppress Model(Gurobi.Optimizer)
+        model = @suppress Model(Gurobi.Optimizer)
     else
-        mp_model = @suppress Model(() -> Gurobi.Optimizer(Env))
+        model = @suppress Model(() -> Gurobi.Optimizer(Env))
     end
-    JuMP.set_attribute(mp_model, "MIPGapAbs", 1e-3)
-    JuMP.set_string_names_on_creation(mp_model, false)
+    JuMP.set_attribute(model, "MIPGapAbs", 1e-3)
+    JuMP.set_string_names_on_creation(model, false)
     z = Dict{
         Tuple{
-            Tuple{
-                Tuple{Int, Int, Int}, 
-                Tuple{Int, Int, Int}
-            }, 
-            Int
+            Tuple{NTuple{3, Int}, NTuple{3, Int}}, 
+            Int,
         }, 
-        VariableRef
+        VariableRef,
     }(
-        (key, p) => @variable(mp_model, lower_bound = 0)
+        (key, p) => @variable(model, lower_bound = 0)
         for key in keys(some_subpaths)
             for p in 1:length(some_subpaths[key])
     )
     w = Dict{
         Tuple{
-            Tuple{
-                Tuple{Int, Int, Int}, 
-                Tuple{Int, Int, Int}
-            }, 
-            Int
+            Tuple{NTuple{3, Int}, NTuple{3, Int}}, 
+            Int,
         }, 
-        VariableRef
+        VariableRef,
     }()
     @constraint(
-        mp_model,
+        model,
         κ[i in data.N_depots],
         sum(
             sum(
@@ -433,15 +405,15 @@ function subpath_formulation_column_generation_integrated_from_paths(
         == data.v_start[findfirst(x -> (x == i), data.N_depots)]
     )
     
-    flow_conservation_exprs_s_out = Dict{Tuple{Int, Int, Int}, AffExpr}()
-    flow_conservation_exprs_s_in = Dict{Tuple{Int, Int, Int}, AffExpr}()
-    flow_conservation_exprs_a_out = Dict{Tuple{Int, Int, Int}, AffExpr}()
-    flow_conservation_exprs_a_in = Dict{Tuple{Int, Int, Int}, AffExpr}()
-    flow_conservation_constrs_a_s = Dict{Tuple{Int, Int, Int}, ConstraintRef}()
-    flow_conservation_constrs_s_a = Dict{Tuple{Int, Int, Int}, ConstraintRef}()
+    flow_conservation_exprs_s_out = Dict{NTuple{3, Int}, AffExpr}()
+    flow_conservation_exprs_s_in = Dict{NTuple{3, Int}, AffExpr}()
+    flow_conservation_exprs_a_out = Dict{NTuple{3, Int}, AffExpr}()
+    flow_conservation_exprs_a_in = Dict{NTuple{3, Int}, AffExpr}()
+    flow_conservation_constrs_a_s = Dict{NTuple{3, Int}, ConstraintRef}()
+    flow_conservation_constrs_s_a = Dict{NTuple{3, Int}, ConstraintRef}()
 
     @constraint(
-        mp_model,
+        model,
         μ[n2 in data.N_depots],
         sum(
             sum(
@@ -450,10 +422,11 @@ function subpath_formulation_column_generation_integrated_from_paths(
             )
             for (state1, state2) in keys(some_subpaths)
                 if state2[1] == n2
-        ) ≥ data.v_end[n2]
+        ) 
+        ≥ data.v_end[n2]
     )
     @constraint(
-        mp_model,
+        model,
         ν[j in data.N_customers],
         sum(
             sum(
@@ -461,10 +434,11 @@ function subpath_formulation_column_generation_integrated_from_paths(
                 for p in 1:length(some_subpaths[(state1, state2)])
             )
             for (state1, state2) in keys(some_subpaths)
-        ) == 1
+        ) 
+        == 1
     )
     @expression(
-        mp_model,
+        model,
         subpath_costs_expr,
         sum(
             sum(
@@ -475,11 +449,11 @@ function subpath_formulation_column_generation_integrated_from_paths(
         )
     )
     @expression(
-        mp_model,
+        model,
         charging_arc_costs_expr,
         0,
     )
-    @objective(mp_model, Min, subpath_costs_expr + charging_arc_costs_expr)
+    @objective(model, Min, subpath_costs_expr + charging_arc_costs_expr)
 
     checkpoint_reached = false
 
@@ -490,11 +464,10 @@ function subpath_formulation_column_generation_integrated_from_paths(
     )
         counter += 1
         mp_solution_start_time = time()
-        @suppress optimize!(mp_model)
+        @suppress optimize!(model)
         mp_solution_end_time = time()
-        mp_results = Dict(
-            "model" => mp_model,
-            "objective" => objective_value(mp_model),
+        CGLP_results = Dict(
+            "objective" => objective_value(model),
             "z" => Dict(
                 (key, p) => value.(z[(key, p)])
                 for (key, p) in keys(z)
@@ -503,16 +476,15 @@ function subpath_formulation_column_generation_integrated_from_paths(
                 (key, p) => value.(w[(key, p)])
                 for (key, p) in keys(w)
             ),
-            "κ" => Dict(zip(data.N_depots, dual.(mp_model[:κ]).data)),
-            "μ" => Dict(zip(data.N_depots, dual.(mp_model[:μ]).data)),
-            "ν" => dual.(mp_model[:ν]).data,
-            "solution_time_taken" => round(mp_solution_end_time - mp_solution_start_time, digits = 3),
+            "κ" => Dict(zip(data.N_depots, dual.(model[:κ]).data)),
+            "μ" => Dict(zip(data.N_depots, dual.(model[:μ]).data)),
+            "ν" => dual.(model[:ν]).data,
         )
-        push!(params["objective"], mp_results["objective"])
-        push!(params["κ"], mp_results["κ"])
-        push!(params["μ"], mp_results["μ"])
-        push!(params["ν"], mp_results["ν"])
-        push!(params["lp_relaxation_solution_time_taken"], mp_results["solution_time_taken"])
+        push!(CG_params["objective"], CGLP_results["objective"])
+        push!(CG_params["κ"], CGLP_results["κ"])
+        push!(CG_params["μ"], CGLP_results["μ"])
+        push!(CG_params["ν"], CGLP_results["ν"])
+        push!(CG_params["lp_relaxation_solution_time_taken"], round(mp_solution_end_time - mp_solution_start_time, digits = 3))
 
         if method == "ours"
             local negative_full_labels
@@ -521,7 +493,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
             try
                 if ngroute
                     (negative_full_labels, _, base_labels_time, full_labels_time) = subproblem_iteration_ours(
-                        data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
+                        data, CGLP_results["κ"], CGLP_results["μ"], CGLP_results["ν"],
                         ;
                         neighborhoods = neighborhoods,
                         ngroute = ngroute,
@@ -535,7 +507,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
                     )
                 elseif check_customers_accelerated && !checkpoint_reached
                     (negative_full_labels, negative_full_labels_count, base_labels_time, full_labels_time) = subproblem_iteration_ours(
-                        data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
+                        data, CGLP_results["κ"], CGLP_results["μ"], CGLP_results["ν"],
                         ;
                         ngroute = false,
                         subpath_single_service = subpath_single_service,        
@@ -548,7 +520,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
                     if negative_full_labels_count == 0
                         checkpoint_reached = true
                         (negative_full_labels, _, base_labels_time_new, full_labels_time_new) = subproblem_iteration_ours(
-                            data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
+                            data, CGLP_results["κ"], CGLP_results["μ"], CGLP_results["ν"],
                             ;
                             ngroute = false,
                             subpath_single_service = subpath_single_service,        
@@ -563,7 +535,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
                     end
                 elseif check_customers_accelerated && checkpoint_reached
                     (negative_full_labels, _, base_labels_time, full_labels_time) = subproblem_iteration_ours(
-                        data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
+                        data, CGLP_results["κ"], CGLP_results["μ"], CGLP_results["ν"],
                         ;
                         ngroute = false,
                         subpath_single_service = subpath_single_service,        
@@ -575,7 +547,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
                     )
                 else
                     (negative_full_labels, _, base_labels_time, full_labels_time) = subproblem_iteration_ours(
-                        data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
+                        data, CGLP_results["κ"], CGLP_results["μ"], CGLP_results["ν"],
                         ;
                         ngroute = false,
                         subpath_single_service = subpath_single_service,        
@@ -597,15 +569,15 @@ function subpath_formulation_column_generation_integrated_from_paths(
                 data, negative_full_labels,
             )
             push!(
-                params["sp_base_time_taken"],
+                CG_params["sp_base_time_taken"],
                 round(base_labels_time, digits=3)
             )
             push!(
-                params["sp_full_time_taken"],
+                CG_params["sp_full_time_taken"],
                 round(full_labels_time, digits=3)
             )
             push!(
-                params["sp_total_time_taken"],
+                CG_params["sp_total_time_taken"],
                 round(base_labels_time + full_labels_time, digits=3)
             )
         elseif method == "benchmark"
@@ -614,7 +586,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
             try
                 if ngroute
                     (negative_pure_path_labels, negative_pure_path_labels_count, pure_path_labels_time) = subproblem_iteration_benchmark(
-                        data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
+                        data, CGLP_results["κ"], CGLP_results["μ"], CGLP_results["ν"], Dict{NTuple{3, Int}, Float64}(),
                         ;
                         neighborhoods = neighborhoods, 
                         ngroute = ngroute,
@@ -627,7 +599,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
                     )
                 elseif check_customers_accelerated && !checkpoint_reached
                     (negative_pure_path_labels, negative_pure_path_labels_count, pure_path_labels_time) = subproblem_iteration_benchmark(
-                        data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
+                        data, CGLP_results["κ"], CGLP_results["μ"], CGLP_results["ν"], Dict{NTuple{3, Int}, Float64}(),
                         ;
                         time_windows = time_windows,
                         path_single_service = true,
@@ -638,7 +610,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
                     if negative_pure_path_labels_count == 0
                         checkpoint_reached = true
                         (negative_pure_path_labels, _, pure_path_labels_time_new) = subproblem_iteration_benchmark(
-                            data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
+                            data, CGLP_results["κ"], CGLP_results["μ"], CGLP_results["ν"], Dict{NTuple{3, Int}, Float64}(),
                             ;
                             time_windows = time_windows,
                             path_single_service = true,
@@ -650,7 +622,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
                     end
                 elseif check_customers_accelerated && checkpoint_reached
                     (negative_pure_path_labels, _, pure_path_labels_time) = subproblem_iteration_benchmark(
-                        data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
+                        data, CGLP_results["κ"], CGLP_results["μ"], CGLP_results["ν"], Dict{NTuple{3, Int}, Float64}(),
                         ;
                         time_windows = time_windows,
                         path_single_service = true,
@@ -660,7 +632,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
                     )
                 else
                     (negative_pure_path_labels, _, pure_path_labels_time) = subproblem_iteration_benchmark(
-                        data, mp_results["κ"], mp_results["μ"], mp_results["ν"],
+                        data, CGLP_results["κ"], CGLP_results["μ"], CGLP_results["ν"], Dict{NTuple{3, Int}, Float64}(),
                         ;
                         time_windows = time_windows,
                         path_single_service = path_single_service,
@@ -680,47 +652,47 @@ function subpath_formulation_column_generation_integrated_from_paths(
                 data, negative_pure_path_labels,
             )
             push!(
-                params["sp_base_time_taken"],
+                CG_params["sp_base_time_taken"],
                 0.0
             )
             push!(
-                params["sp_full_time_taken"],
+                CG_params["sp_full_time_taken"],
                 round(pure_path_labels_time, digits=3)
             )
             push!(
-                params["sp_total_time_taken"],
+                CG_params["sp_total_time_taken"],
                 round(pure_path_labels_time, digits=3)
             )
         end
 
         if length(generated_subpaths) == 0
-            push!(params["number_of_new_subpaths"], 0)
+            push!(CG_params["number_of_new_subpaths"], 0)
             converged = true
         else
             push!(
-                params["number_of_new_subpaths"],
+                CG_params["number_of_new_subpaths"],
                 sum(length(v) for v in values(generated_subpaths))
             )
         end
 
         if length(generated_charging_arcs) == 0
-            push!(params["number_of_new_charging_arcs"], 0)
+            push!(CG_params["number_of_new_charging_arcs"], 0)
         else
             push!(
-                params["number_of_new_charging_arcs"],
+                CG_params["number_of_new_charging_arcs"],
                 sum(length(v) for v in values(generated_charging_arcs))
             )
         end
 
-        new_charging_states_a_s = Set()
-        new_charging_states_s_a = Set()
+        new_charging_states_a_s = Set{NTuple{3, Int}}()
+        new_charging_states_s_a = Set{NTuple{3, Int}}()
         mp_constraint_start_time = time()
         for state_pair in keys(generated_subpaths)
             if !(state_pair in keys(some_subpaths))
-                some_subpaths[state_pair] = []
-                subpath_costs[state_pair] = []
+                some_subpaths[state_pair] = Subpath[]
+                subpath_costs[state_pair] = Int[]
                 for i in 1:data.n_customers
-                    subpath_service[(state_pair, i)] = []
+                    subpath_service[(state_pair, i)] = Int[]
                 end
                 count = 0
             else
@@ -746,7 +718,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
                     end
                     # 4: create variable
                     count += 1
-                    z[(state_pair, count)] = @variable(mp_model, lower_bound = 0)
+                    z[(state_pair, count)] = @variable(model, lower_bound = 0)
                     (state1, state2) = state_pair
                     # 5: modify constraints starting from depot, ending at depot, and flow conservation
                     if state1[1] in data.N_depots && state1[2] == 0.0 && state1[3] == data.B
@@ -754,7 +726,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
                     elseif state1[1] in data.N_charging
                         push!(new_charging_states_a_s, state1)
                         if !(state1 in keys(flow_conservation_exprs_s_out))
-                            flow_conservation_exprs_s_out[state1] = @expression(mp_model, 0)
+                            flow_conservation_exprs_s_out[state1] = @expression(model, 0)
                         end
                         add_to_expression!(flow_conservation_exprs_s_out[state1], z[state_pair, count])
                     end
@@ -763,7 +735,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
                     elseif state2[1] in data.N_charging
                         push!(new_charging_states_s_a, state2)
                         if !(state2 in keys(flow_conservation_exprs_s_in))
-                            flow_conservation_exprs_s_in[state2] = @expression(mp_model, 0)
+                            flow_conservation_exprs_s_in[state2] = @expression(model, 0)
                         end
                         add_to_expression!(flow_conservation_exprs_s_in[state2], z[state_pair, count])
                     end
@@ -772,15 +744,15 @@ function subpath_formulation_column_generation_integrated_from_paths(
                         set_normalized_coefficient(ν[l], z[state_pair, count], s_new.served[l])
                     end
                     # 7: modify objective
-                    set_objective_coefficient(mp_model, z[state_pair, count], subpath_costs[state_pair][count])
+                    set_objective_coefficient(model, z[state_pair, count], subpath_costs[state_pair][count])
                 end
             end
         end
 
         for state_pair in keys(generated_charging_arcs)
             if !(state_pair in keys(some_charging_arcs))
-                some_charging_arcs[state_pair] = []
-                charging_arc_costs[state_pair] = []
+                some_charging_arcs[state_pair] = ChargingArc[]
+                charging_arc_costs[state_pair] = Int[]
                 count = 0
             else
                 count = length(some_charging_arcs[state_pair])
@@ -801,26 +773,26 @@ function subpath_formulation_column_generation_integrated_from_paths(
                     )
                     # 4: create variable
                     count += 1
-                    w[(state_pair, count)] = @variable(mp_model, lower_bound = 0)
+                    w[(state_pair, count)] = @variable(model, lower_bound = 0)
                     (state1, state2) = state_pair
                     # 5: modify constraints starting from depot, ending at depot, and flow conservation
                     if state1[1] in data.N_charging
                         push!(new_charging_states_s_a, state1)
                         if !(state1 in keys(flow_conservation_exprs_a_out))
-                            flow_conservation_exprs_a_out[state1] = @expression(mp_model, 0)
+                            flow_conservation_exprs_a_out[state1] = @expression(model, 0)
                         end
                         add_to_expression!(flow_conservation_exprs_a_out[state1], w[state_pair, count])
                     end
                     if state2[1] in data.N_charging
                         push!(new_charging_states_a_s, state2)
                         if !(state2 in keys(flow_conservation_exprs_a_in))
-                            flow_conservation_exprs_a_in[state2] = @expression(mp_model, 0)
+                            flow_conservation_exprs_a_in[state2] = @expression(model, 0)
                         end
                         add_to_expression!(flow_conservation_exprs_a_in[state2], w[state_pair, count])
                     end
                     # 7: modify objective
                     set_objective_coefficient(
-                        mp_model, 
+                        model, 
                         w[state_pair, count], 
                         charging_arc_costs[state_pair][count],
                     )
@@ -831,10 +803,10 @@ function subpath_formulation_column_generation_integrated_from_paths(
         for state in new_charging_states_a_s
             if state in charging_states_a_s
                 con = pop!(flow_conservation_constrs_a_s, state)
-                delete(mp_model, con)
+                delete(model, con)
             end
             flow_conservation_constrs_a_s[state] = @constraint(
-                mp_model,
+                model,
                 flow_conservation_exprs_s_out[state]
                 == flow_conservation_exprs_a_in[state]
             )
@@ -842,10 +814,10 @@ function subpath_formulation_column_generation_integrated_from_paths(
         for state in new_charging_states_s_a
             if state in charging_states_s_a
                 con = pop!(flow_conservation_constrs_s_a, state)
-                delete(mp_model, con)
+                delete(model, con)
             end
             flow_conservation_constrs_s_a[state] = @constraint(
-                mp_model,
+                model,
                 flow_conservation_exprs_a_out[state]
                 == flow_conservation_exprs_s_in[state]
             )
@@ -855,27 +827,27 @@ function subpath_formulation_column_generation_integrated_from_paths(
         mp_constraint_end_time = time()
 
         push!(
-            params["number_of_new_charging_states"],
+            CG_params["number_of_new_charging_states"],
             length(new_charging_states_s_a) + length(new_charging_states_a_s)
         )
         push!(
-            params["number_of_charging_states"],
+            CG_params["number_of_charging_states"],
             length(charging_states_s_a) + length(charging_states_a_s)
         )
         push!(
-            params["number_of_subpaths"], 
+            CG_params["number_of_subpaths"], 
             sum(length(v) for v in values(some_subpaths))
         )
         if length(some_charging_arcs) == 0
-            push!(params["number_of_charging_arcs"], 0)
+            push!(CG_params["number_of_charging_arcs"], 0)
         else
             push!(
-                params["number_of_charging_arcs"],
+                CG_params["number_of_charging_arcs"],
                 sum(length(v) for v in values(some_charging_arcs))
             )
         end
         push!(
-            params["lp_relaxation_constraint_time_taken"],
+            CG_params["lp_relaxation_constraint_time_taken"],
             round(mp_constraint_end_time - mp_constraint_start_time, digits = 3)
         )
         add_message!(
@@ -883,19 +855,33 @@ function subpath_formulation_column_generation_integrated_from_paths(
             @sprintf(
                 "Iteration %3d | %.4e | %10d | %10d | %9.3f | %9.3f | %9.3f | %9.3f | %10d | %10d \n", 
                 counter,
-                params["objective"][counter],
-                params["number_of_subpaths"][counter],
-                params["number_of_charging_arcs"][counter],
-                params["lp_relaxation_solution_time_taken"][counter],
-                params["sp_base_time_taken"][counter],
-                params["sp_full_time_taken"][counter],
-                params["lp_relaxation_constraint_time_taken"][counter],
-                params["number_of_new_subpaths"][counter],
-                params["number_of_new_charging_arcs"][counter],
+                CG_params["objective"][counter],
+                CG_params["number_of_subpaths"][counter],
+                CG_params["number_of_charging_arcs"][counter],
+                CG_params["lp_relaxation_solution_time_taken"][counter],
+                CG_params["sp_base_time_taken"][counter],
+                CG_params["sp_full_time_taken"][counter],
+                CG_params["lp_relaxation_constraint_time_taken"][counter],
+                CG_params["number_of_new_subpaths"][counter],
+                CG_params["number_of_new_charging_arcs"][counter],
             ),
             verbose,
         )
     end
+
+    add_message!(
+        printlist, 
+        @sprintf(
+            "Total         |            | %10d | %10d | %9.3f | %9.3f | %9.3f | %9.3f | \n", 
+            CG_params["number_of_subpaths"][end],
+            CG_params["number_of_charging_arcs"][end],
+            sum(CG_params["lp_relaxation_solution_time_taken"]),
+            sum(CG_params["sp_base_time_taken"]),
+            sum(CG_params["sp_full_time_taken"]),
+            sum(CG_params["lp_relaxation_constraint_time_taken"]),
+        ),
+        verbose,
+    )
 
     for key in keys(some_subpaths)
         for p in 1:length(some_subpaths[key])
@@ -908,78 +894,61 @@ function subpath_formulation_column_generation_integrated_from_paths(
         end
     end
     cgip_solution_start_time = time()
-    @suppress optimize!(mp_model)
+    @suppress optimize!(model)
     cgip_solution_end_time = time()
 
-    CGLP_results = Dict(
-        "objective" => mp_results["objective"],
-        "z" => mp_results["z"],
-        "w" => mp_results["w"],
-        "κ" => mp_results["κ"],
-        "μ" => mp_results["μ"],
-        "ν" => mp_results["ν"],
-    )
     CGIP_results = Dict(
-        "objective" => objective_value(mp_model),
+        "objective" => objective_value(model),
         "z" => Dict(
             (key, p) => value.(z[(key, p)])
             for (key, p) in keys(z)
         ),
         "w" => Dict(
-            (key, p) => value.(w[(key, p)])
-            for (key, p) in keys(w)
+            (key, a) => value.(w[(key, a)])
+            for (key, a) in keys(w)
         ),
     )
-    params["CGIP_time_taken"] = round(cgip_solution_end_time - cgip_solution_start_time, digits = 3)
-    params["converged"] = converged
-    params["counter"] = counter
+    CG_params["CGIP_time_taken"] = round(cgip_solution_end_time - cgip_solution_start_time, digits = 3)
+    CG_params["converged"] = converged
+    CG_params["counter"] = counter
     end_time = time() 
     time_taken = round(end_time - start_time, digits = 3)
-    params["time_taken"] = time_taken
-    params["time_limit_reached"] = (time_taken > time_limit)
-    params["lp_relaxation_time_taken"] = sum.(zip(params["lp_relaxation_constraint_time_taken"], params["lp_relaxation_solution_time_taken"]))
-    params["lp_relaxation_time_taken_total"] = sum(params["lp_relaxation_time_taken"])
-    params["sp_base_time_taken_total"] = sum(params["sp_base_time_taken"])
-    params["sp_full_time_taken_total"] = sum(params["sp_full_time_taken"])
-    params["sp_time_taken_total"] = params["sp_base_time_taken_total"] + params["sp_full_time_taken_total"]
-    params["lp_relaxation_time_taken_mean"] = params["lp_relaxation_time_taken_total"] / length(params["lp_relaxation_time_taken"])
-    params["sp_base_time_taken_mean"] = params["sp_base_time_taken_total"] / length(params["sp_base_time_taken"])
-    params["sp_full_time_taken_mean"] = params["sp_full_time_taken_total"] / length(params["sp_full_time_taken"])
-    params["sp_time_taken_mean"] = params["sp_base_time_taken_mean"] + params["sp_full_time_taken_mean"]
+    CG_params["time_taken"] = time_taken
+    CG_params["time_limit_reached"] = (time_taken > time_limit)
+    CG_params["lp_relaxation_time_taken"] = sum.(zip(CG_params["lp_relaxation_constraint_time_taken"], CG_params["lp_relaxation_solution_time_taken"]))
+    CG_params["lp_relaxation_time_taken_total"] = sum(CG_params["lp_relaxation_time_taken"])
+    CG_params["sp_base_time_taken_total"] = sum(CG_params["sp_base_time_taken"])
+    CG_params["sp_full_time_taken_total"] = sum(CG_params["sp_full_time_taken"])
+    CG_params["sp_time_taken_total"] = CG_params["sp_base_time_taken_total"] + CG_params["sp_full_time_taken_total"]
+    CG_params["lp_relaxation_time_taken_mean"] = CG_params["lp_relaxation_time_taken_total"] / length(CG_params["lp_relaxation_time_taken"])
+    CG_params["sp_base_time_taken_mean"] = CG_params["sp_base_time_taken_total"] / length(CG_params["sp_base_time_taken"])
+    CG_params["sp_full_time_taken_mean"] = CG_params["sp_full_time_taken_total"] / length(CG_params["sp_full_time_taken"])
+    CG_params["sp_time_taken_mean"] = CG_params["sp_base_time_taken_mean"] + CG_params["sp_full_time_taken_mean"]
 
-    params["LP_IP_gap"] = 1.0 - CGLP_results["objective"] / CGIP_results["objective"]
+    CG_params["LP_IP_gap"] = 1.0 - CGLP_results["objective"] / CGIP_results["objective"]
 
     for message in [
         @sprintf("\n"),
-        @sprintf("(CG) Objective:               %.4e\n", CGLP_results["objective"]),
-        @sprintf("Total time (LP):              %10.3f s\n", sum(params["lp_relaxation_solution_time_taken"])),
-        @sprintf("Total time (SP):              %10.3f s\n", sum(params["sp_total_time_taken"])),
-        @sprintf("Total time (LP construction): %10.3f s\n", sum(params["lp_relaxation_constraint_time_taken"])),
-        @sprintf("Total time:                   %10.3f s\n", time_taken),
-        @sprintf("\n"),
-        @sprintf("(CGIP) Objective:             %.4e\n", CGIP_results["objective"]),
-        @sprintf("(CGIP) Total time:            %10.3f s\n", params["CGIP_time_taken"]),
+        @sprintf("Time taken (s):       %9.3f s\n", CG_params["time_taken"]),
+        @sprintf("(CGLP) Objective:         %.4e\n", CGLP_results["objective"]),
+        @sprintf("(CGIP) Objective:         %.4e\n", CGIP_results["objective"]),
+        @sprintf("%% gap:                %9.3f %%\n", CG_params["LP_IP_gap"] * 100.0),
     ]
         add_message!(printlist, message, verbose)
     end
-    return CGLP_results, CGIP_results, params, printlist, some_subpaths, some_charging_arcs, mp_model
+
+    return CGLP_results, CGIP_results, CG_params, printlist, some_subpaths, some_charging_arcs, model, z, w
 end
 
 function collect_subpath_solution_support(
     results, 
     subpaths::Dict{
-        Tuple{
-            Tuple{Int, Int, Int}, 
-            Tuple{Int, Int, Int}
-        }, 
-        Vector{Subpath}
+        Tuple{NTuple{3, Int}, NTuple{3, Int}}, 
+        Vector{Subpath},
     },
     charging_arcs::Dict{
-        Tuple{
-            Tuple{Int, Int, Int}, 
-            Tuple{Int, Int, Int}
-        }, 
-        Vector{ChargingArc}
+        Tuple{NTuple{3, Int}, NTuple{3, Int}}, 
+        Vector{ChargingArc},
     },
     ;
 )
@@ -1049,17 +1018,11 @@ function construct_paths_from_subpath_solution(
     results, 
     data::EVRPData, 
     subpaths::Dict{
-        Tuple{
-            Tuple{Int, Int, Int}, 
-            Tuple{Int, Int, Int}
-        }, 
+        Tuple{NTuple{3, Int}, NTuple{3, Int}}, 
         Vector{Subpath}
     },
     charging_arcs::Dict{
-        Tuple{
-            Tuple{Int, Int, Int}, 
-            Tuple{Int, Int, Int}
-        }, 
+        Tuple{NTuple{3, Int}, NTuple{3, Int}}, 
         Vector{ChargingArc}
     },
     ;
@@ -1136,7 +1099,7 @@ function construct_paths_from_subpath_solution(
             subpaths = [x[3] for (i, x) in enumerate(pathlist) if i % 2 == 1],
             charging_arcs = [x[3] for (i, x) in enumerate(pathlist) if i % 2 == 0],
         )
-        customers = [a[1] for a in p.arcs if a[1] in data.N_customers]
+        customers = intersect([a[1] for a in path.arcs], data.N_customers)
         path.customer_arcs = collect(zip(customers[1:end-1], customers[2:end]))
         push!(all_paths, (minval, path))
     end
@@ -1151,20 +1114,14 @@ end
 
 function subpath_results_printout(
     results,
-    params,
+    CG_params,
     data::EVRPData,
     subpaths::Dict{
-        Tuple{
-            Tuple{Int, Int, Int}, 
-            Tuple{Int, Int, Int}
-        }, 
+        Tuple{NTuple{3, Int}, NTuple{3, Int}}, 
         Vector{Subpath}
     },
     charging_arcs::Dict{
-        Tuple{
-            Tuple{Int, Int, Int}, 
-            Tuple{Int, Int, Int}
-        }, 
+        Tuple{NTuple{3, Int}, NTuple{3, Int}}, 
         Vector{ChargingArc}
     },
     ;
@@ -1221,10 +1178,10 @@ function subpath_results_printout(
     end
 
     @printf("Objective:                        %.4e\n", results["objective"])
-    @printf("Total time (LP):                  %10.3f s\n", sum(params["lp_relaxation_solution_time_taken"]))
-    @printf("Total time (SP):                  %10.3f s\n", sum(params["sp_total_time_taken"]))
-    @printf("Total time (LP construction):     %10.3f s\n", sum(params["lp_relaxation_constraint_time_taken"]))
-    @printf("Total time:                       %10.3f s\n", params["time_taken"])
+    @printf("Total time (LP):                  %10.3f s\n", sum(CG_params["lp_relaxation_solution_time_taken"]))
+    @printf("Total time (SP):                  %10.3f s\n", sum(CG_params["sp_total_time_taken"]))
+    @printf("Total time (LP construction):     %10.3f s\n", sum(CG_params["lp_relaxation_constraint_time_taken"]))
+    @printf("Total time:                       %10.3f s\n", CG_params["time_taken"])
 
     println("Vehicles             From      time   charge             To      time   charge  |   sp_time |   sp_charge ")
     println("----------------------------------------------------------------------------------------------------------")
