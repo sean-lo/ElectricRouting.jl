@@ -124,6 +124,102 @@ function add_pure_path_label_to_collection!(
     return added
 end
 
+function compute_new_path(
+    current_path::PurePathLabel,
+    current_node::Int,
+    next_node::Int,
+    data::EVRPData,
+    α::Vector{Int},
+    β::Vector{Int},
+    modified_costs::Matrix{Float64},
+)
+    # feasibility checks
+    # (1) battery
+    excess = max(
+        0, 
+        data.q[current_node,next_node] - current_path.charge_mincharge 
+    )
+    # (2) time windows
+    if current_path.time_mincharge + excess + data.t[current_node,next_node] > β[next_node]
+        # println("$(current_path.time_mincharge), $excess, $(t[current_node,next_node]), $(β[next_node])")
+        # println("not time windows feasible")
+        return (false, nothing)
+    end
+    if current_path.time_mincharge + excess + data.t[current_node,next_node] + data.min_t[next_node] > data.T
+        return (false, nothing)
+    end
+    # (3) charge interval 
+    if (
+        (current_node in data.N_charging && excess > max(data.B - current_path.charge_mincharge, 0))
+        || 
+        (!(current_node in data.N_charging) && excess > max(current_path.charge_maxcharge - current_path.charge_mincharge, 0))
+    )
+        # if current_node in data.N_charging
+        #     println("$excess, $(B), $(current_path.charge_mincharge)")
+        # else
+        #     println("$excess, $(current_path.charge_maxcharge), $(current_path.charge_mincharge)")
+        # end
+        # println("not charge feasible")
+        return (false, nothing)
+    end
+
+    new_path = copy(current_path)
+    push!(new_path.nodes, next_node)
+    if next_node in data.N_customers
+        new_path.served[next_node] += 1
+    end
+
+    push!(new_path.excesses, excess)
+    new_path.time_mincharge = max(
+        α[next_node],
+        current_path.time_mincharge + data.t[current_node,next_node] + excess
+    )
+
+    if current_node in data.N_charging
+        slack = min(
+            new_path.time_mincharge - (current_path.time_mincharge + data.t[current_node,next_node] + excess),
+            data.B - (current_path.charge_mincharge + excess),
+        )
+        push!(new_path.slacks, slack)
+        new_path.time_maxcharge = min(
+            β[next_node],
+            max(
+                α[next_node],
+                current_path.time_mincharge + (data.B - current_path.charge_mincharge) + data.t[current_node,next_node],
+            )
+        )
+    else
+        slack = min(
+            new_path.time_mincharge - (current_path.time_mincharge + data.t[current_node,next_node] + excess),
+            current_path.charge_maxcharge - (current_path.charge_mincharge + excess),
+        )
+        push!(new_path.slacks, slack)
+        new_path.time_maxcharge = min(
+            β[next_node],
+            max(
+                α[next_node],
+                current_path.time_maxcharge + data.t[current_node,next_node],
+            )
+        )
+    end
+
+    new_path.charge_mincharge = (
+        current_path.charge_mincharge 
+        + excess 
+        + slack
+        - data.q[current_node,next_node]
+    )
+    new_path.charge_maxcharge = (
+        new_path.charge_mincharge 
+        + new_path.time_maxcharge 
+        - new_path.time_mincharge
+    )
+
+    new_path.cost += modified_costs[current_node,next_node]
+    new_path.cost += data.charge_cost_coeff * (slack + excess)
+
+    return (true, new_path)
+end
 function find_nondominated_paths(
     data::EVRPData, 
     κ::Dict{Int, Float64},
@@ -181,9 +277,6 @@ function find_nondominated_paths(
         push!(unexplored_states, (key..., depot, depot))
     end
 
-    t = data.t
-    B = data.B
-    q = data.q
     if time_windows
         α = data.α
         β = data.β
@@ -222,97 +315,14 @@ function find_nondominated_paths(
                 end
             end
 
-            # feasibility checks
-            # (1) battery
-            excess = max(
-                0, 
-                q[current_node,next_node] - current_path.charge_mincharge 
+            (feasible, new_path) = compute_new_path(
+                current_path, 
+                current_node, next_node, 
+                data, α, β, modified_costs,
             )
-            # (2) time windows
-            if current_path.time_mincharge + excess + t[current_node,next_node] > β[next_node]
-                # println("$(current_path.time_mincharge), $excess, $(t[current_node,next_node]), $(β[next_node])")
-                # println("not time windows feasible")
+            if !feasible
                 continue
             end
-            if current_path.time_mincharge + excess + t[current_node,next_node] + data.min_t[next_node] > data.T
-                continue
-            end
-            # (3) charge interval 
-            if (
-                (current_node in data.N_charging && excess > max(B - current_path.charge_mincharge, 0))
-                || 
-                (!(current_node in data.N_charging) && excess > max(current_path.charge_maxcharge - current_path.charge_mincharge, 0))
-            )
-                # if current_node in data.N_charging
-                #     println("$excess, $(B), $(current_path.charge_mincharge)")
-                # else
-                #     println("$excess, $(current_path.charge_maxcharge), $(current_path.charge_mincharge)")
-                # end
-                # println("not charge feasible")
-                continue
-            end
-            
-            new_path = copy(current_path)
-            push!(new_path.nodes, next_node)
-            if next_node in data.N_customers
-                new_path.served[next_node] += 1
-            end
-
-            push!(new_path.excesses, excess)
-            new_path.time_mincharge = max(
-                α[next_node],
-                current_path.time_mincharge + t[current_node,next_node] + excess
-            )
-            if current_node in data.N_charging
-                slack = max(
-                    # floating point accuracy
-                    0, 
-                    min(
-                        new_path.time_mincharge - (current_path.time_mincharge + t[current_node,next_node] + excess),
-                        B - (current_path.charge_mincharge + excess),
-                    )
-                )
-                push!(new_path.slacks, slack)
-                new_path.time_maxcharge = min(
-                    β[next_node],
-                    max(
-                        α[next_node],
-                        current_path.time_mincharge + (B - current_path.charge_mincharge) + t[current_node,next_node],
-                    )
-                )
-            else
-                slack = max(
-                    # floating point accuracy
-                    0, 
-                    min(
-                        new_path.time_mincharge - (current_path.time_mincharge + t[current_node,next_node] + excess),
-                        current_path.charge_maxcharge - (current_path.charge_mincharge + excess),
-                    )
-                )
-                push!(new_path.slacks, slack)
-                new_path.time_maxcharge = min(
-                    β[next_node],
-                    max(
-                        α[next_node],
-                        current_path.time_maxcharge + t[current_node,next_node],
-                    )
-                )
-            end
-            
-            new_path.charge_mincharge = (
-                current_path.charge_mincharge 
-                + excess 
-                + slack
-                - q[current_node,next_node]
-            )
-            new_path.charge_maxcharge = (
-                new_path.charge_mincharge 
-                + new_path.time_maxcharge 
-                - new_path.time_mincharge
-            )
-
-            new_path.cost += modified_costs[current_node,next_node]
-            new_path.cost += data.charge_cost_coeff * (slack + excess)
 
             # add new_path to collection
             if check_customers
@@ -433,9 +443,6 @@ function find_nondominated_paths_ngroute(
         )
     end
 
-    t = data.t
-    B = data.B
-    q = data.q
     if time_windows
         α = data.α
         β = data.β
@@ -472,98 +479,15 @@ function find_nondominated_paths_ngroute(
                     end
                 end
 
-                # feasibility checks
-                # (1) battery
-                excess = max(
-                    0, 
-                    q[current_node,next_node] - current_path.charge_mincharge 
+                (feasible, new_path) = compute_new_path(
+                    current_path, 
+                    current_node, next_node, 
+                    data, α, β, modified_costs,
                 )
-                # (2) time windows
-                if current_path.time_mincharge + excess + t[current_node,next_node] > β[next_node]
-                    # println("$(current_path.time_mincharge), $excess, $(t[current_node,next_node]), $(β[next_node])")
-                    # println("not time windows feasible")
-                    continue
-                end
-                if current_path.time_mincharge + excess + t[current_node,next_node] + data.min_t[next_node] > data.T
-                    continue
-                end
-                # (3) charge interval 
-                if (
-                    (current_node in data.N_charging && excess > max(B - current_path.charge_mincharge, 0))
-                    || 
-                    (!(current_node in data.N_charging) && excess > max(current_path.charge_maxcharge - current_path.charge_mincharge, 0))
-                )
-                    # if current_node in data.N_charging
-                    #     println("$excess, $(B), $(current_path.charge_mincharge)")
-                    # else
-                    #     println("$excess, $(current_path.charge_maxcharge), $(current_path.charge_mincharge)")
-                    # end
-                    # println("not charge feasible")
+                if !feasible
                     continue
                 end
                 
-                new_path = copy(current_path)
-                push!(new_path.nodes, next_node)
-                if next_node in data.N_customers
-                    new_path.served[next_node] += 1
-                end
-
-                push!(new_path.excesses, excess)
-                new_path.time_mincharge = max(
-                    α[next_node],
-                    current_path.time_mincharge + t[current_node,next_node] + excess
-                )
-                if current_node in data.N_charging
-                    slack = max(
-                        # floating point accuracy
-                        0, 
-                        min(
-                            new_path.time_mincharge - (current_path.time_mincharge + t[current_node,next_node] + excess),
-                            B - (current_path.charge_mincharge + excess),
-                        )
-                    )
-                    push!(new_path.slacks, slack)
-                    new_path.time_maxcharge = min(
-                        β[next_node],
-                        max(
-                            α[next_node],
-                            current_path.time_mincharge + (B - current_path.charge_mincharge) + t[current_node,next_node],
-                        )
-                    )
-                else
-                    slack = max(
-                        # floating point accuracy
-                        0, 
-                        min(
-                            new_path.time_mincharge - (current_path.time_mincharge + t[current_node,next_node] + excess),
-                            current_path.charge_maxcharge - (current_path.charge_mincharge + excess),
-                        )
-                    )
-                    push!(new_path.slacks, slack)
-                    new_path.time_maxcharge = min(
-                        β[next_node],
-                        max(
-                            α[next_node],
-                            current_path.time_maxcharge + t[current_node,next_node],
-                        )
-                    )
-                end
-                
-                new_path.charge_mincharge = (
-                    current_path.charge_mincharge 
-                    + excess 
-                    + slack
-                    - q[current_node,next_node]
-                )
-                new_path.charge_maxcharge = (
-                    new_path.charge_mincharge 
-                    + new_path.time_maxcharge 
-                    - new_path.time_mincharge
-                )
-
-                new_path.cost += modified_costs[current_node,next_node]
-                new_path.cost += data.charge_cost_coeff * (slack + excess)
-
                 new_set = ngroute_create_set(neighborhoods, current_set, next_node)
                 if !(new_set in keys(pure_path_labels[starting_node][next_node]))
                     pure_path_labels[starting_node][next_node][new_set] = SortedDict{
@@ -673,9 +597,6 @@ function find_nondominated_paths_ngroute_alt(
         push!(unexplored_states, (key..., depot, depot))
     end
 
-    t = data.t
-    B = data.B
-    q = data.q
     if time_windows
         α = data.α
         β = data.β
@@ -712,97 +633,14 @@ function find_nondominated_paths_ngroute_alt(
                 end
             end
 
-            # feasibility checks
-            # (1) battery
-            excess = max(
-                0, 
-                q[current_node,next_node] - current_path.charge_mincharge 
+            (feasible, new_path) = compute_new_path(
+                current_path, 
+                current_node, next_node, 
+                data, α, β, modified_costs,
             )
-            # (2) time windows
-            if current_path.time_mincharge + excess + t[current_node,next_node] > β[next_node]
-                # println("$(current_path.time_mincharge), $excess, $(t[current_node,next_node]), $(β[next_node])")
-                # println("not time windows feasible")
+            if !feasible
                 continue
             end
-            if current_path.time_mincharge + excess + t[current_node,next_node] + data.min_t[next_node] > data.T
-                continue
-            end
-            # (3) charge interval 
-            if (
-                (current_node in data.N_charging && excess > max(B - current_path.charge_mincharge, 0))
-                || 
-                (!(current_node in data.N_charging) && excess > max(current_path.charge_maxcharge - current_path.charge_mincharge, 0))
-            )
-                # if current_node in data.N_charging
-                #     println("$excess, $(B), $(current_path.charge_mincharge)")
-                # else
-                #     println("$excess, $(current_path.charge_maxcharge), $(current_path.charge_mincharge)")
-                # end
-                # println("not charge feasible")
-                continue
-            end
-            
-            new_path = copy(current_path)
-            push!(new_path.nodes, next_node)
-            if next_node in data.N_customers
-                new_path.served[next_node] += 1
-            end
-
-            push!(new_path.excesses, excess)
-            new_path.time_mincharge = max(
-                α[next_node],
-                current_path.time_mincharge + t[current_node,next_node] + excess
-            )
-            if current_node in data.N_charging
-                slack = max(
-                    # floating point accuracy
-                    0, 
-                    min(
-                        new_path.time_mincharge - (current_path.time_mincharge + t[current_node,next_node] + excess),
-                        B - (current_path.charge_mincharge + excess),
-                    )
-                )
-                push!(new_path.slacks, slack)
-                new_path.time_maxcharge = min(
-                    β[next_node],
-                    max(
-                        α[next_node],
-                        current_path.time_mincharge + (B - current_path.charge_mincharge) + t[current_node,next_node],
-                    )
-                )
-            else
-                slack = max(
-                    # floating point accuracy
-                    0, 
-                    min(
-                        new_path.time_mincharge - (current_path.time_mincharge + t[current_node,next_node] + excess),
-                        current_path.charge_maxcharge - (current_path.charge_mincharge + excess),
-                    )
-                )
-                push!(new_path.slacks, slack)
-                new_path.time_maxcharge = min(
-                    β[next_node],
-                    max(
-                        α[next_node],
-                        current_path.time_maxcharge + t[current_node,next_node],
-                    )
-                )
-            end
-            
-            new_path.charge_mincharge = (
-                current_path.charge_mincharge 
-                + excess 
-                + slack
-                - q[current_node,next_node]
-            )
-            new_path.charge_maxcharge = (
-                new_path.charge_mincharge 
-                + new_path.time_maxcharge 
-                - new_path.time_mincharge
-            )
-
-            new_path.cost += modified_costs[current_node,next_node]
-            new_path.cost += data.charge_cost_coeff * (slack + excess)
 
             new_set = ngroute_create_set_alt(neighborhoods, collect(current_set), next_node)
             new_key = (
