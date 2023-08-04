@@ -117,6 +117,48 @@ function add_path_label_to_collection!(
     return added
 end
 
+
+function ngroute_extend_partial_path_check(
+    neighborhoods::NGRouteNeighborhood,
+    set::Tuple{Vararg{Int}},
+    s::BaseSubpathLabel,
+)
+    new_set = collect(set)
+    for next_node in s.nodes[2:end]
+        if next_node in new_set
+            return (nothing, false)
+        end
+        new_set = [
+            node for node in new_set
+                if node in neighborhoods.x[next_node]
+        ]
+        push!(new_set, next_node)
+        # println("$next_node, $new_set")
+    end
+    return (Tuple(sort(unique(new_set))), true)
+end
+
+function ngroute_extend_partial_path_check_alt(
+    neighborhoods::NGRouteNeighborhood,
+    set::Vector{Int},
+    s::BaseSubpathLabel,
+)
+    new_set = copy(set)
+    for next_node in s.nodes[2:end]
+        if new_set[next_node] == 1
+            return (nothing, false)
+        end
+        for node in data.N_nodes
+            if new_set[node] == 1 && !(node in neighborhoods.x[next_node])
+                new_set[node] = 0
+            end
+        end
+        new_set[next_node] = 1
+        # println("$next_node, $new_set")
+    end
+    return (new_set, true)
+end
+
 function generate_base_labels_nonsingleservice(
     data::EVRPData, 
     κ::Dict{Int, Float64},
