@@ -773,7 +773,7 @@ end
 function compute_new_path(
     current_path::PathLabel,
     s::BaseSubpathLabel,
-    state::NTuple{3, Int},
+    state::NTuple{2, Int},
     next_node::Int,
     data::EVRPData,
     christofides::Bool,
@@ -783,7 +783,7 @@ function compute_new_path(
         next_node in data.N_depots
         && s.time_taken == 0
     )
-        return (false, nothing)
+        return (false, nothing, nothing, nothing)
     end
     # Preventing customer 2-cycles (Christofides)
     if christofides
@@ -793,7 +793,7 @@ function compute_new_path(
                 prev_subpath.nodes[end-1] in data.N_customers 
                 && prev_subpath.nodes[end-1] == s.nodes[2]
             )
-                return (false, nothing)
+                return (false, nothing, nothing, nothing)
             end
         end
     end
@@ -805,7 +805,7 @@ function compute_new_path(
         state[1], # current time
     )
     if end_time + s.time_taken + data.min_t[next_node] > data.T
-        return (false, nothing)
+        return (false, nothing, nothing, nothing)
     end
 
     new_path = copy(current_path)
@@ -817,7 +817,7 @@ function compute_new_path(
         new_path.cost += data.charge_cost_coeff * delta
     end
 
-    return (true, new_path)
+    return (true, new_path, end_time, end_charge)
 end
 
 function find_nondominated_paths_notimewindows(
@@ -897,8 +897,8 @@ function find_nondominated_paths_notimewindows(
                 )
                     continue
                 end
-                (feasible, new_path) = compute_new_path(
-                    current_path, s, state, next_node, 
+                (feasible, new_path, end_time, end_charge) = compute_new_path(
+                    current_path, s, state[1:2], next_node, 
                     data, christofides,
                 )
                 if !feasible
@@ -1048,8 +1048,8 @@ function find_nondominated_paths_notimewindows_ngroute(
                         if !check
                             continue
                         end
-                        (feasible, new_path) = compute_new_path(
-                            current_path, s, state, next_node, 
+                        (feasible, new_path, end_time, end_charge) = compute_new_path(
+                            current_path, s, state[1:2], next_node, 
                             data, christofides,
                         )
                         if !feasible
@@ -1183,8 +1183,8 @@ function find_nondominated_paths_notimewindows_ngroute_alt(
                 if !check
                     continue
                 end
-                (feasible, new_path) = compute_new_path(
-                    current_path, s, state, next_node, 
+                (feasible, new_path, end_time, end_charge) = compute_new_path(
+                    current_path, s, state[1:2], next_node, 
                     data, christofides,
                 )
                 if !feasible
