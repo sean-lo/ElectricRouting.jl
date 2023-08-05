@@ -10,6 +10,7 @@ include("utils.jl")
 
 function find_nondominated_paths_nocharge(
     data::EVRPData,
+    G::SimpleDiGraph{Int},
     κ::Dict{Int, Float64},
     μ::Dict{Int, Float64},
     ν::Vector{Float64}, 
@@ -56,7 +57,7 @@ function find_nondominated_paths_nocharge(
             continue
         end
         current_subpath = base_labels[starting_node][current_node][current_key]
-        for next_node in setdiff(outneighbors(data.G, current_node), current_node, data.N_charging)
+        for next_node in setdiff(outneighbors(G, current_node), current_node, data.N_charging)
             if single_service
                 if next_node in data.N_customers && current_subpath.served[next_node] > 0
                     continue
@@ -145,6 +146,7 @@ end
 
 function find_nondominated_paths_nocharge_ngroute(
     data::EVRPData,
+    G::SimpleDiGraph{Int},
     neighborhoods::NGRouteNeighborhood,
     κ::Dict{Int, Float64},
     μ::Dict{Int, Float64},
@@ -194,7 +196,7 @@ function find_nondominated_paths_nocharge_ngroute(
                 continue
             end
             current_subpath = base_labels[starting_node][current_node][current_set][current_key]
-            for next_node in setdiff(outneighbors(data.G, current_node), current_node, data.N_charging)
+            for next_node in setdiff(outneighbors(G, current_node), current_node, data.N_charging)
                 if next_node in current_set
                     # if next_node is a customer not yet visited, proceed
                     # only if one can extend current_subpath along next_node according to ng-route rules
@@ -293,6 +295,7 @@ end
 
 function find_nondominated_paths_nocharge_ngroute_alt(
     data::EVRPData,
+    G::SimpleDiGraph{Int},
     neighborhoods::NGRouteNeighborhood,
     κ::Dict{Int, Float64},
     μ::Dict{Int, Float64},
@@ -336,7 +339,7 @@ function find_nondominated_paths_nocharge_ngroute_alt(
         end
         current_set = state[2:end-2]
         current_subpath = base_labels[starting_node][current_node][current_key]
-        for next_node in setdiff(outneighbors(data.G, current_node), current_node, data.N_charging)
+        for next_node in setdiff(outneighbors(G, current_node), current_node, data.N_charging)
             if next_node in data.N_customers && current_set[next_node] == 1
                 # if next_node is a customer not yet visited, proceed
                 # only if one can extend current_subpath along next_node according to ng-route rules
@@ -472,6 +475,7 @@ end
 
 function subproblem_iteration_nocharge(
     data::EVRPData,
+    G::SimpleDiGraph{Int},
     κ::Dict{Int, Float64},
     μ::Dict{Int, Float64},
     ν::Vector{Float64}, 
@@ -487,21 +491,21 @@ function subproblem_iteration_nocharge(
 )
     if ngroute && !ngroute_alt
         base_labels_result = @timed find_nondominated_paths_nocharge_ngroute(
-            data, neighborhoods, κ, μ, ν, T_heuristic,
+            data, G, neighborhoods, κ, μ, ν, T_heuristic,
             ;
             time_windows = time_windows,
             christofides = christofides,
         )
     elseif ngroute && ngroute_alt
         base_labels_result = @timed find_nondominated_paths_nocharge_ngroute_alt(
-            data, neighborhoods, κ, μ, ν, T_heuristic,
+            data, G, neighborhoods, κ, μ, ν, T_heuristic,
             ;
             time_windows = time_windows,
             christofides = christofides,
         )
     else
         base_labels_result = @timed find_nondominated_paths_nocharge(
-            data, κ, μ, ν, T_heuristic,
+            data, G, κ, μ, ν, T_heuristic,
             ;
             time_windows = time_windows,
             christofides = christofides,
@@ -550,6 +554,7 @@ end
 
 function path_formulation_column_generation_nocharge(
     data::EVRPData, 
+    G::SimpleDiGraph{Int},
     ;
     time_heuristic_slack::Float64 = 0.9,
     Env = nothing,
@@ -690,9 +695,9 @@ function path_formulation_column_generation_nocharge(
 
 
         (negative_base_labels, _, base_labels_time) = subproblem_iteration_nocharge(
-            data, CGLP_results["κ"], CGLP_results["μ"], CGLP_results["ν"], T_heuristic,
+            data, G, CGLP_results["κ"], CGLP_results["μ"], CGLP_results["ν"], T_heuristic,
             ;
-            neigborhoods = neighborhoods,
+            neighborhoods = neighborhoods,
             time_windows = time_windows,
             single_service = path_single_service,
             check_customers = path_check_customers,
@@ -810,6 +815,7 @@ end
 
 function get_postcharge_shortest_pure_path_label(
     data::EVRPData, 
+    G::SimpleDiGraph{Int},
     nodelist::Vector{Int},
     ;
     time_windows::Bool = false,
@@ -866,7 +872,7 @@ function get_postcharge_shortest_pure_path_label(
         # println("current_path: $(current_path.nodes)")
         eventual_next_node = nodelist[length(current_nodeseq) + 1]
         for next_node in setdiff(vcat(eventual_next_node, data.N_charging), current_node)
-            if !(next_node in outneighbors(data.G, current_node))
+            if !(next_node in outneighbors(G, current_node))
                 continue
             end
             
@@ -913,6 +919,7 @@ end
 
 function path_formulation_decomposition_heuristic(
     data::EVRPData,
+    G::SimpleDiGraph{Int},
     ;
     Env = nothing,
     time_windows::Bool = false,
@@ -933,7 +940,7 @@ function path_formulation_decomposition_heuristic(
     while true
         feasible = true
         CGLP_results, CGIP_results, CG_params, printlist, some_paths = path_formulation_column_generation_nocharge(
-            data,
+            data, G,
             ;
             time_heuristic_slack = time_heuristic_slack,
             Env = Env,
@@ -964,7 +971,7 @@ function path_formulation_decomposition_heuristic(
                 push!(results_paths_withcharge, (val, p))
             else
                 (p_feasible, pure_path_label) = get_postcharge_shortest_pure_path_label(
-                    data, nodelist,
+                    data, G, nodelist,
                     ;
                     time_windows = time_windows,
                 )

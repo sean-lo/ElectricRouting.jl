@@ -446,6 +446,7 @@ function path_formulation_column_generation!(
         ConstraintRef,
     },
     data::EVRPData,
+    G::SimpleDiGraph{Int},
     some_paths::Dict{
         Tuple{NTuple{3, Int}, NTuple{3, Int}},
         Vector{Path},
@@ -533,7 +534,8 @@ function path_formulation_column_generation!(
             local full_labels_time
             try
                 (negative_full_labels, _, base_labels_time, full_labels_time) = subproblem_iteration_ours(
-                    data, CGLP_results["κ"], CGLP_results["μ"], CGLP_results["ν"],
+                    data, G, 
+                    CGLP_results["κ"], CGLP_results["μ"], CGLP_results["ν"],
                     ;
                     neighborhoods = neighborhoods,
                     ngroute = ngroute,
@@ -572,7 +574,7 @@ function path_formulation_column_generation!(
             local pure_path_labels_time
             try
                 (negative_pure_path_labels, _, pure_path_labels_time) = subproblem_iteration_benchmark(
-                    data, CGLP_results["κ"], CGLP_results["μ"], CGLP_results["ν"], CGLP_results["σ"]
+                    data, G, CGLP_results["κ"], CGLP_results["μ"], CGLP_results["ν"], CGLP_results["σ"]
                     ;
                     neighborhoods = neighborhoods, 
                     ngroute = ngroute, 
@@ -725,7 +727,7 @@ function enumerate_violated_path_WSR3_inequalities(
     S_list = Tuple{Float64, Vararg{Int}}[]
     for S in combinations(data.N_customers, 3)
         S_paths = [
-            (val, p) for (val, p) in values(CGLP_results["paths"])
+            (val, p) for (val, p) in values(paths)
             if !isdisjoint(p.customer_arcs, Tuple.(permutations(S, 2)))
         ]
         violation = sum([x[1] for x in S_paths], init = 0.0) - 1.0
@@ -789,6 +791,7 @@ end
 
 function path_formulation_column_generation_with_cuts(
     data::EVRPData, 
+    G::SimpleDiGraph{Int},
     ;
     Env = nothing,
     method::String = "ours",
@@ -900,7 +903,7 @@ function path_formulation_column_generation_with_cuts(
     while true
         CGLP_results, CG_params = path_formulation_column_generation!(
             model, z, WSR3_constraints,
-            data,
+            data, G,
             some_paths, path_costs, path_service,
             printlist,
             ;

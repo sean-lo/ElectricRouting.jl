@@ -223,6 +223,7 @@ end
 
 function find_nondominated_paths(
     data::EVRPData, 
+    G::SimpleDiGraph{Int},
     κ::Dict{Int, Float64},
     μ::Dict{Int, Float64},
     ν::Vector{Float64}, 
@@ -298,7 +299,7 @@ function find_nondominated_paths(
             continue
         end
         current_path = pure_path_labels[starting_node][current_node][current_key]
-        for next_node in setdiff(outneighbors(data.G, current_node), current_node)
+        for next_node in setdiff(outneighbors(G, current_node), current_node)
             if next_node in data.N_customers
                 # single-service requirement
                 if (
@@ -384,6 +385,7 @@ end
 
 function find_nondominated_paths_ngroute(
     data::EVRPData, 
+    G::SimpleDiGraph{Int},
     neighborhoods::NGRouteNeighborhood,
     κ::Dict{Int, Float64},
     μ::Dict{Int, Float64},
@@ -465,7 +467,7 @@ function find_nondominated_paths_ngroute(
                 continue
             end
             current_path = pure_path_labels[starting_node][current_node][current_set][current_key]
-            for next_node in setdiff(outneighbors(data.G, current_node), current_node)
+            for next_node in setdiff(outneighbors(G, current_node), current_node)
                 if next_node in current_set
                     # if next_node is a customer not yet visited, proceed
                     # only if one can extend current_subpath along next_node according to ng-route rules
@@ -553,6 +555,7 @@ end
 
 function find_nondominated_paths_ngroute_sigma(
     data::EVRPData, 
+    G::SimpleDiGraph{Int},
     neighborhoods::NGRouteNeighborhood,
     κ::Dict{Int, Float64},
     μ::Dict{Int, Float64},
@@ -645,7 +648,7 @@ function find_nondominated_paths_ngroute_sigma(
                 continue
             end
             current_path = pure_path_labels[starting_node][current_node][(prev_prev_node, prev_node)][current_set][current_key]
-            for next_node in setdiff(outneighbors(data.G, current_node), current_node)
+            for next_node in setdiff(outneighbors(G, current_node), current_node)
                 if next_node in current_set
                     # if next_node is a customer not yet visited, proceed
                     # only if one can extend current_subpath along next_node according to ng-route rules
@@ -751,6 +754,7 @@ end
 
 function find_nondominated_paths_ngroute_alt(
     data::EVRPData, 
+    G::SimpleDiGraph{Int},
     neighborhoods::NGRouteNeighborhood,
     κ::Dict{Int, Float64},
     μ::Dict{Int, Float64},
@@ -817,7 +821,7 @@ function find_nondominated_paths_ngroute_alt(
         end
         current_set = state[4:end-2]
         current_path = pure_path_labels[starting_node][current_node][current_key]
-        for next_node in setdiff(outneighbors(data.G, current_node), current_node)
+        for next_node in setdiff(outneighbors(G, current_node), current_node)
             if next_node in data.N_customers && current_set[next_node] == 1
                 # if next_node is a customer not yet visited, proceed
                 # only if one can extend current_subpath along next_node according to ng-route rules
@@ -893,6 +897,7 @@ end
 
 function find_nondominated_paths_ngroute_alt_sigma(
     data::EVRPData, 
+    G::SimpleDiGraph{Int},
     neighborhoods::NGRouteNeighborhood,
     κ::Dict{Int, Float64},
     μ::Dict{Int, Float64},
@@ -977,7 +982,7 @@ function find_nondominated_paths_ngroute_alt_sigma(
         current_key = state[1:end-4]
         current_set = state[4:end-4]
         current_path = pure_path_labels[starting_node][current_node][(prev_prev_node, prev_node)][current_key]
-        for next_node in setdiff(outneighbors(data.G, current_node), current_node)
+        for next_node in setdiff(outneighbors(G, current_node), current_node)
             if next_node in data.N_customers && current_set[next_node] == 1
                 # if next_node is a customer not yet visited, proceed
                 # only if one can extend current_subpath along next_node according to ng-route rules
@@ -1173,6 +1178,7 @@ end
 
 function subproblem_iteration_benchmark(
     data::EVRPData, 
+    G::SimpleDiGraph{Int},
     κ::Dict{Int, Float64},
     μ::Dict{Int, Float64},
     ν::Vector{Float64}, 
@@ -1191,7 +1197,7 @@ function subproblem_iteration_benchmark(
     if ngroute && !ngroute_alt
         if length(σ) == 0
             pure_path_labels_result = @timed find_nondominated_paths_ngroute(
-                data, neighborhoods, κ, μ, ν,
+                data, G, neighborhoods, κ, μ, ν,
                 ;
                 time_windows = time_windows,
                 christofides = christofides,
@@ -1199,7 +1205,7 @@ function subproblem_iteration_benchmark(
             )
         else
             pure_path_labels_result = @timed find_nondominated_paths_ngroute_sigma(
-                data, neighborhoods, κ, μ, ν, σ,
+                data, G, neighborhoods, κ, μ, ν, σ,
                 ;
                 time_windows = time_windows,
                 christofides = christofides,
@@ -1209,7 +1215,7 @@ function subproblem_iteration_benchmark(
     elseif ngroute && ngroute_alt
         if length(σ) == 0
             pure_path_labels_result = @timed find_nondominated_paths_ngroute_alt(
-                data, neighborhoods, κ, μ, ν,
+                data, G, neighborhoods, κ, μ, ν,
                 ;
                 time_windows = time_windows,
                 christofides = christofides,
@@ -1217,7 +1223,7 @@ function subproblem_iteration_benchmark(
             )
         else
             pure_path_labels_result = @timed find_nondominated_paths_ngroute_alt_sigma(
-                data, neighborhoods, κ, μ, ν, σ,
+                data, G, neighborhoods, κ, μ, ν, σ,
                 ;
                 time_windows = time_windows,
                 christofides = christofides,
@@ -1226,7 +1232,7 @@ function subproblem_iteration_benchmark(
         end
     else
         pure_path_labels_result = @timed find_nondominated_paths(
-            data, κ, μ, ν,
+            data, G, κ, μ, ν,
             ;
             time_windows = time_windows, 
             single_service = path_single_service, 

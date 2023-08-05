@@ -134,7 +134,6 @@ struct EVRPData
     charging_coords::Array{Float64, 2}
     coords::Array{Float64, 2}
     distances::Array{Float64, 2}
-    G::SimpleDiGraph{Int}
     V::Dict{Int, Vector{Int}}
     v_start::Vector{Int}
     v_end::Dict{Int, Int}
@@ -517,7 +516,7 @@ function generate_instance(
     α_charge = vcat(α, repeat([0], n_depots + n_charging))
     β_charge = vcat(β, repeat([T], n_depots + n_charging))
 
-    G = SimpleDiGraph(n_nodes)
+    G = SimpleDiGraph{Int}(n_nodes)
     for (i, j) in keys(A)
         add_edge!(G, i, j)
     end
@@ -545,7 +544,6 @@ function generate_instance(
         charging_coords,
         coords,
         distances,
-        G,
         V,
         v_start,
         v_end,
@@ -565,7 +563,7 @@ function generate_instance(
         t_ds.dists,
         q_ds.dists,
     )
-    return data
+    return data, G
 end
 
 function generate_time_windows(

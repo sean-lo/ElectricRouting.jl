@@ -161,6 +161,7 @@ end
 
 function generate_base_labels_nonsingleservice(
     data::EVRPData, 
+    G::SimpleDiGraph{Int},
     κ::Dict{Int, Float64},
     μ::Dict{Int, Float64},
     ν::Vector{Float64}, 
@@ -202,7 +203,7 @@ function generate_base_labels_nonsingleservice(
             continue
         end
         current_subpath = base_labels[starting_node][current_node][current_key]
-        for next_node in setdiff(outneighbors(data.G, current_node), current_node)
+        for next_node in setdiff(outneighbors(G, current_node), current_node)
             # Preventing customer 2-cycles (Christofides)
             if christofides && next_node in data.N_customers
                 if length(current_subpath.nodes) ≥ 2 && current_subpath.nodes[end-1] == next_node
@@ -276,6 +277,7 @@ end
 
 function generate_base_labels_singleservice(
     data::EVRPData, 
+    G::SimpleDiGraph{Int},
     κ::Dict{Int, Float64},
     μ::Dict{Int, Float64},
     ν::Vector{Float64}, 
@@ -392,7 +394,7 @@ function generate_base_labels_singleservice(
         for starting_node in data.N_nodes
     )
 
-    for edge in edges(data.G)
+    for edge in edges(G)
         starting_node = edge.src
         current_node = edge.dst
         time_taken = data.t[starting_node, current_node]
@@ -502,6 +504,7 @@ end
 
 function generate_base_labels_ngroute(
     data::EVRPData, 
+    G::SimpleDiGraph{Int},
     neighborhoods::NGRouteNeighborhood,
     κ::Dict{Int, Float64},
     μ::Dict{Int, Float64},
@@ -554,7 +557,7 @@ function generate_base_labels_ngroute(
                 continue
             end
             current_subpath = base_labels[starting_node][current_node][current_set][current_key]
-            for next_node in setdiff(outneighbors(data.G, current_node), current_node)
+            for next_node in setdiff(outneighbors(G, current_node), current_node)
                 if next_node in current_set
                     # if next_node is a customer not yet visited, proceed
                     # only if one can extend current_subpath along next_node according to ng-route rules
@@ -692,7 +695,7 @@ function generate_base_labels_ngroute_alt(
         end
         current_set = state[2:end-2]
         current_subpath = base_labels[starting_node][current_node][current_key]
-        for next_node in setdiff(outneighbors(data.G, current_node), current_node)
+        for next_node in setdiff(outneighbors(G, current_node), current_node)
             if next_node in data.N_customers && current_set[next_node] == 1
                 # if next_node is a customer not yet visited, proceed
                 # only if one can extend current_subpath along next_node according to ng-route rules
@@ -1295,6 +1298,7 @@ end
 
 function subproblem_iteration_ours(
     data::EVRPData, 
+    G::SimpleDiGraph{Int},
     κ::Dict{Int, Float64},
     μ::Dict{Int, Float64},
     ν::Vector{Float64}, 
@@ -1312,21 +1316,21 @@ function subproblem_iteration_ours(
     start_time = time()
     if ngroute && !ngroute_alt
         base_labels_result = @timed generate_base_labels_ngroute(
-            data, neighborhoods, κ, μ, ν, 
+            data, G, neighborhoods, κ, μ, ν, 
             ;
             christofides = christofides,
             time_limit = time_limit - (time() - start_time),
         )
     elseif ngroute && ngroute_alt
         base_labels_result = @timed generate_base_labels_ngroute_alt(
-            data, neighborhoods, κ, μ, ν, 
+            data, G, neighborhoods, κ, μ, ν, 
             ;
             christofides = christofides,
             time_limit = time_limit - (time() - start_time),
         )
     elseif subpath_single_service
         base_labels_result = @timed generate_base_labels_singleservice(
-            data, κ, μ, ν,
+            data, G, κ, μ, ν,
             ;
             check_customers = subpath_check_customers,
             christofides = christofides,
@@ -1334,7 +1338,7 @@ function subproblem_iteration_ours(
         )
     else 
         base_labels_result = @timed generate_base_labels_nonsingleservice(
-            data, κ, μ, ν,
+            data, G, κ, μ, ν,
             ;
             christofides = christofides,
             time_limit = time_limit - (time() - start_time),
