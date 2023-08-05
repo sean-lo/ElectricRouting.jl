@@ -705,7 +705,7 @@ function compute_arc_modified_costs(
 end
 
 function compute_WSR3_sigma_2costs(
-    σ::Dict{NTuple{3, Int}, Float64},
+    σ::Dict{Tuple{Vararg{Int}}, Float64},
     data::EVRPData,
 )
     σ_costs = Dict{NTuple{4, Int}, Float64}()

@@ -442,7 +442,7 @@ function path_formulation_column_generation!(
         VariableRef,
     },
     WSR3_constraints::Dict{
-        NTuple{3, Int}, 
+        Tuple{Vararg{Int}}, 
         ConstraintRef,
     },
     data::EVRPData,
@@ -489,7 +489,7 @@ function path_formulation_column_generation!(
     CG_params["κ"] = Dict{Int, Float64}[]
     CG_params["μ"] = Dict{Int, Float64}[]
     CG_params["ν"] = Vector{Float64}[]
-    CG_params["σ"] = Dict{NTuple{3, Int}, Float64}[]
+    CG_params["σ"] = Dict{Tuple{Vararg{Int}}, Float64}[]
     CG_params["lp_relaxation_solution_time_taken"] = Float64[]
     CG_params["sp_base_time_taken"] = Float64[]
     CG_params["sp_full_time_taken"] = Float64[]
@@ -515,7 +515,7 @@ function path_formulation_column_generation!(
             "κ" => Dict(zip(data.N_depots, dual.(model[:κ]).data)),
             "μ" => Dict(zip(data.N_depots, dual.(model[:μ]).data)),
             "ν" => dual.(model[:ν]).data,
-            "σ" => Dict{NTuple{3, Int}, Float64}(
+            "σ" => Dict{Tuple{Vararg{Int}}, Float64}(
                 S => dual(WSR3_constraints[S])
                 for S in keys(WSR3_constraints)
             )
@@ -722,19 +722,31 @@ function enumerate_violated_path_WSR3_inequalities(
     paths::Vector{Tuple{Float64, Path}},
     data::EVRPData,
 )
-    S_list = Tuple{Float64, NTuple{3, Int}}[]
+    S_list = Tuple{Float64, Vararg{Int}}[]
     for S in combinations(data.N_customers, 3)
-        violation = sum(
-            [
-                val 
-                for (val, p) in values(paths)
-                    if !isdisjoint(p.customer_arcs, Tuple.(permutations(S, 2)))
-            ],
-            init = 0.0
-        ) - 1.0
-        if violation > 1e-6
-            push!(S_list, (violation, Tuple(S)))
+        S_paths = [
+            (val, p) for (val, p) in values(CGLP_results["paths"])
+            if !isdisjoint(p.customer_arcs, Tuple.(permutations(S, 2)))
+        ]
+        violation = sum([x[1] for x in S_paths], init = 0.0) - 1.0
+        if violation ≤ 1e-6
+            continue
         end
+        # Find included charging stations if they exist
+        included_charging_stations = Set{Int}()
+        for (val, p) in S_paths
+            customer_arcs = intersect(Tuple.(permutations(S, 2)), p.customer_arcs)
+            for ca in customer_arcs
+                union!(included_charging_stations, 
+                    Set{Int}(
+                        a1[2]
+                        for (a1, a2) in zip(p.arcs[1:end-1], p.arcs[2:end])
+                            if a1[1] == ca[1] && a1[2] != ca[2] && a2[2] == ca[2]
+                    )
+                )
+            end
+        end
+        push!(S_list, (violation, S..., included_charging_stations...))
     end
     sort!(S_list, by = x -> x[1], rev = true)
     return S_list
@@ -754,19 +766,20 @@ function add_WSR3_constraints_to_path_model!(
         Vector{Path},
     },
     WSR3_constraints::Dict{
-        NTuple{3, Int},
+        Tuple{Vararg{Int}},
         ConstraintRef,
     },
-    generated_WSR3_list::Vector{Tuple{Float64, NTuple{3, Int}}},
+    generated_WSR3_list::Vector{Tuple{Float64, Vararg{Int}}},
 )
-    for (_, S) in generated_WSR3_list
+    for item in generated_WSR3_list
+        S = item[2:end]
         WSR3_constraints[S] = @constraint(
             model,
             sum(
                 sum(
                     z[(state1, state2), p_ind]
                     for (p_ind, p) in enumerate(some_paths[(state1, state2)])
-                        if !isdisjoint(p.customer_arcs, Tuple.(permutations(S, 2)))
+                        if !isdisjoint(p.customer_arcs, Tuple.(permutations(S[1:3], 2)))
                 )
                 for (state1, state2) in keys(some_paths)
             ) ≤ 1
@@ -881,8 +894,8 @@ function path_formulation_column_generation_with_cuts(
     local CGIP_results
     local converged = false
 
-    WSR3_constraints = Dict{NTuple{3, Int}, ConstraintRef}()
-    WSR3_list = Tuple{Float64, NTuple{3, Int}}[]
+    WSR3_constraints = Dict{Tuple{Vararg{Int}}, ConstraintRef}()
+    WSR3_list = Tuple{Float64, Vararg{Int}}[]
 
     while true
         CGLP_results, CG_params = path_formulation_column_generation!(

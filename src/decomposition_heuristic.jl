@@ -593,7 +593,7 @@ function path_formulation_column_generation_nocharge(
     CG_params["κ"] = Dict{Int, Float64}[]
     CG_params["μ"] = Dict{Int, Float64}[]
     CG_params["ν"] = Vector{Float64}[]
-    CG_params["σ"] = Dict{NTuple{3, Int}, Float64}[]
+    CG_params["σ"] = Dict{Tuple{Vararg{Int}}, Float64}[]
     CG_params["lp_relaxation_solution_time_taken"] = Float64[]
     CG_params["sp_base_time_taken"] = Float64[]
     CG_params["sp_full_time_taken"] = Float64[]
@@ -676,7 +676,7 @@ function path_formulation_column_generation_nocharge(
             "κ" => Dict(zip(data.N_depots, dual.(model[:κ]).data)),
             "μ" => Dict(zip(data.N_depots, dual.(model[:μ]).data)),
             "ν" => dual.(model[:ν]).data,
-            "σ" => Dict{NTuple{3, Int}, Float64}(
+            "σ" => Dict{Tuple{Vararg{Int}}, Float64}(
                 S => dual(WSR3_constraints[S])
                 for S in keys(WSR3_constraints)
             )

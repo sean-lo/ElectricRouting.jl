@@ -557,7 +557,7 @@ function find_nondominated_paths_ngroute_sigma(
     κ::Dict{Int, Float64},
     μ::Dict{Int, Float64},
     ν::Vector{Float64},
-    σ::Dict{NTuple{3, Int}, Float64},
+    σ::Dict{Tuple{Vararg{Int}}, Float64},
     ;
     time_windows::Bool = true,
     christofides::Bool = true,
@@ -897,7 +897,7 @@ function find_nondominated_paths_ngroute_alt_sigma(
     κ::Dict{Int, Float64},
     μ::Dict{Int, Float64},
     ν::Vector{Float64}, 
-    σ::Dict{NTuple{3, Int}, Float64},
+    σ::Dict{Tuple{Vararg{Int}}, Float64},
     ;
     time_windows::Bool = true,
     christofides::Bool = true,
@@ -1176,7 +1176,7 @@ function subproblem_iteration_benchmark(
     κ::Dict{Int, Float64},
     μ::Dict{Int, Float64},
     ν::Vector{Float64}, 
-    σ::Dict{NTuple{3, Int}, Float64},
+    σ::Dict{Tuple{Vararg{Int}}, Float64},
     ;
     neighborhoods::Union{Nothing, NGRouteNeighborhood} = nothing,
     ngroute::Bool = false,
