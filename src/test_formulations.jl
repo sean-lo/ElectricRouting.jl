@@ -2211,9 +2211,9 @@ base_labels = Dict(
         }()
         for current_node in data.N_nodes
     )
-    for starting_node in union(data.N_depots, data.N_charging)
+    for starting_node in data.N_depots_charging
 )
-for node in union(data.N_depots, data.N_charging)
+for node in data.N_depots_charging
     base_labels[node][node][(node,)] = SortedDict(
         0 => BaseSubpathLabel(
             0, 0, 0.0, [node,], zeros(Int, data.n_customers),
@@ -2224,7 +2224,7 @@ end
 unexplored_states = SortedSet(
     [
         (0.0, node, node)
-        for node in union(data.N_depots, data.N_charging)
+        for node in data.N_depots_charging
     ]
 );
 
@@ -2304,14 +2304,14 @@ end
 unexplored_states
 base_labels
 
-for starting_node in vcat(data.N_depots, data.N_charging)
+for starting_node in data.N_depots_charging
     for end_node in data.N_customers
         delete!(base_labels[starting_node], end_node)
     end
 end
 
 for starting_node in data.N_depots
-    for end_node in vcat(data.N_depots, data.N_charging)
+    for end_node in data.N_depots_charging
         for set in keys(base_labels[starting_node][end_node])
             for v in values(base_labels[starting_node][end_node][set])
                 v.cost = v.cost - κ[starting_node]
@@ -2320,7 +2320,7 @@ for starting_node in data.N_depots
     end
 end
 for end_node in data.N_depots
-    for starting_node in vcat(data.N_depots, data.N_charging)
+    for starting_node in data.N_depots_charging
         for set in keys(base_labels[starting_node][end_node])
             for v in values(base_labels[starting_node][end_node][set])
                 v.cost = v.cost - μ[end_node]
@@ -2330,7 +2330,7 @@ for end_node in data.N_depots
 end
 
 # remove self-loops with nonnegative cost
-for node in union(data.N_depots, data.N_charging)
+for node in data.N_depots_charging
     for set in keys(base_labels[node][node])
         for (k, v) in pairs(base_labels[node][node][set])
             if v.cost ≥ 0.0
@@ -2342,7 +2342,7 @@ end
 
 *("3", "3", "4")
 
-for starting_node in union(data.N_depots, data.N_charging)
+for starting_node in data.N_depots_charging
     vals = [
         length(keys(base_labels[starting_node][end_node]))
         for end_node in data.N_nodes
@@ -2362,14 +2362,14 @@ end
 base_labels[28][24]
 sum(
     length(base_labels[starting_node][end_node][set])
-    for starting_node in union(data.N_depots, data.N_charging)
-        for end_node in union(data.N_depots, data.N_charging)
+    for starting_node in data.N_depots_charging
+        for end_node in data.N_depots_charging
             for set in keys(base_labels[starting_node][end_node])
 )
 sum(
     length(base_labels[starting_node][end_node])
-    for starting_node in union(data.N_depots, data.N_charging)
-        for end_node in union(data.N_depots, data.N_charging)
+    for starting_node in data.N_depots_charging
+        for end_node in data.N_depots_charging
 )
 
 plot_instance(data)

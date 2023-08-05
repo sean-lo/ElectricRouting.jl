@@ -180,10 +180,10 @@ function generate_base_labels_nonsingleservice(
             }()
             for current_node in data.N_nodes
         )
-        for starting_node in union(data.N_depots, data.N_charging)
+        for starting_node in data.N_depots_charging
     )
     unexplored_states = SortedSet{NTuple{3, Int}}()
-    for node in union(data.N_depots, data.N_charging)
+    for node in data.N_depots_charging
         base_labels[node][node][(0,)] = BaseSubpathLabel(
             0, 0, 0.0, [node,], zeros(Int, data.n_customers),
         )
@@ -240,21 +240,21 @@ function generate_base_labels_nonsingleservice(
         end
     end
 
-    for starting_node in vcat(data.N_depots, data.N_charging)
+    for starting_node in data.N_depots_charging
         for end_node in data.N_customers
             delete!(base_labels[starting_node], end_node)
         end
     end
 
     for starting_node in data.N_depots
-        for end_node in vcat(data.N_depots, data.N_charging)
+        for end_node in data.N_depots_charging
             for v in values(base_labels[starting_node][end_node])
                 v.cost = v.cost - κ[starting_node]
             end
         end
     end
     for end_node in data.N_depots
-        for starting_node in vcat(data.N_depots, data.N_charging)
+        for starting_node in data.N_depots_charging
             for v in values(base_labels[starting_node][end_node])
                 v.cost = v.cost - μ[end_node]
             end
@@ -262,7 +262,7 @@ function generate_base_labels_nonsingleservice(
     end
 
     # remove self-loops with nonnegative cost
-    for node in union(data.N_depots, data.N_charging)
+    for node in data.N_depots_charging
         for (k, v) in pairs(base_labels[node][node])
             if v.cost ≥ 0.0
                 pop!(base_labels[node][node], k)
@@ -466,21 +466,21 @@ function generate_base_labels_singleservice(
         end
     end
 
-    for starting_node in vcat(data.N_depots, data.N_charging)
+    for starting_node in data.N_depots_charging
         for end_node in data.N_customers
             delete!(base_labels[starting_node], end_node)
         end
     end
 
     for starting_node in data.N_depots
-        for end_node in vcat(data.N_depots, data.N_charging)
+        for end_node in data.N_depots_charging
             for v in values(base_labels[starting_node][end_node])
                 v.cost = v.cost - κ[starting_node]
             end
         end
     end
     for end_node in data.N_depots
-        for starting_node in vcat(data.N_depots, data.N_charging)
+        for starting_node in data.N_depots_charging
             for v in values(base_labels[starting_node][end_node])
                 v.cost = v.cost - μ[end_node]
             end
@@ -488,7 +488,7 @@ function generate_base_labels_singleservice(
     end
 
     # remove self-loops with nonnegative cost
-    for node in union(data.N_depots, data.N_charging)
+    for node in data.N_depots_charging
         for (k, v) in pairs(base_labels[node][node])
             if v.cost ≥ 0.0
                 pop!(base_labels[node][node], k)
@@ -525,10 +525,10 @@ function generate_base_labels_ngroute(
             }()
             for current_node in data.N_nodes
         )
-        for starting_node in union(data.N_depots, data.N_charging)
+        for starting_node in data.N_depots_charging
     )
     unexplored_states = SortedSet{NTuple{3, Int}}()
-    for node in union(data.N_depots, data.N_charging)
+    for node in data.N_depots_charging
         base_labels[node][node][(node,)] = SortedDict{
             NTuple{1, Int},
             BaseSubpathLabel,
@@ -605,14 +605,14 @@ function generate_base_labels_ngroute(
         end
     end
 
-    for starting_node in vcat(data.N_depots, data.N_charging)
+    for starting_node in data.N_depots_charging
         for end_node in data.N_customers
             delete!(base_labels[starting_node], end_node)
         end
     end
 
     for starting_node in data.N_depots
-        for end_node in vcat(data.N_depots, data.N_charging)
+        for end_node in data.N_depots_charging
             for set in keys(base_labels[starting_node][end_node])
                 for v in values(base_labels[starting_node][end_node][set])
                     v.cost = v.cost - κ[starting_node]
@@ -621,7 +621,7 @@ function generate_base_labels_ngroute(
         end
     end
     for end_node in data.N_depots
-        for starting_node in vcat(data.N_depots, data.N_charging)
+        for starting_node in data.N_depots_charging
             for set in keys(base_labels[starting_node][end_node])
                 for v in values(base_labels[starting_node][end_node][set])
                     v.cost = v.cost - μ[end_node]
@@ -631,7 +631,7 @@ function generate_base_labels_ngroute(
     end
 
     # remove self-loops with nonnegative cost
-    for node in union(data.N_depots, data.N_charging)
+    for node in data.N_depots_charging
         for set in keys(base_labels[node][node])
             for (k, v) in pairs(base_labels[node][node][set])
                 if v.cost ≥ 0.0
@@ -666,10 +666,10 @@ function generate_base_labels_ngroute_alt(
             }()
             for current_node in data.N_nodes
         )
-        for starting_node in union(data.N_depots, data.N_charging)
+        for starting_node in data.N_depots_charging
     )
     unexplored_states = SortedSet{NTuple{data.n_nodes + 3, Int}}()
-    for node in union(data.N_depots, data.N_charging)
+    for node in data.N_depots_charging
         node_labels = zeros(Int, data.n_nodes)
         node_labels[node] = 1
         key = (0, node_labels...)
@@ -736,21 +736,21 @@ function generate_base_labels_ngroute_alt(
         end
     end
 
-    for starting_node in vcat(data.N_depots, data.N_charging)
+    for starting_node in data.N_depots_charging
         for end_node in data.N_customers
             delete!(base_labels[starting_node], end_node)
         end
     end
 
     for starting_node in data.N_depots
-        for end_node in vcat(data.N_depots, data.N_charging)
+        for end_node in data.N_depots_charging
             for v in values(base_labels[starting_node][end_node])
                 v.cost = v.cost - κ[starting_node]
             end
         end
     end
     for end_node in data.N_depots
-        for starting_node in vcat(data.N_depots, data.N_charging)
+        for starting_node in data.N_depots_charging
             for v in values(base_labels[starting_node][end_node])
                 v.cost = v.cost - μ[end_node]
             end
@@ -758,7 +758,7 @@ function generate_base_labels_ngroute_alt(
     end
 
     # remove self-loops with nonnegative cost
-    for node in union(data.N_depots, data.N_charging)
+    for node in data.N_depots_charging
         for (k, v) in pairs(base_labels[node][node])
             if v.cost ≥ 0.0
                 pop!(base_labels[node][node], k)
@@ -851,7 +851,7 @@ function find_nondominated_paths_notimewindows(
                 NTuple{keylen, Int}, 
                 PathLabel,
             }()
-            for current_node in union(data.N_depots, data.N_charging)
+            for current_node in data.N_depots_charging
         )
         for starting_node in data.N_depots
     )
@@ -888,7 +888,7 @@ function find_nondominated_paths_notimewindows(
             continue
         end
         current_path = full_labels[starting_node][current_node][current_key]
-        for next_node in union(data.N_depots, data.N_charging)
+        for next_node in data.N_depots_charging
             for s in values(base_labels[current_node][next_node])
                 # single-service requirement
                 if (
@@ -1003,7 +1003,7 @@ function find_nondominated_paths_notimewindows_ngroute(
                     PathLabel,
                 },
             }()
-            for current_node in union(data.N_depots, data.N_charging)
+            for current_node in data.N_depots_charging
         )
         for starting_node in data.N_depots
     )
@@ -1040,7 +1040,7 @@ function find_nondominated_paths_notimewindows_ngroute(
                 continue
             end
             current_path = full_labels[starting_node][current_node][current_set][current_key]
-            for next_node in union(data.N_depots, data.N_charging)
+            for next_node in data.N_depots_charging
                 for set in keys(base_labels[current_node][next_node])
                     for s in values(base_labels[current_node][next_node][set])
                         # ngroute stitching subpaths check
@@ -1144,7 +1144,7 @@ function find_nondominated_paths_notimewindows_ngroute_alt(
                 NTuple{data.n_nodes + 2, Int}, 
                 PathLabel,
             }()
-            for current_node in union(data.N_depots, data.N_charging)
+            for current_node in data.N_depots_charging
         )
         for starting_node in data.N_depots
     )
@@ -1176,7 +1176,7 @@ function find_nondominated_paths_notimewindows_ngroute_alt(
         end
         current_set = state[3:end-2]
         current_path = full_labels[starting_node][current_node][current_key]
-        for next_node in union(data.N_depots, data.N_charging)
+        for next_node in data.N_depots_charging
             for s in values(base_labels[current_node][next_node])
                 # ngroute stitching subpaths check
                 (new_set, check) = ngroute_extend_partial_path_check_alt(neighborhoods, collect(current_set), s)

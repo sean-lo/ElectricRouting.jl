@@ -124,6 +124,7 @@ struct EVRPData
     N_depots::Vector{Int}
     N_vehicles::Vector{Int}
     N_charging::Vector{Int}
+    N_depots_charging::Vector{Int}
     N_nodes::Vector{Int}
     node_labels::Dict{Int, String}
     shrinkage_depots::Float64
@@ -450,6 +451,7 @@ function generate_instance(
     N_depots = collect(n_customers+1:n_customers+n_depots)
     N_vehicles = collect(1:n_vehicles)
     N_charging = collect(n_customers+n_depots+1:n_customers+n_depots+n_charging)
+    N_depots_charging = vcat(N_depots, N_charging)
     N_nodes = vcat(N_customers, N_depots, N_charging)
 
     node_labels = merge(Dict(
@@ -533,6 +535,7 @@ function generate_instance(
         N_depots,
         N_vehicles,
         N_charging,
+        N_depots_charging,
         N_nodes,
         node_labels,
         shrinkage_depots,
@@ -650,12 +653,12 @@ function compute_ngroute_neighborhoods(
     if charging_depots_size == "small"
         depots_charging_neighborhoods = [
             [i]
-            for i in union(data.N_depots, data.N_charging)
+            for i in data.N_depots_charging
         ]
     elseif charging_depots_size == "large"
         depots_charging_neighborhoods = [
             vcat(data.N_customers, i) 
-            for i in union(data.N_depots, data.N_charging)
+            for i in data.N_depots_charging
         ]
     else
         error("`charging_depots_size` argument not recognized.")
