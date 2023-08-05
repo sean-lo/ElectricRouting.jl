@@ -870,7 +870,7 @@ function get_postcharge_shortest_pure_path_label(
                 continue
             end
             
-            (feasible, new_path) = compute_new_path(
+            (feasible, new_path) = compute_new_pure_path(
                 current_path,
                 current_node,
                 next_node, 

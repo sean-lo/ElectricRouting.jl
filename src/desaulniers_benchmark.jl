@@ -124,7 +124,7 @@ function add_pure_path_label_to_collection!(
     return added
 end
 
-function compute_new_path(
+function compute_new_pure_path(
     current_path::PurePathLabel,
     current_node::Int,
     next_node::Int,
@@ -316,7 +316,7 @@ function find_nondominated_paths(
                 end
             end
 
-            (feasible, new_path) = compute_new_path(
+            (feasible, new_path) = compute_new_pure_path(
                 current_path, 
                 current_node, next_node, 
                 data, α, β, modified_costs,
@@ -480,7 +480,7 @@ function find_nondominated_paths_ngroute(
                     end
                 end
 
-                (feasible, new_path) = compute_new_path(
+                (feasible, new_path) = compute_new_pure_path(
                     current_path, 
                     current_node, next_node, 
                     data, α, β, modified_costs,
@@ -661,7 +661,7 @@ function find_nondominated_paths_ngroute_sigma(
                 end
 
                 
-                (feasible, new_path) = compute_new_path(
+                (feasible, new_path) = compute_new_pure_path(
                     current_path, 
                     current_node, next_node, 
                     data, α, β, modified_costs,
@@ -832,7 +832,7 @@ function find_nondominated_paths_ngroute_alt(
                 end
             end
 
-            (feasible, new_path) = compute_new_path(
+            (feasible, new_path) = compute_new_pure_path(
                 current_path, 
                 current_node, next_node, 
                 data, α, β, modified_costs,
@@ -992,7 +992,7 @@ function find_nondominated_paths_ngroute_alt_sigma(
                 end
             end
 
-            (feasible, new_path) = compute_new_path(
+            (feasible, new_path) = compute_new_pure_path(
                 current_path, 
                 current_node, next_node, 
                 data, α, β, modified_costs,
