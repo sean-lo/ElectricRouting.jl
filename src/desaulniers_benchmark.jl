@@ -230,9 +230,10 @@ function find_nondominated_paths(
     κ::Dict{Int, Float64},
     μ::Dict{Int, Float64},
     ν::Vector{Float64}, 
+    α::Vector{Int},
+    β::Vector{Int},
     ;
     single_service::Bool = false,
-    time_windows::Bool = true,
     check_customers::Bool = true,
     christofides::Bool = true,
     time_limit::Float64 = Inf,
@@ -281,14 +282,6 @@ function find_nondominated_paths(
             false,
         )
         push!(unexplored_states, (key..., depot, depot))
-    end
-
-    if time_windows
-        α = graph.α
-        β = graph.β
-    else
-        α = zeros(Int, graph.n_nodes_extra)
-        β = repeat([graph.T], graph.n_nodes_extra)
     end
 
     while length(unexplored_states) > 0
@@ -393,8 +386,9 @@ function find_nondominated_paths_ngroute(
     κ::Dict{Int, Float64},
     μ::Dict{Int, Float64},
     ν::Vector{Float64}, 
+    α::Vector{Int},
+    β::Vector{Int},
     ;
-    time_windows::Bool = true,
     christofides::Bool = true,
     time_limit::Float64 = Inf,
 )
@@ -448,14 +442,6 @@ function find_nondominated_paths_ngroute(
                 depot, # current_node 
             )
         )
-    end
-
-    if time_windows
-        α = graph.α
-        β = graph.β
-    else
-        α = zeros(Int, graph.n_nodes_extra)
-        β = repeat([graph.T], graph.n_nodes_extra)
     end
 
     while length(unexplored_states) > 0
@@ -561,8 +547,9 @@ function find_nondominated_paths_ngroute_1(
     κ::Dict{Int, Float64},
     μ::Dict{Int, Float64},
     ν::Vector{Float64},
+    α::Vector{Int},
+    β::Vector{Int},
     ;
-    time_windows::Bool = true,
     christofides::Bool = true,
     time_limit::Float64 = Inf,
 )
@@ -620,14 +607,6 @@ function find_nondominated_paths_ngroute_1(
                 depot, # current_node 
             )
         )
-    end
-
-    if time_windows
-        α = graph.α
-        β = graph.β
-    else
-        α = zeros(Int, graph.n_nodes_extra)
-        β = repeat([graph.T], graph.n_nodes_extra)
     end
 
     while length(unexplored_states) > 0
@@ -750,8 +729,9 @@ function find_nondominated_paths_ngroute_sigma(
     μ::Dict{Int, Float64},
     ν::Vector{Float64},
     σ::Dict{Tuple{Vararg{Int}}, Float64},
+    α::Vector{Int},
+    β::Vector{Int},
     ;
-    time_windows::Bool = true,
     christofides::Bool = true,
     time_limit::Float64 = Inf,
 )
@@ -813,14 +793,6 @@ function find_nondominated_paths_ngroute_sigma(
                 depot, # current_node 
             )
         )
-    end
-
-    if time_windows
-        α = graph.α
-        β = graph.β
-    else
-        α = zeros(Int, graph.n_nodes_extra)
-        β = repeat([graph.T], graph.n_nodes_extra)
     end
 
     while length(unexplored_states) > 0
@@ -947,8 +919,9 @@ function find_nondominated_paths_ngroute_alt(
     κ::Dict{Int, Float64},
     μ::Dict{Int, Float64},
     ν::Vector{Float64}, 
+    α::Vector{Int},
+    β::Vector{Int},
     ;
-    time_windows::Bool = true,
     christofides::Bool = true,
     time_limit::Float64 = Inf,
 )
@@ -987,14 +960,6 @@ function find_nondominated_paths_ngroute_alt(
             false,
         )
         push!(unexplored_states, (key..., depot, depot))
-    end
-
-    if time_windows
-        α = graph.α
-        β = graph.β
-    else
-        α = zeros(Int, graph.n_nodes_extra)
-        β = repeat([graph.T], graph.n_nodes_extra)
     end
 
     while length(unexplored_states) > 0
@@ -1090,8 +1055,9 @@ function find_nondominated_paths_ngroute_alt_1(
     κ::Dict{Int, Float64},
     μ::Dict{Int, Float64},
     ν::Vector{Float64}, 
+    α::Vector{Int},
+    β::Vector{Int},
     ;
-    time_windows::Bool = true,
     christofides::Bool = true,
     time_limit::Float64 = Inf,
 )
@@ -1141,14 +1107,6 @@ function find_nondominated_paths_ngroute_alt_1(
                 depot, # current_node
             )
         )
-    end
-
-    if time_windows
-        α = graph.α
-        β = graph.β
-    else
-        α = zeros(Int, graph.n_nodes_extra)
-        β = repeat([graph.T], graph.n_nodes_extra)
     end
 
     while length(unexplored_states) > 0
@@ -1254,8 +1212,9 @@ function find_nondominated_paths_ngroute_alt_sigma(
     μ::Dict{Int, Float64},
     ν::Vector{Float64}, 
     σ::Dict{Tuple{Vararg{Int}}, Float64},
+    α::Vector{Int},
+    β::Vector{Int},
     ;
-    time_windows::Bool = true,
     christofides::Bool = true,
     time_limit::Float64 = Inf,
 )
@@ -1313,14 +1272,6 @@ function find_nondominated_paths_ngroute_alt_sigma(
                 depot, # current_node
             )
         )
-    end
-
-    if time_windows
-        α = graph.α
-        β = graph.β
-    else
-        α = zeros(Int, graph.n_nodes_extra)
-        β = repeat([graph.T], graph.n_nodes_extra)
     end
 
     while length(unexplored_states) > 0
@@ -1478,20 +1429,26 @@ function subproblem_iteration_benchmark(
     time_limit::Float64 = Inf,
 )
     start_time = time()
+    if time_windows
+        α = graph.α
+        β = graph.β
+    else
+        α = zeros(Int, graph.n_nodes_extra)
+        β = repeat([graph.T], graph.n_nodes_extra)
+    end
+
     if ngroute && !ngroute_alt
         if length(σ) == 0
             pure_path_labels_result = @timed find_nondominated_paths_ngroute_1(
-                data, graph, neighborhoods, κ, μ, ν,
+                data, graph, neighborhoods, κ, μ, ν, α, β,
                 ;
-                time_windows = time_windows,
                 christofides = christofides,
                 time_limit = time_limit - (time() - start_time),
             )
         else
             pure_path_labels_result = @timed find_nondominated_paths_ngroute_sigma(
-                data, graph, neighborhoods, κ, μ, ν, σ,
+                data, graph, neighborhoods, κ, μ, ν, σ, α, β,
                 ;
-                time_windows = time_windows,
                 christofides = christofides,
                 time_limit = time_limit - (time() - start_time),
             )
@@ -1499,26 +1456,23 @@ function subproblem_iteration_benchmark(
     elseif ngroute && ngroute_alt
         if length(σ) == 0
             pure_path_labels_result = @timed find_nondominated_paths_ngroute_alt_1(
-                data, graph, neighborhoods, κ, μ, ν,
+                data, graph, neighborhoods, κ, μ, ν, α, β,
                 ;
-                time_windows = time_windows,
                 christofides = christofides,
                 time_limit = time_limit - (time() - start_time),
             )
         else
             pure_path_labels_result = @timed find_nondominated_paths_ngroute_alt_sigma(
-                data, graph, neighborhoods, κ, μ, ν, σ,
+                data, graph, neighborhoods, κ, μ, ν, σ, α, β,
                 ;
-                time_windows = time_windows,
                 christofides = christofides,
                 time_limit = time_limit - (time() - start_time),
             )
         end
     else
         pure_path_labels_result = @timed find_nondominated_paths(
-            data, graph, κ, μ, ν,
+            data, graph, κ, μ, ν, α, β,
             ;
-            time_windows = time_windows, 
             single_service = path_single_service, 
             check_customers = path_check_customers,
             christofides = christofides,
