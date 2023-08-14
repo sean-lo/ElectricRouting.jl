@@ -6,6 +6,7 @@ include("utils.jl")
 
 function arc_formulation(
     data::EVRPData,
+    graph::EVRPGraph,
     ;
     with_time_windows::Bool = false,
     with_charging::Bool = false,
@@ -15,39 +16,39 @@ function arc_formulation(
     formulate_only::Bool = false,
 )
 
-    n_customers = data.n_customers
-    n_depots = data.n_depots
+    n_customers = graph.n_customers
+    n_depots = graph.n_depots
     n_vehicles = data.n_vehicles
-    n_nodes = data.n_nodes
+    n_nodes = graph.n_nodes
 
-    N_customers = data.N_customers
-    N_depots = data.N_depots
-    N_vehicles = data.N_vehicles
-    N_nodes = data.N_nodes
+    N_customers = graph.N_customers
+    N_depots = graph.N_depots
+    N_vehicles = graph.N_vehicles
+    N_nodes = graph.N_nodes
 
     if with_charging
-        n_charging = data.n_charging
-        N_charging = data.N_charging
+        n_charging = graph.n_charging
+        N_charging = graph.N_charging
     end
 
     V = data.V
     v_start = data.v_start
     v_end = data.v_end
 
-    c = data.c
-    t = data.t
+    c = graph.c
+    t = graph.t
     if with_load
         d = data.d
         C = data.C
     end
 
-    T = data.T
-    A = data.A
+    T = graph.T
+    A = graph.A
     
     if with_charging
-        q = data.q
-        B = data.B
-        μ = data.μ
+        q = graph.q
+        B = graph.B
+        μ = graph.μ
     end
 
     start_time = time()
@@ -55,9 +56,9 @@ function arc_formulation(
     model = Model(Gurobi.Optimizer)
     set_time_limit_sec(model, time_limit)
     if integral
-        @variable(model, x[keys(A), N_vehicles], Bin)
+        @variable(model, x[A, N_vehicles], Bin)
     else
-        @variable(model, 0 ≤ x[keys(A), N_vehicles] ≤ 1)
+        @variable(model, 0 ≤ x[A, N_vehicles] ≤ 1)
     end
     @variable(model, τ_reach[N_nodes, N_vehicles] ≥ 0)
     @variable(model, τ_leave[N_nodes, N_vehicles] ≥ 0)
@@ -74,33 +75,33 @@ function arc_formulation(
     @constraint(
         model, 
         [i ∈ N_depots, k ∈ V[i]],
-        sum(x[(i,j),k] for j in N_nodes if (i,j) in keys(A)) == 1
+        sum(x[(i,j),k] for j in N_nodes if (i,j) in A) == 1
     ); # (1c): leave from depot
     @constraint(
         model, 
-        [i ∈ N_depots, j ∈ N_nodes, k ∈ setdiff(N_vehicles, V[i]); (i,j) in keys(A)],
+        [i ∈ N_depots, j ∈ N_nodes, k ∈ setdiff(N_vehicles, V[i]); (i,j) in A],
         x[(i,j),k] == 0
     ); # (1d): leave from depot (others)
     @constraint(
         model,
         [i ∈ setdiff(N_nodes, N_depots), k ∈ N_vehicles],
-        sum(x[(i,j),k] for j in N_nodes if (i,j) in keys(A))
-        == sum(x[(j,i),k] for j in N_nodes if (j,i) in keys(A))
+        sum(x[(i,j),k] for j in N_nodes if (i,j) in A)
+        == sum(x[(j,i),k] for j in N_nodes if (j,i) in A)
     ); # (1e): flow conservation (outside of depots)
     @constraint(
         model,
         [i ∈ N_customers],
-        sum(x[(i,j),k] for k in N_vehicles, j in N_nodes if (i,j) in keys(A)) == 1
+        sum(x[(i,j),k] for k in N_vehicles, j in N_nodes if (i,j) in A) == 1
     ); # (1f): all pickups served
     @constraint(
         model, 
         [k ∈ N_vehicles],
-        sum(x[(j,i),k] for i in N_depots, j in N_nodes if (j,i) in keys(A)) == 1
+        sum(x[(j,i),k] for i in N_depots, j in N_nodes if (j,i) in A) == 1
     ); # (1h): all vehicles reach a depot
     @constraint(
         model, 
         [i ∈ N_depots],
-        sum(x[(j,i),k] for k in N_vehicles, j in N_nodes if (j, i) in keys(A)) ≥ v_end[i]
+        sum(x[(j,i),k] for k in N_vehicles, j in N_nodes if (j, i) in A) ≥ v_end[i]
     ); # (1i): each depot receives at least its required quota
     @constraint(
         model, 
@@ -128,7 +129,7 @@ function arc_formulation(
 
     @constraint(
         model,
-        [(i,j) in keys(A), k ∈ N_vehicles],
+        [(i,j) in A, k ∈ N_vehicles],
         τ_leave[i,k] + t[i,j] ≤ τ_reach[j,k] + (1 - x[(i,j),k]) * 2 * T
     ); # (1l, 1m): precedence conditions
     
@@ -136,12 +137,12 @@ function arc_formulation(
         @constraint(
             model, 
             [i ∈ N_nodes, k ∈ N_vehicles],
-            data.α[i] ≤ τ_leave[i,k] ≤ data.β[i]
+            graph.α[i] ≤ τ_leave[i,k] ≤ graph.β[i]
         ); # (1n): time window constraints
         @constraint(
             model, 
             [i ∈ N_nodes, k ∈ N_vehicles],
-            data.α[i] ≤ τ_reach[i,k] ≤ data.β[i]
+            graph.α[i] ≤ τ_reach[i,k] ≤ graph.β[i]
         ); # (1n): time window constraints
     else
         @constraint(
@@ -164,7 +165,7 @@ function arc_formulation(
         ); # (1o): load leaving depot
         @constraint(
             model,
-            [(i,j) in keys(A), k ∈ N_vehicles],
+            [(i,j) in A, k ∈ N_vehicles],
             l_reach[j,k] ≥ l_leave[i,k] - (1 - x[(i,j),k]) * 2 * C,
         ); # (1p, 1q, 1r): load after serving a node
         @constraint(
@@ -192,7 +193,7 @@ function arc_formulation(
         ); # (1t): charge leaving depot
         @constraint(
             model,
-            [(i,j) in keys(A), k ∈ N_vehicles],
+            [(i,j) in A, k ∈ N_vehicles],
             b_start[j,k] ≤ b_end[i,k] - q[i,j] + (1 - x[(i,j),k]) * 2 * B
         ); # (1u): charge change based on travel cost
         @constraint( 
@@ -218,14 +219,14 @@ function arc_formulation(
         @constraint(
             model,
             δ0[i ∈ N_charging, k ∈ N_vehicles],
-            δ[i,k] ≤ sum(x[(j,i),k] for j in N_nodes if (j,i) in keys(A)) * 2 * B
+            δ[i,k] ≤ sum(x[(j,i),k] for j in N_nodes if (j,i) in A) * 2 * B
         )
     end
     
     @expression(
         model,
         total_travel_cost,
-        sum(c[i,j] * x[(i,j),k] for (i,j) in keys(A), k ∈ N_vehicles)
+        sum(c[i,j] * x[(i,j),k] for (i,j) in A, k ∈ N_vehicles)
     )
     @expression(
         model,
@@ -318,16 +319,16 @@ end
 
 function construct_paths_from_arc_solution(
     results,
-    data::EVRPData,
+    graph::EVRPGraph,
 )
     paths = Dict()
-    for k in data.N_vehicles 
+    for k in graph.N_vehicles 
         arcs = [
-            (i,j) for (i,j) in keys(data.A) 
+            (i,j) for (i,j) in graph.A
             if results["x"][(i,j),k] > 0.5
         ]
         path = []
-        i = findfirst(x -> (x[1] ∈ data.N_depots), arcs)
+        i = findfirst(x -> (x[1] ∈ graph.N_depots), arcs)
         while true
             a = popat!(arcs, i)
             push!(path, a)
@@ -344,8 +345,8 @@ end
 
 function arc_results_printout(
     results, 
-    params,
-    data::EVRPData,
+    params,    
+    graph::EVRPGraph,
     ;
     with_charging::Bool = false,
 )
@@ -389,27 +390,27 @@ function arc_results_printout(
         )
     end
 
-    paths = construct_paths_from_arc_solution(results, data)
+    paths = construct_paths_from_arc_solution(results, graph)
 
-    for k in data.N_vehicles
+    for k in graph.N_vehicles
         for a in paths[k]
             if with_charging
-                if a[2] in data.N_charging
+                if a[2] in graph.N_charging
                     push!(
                         printlist, 
                         @sprintf(
                             "Vehicle %s: %12s (%6.1f,  %6.1f,  %4.1f) -> %12s (%6.1f,  %6.1f,  %4.1f) | -  %6.1f | -    %6.1f \n", 
                             k, 
-                            data.node_labels[a[1]], 
+                            graph.node_labels[a[1]], 
                             results["τ_leave"][a[1],k],
                             results["b_end"][a[1],k],
                             results["l_leave"][a[1],k],
-                            data.node_labels[a[2]],
+                            graph.node_labels[a[2]],
                             results["τ_reach"][a[2],k],
                             results["b_start"][a[2],k],
                             results["l_reach"][a[2],k],
-                            data.t[a[1],a[2]],
-                            data.q[a[1],a[2]],
+                            graph.t[a[1],a[2]],
+                            graph.q[a[1],a[2]],
                         )
                     )
                     push!(
@@ -417,16 +418,16 @@ function arc_results_printout(
                         @sprintf(
                             "Vehicle %s: %12s (%6.1f,  %6.1f,  %4.1f) -> %12s (%6.1f,  %6.1f,  %4.1f) | -  %6.1f | +    %6.1f \n", 
                             k, 
-                            data.node_labels[a[2]], 
+                            graph.node_labels[a[2]], 
                             results["τ_reach"][a[2],k],
                             results["b_start"][a[2],k],
                             results["l_reach"][a[2],k],
-                            data.node_labels[a[2]], 
+                            graph.node_labels[a[2]], 
                             results["τ_leave"][a[2],k],
                             results["b_end"][a[2],k],
                             results["l_leave"][a[2],k],
                             results["δ"][a[2],k],
-                            results["δ"][a[2],k] * data.μ,
+                            results["δ"][a[2],k] * graph.μ,
                         )
                     )
                 else
@@ -435,16 +436,16 @@ function arc_results_printout(
                         @sprintf(
                             "Vehicle %s: %12s (%6.1f,  %6.1f,  %4.1f) -> %12s (%6.1f,  %6.1f,  %4.1f) | -  %6.1f | -    %6.1f \n", 
                             k, 
-                            data.node_labels[a[1]], 
+                            graph.node_labels[a[1]], 
                             results["τ_leave"][a[1],k],
                             results["b_end"][a[1],k],
                             results["l_leave"][a[1],k],
-                            data.node_labels[a[2]],
+                            graph.node_labels[a[2]],
                             results["τ_reach"][a[2],k],
                             results["b_start"][a[2],k],
                             results["l_reach"][a[2],k],
-                            data.t[a[1],a[2]],
-                            data.q[a[1],a[2]],
+                            graph.t[a[1],a[2]],
+                            graph.q[a[1],a[2]],
                         )
                     )
                 end
@@ -454,13 +455,13 @@ function arc_results_printout(
                     @printf(
                         "Vehicle %s: %12s (%6.1f,  %4.1f) -> %12s (%6.1f,  %4.1f) | -  %6.1f\n", 
                         k, 
-                        data.node_labels[a[1]], 
+                        graph.node_labels[a[1]], 
                         results["τ_leave"][a[1],k],
                         results["l_leave"][a[1],k],
-                        data.node_labels[a[2]],
+                        graph.node_labels[a[2]],
                         results["τ_reach"][a[2],k],
                         results["l_reach"][a[2],k],
-                        data.t[a[1],a[2]],
+                        graph.t[a[1],a[2]],
                     )
                 )
             end

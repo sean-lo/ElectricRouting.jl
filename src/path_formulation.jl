@@ -9,6 +9,7 @@ include("subpath_stitching.jl")
 
 function generate_artificial_paths(
     data::EVRPData,
+    graph::EVRPGraph,
 )
     artificial_paths = Dict{
         Tuple{NTuple{3, Int}, NTuple{3, Int}},
@@ -21,33 +22,33 @@ function generate_artificial_paths(
         end
     end
     end_depots = []
-    for k in data.N_depots
+    for k in graph.N_depots
         append!(end_depots, repeat([k], data.v_end[k]))
     end
     append!(end_depots,
         repeat(
-            data.N_depots, 
-            outer = Int(ceil((data.n_vehicles - sum(values(data.v_end))) / data.n_depots))
+            graph.N_depots, 
+            outer = Int(ceil((data.n_vehicles - sum(values(data.v_end))) / graph.n_depots))
         )
     )
     end_depots = end_depots[1:data.n_vehicles]
     
     for (v, (starting_node, current_node)) in enumerate(zip(start_depots, end_depots))
         starting_time = 0.0
-        starting_charge = data.B
+        starting_charge = graph.B
         key = (
             (starting_node, starting_time, starting_charge),  
             (current_node, starting_time, starting_charge)
         )
         # initialise a proportion of the customers to be served
-        served = zeros(Int, data.n_customers)
+        served = zeros(Int, graph.n_customers)
         for i in 1:length(served)
             if mod1(i, data.n_vehicles) == v
                 served[i] = 1
             end
         end
         s = Subpath(
-            n_customers = data.n_customers,
+            n_customers = graph.n_customers,
             starting_node = starting_node,
             starting_time = starting_time,
             starting_charge = starting_charge,
@@ -96,16 +97,16 @@ end
 
 function convert_path_label_to_path(
     path_label::PathLabel,
-    data::EVRPData,
+    graph::EVRPGraph,
 )
-    current_time, current_charge = (0.0, data.B)
+    current_time, current_charge = (0.0, graph.B)
     prev_time, prev_charge = current_time, current_charge
     s_labels = copy(path_label.subpath_labels)
     deltas = copy(path_label.charging_actions)
     p = Path(
         subpaths = Subpath[],
         charging_arcs = ChargingArc[],
-        served = zeros(Int, data.n_customers),
+        served = zeros(Int, graph.n_customers),
         arcs = NTuple{2, Int}[],
         customer_arcs = NTuple{2, Int}[],
     )
@@ -116,7 +117,7 @@ function convert_path_label_to_path(
         current_time = current_time + s_label.time_taken
         current_charge = current_charge - s_label.charge_taken
         s = Subpath(
-            n_customers = data.n_customers,
+            n_customers = graph.n_customers,
             starting_node = s_label.nodes[1],
             starting_time = prev_time,
             starting_charge = prev_charge,
@@ -147,28 +148,28 @@ function convert_path_label_to_path(
     end
     p.served = sum(s.served for s in p.subpaths)
     p.arcs = vcat([s.arcs for s in p.subpaths]...)
-    customers = [a[1] for a in p.arcs if a[1] in data.N_customers]
+    customers = [a[1] for a in p.arcs if a[1] in graph.N_customers]
     p.customer_arcs = collect(zip(customers[1:end-1], customers[2:end]))
     return p
 end
 
 function convert_pure_path_label_to_path(
     pure_path_label::PurePathLabel,
-    data::EVRPData,
+    graph::EVRPGraph,
 )
     p = Path(
         subpaths = Subpath[],
         charging_arcs = ChargingArc[],
-        served = zeros(Int, data.n_customers),
+        served = zeros(Int, graph.n_customers),
         arcs = NTuple{2, Int}[],
         customer_arcs = NTuple{2, Int}[],
     )
     states = NTuple{3, Int}[]
     current_subpath = Subpath(
-        n_customers = data.n_customers,
+        n_customers = graph.n_customers,
         starting_node = pure_path_label.nodes[1],
         starting_time = 0.0, 
-        starting_charge = data.B,
+        starting_charge = graph.B,
     )
     i = pure_path_label.nodes[1]
     for (j, e, s) in zip(pure_path_label.nodes[2:end], pure_path_label.excesses, pure_path_label.slacks)
@@ -176,9 +177,9 @@ function convert_pure_path_label_to_path(
         push!(current_subpath.arcs, (i, j))
         current_subpath.starting_time += (e + s)
         current_subpath.starting_charge += (e + s) 
-        current_subpath.current_time += (data.t[i,j] + e + s)
-        current_subpath.current_charge += (- data.q[i,j] + e + s)
-        if j in data.N_charging
+        current_subpath.current_time += (graph.t[i,j] + e + s)
+        current_subpath.current_charge += (- graph.q[i,j] + e + s)
+        if j in graph.N_charging
             push!(
                 states, 
                 (current_subpath.starting_node, current_subpath.starting_time, current_subpath.starting_charge), 
@@ -189,12 +190,12 @@ function convert_pure_path_label_to_path(
                 current_subpath,
             )
             current_subpath = Subpath(
-                n_customers = data.n_customers,
+                n_customers = graph.n_customers,
                 starting_node = j,
                 starting_time = current_subpath.current_time, 
                 starting_charge = current_subpath.current_charge,
             )
-        elseif j in data.N_customers
+        elseif j in graph.N_customers
             current_subpath.served[j] += 1
         end
         i = j
@@ -223,13 +224,13 @@ function convert_pure_path_label_to_path(
     end
     p.served = sum(s.served for s in p.subpaths)
     p.arcs = vcat([s.arcs for s in p.subpaths]...)
-    customers = [a[1] for a in p.arcs if a[1] in data.N_customers]
+    customers = [a[1] for a in p.arcs if a[1] in graph.N_customers]
     p.customer_arcs = collect(zip(customers[1:end-1], customers[2:end]))
     return p
 end
 
 function get_paths_from_negative_path_labels(
-    data::EVRPData,
+    graph::EVRPGraph,
     path_labels::Vector{PathLabel},
 )
     generated_paths = Dict{
@@ -237,14 +238,14 @@ function get_paths_from_negative_path_labels(
         Vector{Path},
     }()
     for path_label in path_labels
-        p = convert_path_label_to_path(path_label, data)
+        p = convert_path_label_to_path(path_label, graph)
         add_path_to_generated_paths!(generated_paths, p)
     end
     return generated_paths
 end
 
 function get_paths_from_negative_pure_path_labels(
-    data::EVRPData, 
+    graph::EVRPGraph,
     pure_path_labels::Vector{PurePathLabel},
 )
     generated_paths = Dict{
@@ -252,7 +253,7 @@ function get_paths_from_negative_pure_path_labels(
         Vector{Path},
     }()
     for pure_path_label in pure_path_labels
-        p = convert_pure_path_label_to_path(pure_path_label, data)
+        p = convert_pure_path_label_to_path(pure_path_label, graph)
         add_path_to_generated_paths!(generated_paths, p)
     end
     return generated_paths
@@ -260,6 +261,7 @@ end
 
 function path_formulation_build_model(
     data::EVRPData,
+    graph::EVRPGraph,
     some_paths::Dict{
         Tuple{NTuple{3, Int}, NTuple{3, Int}}, 
         Vector{Path},
@@ -299,20 +301,20 @@ function path_formulation_build_model(
     )
     @constraint(
         model, 
-        κ[i in data.N_depots],
+        κ[i in graph.N_depots],
         sum(
             sum(
-                z[((i,0,data.B),state2),p]
-                for p in 1:length(some_paths[((i,0,data.B),state2)])
+                z[((i,0,graph.B),state2),p]
+                for p in 1:length(some_paths[((i,0,graph.B),state2)])
             )
             for (state1, state2) in keys(some_paths)
-                if state1[1] == i && state1[2] == 0 && state1[3] == data.B
+                if state1[1] == i && state1[2] == 0 && state1[3] == graph.B
         )
-        == data.v_start[findfirst(x -> (x == i), data.N_depots)]
+        == data.v_start[findfirst(x -> (x == i), graph.N_depots)]
     )
     @constraint(
         model,
-        μ[n2 in data.N_depots],
+        μ[n2 in graph.N_depots],
         sum(
             sum(
                 z[(state1, state2),p]
@@ -325,7 +327,7 @@ function path_formulation_build_model(
     )
     @constraint(
         model,
-        ν[j in data.N_customers],
+        ν[j in graph.N_customers],
         sum(
             sum(
                 path_service[((state1, state2), j)][p] * z[(state1, state2), p]
@@ -380,13 +382,14 @@ function add_paths_to_path_model!(
         Vector{Path},
     },
     data::EVRPData,
+    graph::EVRPGraph,
 )
     mp_constraint_start_time = time()
     for state_pair in keys(generated_paths)
         if !(state_pair in keys(some_paths))
             some_paths[state_pair] = Path[]
             path_costs[state_pair] = Int[]
-            for i in 1:data.n_customers
+            for i in 1:graph.n_customers
                 path_service[(state_pair, i)] = Int[]
             end
             count = 0
@@ -406,10 +409,10 @@ function add_paths_to_path_model!(
                 # 2: add path cost
                 push!(
                     path_costs[state_pair], 
-                    compute_path_cost(data, p_new)
+                    compute_path_cost(data, graph, p_new)
                 )
                 # 3: add path service
-                for i in 1:data.n_customers
+                for i in 1:graph.n_customers
                     push!(path_service[(state_pair, i)], p_new.served[i])
                 end
                 # 4: create variable
@@ -419,7 +422,7 @@ function add_paths_to_path_model!(
                 set_normalized_coefficient(model[:κ][state1[1]], z[state_pair,count], 1)
                 set_normalized_coefficient(model[:μ][state2[1]], z[state_pair,count], 1)
                 # 6: modify customer service constraints
-                for l in data.N_customers
+                for l in graph.N_customers
                     set_normalized_coefficient(model[:ν][l], z[state_pair, count], p_new.served[l])
                 end
                 # 7: modify objective
@@ -446,7 +449,7 @@ function path_formulation_column_generation!(
         ConstraintRef,
     },
     data::EVRPData,
-    G::SimpleDiGraph{Int},
+    graph::EVRPGraph,
     some_paths::Dict{
         Tuple{NTuple{3, Int}, NTuple{3, Int}},
         Vector{Path},
@@ -471,7 +474,7 @@ function path_formulation_column_generation!(
     path_single_service::Bool = false,
     path_check_customers::Bool = false,
     christofides::Bool = false,
-    neighborhoods::Union{Nothing, NGRouteNeighborhood} = nothing,
+    neighborhoods::Union{Nothing, BitMatrix} = nothing,
     ngroute::Bool = false,
     ngroute_alt::Bool = false,
     verbose::Bool = true,
@@ -513,8 +516,8 @@ function path_formulation_column_generation!(
                 (key, p) => value.(z[(key, p)])
                 for (key, p) in keys(z)
             ),
-            "κ" => Dict(zip(data.N_depots, dual.(model[:κ]).data)),
-            "μ" => Dict(zip(data.N_depots, dual.(model[:μ]).data)),
+            "κ" => Dict(zip(graph.N_depots, dual.(model[:κ]).data)),
+            "μ" => Dict(zip(graph.N_depots, dual.(model[:μ]).data)),
             "ν" => dual.(model[:ν]).data,
             "σ" => Dict{Tuple{Vararg{Int}}, Float64}(
                 S => dual(WSR3_constraints[S])
@@ -534,8 +537,11 @@ function path_formulation_column_generation!(
             local full_labels_time
             try
                 (negative_full_labels, _, base_labels_time, full_labels_time) = subproblem_iteration_ours(
-                    data, G, 
-                    CGLP_results["κ"], CGLP_results["μ"], CGLP_results["ν"],
+                    data, graph, 
+                    CGLP_results["κ"], 
+                    CGLP_results["μ"], 
+                    CGLP_results["ν"], 
+                    CGLP_results["σ"], 
                     ;
                     neighborhoods = neighborhoods,
                     ngroute = ngroute,
@@ -554,8 +560,8 @@ function path_formulation_column_generation!(
                     throw(e)
                 end
             end
-            (generated_paths) = get_paths_from_negative_path_labels(
-                data, negative_full_labels,
+            generated_paths = get_paths_from_negative_path_labels(
+                graph, negative_full_labels,
             )
             push!(
                 CG_params["sp_base_time_taken"],
@@ -574,7 +580,11 @@ function path_formulation_column_generation!(
             local pure_path_labels_time
             try
                 (negative_pure_path_labels, _, pure_path_labels_time) = subproblem_iteration_benchmark(
-                    data, G, CGLP_results["κ"], CGLP_results["μ"], CGLP_results["ν"], CGLP_results["σ"]
+                    data, graph, 
+                    CGLP_results["κ"], 
+                    CGLP_results["μ"], 
+                    CGLP_results["ν"], 
+                    CGLP_results["σ"], 
                     ;
                     neighborhoods = neighborhoods, 
                     ngroute = ngroute, 
@@ -593,7 +603,7 @@ function path_formulation_column_generation!(
                 end
             end
             generated_paths = get_paths_from_negative_pure_path_labels(
-                data, negative_pure_path_labels,
+                graph, negative_pure_path_labels,
             )
             push!(
                 CG_params["sp_base_time_taken"],
@@ -626,7 +636,7 @@ function path_formulation_column_generation!(
             path_costs,
             path_service,
             generated_paths,
-            data,
+            data, graph,
         )
 
         push!(
@@ -722,10 +732,10 @@ end
 
 function enumerate_violated_path_WSR3_inequalities(
     paths::Vector{Tuple{Float64, Path}},
-    data::EVRPData,
+    graph::EVRPGraph,
 )
     S_list = Tuple{Float64, Vararg{Int}}[]
-    for S in combinations(data.N_customers, 3)
+    for S in combinations(graph.N_customers, 3)
         S_paths = [
             (val, p) for (val, p) in values(paths)
             if !isdisjoint(p.customer_arcs, Tuple.(permutations(S, 2)))
@@ -743,7 +753,12 @@ function enumerate_violated_path_WSR3_inequalities(
                     Set{Int}(
                         a1[2]
                         for (a1, a2) in zip(p.arcs[1:end-1], p.arcs[2:end])
-                            if a1[1] == ca[1] && a1[2] != ca[2] && a2[2] == ca[2]
+                            if (
+                                a1[1] == ca[1] 
+                                && a1[2] != ca[2] 
+                                && a2[2] == ca[2]
+                                && a1[2] in graph.N_charging_extra
+                            )
                     )
                 )
             end
@@ -789,9 +804,147 @@ function add_WSR3_constraints_to_path_model!(
     end
 end
 
+
+function generate_new_WSR3_to_charging_extra_map(
+    generated_WSR3_list::Vector{Tuple{Float64, Vararg{Int}}},
+    graph::EVRPGraph,
+)
+    WSR3_to_charging_extra_map = Dict{NTuple{4, Int}, Int}()
+    count = graph.n_nodes_extra
+    for WSR3 in generated_WSR3_list
+        S = Tuple(WSR3[2:4])
+        for cs in WSR3[5:end]
+            if (S..., cs) in values(graph.charging_extra_to_WSR3_map)
+                continue
+            end
+            count += 1
+            WSR3_to_charging_extra_map[(S..., cs)] = count
+        end
+    end
+    return WSR3_to_charging_extra_map
+end
+
+function augment_neighborhoods_with_WSR3_duals(
+    neighborhoods::BitMatrix,
+    generated_WSR3_to_charging_extra_map::Dict{NTuple{4, Int}, Int},
+)
+    new_neighborhoods = copy(neighborhoods)
+
+    for (key, _) in pairs(generated_WSR3_to_charging_extra_map)
+        S = Tuple(key[1:3])
+        cs = key[4]
+
+        # add cs and S to the neighborhood of i (for i in S)
+        for i in S
+            new_neighborhoods[i, cs] = true
+            new_neighborhoods[i, collect(S)] .= true
+        end
+    end
+    return new_neighborhoods
+end
+
+function augment_neighborhoods_extra_with_WSR3_duals(
+    neighborhoods::BitMatrix,
+    generated_WSR3_to_charging_extra_map::Dict{NTuple{4, Int}, Int},
+)
+    n_new_nodes = length(generated_WSR3_to_charging_extra_map)
+    n_total_nodes = size(neighborhoods, 1)
+    n_total_nodes_new = size(neighborhoods, 1) + n_new_nodes
+    new_neighborhoods = falses(n_total_nodes_new, n_total_nodes_new)
+    new_neighborhoods[1:n_total_nodes, 1:n_total_nodes] .= neighborhoods
+
+    for (key, cs_new) in pairs(generated_WSR3_to_charging_extra_map)
+        S = Tuple(key[1:3])
+        cs = key[4]
+
+        # # add cs and S to the neighborhood of i (for i in S)
+        # for i in S
+        #     new_neighborhoods[i, cs] = true
+        #     new_neighborhoods[i, cs_new] = true
+        #     new_neighborhoods[i, collect(S)] .= true
+        # end
+        new_neighborhoods[cs_new, cs_new] = true
+    end
+    return new_neighborhoods
+end
+
+function augment_graph_with_WSR3_duals!(
+    graph::EVRPGraph,
+    generated_WSR3_to_charging_extra_map::Dict{NTuple{4, Int}, Int},
+)
+    n_new_nodes = length(generated_WSR3_to_charging_extra_map)
+    n_total_nodes = graph.n_nodes_extra
+    n_total_nodes_new = graph.n_nodes_extra + n_new_nodes
+    
+    c = zeros(Float64, (n_total_nodes_new, n_total_nodes_new))
+    c[1:n_total_nodes, 1:n_total_nodes] .= graph.c
+    t = zeros(Float64, (n_total_nodes_new, n_total_nodes_new))
+    t[1:n_total_nodes, 1:n_total_nodes] .= graph.t
+    q = zeros(Float64, (n_total_nodes_new, n_total_nodes_new))
+    q[1:n_total_nodes, 1:n_total_nodes] .= graph.q
+
+    count = n_total_nodes
+    add_vertices!(graph.G, n_new_nodes)
+
+    for (key, cs_new) in pairs(generated_WSR3_to_charging_extra_map)
+        S = Tuple(key[1:3])
+        cs = key[4]
+
+        # initialize new vertex
+        graph.node_labels[cs_new] = graph.node_labels[cs]
+        graph.charging_extra_to_WSR3_map[cs_new] = (S..., cs)
+        graph.nodes_extra_to_nodes_map[cs_new] = cs
+            
+        # remove edges cs -> i (for i in S)
+        for i in S
+            rem_edge!(graph.G, cs, i)
+            delete!(graph.A, (cs, i))
+        end
+
+        # add edges i -> cs_new (for i in all nodes except cs)
+        for i in setdiff(graph.N_nodes, cs) # do not include extra CS
+            add_edge!(graph.G, i, cs_new)
+            push!(graph.A, (i, cs_new))
+            c[i, cs_new] = graph.c[i, cs]
+            t[i, cs_new] = graph.t[i, cs]
+            q[i, cs_new] = graph.q[i, cs]
+        end
+
+        # add edges cs_new -> i (for i in S)
+        for i in S
+            add_edge!(graph.G, cs_new, i)
+            push!(graph.A, (cs_new, i))
+            c[cs_new, i] = graph.c[cs, i]
+            t[cs_new, i] = graph.t[cs, i]
+            q[cs_new, i] = graph.q[cs, i]
+        end
+    end
+
+    merge!(graph.WSR3_to_charging_extra_map, generated_WSR3_to_charging_extra_map)
+
+    append!(graph.N_charging_extra, collect(n_total_nodes+1:n_total_nodes_new))
+    append!(graph.N_depots_charging_extra, collect(n_total_nodes+1:n_total_nodes_new))    
+    append!(graph.N_nodes_extra, collect(n_total_nodes+1:n_total_nodes_new))
+    append!(graph.α, zeros(Int, n_new_nodes))
+    append!(graph.β, fill(graph.T, n_new_nodes))
+
+    graph.n_charging_extra += n_new_nodes
+    graph.n_depots_charging_extra += n_new_nodes
+    graph.n_nodes_extra += n_new_nodes
+
+    graph.min_t = dijkstra_shortest_paths(graph.G, graph.N_depots, t).dists
+    graph.min_q = dijkstra_shortest_paths(graph.G, graph.N_depots_charging_extra, q).dists
+
+    graph.c = c
+    graph.t = t
+    graph.q = q
+
+    return graph
+end
+
 function path_formulation_column_generation_with_cuts(
     data::EVRPData, 
-    G::SimpleDiGraph{Int},
+    graph::EVRPGraph,
     ;
     Env = nothing,
     method::String = "ours",
@@ -803,7 +956,7 @@ function path_formulation_column_generation_with_cuts(
     christofides::Bool = false,
     ngroute::Bool = false,
     ngroute_alt::Bool = false,
-    ngroute_neighborhood_size::Int = Int(ceil(sqrt(data.n_customers))),
+    ngroute_neighborhood_size::Int = Int(ceil(sqrt(graph.n_customers))),
     ngroute_neighborhood_charging_depots_size::String = "small",
     verbose::Bool = true,
     time_limit::Float64 = Inf,
@@ -813,7 +966,7 @@ function path_formulation_column_generation_with_cuts(
 
     if ngroute
         neighborhoods = compute_ngroute_neighborhoods(
-            data, 
+            graph,
             ngroute_neighborhood_size; 
             charging_depots_size = ngroute_neighborhood_charging_depots_size,
         )
@@ -821,13 +974,13 @@ function path_formulation_column_generation_with_cuts(
         neighborhoods = nothing
     end
 
-    some_paths = generate_artificial_paths(data)
+    some_paths = generate_artificial_paths(data, graph)
     path_costs = compute_path_costs(
-        data, 
+        data, graph, 
         some_paths,
     )
     path_service = compute_path_service(
-        data, 
+        graph,
         some_paths,
     )
 
@@ -857,9 +1010,9 @@ function path_formulation_column_generation_with_cuts(
                 charging / depots           %s
 
             """,
-            data.n_customers,
-            data.n_depots,
-            data.n_charging,
+            graph.n_customers,
+            graph.n_depots,
+            graph.n_charging,
             data.n_vehicles,
             time_windows,
             method,
@@ -887,7 +1040,7 @@ function path_formulation_column_generation_with_cuts(
     )
 
     model, z = path_formulation_build_model(
-        data, some_paths, path_costs, path_service,
+        data, graph, some_paths, path_costs, path_service,
         ; 
         Env = Env,
     )
@@ -903,7 +1056,7 @@ function path_formulation_column_generation_with_cuts(
     while true
         CGLP_results, CG_params = path_formulation_column_generation!(
             model, z, WSR3_constraints,
-            data, G,
+            data, graph,
             some_paths, path_costs, path_service,
             printlist,
             ;
@@ -941,23 +1094,48 @@ function path_formulation_column_generation_with_cuts(
             converged = true
             break
         else
+            # Generate violated WSR3 inequalities
             CGLP_results["paths"] = collect_path_solution_support(
-                CGLP_results, some_paths, data,
+                CGLP_results, some_paths, data, graph
             )
-            generated_WSR3_list = enumerate_violated_path_WSR3_inequalities(CGLP_results["paths"], data)
+            generated_WSR3_list = enumerate_violated_path_WSR3_inequalities(
+                CGLP_results["paths"], 
+                graph,
+            )
             if length(generated_WSR3_list) == 0
                 break
             end
             append!(WSR3_list, generated_WSR3_list)
+            # Add violated inequalities to master problem
             add_WSR3_constraints_to_path_model!(
                 model, z, some_paths, 
                 WSR3_constraints, generated_WSR3_list, 
             )
-            if ngroute
-                for (_, S) in generated_WSR3_list
-                    for i in S
-                        neighborhoods.x[i] = union(neighborhoods.x[i], S)
-                    end
+            if method == "ours"
+                generated_WSR3_to_charging_extra_map = generate_new_WSR3_to_charging_extra_map(
+                    generated_WSR3_list,
+                    graph,
+                )
+                augment_graph_with_WSR3_duals!(
+                    graph,
+                    generated_WSR3_to_charging_extra_map,
+                )
+                if ngroute # FIXME
+                    neighborhoods = augment_neighborhoods_extra_with_WSR3_duals(
+                        neighborhoods,
+                        generated_WSR3_to_charging_extra_map,
+                    )
+                end
+            elseif method == "benchmark"
+                generated_WSR3_to_charging_extra_map = generate_new_WSR3_to_charging_extra_map(
+                    generated_WSR3_list,
+                    graph,
+                )
+                if ngroute # FIXME
+                    neighborhoods = augment_neighborhoods_with_WSR3_duals(
+                        neighborhoods,
+                        generated_WSR3_to_charging_extra_map,
+                    )
                 end
             end
         end
@@ -976,6 +1154,7 @@ function collect_path_solution_support(
         Vector{Path},
     },
     data::EVRPData,
+    graph::EVRPGraph,
     ;
 )
     results_paths = Tuple{Float64, Path}[]
@@ -990,7 +1169,7 @@ function collect_path_solution_support(
 
     sort!(
         results_paths,
-        by = x -> (-compute_path_cost(data, x[2]), -x[1]),
+        by = x -> (-compute_path_cost(data, graph, x[2]), -x[1]),
     )
     return results_paths
 end
@@ -1078,9 +1257,10 @@ end
 function collect_path_solution_metrics!(
     results,
     data::EVRPData, 
+    graph::EVRPGraph,
     paths,
 )
-    results["paths"] = collect_path_solution_support(results, paths, data)
+    results["paths"] = collect_path_solution_support(results, paths, data, graph)
     collect_solution_metrics!(results, data)
     return results
 end
@@ -1088,9 +1268,10 @@ end
 function compute_objective_from_path_solution(
     results_paths::Vector{Tuple{Float64, Path}},
     data::EVRPData,
+    graph::EVRPGraph,
 )
     return sum(
-        [val * compute_path_cost(data, p)
+        [val * compute_path_cost(data, graph, p)
         for (val, p) in results_paths],
         init = 0.0,
     )
@@ -1099,9 +1280,10 @@ end
 function plot_path_solution(
     results,
     data::EVRPData,
+    graph::EVRPGraph,
     paths,
 )
-    results["paths"] = collect_path_solution_support(results, paths, data)
+    results["paths"] = collect_path_solution_support(results, paths, data, graph)
     return plot_solution(results, data)
 end
 

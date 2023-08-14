@@ -119,6 +119,7 @@ struct EVRPData
     n_customers::Int
     n_vehicles::Int
     n_charging::Int
+    n_depots_charging::Int
     n_nodes::Int
     N_customers::Vector{Int}
     N_depots::Vector{Int}
@@ -143,19 +144,47 @@ struct EVRPData
     d::Vector{Int}
     C::Int
     T::Int
-    A::Dict{Tuple{Int64, Int64}, Int64}
     α::Vector{Int}
     β::Vector{Int}
     μ::Int
     B::Int
     travel_cost_coeff::Int
     charge_cost_coeff::Int
-    min_t::Vector{Int}
-    min_q::Vector{Int}
 end
 
-struct NGRouteNeighborhood 
-    x::Vector{Vector{Int}}
+mutable struct EVRPGraph
+    G::SimpleDiGraph{Int}
+    node_labels::Dict{Int, String}
+    charging_extra_to_WSR3_map::Dict{Int, NTuple{4, Int}}
+    WSR3_to_charging_extra_map::Dict{NTuple{4, Int}, Int}
+    nodes_extra_to_nodes_map::Dict{Int, Int}
+    c::Array{Int, 2}
+    t::Array{Int, 2}
+    q::Array{Int, 2}
+    const N_customers::Vector{Int}
+    const n_customers::Int
+    const N_depots::Vector{Int}
+    const n_depots::Int
+    const N_charging::Vector{Int}
+    const n_charging::Int
+    N_charging_extra::Vector{Int}
+    n_charging_extra::Int
+    const N_depots_charging::Vector{Int}
+    const n_depots_charging::Int
+    N_depots_charging_extra::Vector{Int}
+    n_depots_charging_extra::Int
+    const N_nodes::Vector{Int}
+    const n_nodes::Int
+    N_nodes_extra::Vector{Int}
+    n_nodes_extra::Int
+    A::Set{Tuple{Int, Int}}
+    const T::Int
+    const B::Int
+    const μ::Int
+    α::Vector{Int}
+    β::Vector{Int}
+    min_t::Vector{Int}
+    min_q::Vector{Int}
 end
 
 struct TimeLimitException <: Exception end
@@ -173,6 +202,7 @@ end
 
 function compute_subpath_cost(
     data::EVRPData,
+    graph::EVRPGraph,
     s::Subpath,
     M::Int = Int(1e10),
     ;
@@ -184,13 +214,14 @@ function compute_subpath_cost(
     end
 
     travel_cost = data.travel_cost_coeff * sum(
-        data.c[a...] for a in s.arcs
+        graph.c[a...] for a in s.arcs
     )
     return travel_cost
 end
 
 function compute_subpath_modified_cost(
     data::EVRPData,
+    graph::EVRPGraph,
     s::Subpath,
     κ::Dict{Int, Float64},
     μ::Dict{Int, Float64},
@@ -198,7 +229,7 @@ function compute_subpath_modified_cost(
     ;
     verbose = false,
 )
-    reduced_cost = compute_subpath_cost(data, s)
+    reduced_cost = compute_subpath_cost(data, graph, s)
     verbose && @printf("Subpath cost: \t\t%11.3f\n", reduced_cost)
 
     service_cost = 0.0
@@ -208,14 +239,14 @@ function compute_subpath_modified_cost(
     verbose && @printf("Service cost: \t\t%11.3f\n", service_cost)
     reduced_cost += service_cost
 
-    if s.starting_node in data.N_depots
-        if s.starting_time == 0.0 && s.starting_charge == data.B
+    if s.starting_node in graph.N_depots
+        if s.starting_time == 0.0 && s.starting_charge == graph.B
             verbose && @printf("Starting depot cost: \t%11.3f\n", (- κ[s.starting_node]))
             reduced_cost = reduced_cost - κ[s.starting_node]
         end
     end
 
-    if s.current_node in data.N_depots
+    if s.current_node in graph.N_depots
         verbose && @printf("Ending depot cost: \t%11.3f\n", ( - μ[s.current_node]))
         reduced_cost = reduced_cost - μ[s.current_node]
     end
@@ -227,6 +258,7 @@ end
 
 function compute_subpath_costs(
     data::EVRPData,
+    graph::EVRPGraph,
     all_subpaths::Dict{
         Tuple{NTuple{3, Int}, NTuple{3, Int}}, 
         Vector{Subpath},
@@ -236,7 +268,7 @@ function compute_subpath_costs(
 )
     subpath_costs = Dict(
         key => Int[
-            compute_subpath_cost(data, s, M;)
+            compute_subpath_cost(data, graph, s, M;)
             for s in all_subpaths[key]
         ]
         for key in keys(all_subpaths)
@@ -245,7 +277,7 @@ function compute_subpath_costs(
 end
 
 function compute_subpath_service(
-    data::EVRPData, 
+    graph::EVRPGraph,
     all_subpaths::Dict{
         Tuple{NTuple{3, Int}, NTuple{3, Int}}, 
         Vector{Subpath},
@@ -256,7 +288,7 @@ function compute_subpath_service(
             s.served[i]
             for s in all_subpaths[key]
         ]
-        for key in keys(all_subpaths), i in 1:data.n_customers
+        for key in keys(all_subpaths), i in 1:graph.n_customers
     )
     return subpath_service
 end
@@ -270,12 +302,13 @@ end
 
 function compute_path_cost(
     data::EVRPData,
+    graph::EVRPGraph, 
     p::Path,
     M::Int = Int(1e10),
     ;
     verbose = false,
 )
-    subpath_costs = length(p.subpaths) > 0 ? sum(compute_subpath_cost(data, s, M) for s in p.subpaths) : 0
+    subpath_costs = length(p.subpaths) > 0 ? sum(compute_subpath_cost(data, graph, s, M) for s in p.subpaths) : 0
     verbose && @printf("Subpath costs: \t\t%11.3f\n", subpath_costs)
 
     charging_arc_costs = length(p.charging_arcs) > 0 ? sum(compute_charging_arc_cost(data, a) for a in p.charging_arcs) : 0
@@ -286,6 +319,7 @@ end
 
 function compute_path_modified_cost(
     data::EVRPData,
+    graph::EVRPGraph,
     p::Path,
     κ::Dict{Int, Float64},
     μ::Dict{Int, Float64},
@@ -295,7 +329,7 @@ function compute_path_modified_cost(
 )
     reduced_cost = 0.0
     for s in p.subpaths
-        reduced_cost += compute_subpath_modified_cost(data, s, κ, μ, ν, verbose = verbose)
+        reduced_cost += compute_subpath_modified_cost(data, graph, s, κ, μ, ν, verbose = verbose)
     end
     charging_costs = length(p.charging_arcs) > 0 ? sum(compute_charging_arc_cost(data, a) for a in p.charging_arcs) : 0
     verbose && @printf("Charging arc costs: \t%11d\n", charging_costs)
@@ -309,6 +343,7 @@ end
 
 function compute_path_costs(
     data::EVRPData,
+    graph::EVRPGraph,
     all_paths::Dict{
         Tuple{NTuple{3, Int}, NTuple{3, Int}}, 
         Vector{Path},
@@ -318,7 +353,7 @@ function compute_path_costs(
 )
     path_costs = Dict(
         key => Int[
-            compute_path_cost(data, p, M;)
+            compute_path_cost(data, graph, p, M;)
             for p in all_paths[key]
         ]
         for key in keys(all_paths)
@@ -327,7 +362,7 @@ function compute_path_costs(
 end
 
 function compute_path_service(
-    data::EVRPData, 
+    graph::EVRPGraph,
     all_paths::Dict{
         Tuple{NTuple{3, Int}, NTuple{3, Int}}, 
         Vector{Path},
@@ -338,7 +373,7 @@ function compute_path_service(
             p.served[i]
             for p in all_paths[key]
         ]
-        for key in keys(all_paths), i in 1:data.n_customers
+        for key in keys(all_paths), i in 1:graph.n_customers
     )
     return path_service
 end
@@ -503,32 +538,16 @@ function generate_instance(
     )
     C = Int(ceil(sum(d) * load_tolerance / n_vehicles))
 
-    A = merge(
-        Dict(
-            (i,i) => 0 for i in N_depots # allow self-loops at depots
-        ),
-        Dict(
-            (i,j) => t[i,j] for (i,j) in permutations(vcat(N_customers, N_charging, N_depots), 2)
-        ),
-    )
-
     α, β = generate_times(T, n_customers, seeds[5], batch, permissiveness)
     α_charge = vcat(α, repeat([0], n_depots + n_charging))
     β_charge = vcat(β, repeat([T], n_depots + n_charging))
-
-    G = SimpleDiGraph{Int}(n_nodes)
-    for (i, j) in keys(A)
-        add_edge!(G, i, j)
-    end
-
-    t_ds = dijkstra_shortest_paths(G, N_depots, t)
-    q_ds = dijkstra_shortest_paths(G, vcat(N_depots, N_charging), q)
 
     data = EVRPData(
         n_depots,
         n_customers,
         n_vehicles,
         n_charging,
+        n_depots + n_charging,
         n_nodes,
         N_customers,
         N_depots,
@@ -553,17 +572,86 @@ function generate_instance(
         d,
         C,
         T * μ,
-        A,
         α_charge * μ,
         β_charge * μ,
         μ,
         B,
         travel_cost_coeff,
         charge_cost_coeff,
+    )
+    return data
+end
+
+function generate_graph_from_data(
+    data::EVRPData,
+)
+    A = union(
+        Set{Tuple{Int, Int}}(
+            (i,i) for i in data.N_depots # allow self-loops at depots
+        ),
+        Set{Tuple{Int, Int}}(
+            (i,j) for (i,j) in permutations(data.N_nodes, 2)
+        ),
+    )
+
+    G = SimpleDiGraph{Int}(data.n_nodes)
+    for (i, j) in A
+        add_edge!(G, i, j)
+    end
+
+    t_ds = dijkstra_shortest_paths(G, data.N_depots, data.t)
+    q_ds = dijkstra_shortest_paths(G, data.N_depots_charging, data.q)
+
+    node_labels = merge(Dict(
+        i => "Depot $ind" for (ind, i) in enumerate(data.N_depots)
+    ), Dict(
+        i => "Customer $ind" for (ind, i) in enumerate(data.N_customers)
+    ), Dict(
+        i => "Charging $ind" for (ind, i) in enumerate(data.N_charging)
+    ))
+
+    charging_extra_to_WSR3_map = Dict{Int, NTuple{4, Int}}()
+    WSR3_to_charging_extra_map = Dict{NTuple{4, Int}, Int}()
+    nodes_extra_to_nodes_map = Dict{Int, Int}(
+        i => i
+        for i in data.N_nodes
+    )
+
+    return EVRPGraph(
+        G,
+        node_labels,
+        charging_extra_to_WSR3_map,
+        WSR3_to_charging_extra_map,
+        nodes_extra_to_nodes_map,
+        copy(data.c),
+        copy(data.t),
+        copy(data.q),
+        copy(data.N_customers),
+        data.n_customers,
+        copy(data.N_depots),
+        data.n_depots,
+        copy(data.N_charging),
+        data.n_charging,
+        copy(data.N_charging),
+        data.n_charging,
+        copy(data.N_depots_charging),
+        data.n_depots_charging,
+        copy(data.N_depots_charging),
+        data.n_depots_charging,
+        copy(data.N_nodes),
+        data.n_nodes,
+        copy(data.N_nodes),
+        data.n_nodes,
+        A,
+        data.T,
+        data.B,
+        data.μ,
+        copy(data.α), 
+        copy(data.β),
         t_ds.dists,
         q_ds.dists,
     )
-    return data, G
+
 end
 
 function generate_time_windows(
@@ -636,55 +724,54 @@ function charge_to_specified_level(
 end
 
 function compute_ngroute_neighborhoods(
-    data::EVRPData, 
+    graph::EVRPGraph,
     k::Int, 
     ;
     charging_depots_size::String = "small",
 )
-    if !(1 ≤ k ≤ data.n_customers)
+    if !(1 ≤ k ≤ graph.n_customers)
         error()
     end
-    customer_neighborhoods = [
-        sortperm(data.distances[i, data.N_customers])[1:k]
-        for i in data.N_customers
-    ]
+    neighborhoods = falses(graph.n_nodes_extra, graph.n_nodes_extra)
+    for i in graph.N_customers
+        neighborhoods[i, sortperm(graph.c[i, graph.N_customers])[1:k]] .= true
+    end
     if charging_depots_size == "small"
-        depots_charging_neighborhoods = [
-            [i]
-            for i in data.N_depots_charging
-        ]
+        for i in graph.N_depots_charging_extra
+            neighborhoods[i,i] = true
+        end
     elseif charging_depots_size == "large"
-        depots_charging_neighborhoods = [
-            vcat(data.N_customers, i) 
-            for i in data.N_depots_charging
-        ]
+        for i in graph.N_depots_charging_extra
+            neighborhoods[i,i] = true
+            neighborhoods[i,graph.N_customers] .= true
+        end
     else
         error("`charging_depots_size` argument not recognized.")
     end
-    return NGRouteNeighborhood(vcat(customer_neighborhoods, depots_charging_neighborhoods))
+    return neighborhoods
 end
 
 function ngroute_create_set(
-    neighborhoods::NGRouteNeighborhood, 
+    neighborhoods::BitMatrix, 
     set::Tuple{Vararg{Int}}, 
     next_node::Int,
 )
     new_set = Int[
         node for node in set
-            if node in neighborhoods.x[next_node]
+            if neighborhoods[next_node, node]
     ]
     push!(new_set, next_node) 
     return Tuple(sort(unique(new_set)))
 end
 
 function ngroute_create_set_alt(
-    neighborhoods::NGRouteNeighborhood, 
+    neighborhoods::BitMatrix, 
     set::Vector{Int},
     next_node::Int,
 )
     new_set = zeros(Int, length(set))
     for node in eachindex(set)
-        if set[node] == 1 && node in neighborhoods.x[next_node]
+        if set[node] == 1 && neighborhoods[next_node, node]
             new_set[node] = 1
         end
     end
@@ -693,28 +780,71 @@ function ngroute_create_set_alt(
 end
 
 function compute_arc_modified_costs(
+    graph::EVRPGraph,
     data::EVRPData,
     ν::Vector{Float64}, 
+    ;
+    σ::Dict{Tuple{Vararg{Int}}, Float64} = Dict{Tuple{Vararg{Int}}, Float64}(),
 )
-    modified_costs = data.travel_cost_coeff * Float64.(copy(data.c))
-    for j in data.N_customers
-        for i in data.N_nodes
+    modified_costs = data.travel_cost_coeff * Float64.(copy(graph.c))
+    for j in graph.N_customers
+        for i in graph.N_nodes_extra
             modified_costs[i,j] -= ν[j]
+        end
+    end
+    for (key, val) in pairs(σ)
+        S = Tuple(key[1:3])
+        for cs in key[4:end]
+            csnew = graph.WSR3_to_charging_extra_map[(S..., cs)]
+            for i in S
+                modified_costs[i, csnew] -= val
+            end
         end
     end
     return modified_costs
 end
 
+function compute_WSR3_sigma_costs(
+    σ::Dict{Tuple{Vararg{Int}}, Float64},
+    graph::EVRPGraph,
+)
+    σ_costs = Dict{NTuple{3, Int}, Float64}()
+    for (prev_node, current_node, next_node) in Iterators.product(
+        graph.N_customers,
+        graph.N_customers,
+        graph.N_customers,
+    )
+        σ_costs[(prev_node, current_node, next_node)] = - sum(
+            [
+                σ[S] for S in keys(σ)
+                if next_node in S && current_node in S && !(prev_node in S)
+            ],
+            init = 0.0
+        )
+    end
+    for (prev_node, current_node, next_node) in setdiff(
+        Iterators.product(
+            graph.N_nodes_extra, 
+            graph.N_nodes_extra, 
+            graph.N_nodes_extra,
+        ),
+        keys(σ_costs),
+    )
+        σ_costs[(prev_node, current_node, next_node)] = 0.0
+    end
+    return σ_costs
+end
+
 function compute_WSR3_sigma_2costs(
     σ::Dict{Tuple{Vararg{Int}}, Float64},
-    data::EVRPData,
+    graph::EVRPGraph,
 )
     σ_costs = Dict{NTuple{4, Int}, Float64}()
     for (prev_prev_node, prev_node, current_node, next_node) in Iterators.product(
-        data.N_nodes,
-        data.N_customers,
-        data.N_customers,
-        data.N_customers,
+        graph.N_nodes_extra,
+        graph.N_customers,
+        graph.N_customers,
+        graph.N_customers,
     )
         σ_costs[(prev_prev_node, prev_node, current_node, next_node)] = - sum(
             [
@@ -725,10 +855,10 @@ function compute_WSR3_sigma_2costs(
         )
     end
     for (prev_prev_node, prev_node, current_node, next_node) in Iterators.product(
-        data.N_customers,
-        data.N_charging,
-        data.N_customers,
-        data.N_customers,
+        graph.N_customers,
+        graph.N_charging_extra,
+        graph.N_customers,
+        graph.N_customers,
     )
         σ_costs[(prev_prev_node, prev_node, current_node, next_node)] = - sum(
             [
@@ -739,10 +869,10 @@ function compute_WSR3_sigma_2costs(
         )
     end
     for (prev_prev_node, prev_node, current_node, next_node) in Iterators.product(
-        data.N_customers,
-        data.N_customers,
-        data.N_charging,
-        data.N_customers,
+        graph.N_customers,
+        graph.N_customers,
+        graph.N_charging_extra,
+        graph.N_customers,
     )
         σ_costs[(prev_prev_node, prev_node, current_node, next_node)] = - sum(
             [
@@ -754,7 +884,10 @@ function compute_WSR3_sigma_2costs(
     end
     for (prev_prev_node, prev_node, current_node, next_node) in setdiff(
         Iterators.product(
-            data.N_nodes, data.N_nodes, data.N_nodes, data.N_nodes,
+            graph.N_nodes_extra, 
+            graph.N_nodes_extra, 
+            graph.N_nodes_extra, 
+            graph.N_nodes_extra, 
         ),
         keys(σ_costs),
     )
@@ -780,7 +913,7 @@ function plot_instance(
     annotate!.(
         data.customer_coords[1,:] .+ 0.1, data.customer_coords[2,:], 
         text.(
-            collect(string(i) for i in 1:data.n_customers), 
+            collect(string(i) for i in 1:graph.n_customers), 
             :green, :left, 11
         )
     )
@@ -793,7 +926,7 @@ function plot_instance(
     annotate!.(
         data.depot_coords[1,:] .+ 0.1, data.depot_coords[2,:], 
         text.(
-            collect("M" * string(i) for i in 1:data.n_depots), 
+            collect("M" * string(i) for i in 1:graph.n_depots), 
             :black, :left, 11
         )
     )
@@ -806,7 +939,7 @@ function plot_instance(
     annotate!.(
         data.charging_coords[1,:] .+ 0.1, data.charging_coords[2,:], 
         text.(
-            collect("R" * string(i) for i in 1:data.n_charging), 
+            collect("R" * string(i) for i in 1:graph.n_charging), 
             :grey, :left, 11
         )
     )

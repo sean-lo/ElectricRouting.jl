@@ -43,11 +43,11 @@ sample_cg_number_of_subpaths = sum(
     length(v) for v in values(sample_cg_subpaths)
 )
 sample_cg_subpath_costs = compute_subpath_costs(
-    sample_data, 
+    sample_data, sample_graph, 
     sample_cg_subpaths,
 )
 sample_cg_subpath_service = compute_subpath_service(
-    sample_data, 
+    sample_graph, 
     sample_cg_subpaths,
 )
 (
@@ -156,11 +156,11 @@ for row_index in task_index:n_tasks:size(args_df, 1)
     )
     savefig("$(@__DIR__)/plots/$filename.png")
     cg_subpath_costs = compute_subpath_costs(
-        data, 
+        data, graph, 
         cg_subpaths,
     )
     cg_subpath_service = compute_subpath_service(
-        data, 
+        graph, 
         cg_subpaths,
     )
     (

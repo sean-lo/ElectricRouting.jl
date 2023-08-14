@@ -1,16 +1,13 @@
 # TODO:
 
 ## Code
-- [x] acceleration strategy: ensure that it gets the same objective as non-accelerated
-    - note: it might not, because we generate paths but solve the subpath relaxation. 
-- [x] investigate instances of inequalities not satisfied: $$\text{CG}_{\text{label}}(\mathcal{P}) \geq \text{CG}_{2,\text{label}}(\mathcal{S}) \geq \text{CG}_{1,\text{label}}(\mathcal{S})$$
-- [ ] unify code in `check_customers = true` and `check_customers = false` in `generate_base_labels()`
-- [x] Investigate why non-elementary paths themselves don't converge
-- [ ] Move code to `path_formulation.jl`, and implement the column generation on path vars
-- [ ] Move back to slower (non-Floyd-Warshall) code in `generate_base_labels()`, in order to generate non-elementary subpaths w/ 2-loops
-    - note: maybe we don't care about 2-loops!
-- [ ] Investigate if there exists faster stitching code (buckets idea)
-
-## Research
-- [ ] Think if there exists problem settings of VRPs w/o TW and w/o capacity
-- [ ] Investigate if partial node labels / iteratively expanding partial set of node labels can be leveraged 
+- [x] modify code in `desaulniers_benchmark.jl`: add history of 1 for all code
+- [ ] check that lower bounds after cuts never go down
+    - [x] in `subpath_stitching.jl`, for `generate_base_labels_ngroute[_alt]_sigma`: requires "first_node" (only if the subpath starts at a CS) and history of 1 (due to interaction with Christofides)
+- [ ] think about how to implement "smart Christofides": for each label, 2 paths:
+    - the actual best path, and
+    - a second path with those parameters which does not visit the second-to-last node of the best path
+- [ ] investigate finite termination issue after first round of cuts
+    - [ ] `add_paths_to_path_model!`: need to add the paths to the relevant violated WSR3 inequalities (obviously!)
+- [ ] commit 
+- [ ] implement adaptive neighborhoods idea
