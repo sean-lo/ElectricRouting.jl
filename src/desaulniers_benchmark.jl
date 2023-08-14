@@ -235,7 +235,6 @@ function find_nondominated_paths(
     ;
     single_service::Bool = false,
     check_customers::Bool = true,
-    christofides::Bool = true,
     time_limit::Float64 = Inf,
 )
 
@@ -306,12 +305,6 @@ function find_nondominated_paths(
                     # println("already served $next_node")
                     continue
                 end
-                # Preventing customer 2-cycles (Christofides)
-                if christofides 
-                    if length(current_path.nodes) ≥ 2 && current_path.nodes[end-1] == next_node
-                        continue
-                    end
-                end
             end
 
             (feasible, new_path) = compute_new_pure_path(
@@ -379,6 +372,172 @@ function find_nondominated_paths(
     return pure_path_labels
 end
 
+function find_nondominated_paths_christofides(
+    data::EVRPData, 
+    graph::EVRPGraph,
+    κ::Dict{Int, Float64},
+    μ::Dict{Int, Float64},
+    ν::Vector{Float64}, 
+    α::Vector{Int},
+    β::Vector{Int},
+    ;
+    single_service::Bool = false,
+    check_customers::Bool = true,
+    time_limit::Float64 = Inf,
+)
+
+    start_time = time()
+    modified_costs = compute_arc_modified_costs(graph, data, ν)
+
+    keylen = check_customers ? graph.n_customers + 3 : 3
+    pure_path_labels = Dict(
+        starting_node => Dict(
+            current_node => Dict(
+                prev_node => SortedDict{
+                    NTuple{keylen, Int}, 
+                    PurePathLabel,
+                    Base.Order.ForwardOrdering,
+                }(Base.Order.ForwardOrdering())
+                for prev_node in graph.N_nodes_extra
+            )
+            for current_node in graph.N_nodes_extra
+        )
+        for starting_node in graph.N_depots
+    )
+
+    if check_customers
+        # label key here has the following fields:
+        # 1) current minimum time T_i(min)
+        # 2) negative of current max charge -B_i(max)
+        # 3) difference between min time and min charge, T_i(min) - B_i(min)
+        # 4) if applicable, whether i-th customer served
+        key = (0, -graph.B, -graph.B, zeros(Int, graph.n_customers)...)
+    else
+        key = (0, -graph.B, -graph.B)
+    end
+
+    unexplored_states = SortedSet{NTuple{keylen + 3, Int}}()
+    for depot in graph.N_depots
+        pure_path_labels[depot][depot][key] = PurePathLabel(
+            0.0,
+            [depot],
+            Int[],
+            Int[],
+            0,
+            0,
+            graph.B,
+            graph.B,
+            false,
+            zeros(Int, graph.n_customers),
+            false,
+        )
+        push!(
+            unexplored_states, 
+            (
+                key..., 
+                depot, # starting_node
+                depot, # prev_node 
+                depot, # current_node
+            )
+        )
+    end
+
+    while length(unexplored_states) > 0
+        if time_limit < time() - start_time
+            throw(TimeLimitException())
+        end
+        state = pop!(unexplored_states)
+        starting_node = state[end-2]
+        prev_node = state[end-1]
+        current_node = state[end]
+        current_key = state[1:end-3]
+        if !(current_key in keys(pure_path_labels[starting_node][current_node][prev_node]))
+            continue
+        end
+        current_path = pure_path_labels[starting_node][current_node][prev_node][current_key]
+        for next_node in setdiff(outneighbors(graph.G, current_node), current_node)
+            if next_node in graph.N_customers
+                # single-service requirement
+                if (
+                    single_service 
+                    && current_path.served[next_node] > 0
+                )
+                    # println("already served $next_node")
+                    continue
+                end
+                # Preventing customer 2-cycles (Christofides)
+                if length(current_path.nodes) ≥ 2 && current_path.nodes[end-1] == prev_node == next_node
+                    continue
+                end
+            end
+
+            (feasible, new_path) = compute_new_pure_path(
+                current_path, 
+                current_node, next_node, 
+                data, graph,
+                α, β, modified_costs,
+            )
+            if !feasible
+                continue
+            end
+
+            # add new_path to collection
+            if check_customers
+                new_key = (
+                    new_path.time_mincharge, 
+                    - new_path.charge_maxcharge, 
+                    new_path.time_mincharge - new_path.charge_mincharge, 
+                    new_path.served...,
+                )
+            else
+                new_key = (
+                    new_path.time_mincharge, 
+                    - new_path.charge_maxcharge, 
+                    new_path.time_mincharge - new_path.charge_mincharge
+                )
+            end
+            added = add_pure_path_label_to_collection!(
+                pure_path_labels[starting_node][next_node][current_node], 
+                new_key, new_path, 
+                ;
+                verbose = false,
+            )
+            if added && !(next_node in graph.N_depots)
+                new_state = (new_key..., starting_node, current_node, next_node)
+                push!(unexplored_states, new_state)
+            end
+        end
+    end
+
+    for depot in graph.N_depots
+        for path in values(pure_path_labels[depot][depot][depot])
+            if length(path.nodes) == 1
+                path.nodes = [depot, depot]
+                path.excesses = [0]
+                path.slacks = [0]
+            end
+        end
+    end
+    
+    for starting_node in graph.N_depots
+        for end_node in setdiff(keys(pure_path_labels[starting_node]), graph.N_depots)
+            delete!(pure_path_labels[starting_node], end_node)
+        end
+    end
+
+    for starting_node in graph.N_depots
+        for end_node in graph.N_depots
+            for prev_node in keys(pure_path_labels[starting_node][end_node])
+                for path in values(pure_path_labels[starting_node][end_node][prev_node])
+                    path.cost = path.cost - κ[starting_node] - μ[end_node]
+                end
+            end
+        end
+    end
+
+    return pure_path_labels
+end
+
 function find_nondominated_paths_ngroute(
     data::EVRPData, 
     graph::EVRPGraph,
@@ -389,7 +548,6 @@ function find_nondominated_paths_ngroute(
     α::Vector{Int},
     β::Vector{Int},
     ;
-    christofides::Bool = true,
     time_limit::Float64 = Inf,
 )
 
@@ -463,14 +621,6 @@ function find_nondominated_paths_ngroute(
                     # only if one can extend current_subpath along next_node according to ng-route rules
                     continue
                 end
-                if next_node in graph.N_customers
-                    # Preventing customer 2-cycles (Christofides)
-                    if christofides 
-                        if length(current_path.nodes) ≥ 2 && current_path.nodes[end-1] == next_node
-                            continue
-                        end
-                    end
-                end
 
                 (feasible, new_path) = compute_new_pure_path(
                     current_path, 
@@ -540,7 +690,7 @@ function find_nondominated_paths_ngroute(
     return pure_path_labels
 end
 
-function find_nondominated_paths_ngroute_1(
+function find_nondominated_paths_ngroute_christofides(
     data::EVRPData, 
     graph::EVRPGraph,
     neighborhoods::BitMatrix,
@@ -550,7 +700,6 @@ function find_nondominated_paths_ngroute_1(
     α::Vector{Int},
     β::Vector{Int},
     ;
-    christofides::Bool = true,
     time_limit::Float64 = Inf,
 )
 
@@ -631,10 +780,8 @@ function find_nondominated_paths_ngroute_1(
                 end
                 if next_node in graph.N_customers
                     # Preventing customer 2-cycles (Christofides)
-                    if christofides 
-                        if length(current_path.nodes) ≥ 2 && current_path.nodes[end-1] == prev_node == next_node
-                            continue
-                        end
+                    if length(current_path.nodes) ≥ 2 && current_path.nodes[end-1] == prev_node == next_node
+                        continue
                     end
                 end
 
@@ -922,7 +1069,6 @@ function find_nondominated_paths_ngroute_alt(
     α::Vector{Int},
     β::Vector{Int},
     ;
-    christofides::Bool = true,
     time_limit::Float64 = Inf,
 )
 
@@ -980,14 +1126,6 @@ function find_nondominated_paths_ngroute_alt(
                 # if next_node is a customer not yet visited, proceed
                 # only if one can extend current_subpath along next_node according to ng-route rules
                 continue
-            end
-            if next_node in graph.N_customers
-                # Preventing customer 2-cycles (Christofides)
-                if christofides 
-                    if length(current_path.nodes) ≥ 2 && current_path.nodes[end-1] == next_node
-                        continue
-                    end
-                end
             end
 
             (feasible, new_path) = compute_new_pure_path(
@@ -1048,7 +1186,7 @@ end
 
 
 
-function find_nondominated_paths_ngroute_alt_1(
+function find_nondominated_paths_ngroute_alt_christofides(
     data::EVRPData, 
     graph::EVRPGraph,
     neighborhoods::BitMatrix,
@@ -1058,7 +1196,6 @@ function find_nondominated_paths_ngroute_alt_1(
     α::Vector{Int},
     β::Vector{Int},
     ;
-    christofides::Bool = true,
     time_limit::Float64 = Inf,
 )
 
@@ -1128,10 +1265,8 @@ function find_nondominated_paths_ngroute_alt_1(
             end
             if next_node in graph.N_customers
                 # Preventing customer 2-cycles (Christofides)
-                if christofides 
-                    if length(current_path.nodes) ≥ 2 && current_path.nodes[end-1] == prev_node == next_node
-                        continue
-                    end
+                if length(current_path.nodes) ≥ 2 && current_path.nodes[end-1] == prev_node == next_node
+                    continue
                 end
             end
 
@@ -1145,13 +1280,6 @@ function find_nondominated_paths_ngroute_alt_1(
                 continue
             end
 
-            # if !(current_node in keys(pure_path_labels[starting_node][next_node]))
-            #     pure_path_labels[starting_node][next_node][current_node] = SortedDict{
-            #         NTuple{graph.n_nodes_extra + 3, Int}, 
-            #         PurePathLabel,
-            #         Base.Order.ForwardOrdering,
-            #     }(Base.Order.ForwardOrdering())
-            # end
             new_set = ngroute_create_set_alt(neighborhoods, collect(current_set), next_node)
             new_key = (
                 new_path.time_mincharge, 
@@ -1439,12 +1567,19 @@ function subproblem_iteration_benchmark(
 
     if ngroute && !ngroute_alt
         if length(σ) == 0
-            pure_path_labels_result = @timed find_nondominated_paths_ngroute_1(
-                data, graph, neighborhoods, κ, μ, ν, α, β,
-                ;
-                christofides = christofides,
-                time_limit = time_limit - (time() - start_time),
-            )
+            if christofides
+                pure_path_labels_result = @timed find_nondominated_paths_ngroute_christofides(
+                    data, graph, neighborhoods, κ, μ, ν, α, β,
+                    ;
+                    time_limit = time_limit - (time() - start_time),
+                )
+            else
+                pure_path_labels_result = @timed find_nondominated_paths_ngroute(
+                    data, graph, neighborhoods, κ, μ, ν, α, β,
+                    ;
+                    time_limit = time_limit - (time() - start_time),
+                )
+            end
         else
             pure_path_labels_result = @timed find_nondominated_paths_ngroute_sigma(
                 data, graph, neighborhoods, κ, μ, ν, σ, α, β,
@@ -1455,12 +1590,19 @@ function subproblem_iteration_benchmark(
         end
     elseif ngroute && ngroute_alt
         if length(σ) == 0
-            pure_path_labels_result = @timed find_nondominated_paths_ngroute_alt_1(
-                data, graph, neighborhoods, κ, μ, ν, α, β,
-                ;
-                christofides = christofides,
-                time_limit = time_limit - (time() - start_time),
-            )
+            if christofides
+                pure_path_labels_result = @timed find_nondominated_paths_ngroute_alt_christofides(
+                    data, graph, neighborhoods, κ, μ, ν, α, β,
+                    ;
+                    time_limit = time_limit - (time() - start_time),
+                )
+            else
+                pure_path_labels_result = @timed find_nondominated_paths_ngroute_alt(
+                    data, graph, neighborhoods, κ, μ, ν, α, β,
+                    ;
+                    time_limit = time_limit - (time() - start_time),
+                )
+            end
         else
             pure_path_labels_result = @timed find_nondominated_paths_ngroute_alt_sigma(
                 data, graph, neighborhoods, κ, μ, ν, σ, α, β,
@@ -1470,14 +1612,23 @@ function subproblem_iteration_benchmark(
             )
         end
     else
-        pure_path_labels_result = @timed find_nondominated_paths(
-            data, graph, κ, μ, ν, α, β,
-            ;
-            single_service = path_single_service, 
-            check_customers = path_check_customers,
-            christofides = christofides,
-            time_limit = time_limit - (time() - start_time),
-        )
+        if christofides
+            pure_path_labels_result = @timed find_nondominated_paths_christofides(
+                data, graph, κ, μ, ν, α, β,
+                ;
+                single_service = path_single_service, 
+                check_customers = path_check_customers,
+                time_limit = time_limit - (time() - start_time),
+            )
+        else
+            pure_path_labels_result = @timed find_nondominated_paths(
+                data, graph, κ, μ, ν, α, β,
+                ;
+                single_service = path_single_service, 
+                check_customers = path_check_customers,
+                time_limit = time_limit - (time() - start_time),
+            )
+        end
     end
     pure_path_labels_time = pure_path_labels_result.time
     negative_pure_path_labels = get_negative_pure_path_labels_from_pure_path_labels( pure_path_labels_result.value)
