@@ -161,6 +161,34 @@ function ngroute_extend_partial_path_check_alt(
     return (new_set, true)
 end
 
+function compute_next_subpath(
+    current_subpath::BaseSubpathLabel,
+    graph::EVRPGraph,
+    current_node::Int,
+    next_node::Int,
+    modified_costs::Matrix{Float64},
+)
+
+    # time and charge feasibility
+    # if current_subpath.time_taken + graph.t[current_node, next_node] + graph.min_t[next_node] > graph.T
+    #     return (false, nothing)
+    # end 
+
+    if current_subpath.charge_taken + graph.q[current_node, next_node] + graph.min_q[next_node] > graph.B
+        return (false, nothing)
+    end
+
+    new_subpath = copy(current_subpath)
+    new_subpath.time_taken += graph.t[current_node, next_node]
+    new_subpath.charge_taken += graph.q[current_node, next_node]
+    new_subpath.cost += modified_costs[current_node, next_node]
+    push!(new_subpath.nodes, next_node)
+    if next_node in graph.N_customers
+        new_subpath.served[next_node] += 1
+    end
+    return (true, new_subpath)
+end
+
 function generate_base_labels_nonsingleservice(
     data::EVRPData,
     graph::EVRPGraph,
@@ -732,21 +760,12 @@ function generate_base_labels_ngroute(
                     # only if one can extend current_subpath along next_node according to ng-route rules
                     continue
                 end
-                # time and charge feasibility
-                # if current_subpath.time_taken + graph.t[current_node, next_node] + graph.min_t[next_node] > graph.T
-                #     continue
-                # end 
-                if current_subpath.charge_taken + graph.q[current_node, next_node] + graph.min_q[next_node] > graph.B
+                (feasible, new_subpath) = compute_next_subpath(
+                    current_subpath, graph, 
+                    current_node, next_node, modified_costs,
+                )
+                if !feasible
                     continue
-                end
-
-                new_subpath = copy(current_subpath)
-                new_subpath.time_taken += graph.t[current_node, next_node]
-                new_subpath.charge_taken += graph.q[current_node, next_node]
-                new_subpath.cost += modified_costs[current_node, next_node]
-                push!(new_subpath.nodes, next_node)
-                if next_node in graph.N_customers
-                    new_subpath.served[next_node] += 1
                 end
 
                 new_set = ngroute_create_set(neighborhoods, current_set, next_node)
@@ -897,21 +916,13 @@ function generate_base_labels_ngroute_christofides(
                         continue
                     end
                 end
-                # time and charge feasibility
-                # if current_subpath.time_taken + graph.t[current_node, next_node] + graph.min_t[next_node] > graph.T
-                #     continue
-                # end 
-                if current_subpath.charge_taken + graph.q[current_node, next_node] + graph.min_q[next_node] > graph.B
-                    continue
-                end
-
-                new_subpath = copy(current_subpath)
-                new_subpath.time_taken += graph.t[current_node, next_node]
-                new_subpath.charge_taken += graph.q[current_node, next_node]
-                new_subpath.cost += modified_costs[current_node, next_node]
-                push!(new_subpath.nodes, next_node)
-                if next_node in graph.N_customers
-                    new_subpath.served[next_node] += 1
+                                
+                (feasible, new_subpath) = compute_next_subpath(
+                    current_subpath, graph,
+                    current_node, next_node, modified_costs,
+                )
+                if !feasible 
+                    continue 
                 end
 
                 if first_node == starting_node
@@ -1066,21 +1077,13 @@ function generate_base_labels_ngroute_sigma(
                     # only if one can extend current_subpath along next_node according to ng-route rules
                     continue
                 end
-                # time and charge feasibility
-                # if current_subpath.time_taken + graph.t[current_node, next_node] + graph.min_t[next_node] > graph.T
-                #     continue
-                # end 
-                if current_subpath.charge_taken + graph.q[current_node, next_node] + graph.min_q[next_node] > graph.B
-                    continue
-                end
-
-                new_subpath = copy(current_subpath)
-                new_subpath.time_taken += graph.t[current_node, next_node]
-                new_subpath.charge_taken += graph.q[current_node, next_node]
-                new_subpath.cost += modified_costs[current_node, next_node]
-                push!(new_subpath.nodes, next_node)
-                if next_node in graph.N_customers
-                    new_subpath.served[next_node] += 1
+                                
+                (feasible, new_subpath) = compute_next_subpath(
+                    current_subpath, graph,
+                    current_node, next_node, modified_costs,
+                )
+                if !feasible 
+                    continue 
                 end
 
                 new_subpath.cost += σ_costs[(prev_node, current_node, next_node)]
@@ -1239,21 +1242,13 @@ function generate_base_labels_ngroute_sigma_christofides(
                         continue
                     end
                 end
-                # time and charge feasibility
-                # if current_subpath.time_taken + graph.t[current_node, next_node] + graph.min_t[next_node] > graph.T
-                #     continue
-                # end 
-                if current_subpath.charge_taken + graph.q[current_node, next_node] + graph.min_q[next_node] > graph.B
-                    continue
-                end
-
-                new_subpath = copy(current_subpath)
-                new_subpath.time_taken += graph.t[current_node, next_node]
-                new_subpath.charge_taken += graph.q[current_node, next_node]
-                new_subpath.cost += modified_costs[current_node, next_node]
-                push!(new_subpath.nodes, next_node)
-                if next_node in graph.N_customers
-                    new_subpath.served[next_node] += 1
+                                
+                (feasible, new_subpath) = compute_next_subpath(
+                    current_subpath, graph,
+                    current_node, next_node, modified_costs,
+                )
+                if !feasible 
+                    continue 
                 end
 
                 new_subpath.cost += σ_costs[(prev_node, current_node, next_node)]
@@ -1390,7 +1385,7 @@ function generate_base_labels_ngroute_alt(
         if !(current_key in keys(base_labels[starting_node][current_node]))
             continue
         end
-        current_set = state[2:end-4]
+        current_set = state[2:end-2]
         current_subpath = base_labels[starting_node][current_node][current_key]
         for next_node in setdiff(outneighbors(graph.G, current_node), current_node)
             if next_node in graph.N_customers && current_set[next_node] == 1
@@ -1398,21 +1393,13 @@ function generate_base_labels_ngroute_alt(
                 # only if one can extend current_subpath along next_node according to ng-route rules
                 continue
             end
-            # time and charge feasibility
-            # if current_subpath.time_taken + graph.t[current_node, next_node] + graph.min_t[next_node] > graph.T
-            #     continue
-            # end 
-            if current_subpath.charge_taken + graph.q[current_node, next_node] + graph.min_q[next_node] > graph.B
-                continue
-            end
-
-            new_subpath = copy(current_subpath)
-            new_subpath.time_taken += graph.t[current_node, next_node]
-            new_subpath.charge_taken += graph.q[current_node, next_node]
-            new_subpath.cost += modified_costs[current_node, next_node]
-            push!(new_subpath.nodes, next_node)
-            if next_node in graph.N_customers
-                new_subpath.served[next_node] += 1
+                            
+            (feasible, new_subpath) = compute_next_subpath(
+                current_subpath, graph,
+                current_node, next_node, modified_costs,
+            )
+            if !feasible 
+                continue 
             end
 
             new_subpath.cost += σ_costs[(prev_node, current_node, next_node)]
@@ -1547,21 +1534,13 @@ function generate_base_labels_ngroute_alt_christofides(
                     continue
                 end
             end
-            # time and charge feasibility
-            # if current_subpath.time_taken + graph.t[current_node, next_node] + graph.min_t[next_node] > graph.T
-            #     continue
-            # end 
-            if current_subpath.charge_taken + graph.q[current_node, next_node] + graph.min_q[next_node] > graph.B
-                continue
-            end
-
-            new_subpath = copy(current_subpath)
-            new_subpath.time_taken += graph.t[current_node, next_node]
-            new_subpath.charge_taken += graph.q[current_node, next_node]
-            new_subpath.cost += modified_costs[current_node, next_node]
-            push!(new_subpath.nodes, next_node)
-            if next_node in graph.N_customers
-                new_subpath.served[next_node] += 1
+                            
+            (feasible, new_subpath) = compute_next_subpath(
+                current_subpath, graph,
+                current_node, next_node, modified_costs,
+            )
+            if !feasible 
+                continue 
             end
 
             new_subpath.cost += σ_costs[(prev_node, current_node, next_node)]
@@ -1697,21 +1676,13 @@ function generate_base_labels_ngroute_alt_sigma(
                 # only if one can extend current_subpath along next_node according to ng-route rules
                 continue
             end
-            # time and charge feasibility
-            # if current_subpath.time_taken + graph.t[current_node, next_node] + graph.min_t[next_node] > graph.T
-            #     continue
-            # end 
-            if current_subpath.charge_taken + graph.q[current_node, next_node] + graph.min_q[next_node] > graph.B
-                continue
-            end
-
-            new_subpath = copy(current_subpath)
-            new_subpath.time_taken += graph.t[current_node, next_node]
-            new_subpath.charge_taken += graph.q[current_node, next_node]
-            new_subpath.cost += modified_costs[current_node, next_node]
-            push!(new_subpath.nodes, next_node)
-            if next_node in graph.N_customers
-                new_subpath.served[next_node] += 1
+                           
+            (feasible, new_subpath) = compute_next_subpath(
+                current_subpath, graph,
+                current_node, next_node, modified_costs,
+            )
+            if !feasible 
+                continue 
             end
 
             new_subpath.cost += σ_costs[(prev_node, current_node, next_node)]
@@ -1849,21 +1820,13 @@ function generate_base_labels_ngroute_alt_sigma_christofides(
                     continue
                 end
             end
-            # time and charge feasibility
-            # if current_subpath.time_taken + graph.t[current_node, next_node] + graph.min_t[next_node] > graph.T
-            #     continue
-            # end 
-            if current_subpath.charge_taken + graph.q[current_node, next_node] + graph.min_q[next_node] > graph.B
-                continue
-            end
-
-            new_subpath = copy(current_subpath)
-            new_subpath.time_taken += graph.t[current_node, next_node]
-            new_subpath.charge_taken += graph.q[current_node, next_node]
-            new_subpath.cost += modified_costs[current_node, next_node]
-            push!(new_subpath.nodes, next_node)
-            if next_node in graph.N_customers
-                new_subpath.served[next_node] += 1
+                            
+            (feasible, new_subpath) = compute_next_subpath(
+                current_subpath, graph,
+                current_node, next_node, modified_costs,
+            )
+            if !feasible 
+                continue 
             end
 
             new_subpath.cost += σ_costs[(prev_node, current_node, next_node)]
@@ -2525,13 +2488,39 @@ function subproblem_iteration_ours(
 )
     start_time = time()
     if ngroute && !ngroute_alt
-        base_labels_result = @timed generate_base_labels_ngroute_sigma(
-            data, graph, neighborhoods, 
-            κ, μ, ν, σ,
-            ;
-            christofides = christofides,
-            time_limit = time_limit - (time() - start_time),
-        )
+        if length(σ) == 0
+            if christofides
+                base_labels_result = @timed generate_base_labels_ngroute_christofides(
+                    data, graph, neighborhoods, 
+                    κ, μ, ν,
+                    ;
+                    time_limit = time_limit - (time() - start_time),
+                )
+            else
+                base_labels_result = @timed generate_base_labels_ngroute(
+                    data, graph, neighborhoods, 
+                    κ, μ, ν,
+                    ;
+                    time_limit = time_limit - (time() - start_time),
+                )
+            end
+        else
+            if christofides
+                base_labels_result = @timed generate_base_labels_ngroute_sigma_christofides(
+                    data, graph, neighborhoods, 
+                    κ, μ, ν, σ,
+                    ;
+                    time_limit = time_limit - (time() - start_time),
+                )
+            else
+                base_labels_result = @timed generate_base_labels_ngroute_sigma(
+                    data, graph, neighborhoods, 
+                    κ, μ, ν, σ,
+                    ;
+                    time_limit = time_limit - (time() - start_time),
+                )
+            end
+        end
         base_labels_time = base_labels_result.time
         full_labels_result = @timed find_nondominated_paths_notimewindows_ngroute_sigma(
             data, graph, neighborhoods, 
@@ -2542,13 +2531,39 @@ function subproblem_iteration_ours(
         )
         full_labels_time = full_labels_result.time
     elseif ngroute && ngroute_alt
-        base_labels_result = @timed generate_base_labels_ngroute_alt_sigma(
-            data, graph, neighborhoods, 
-            κ, μ, ν, σ,
-            ;
-            christofides = christofides,
-            time_limit = time_limit - (time() - start_time),
-        )
+        if length(σ) == 0
+            if christofides
+                base_labels_result = @timed generate_base_labels_ngroute_alt_christofides(
+                    data, graph, neighborhoods, 
+                    κ, μ, ν,
+                    ;
+                    time_limit = time_limit - (time() - start_time),
+                )
+            else
+                base_labels_result = @timed generate_base_labels_ngroute_alt(
+                    data, graph, neighborhoods, 
+                    κ, μ, ν,
+                    ;
+                    time_limit = time_limit - (time() - start_time),
+                )
+            end
+        else
+            if christofides
+                base_labels_result = @timed generate_base_labels_ngroute_alt_sigma_christofides(
+                    data, graph, neighborhoods, 
+                    κ, μ, ν, σ,
+                    ;
+                    time_limit = time_limit - (time() - start_time),
+                )
+            else
+                base_labels_result = @timed generate_base_labels_ngroute_alt_sigma(
+                    data, graph, neighborhoods, 
+                    κ, μ, ν, σ,
+                    ;
+                    time_limit = time_limit - (time() - start_time),
+                )
+            end
+        end
         base_labels_time = base_labels_result.time
         full_labels_result = @timed find_nondominated_paths_notimewindows_ngroute_alt_sigma(
             data, graph, neighborhoods, 
