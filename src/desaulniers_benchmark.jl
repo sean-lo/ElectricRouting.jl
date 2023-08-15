@@ -1481,29 +1481,12 @@ function get_negative_pure_path_labels_from_pure_path_labels(
         Dict{Int, T},
     },
 ) where {T <: AbstractDict}
-    # pure_path_labels_sd_list = []
-    
     return PurePathLabel[
         pure_path_label
         for pure_path_label in unwrap_pure_path_labels(pure_path_labels)
             if pure_path_label.cost < -1e-6
     ]
 end
-
-# function get_negative_pure_path_labels_from_pure_path_labels(
-#     pure_path_labels::Dict{
-#         Int, 
-#         Dict{Int, T},
-#     },
-# ) where {T <: AbstractDict}
-#     pure_path_labels_sd_list = []
-
-#     return PurePathLabel[
-#         pure_path_label
-#         for pure_path_label in unwrap_pure_path_labels(pure_path_labels)
-#             if pure_path_label.cost < -1e-6
-#     ]
-# end
 
 function subproblem_iteration_benchmark(
     data::EVRPData, 
