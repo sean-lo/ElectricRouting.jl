@@ -167,9 +167,9 @@ function find_nondominated_paths_nocharge_ngroute(
     base_labels = Dict(
         starting_node => Dict(
             current_node => Dict{
-                Tuple{Vararg{Int}}, 
+                NTuple{graph.n_customers + graph.n_depots, Int}, 
                 SortedDict{
-                    Tuple{Vararg{Int}}, 
+                    NTuple{1, Int}, 
                     BaseSubpathLabel,
                     Base.Order.ForwardOrdering,
                 },
@@ -178,89 +178,96 @@ function find_nondominated_paths_nocharge_ngroute(
         )
         for starting_node in graph.N_depots
     )
-    unexplored_states = SortedSet{Tuple{Vararg{Int}}}()
+    unexplored_states = SortedSet{NTuple{graph.n_customers + graph.n_depots + 3, Int}}()
     for node in graph.N_depots
-        base_labels[node][node][(node,)] = SortedDict{
-            Tuple{Vararg{Int}}, 
+        node_labels = zeros(Int, graph.n_customers + graph.n_depots)
+        node_labels[node] = 1
+        key = (0,)
+        base_labels[node][node][(node_labels...)] = SortedDict{
+            NTuple{1, Int}, 
             BaseSubpathLabel,
         }(
             Base.Order.ForwardOrdering(),
-            (0,) => BaseSubpathLabel(
+            key => BaseSubpathLabel(
                 0, 0, 0.0, [node,], zeros(Int, graph.n_customers),
             )
         )
-        push!(unexplored_states, (0, node, node))
+        push!(
+            unexplored_states, 
+            (
+                key...,
+                node_labels...,
+                node, # starting_node
+                node, # current_node
+            )
+        )
     end
 
     while length(unexplored_states) > 0
         state = pop!(unexplored_states)
         starting_node = state[end-1]
         current_node = state[end]
-        current_key = state[1:end-2]
-        for current_set in keys(base_labels[starting_node][current_node])
-            if !(current_key in keys(base_labels[starting_node][current_node][current_set]))
-                continue
-            end
-            current_subpath = base_labels[starting_node][current_node][current_set][current_key]
-            for next_node in setdiff(
-                outneighbors(graph.G, current_node), 
-                current_node, 
-                graph.N_charging_extra,
-            )
-                if next_node in current_set
-                    # if next_node is a customer not yet visited, proceed
-                    # only if one can extend current_subpath along next_node according to ng-route rules
+        current_set = state[2:end-2]
+        current_key = state[1:1]
+        current_subpath = get(base_labels[starting_node][current_node][current_set], current_key, nothing)
+        isnothing(current_subpath) && continue
+        for next_node in setdiff(
+            outneighbors(graph.G, current_node), 
+            current_node, 
+            graph.N_charging_extra,
+        )
+            # Preventing customer 2-cycles (Christofides) # FIXME
+            if christofides && next_node in graph.N_customers
+                if length(current_subpath.nodes) ≥ 2 && current_subpath.nodes[end-1] == next_node
                     continue
                 end
-                # Preventing customer 2-cycles (Christofides)
-                if christofides && next_node in graph.N_customers
-                    if length(current_subpath.nodes) ≥ 2 && current_subpath.nodes[end-1] == next_node
-                        continue
-                    end
-                end
-                # time feasibility
-                new_time_taken = current_subpath.time_taken + graph.t[current_node, next_node]
-                if time_windows
-                    new_time_taken = max(
-                        new_time_taken,
-                        graph.α[next_node]
-                    )
-                    if new_time_taken > graph.β[next_node]
-                        continue
-                    end
-                else
-                    if new_time_taken + graph.min_t[next_node] > T_heuristic
-                        continue
-                    end
-                end
+            end
+            (feasible, new_set) = ngroute_check_create_set(
+                graph.N_customers, neighborhoods, current_set, next_node,
+            )
+            !feasible && continue
 
-                new_subpath = copy(current_subpath)
-                new_subpath.time_taken = new_time_taken
-                new_subpath.cost += modified_costs[current_node, next_node]
-                push!(new_subpath.nodes, next_node)
-                if next_node in graph.N_customers
-                    new_subpath.served[next_node] += 1
-                end
-
-                new_set = ngroute_create_set(neighborhoods, current_set, next_node)
-                if !(new_set in keys(base_labels[starting_node][next_node]))
-                    base_labels[starting_node][next_node][new_set] = SortedDict{
-                        Tuple{Vararg{Int}}, 
-                        BaseSubpathLabel,
-                        Base.Order.ForwardOrdering,
-                    }(Base.Order.ForwardOrdering())
-                end
-                new_key = (new_subpath.time_taken,)
-                added = add_subpath_longlabel_to_collection!(
-                    base_labels[starting_node][next_node][new_set],
-                    new_key, new_subpath,
-                    ;
-                    verbose = false,
+            # time feasibility
+            new_time_taken = current_subpath.time_taken + graph.t[current_node, next_node]
+            if time_windows
+                new_time_taken = max(
+                    new_time_taken,
+                    graph.α[next_node]
                 )
-                if added && next_node in graph.N_customers
-                    new_state = (new_key..., starting_node, next_node)
-                    push!(unexplored_states, new_state)
+                if new_time_taken > graph.β[next_node]
+                    continue
                 end
+            else
+                if new_time_taken + graph.min_t[next_node] > T_heuristic
+                    continue
+                end
+            end
+
+            new_subpath = copy(current_subpath)
+            new_subpath.time_taken = new_time_taken
+            new_subpath.cost += modified_costs[current_node, next_node]
+            push!(new_subpath.nodes, next_node)
+            if next_node in graph.N_customers
+                new_subpath.served[next_node] += 1
+            end
+
+            if !(new_set in keys(base_labels[starting_node][next_node]))
+                base_labels[starting_node][next_node][new_set] = SortedDict{
+                    NTuple{1, Int}, 
+                    BaseSubpathLabel,
+                    Base.Order.ForwardOrdering,
+                }(Base.Order.ForwardOrdering())
+            end
+            new_key = (new_subpath.time_taken,)
+            added = add_subpath_longlabel_to_collection!(
+                base_labels[starting_node][next_node][new_set],
+                new_key, new_subpath,
+                ;
+                verbose = false,
+            )
+            if added && next_node in graph.N_customers
+                new_state = (new_key..., new_set..., starting_node, next_node)
+                push!(unexplored_states, new_state)
             end
         end
     end
@@ -322,7 +329,7 @@ function find_nondominated_paths_nocharge_ngroute_alt(
     base_labels = Dict(
         starting_node => Dict(
             current_node => SortedDict{
-                Tuple{Vararg{Int}}, 
+                NTuple{graph.n_customers + graph.n_depots + 1, Int}, 
                 BaseSubpathLabel,
                 Base.Order.ForwardOrdering,
             }(Base.Order.ForwardOrdering())
@@ -330,43 +337,49 @@ function find_nondominated_paths_nocharge_ngroute_alt(
         )
         for starting_node in graph.N_depots
     )
-    unexplored_states = SortedSet{Tuple{Vararg{Int}}}()
+    unexplored_states = SortedSet{NTuple{graph.n_customers + graph.n_depots + 3, Int}}()
     for node in graph.N_depots
         node_labels = zeros(Int, graph.n_customers + graph.n_depots)
         node_labels[node] = 1
-        key = (0, node_labels...)
-        base_labels[node][node][key] = BaseSubpathLabel(
+        key = (0,)
+        base_labels[node][node][(key..., node_labels...)] = BaseSubpathLabel(
             0, 0, 0.0, [node,], zeros(Int, graph.n_customers),
         )
-        push!(unexplored_states, (key..., node, node))
+        push!(
+            unexplored_states, 
+            (
+                key..., 
+                node_labels..., 
+                node, # starting_node
+                node, # current_node
+            )
+        )
     end
 
     while length(unexplored_states) > 0
         state = pop!(unexplored_states)
         starting_node = state[end-1]
         current_node = state[end]
-        current_key = state[1:end-2]
-        if !(current_key in keys(base_labels[starting_node][current_node]))
-            continue
-        end
         current_set = state[2:end-2]
-        current_subpath = base_labels[starting_node][current_node][current_key]
+        current_key = state[1:end-2]
+        current_subpath = get(base_labels[starting_node][current_node], current_key, nothing)
+        isnothing(current_subpath) && continue
         for next_node in setdiff(
             outneighbors(graph.G, current_node), 
             current_node, 
             graph.N_charging_extra,
         )
-            if next_node in graph.N_customers && current_set[next_node] == 1
-                # if next_node is a customer not yet visited, proceed
-                # only if one can extend current_subpath along next_node according to ng-route rules
-                continue
-            end
-            # Preventing customer 2-cycles (Christofides)
+            # Preventing customer 2-cycles (Christofides) # FIXME
             if christofides && next_node in graph.N_customers
                 if length(current_subpath.nodes) ≥ 2 && current_subpath.nodes[end-1] == next_node
                     continue
                 end
             end
+            (feasible, new_set) = ngroute_check_create_set(
+                graph.N_customers, neighborhoods, current_set, next_node,
+            )
+            !feasible && continue
+
             # time feasibility
             new_time_taken = current_subpath.time_taken + graph.t[current_node, next_node]
             if time_windows
@@ -391,16 +404,15 @@ function find_nondominated_paths_nocharge_ngroute_alt(
                 new_subpath.served[next_node] += 1
             end
 
-            new_set = ngroute_create_set_alt(neighborhoods, collect(current_set), next_node)
-            new_key = (new_subpath.time_taken, new_set...)
+            new_key = (new_subpath.time_taken,)
             added = add_subpath_longlabel_to_collection!(
                 base_labels[starting_node][next_node],
-                new_key, new_subpath,
+                (new_key..., new_set...), new_subpath,
                 ;
                 verbose = false,
             )
             if added && next_node in graph.N_customers
-                new_state = (new_key..., starting_node, next_node)
+                new_state = (new_key..., new_set..., starting_node, next_node)
                 push!(unexplored_states, new_state)
             end
         end

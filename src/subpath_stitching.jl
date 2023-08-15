@@ -709,7 +709,7 @@ function generate_base_labels_ngroute(
     base_labels = Dict(
         starting_node => Dict(
             current_node => Dict{
-                Tuple{Vararg{Int}},
+                NTuple{graph.n_nodes_extra, Int},
                 SortedDict{
                     NTuple{1, Int},
                     BaseSubpathLabel,
@@ -720,9 +720,11 @@ function generate_base_labels_ngroute(
         )
         for starting_node in graph.N_depots_charging_extra
     )
-    unexplored_states = SortedSet{NTuple{3, Int}}()
+    unexplored_states = SortedSet{NTuple{graph.n_nodes_extra + 3, Int}}()
     for node in graph.N_depots_charging_extra
-        base_labels[node][node][(node,)] => SortedDict{
+        node_labels = zeros(Int, graph.n_nodes_extra)
+        node_labels[node] = 1
+        base_labels[node][node][(node_labels...)] = SortedDict{
             NTuple{1, Int}, 
             BaseSubpathLabel,
         }(
@@ -735,6 +737,7 @@ function generate_base_labels_ngroute(
             unexplored_states, 
             (
                 0, 
+                node_labels...,
                 node, # starting_node
                 node, # current_node
             )
@@ -748,45 +751,45 @@ function generate_base_labels_ngroute(
         state = pop!(unexplored_states)
         starting_node = state[end-1]
         current_node = state[end]
-        current_key = state[1:end-2]
-        for current_set in keys(base_labels[starting_node][current_node])
-            if !(current_key in keys(base_labels[starting_node][current_node][current_set]))
+        current_set = state[2:end-2]
+        current_key = state[1:1]
+        current_subpath = get(base_labels[starting_node][current_node][current_set], current_key, nothing)
+        if isnothing(current_subpath)
+            continue
+        end
+        for next_node in setdiff(outneighbors(graph.G, current_node), current_node)
+            if next_node in graph.N_customers && current_set[next_node] == 1
+                # if next_node is a customer not yet visited, proceed
+                # only if one can extend current_subpath along next_node according to ng-route rules
                 continue
             end
-            current_subpath = base_labels[starting_node][current_node][current_set][current_key]
-            for next_node in setdiff(outneighbors(graph.G, current_node), current_node)
-                if next_node in current_set
-                    # if next_node is a customer not yet visited, proceed
-                    # only if one can extend current_subpath along next_node according to ng-route rules
-                    continue
-                end
-                (feasible, new_subpath) = compute_next_subpath(
-                    current_subpath, graph, 
-                    current_node, next_node, modified_costs,
-                )
-                if !feasible
-                    continue
-                end
+                
+            (feasible, new_subpath) = compute_next_subpath(
+                current_subpath, graph,
+                current_node, next_node, modified_costs,
+            )
+            if !feasible 
+                continue 
+            end
 
-                new_set = ngroute_create_set(neighborhoods, current_set, next_node)
-                if !(new_set in keys(base_labels[starting_node][next_node]))
-                    base_labels[starting_node][next_node][new_set] = SortedDict{ 
-                        NTuple{1, Int}, 
-                        BaseSubpathLabel,
-                        Base.Order.ForwardOrdering,
-                    }(Base.Order.ForwardOrdering())
-                end
-                new_key = (new_subpath.time_taken,)
-                added = add_subpath_longlabel_to_collection!(
-                    base_labels[starting_node][next_node][new_set],
-                    new_key, new_subpath,
-                    ;
-                    verbose = false,
-                )
-                if added && next_node in graph.N_customers
-                    new_state = (new_key..., starting_node, next_node)
-                    push!(unexplored_states, new_state)
-                end
+            new_set = ngroute_create_set_alt(neighborhoods, current_set, next_node)
+            if !(new_set in keys(base_labels[starting_node][next_node]))
+                base_labels[starting_node][next_node][new_set] = SortedDict{ 
+                    NTuple{1, Int}, 
+                    BaseSubpathLabel,
+                    Base.Order.ForwardOrdering,
+                }(Base.Order.ForwardOrdering())
+            end
+            new_key = (new_subpath.time_taken,)
+            added = add_subpath_longlabel_to_collection!(
+                base_labels[starting_node][next_node][new_set],
+                new_key, new_subpath,
+                ;
+                verbose = false,
+            )
+            if added && next_node in graph.N_customers
+                new_state = (new_key..., new_set..., starting_node, next_node)
+                push!(unexplored_states, new_state)
             end
         end
     end
@@ -798,7 +801,9 @@ function generate_base_labels_ngroute(
     end
 
     for node in graph.N_depots_charging_extra
-        delete!(base_labels[node][node][(node,)], (0,))
+        node_labels = zeros(Int, graph.n_nodes_extra)
+        node_labels[node] = 1
+        delete!(base_labels[node][node][(node_labels...)], (0,))
     end
 
     for starting_node in graph.N_depots
@@ -845,7 +850,7 @@ function generate_base_labels_ngroute_christofides(
             current_node => Dict{
                 NTuple{2, Int}, 
                 Dict{
-                    Tuple{Vararg{Int}},
+                    NTuple{graph.n_nodes_extra, Int},
                     SortedDict{
                         NTuple{1, Int},
                         BaseSubpathLabel,
@@ -857,17 +862,19 @@ function generate_base_labels_ngroute_christofides(
         )
         for starting_node in graph.N_depots_charging_extra
     )
-    unexplored_states = SortedSet{NTuple{5, Int}}()
+    unexplored_states = SortedSet{NTuple{graph.n_nodes_extra + 5, Int}}()
     for node in graph.N_depots_charging_extra
+        node_labels = zeros(Int, graph.n_nodes_extra)
+        node_labels[node] = 1
         base_labels[node][node][(node, node)] = Dict{
-            Tuple{Vararg{Int}},
+            NTuple{graph.n_nodes_extra, Int},
             SortedDict{
                 NTuple{1, Int}, 
                 BaseSubpathLabel,
                 Base.Order.ForwardOrdering,
             }
         }(
-            (node,) => SortedDict{
+            (node_labels...) => SortedDict{
                 NTuple{1, Int}, 
                 BaseSubpathLabel,
             }(
@@ -881,6 +888,7 @@ function generate_base_labels_ngroute_christofides(
             unexplored_states, 
             (
                 0, 
+                node_labels...,
                 node, # starting_node
                 node, # first_node
                 node, # prev_node
@@ -898,67 +906,66 @@ function generate_base_labels_ngroute_christofides(
         first_node = state[end-2]
         prev_node = state[end-1]
         current_node = state[end]
-        current_key = state[1:end-4]
-        for current_set in keys(base_labels[starting_node][current_node][(first_node, prev_node)])
-            if !(current_key in keys(base_labels[starting_node][current_node][(first_node, prev_node)][current_set]))
+        current_set = state[2:end-4]
+        current_key = state[1:1]
+        current_subpath = get(base_labels[starting_node][current_node][(first_node, prev_node)][current_set], current_key, nothing)
+        if isnothing(current_subpath)
+            continue
+        end
+        for next_node in setdiff(outneighbors(graph.G, current_node), current_node)
+            if next_node in graph.N_customers && current_set[next_node] == 1
+                # if next_node is a customer not yet visited, proceed
+                # only if one can extend current_subpath along next_node according to ng-route rules
                 continue
             end
-            current_subpath = base_labels[starting_node][current_node][(first_node, prev_node)][current_set][current_key]
-            for next_node in setdiff(outneighbors(graph.G, current_node), current_node)
-                if next_node in current_set
-                    # if next_node is a customer not yet visited, proceed
-                    # only if one can extend current_subpath along next_node according to ng-route rules
+            # Preventing customer 2-cycles (Christofides)
+            if next_node in graph.N_customers
+                if length(current_subpath.nodes) ≥ 2 && current_subpath.nodes[end-1] == prev_node == next_node
                     continue
                 end
-                # Preventing customer 2-cycles (Christofides)
-                if next_node in graph.N_customers
-                    if length(current_subpath.nodes) ≥ 2 && current_subpath.nodes[end-1] == prev_node == next_node
-                        continue
-                    end
-                end
+            end
                                 
-                (feasible, new_subpath) = compute_next_subpath(
-                    current_subpath, graph,
-                    current_node, next_node, modified_costs,
-                )
-                if !feasible 
-                    continue 
-                end
+            (feasible, new_subpath) = compute_next_subpath(
+                current_subpath, graph,
+                current_node, next_node, modified_costs,
+            )
+            if !feasible 
+                continue 
+            end
 
-                if first_node == starting_node
-                    first_node = current_node 
-                end
+            if first_node == starting_node
+                first_node = current_node 
+            end
 
-                if !((first_node, current_node) in keys(base_labels[starting_node][next_node]))
-                    base_labels[starting_node][next_node][(first_node, current_node)] = Dict{
-                        Tuple{Vararg{Int}},
-                        SortedDict{
-                            NTuple{1, Int},
-                            BaseSubpathLabel,
-                            Base.Order.ForwardOrdering,
-                        },
-                    }()
-                end
-
-                new_set = ngroute_create_set(neighborhoods, current_set, next_node)
-                if !(new_set in keys(base_labels[starting_node][next_node][(first_node, current_node)]))
-                    base_labels[starting_node][next_node][(first_node, current_node)][new_set] = SortedDict{ 
-                        NTuple{1, Int}, 
+            if !((first_node, current_node) in keys(base_labels[starting_node][next_node]))
+                base_labels[starting_node][next_node][(first_node, current_node)] = Dict{
+                    NTuple{graph.n_nodes_extra, Int},
+                    SortedDict{
+                        NTuple{1, Int},
                         BaseSubpathLabel,
                         Base.Order.ForwardOrdering,
-                    }(Base.Order.ForwardOrdering())
-                end
-                new_key = (new_subpath.time_taken,)
-                added = add_subpath_longlabel_to_collection!(
-                    base_labels[starting_node][next_node][(first_node, current_node)][new_set],
-                    new_key, new_subpath,
-                    ;
-                    verbose = false,
-                )
-                if added && next_node in graph.N_customers
-                    new_state = (new_key..., starting_node, first_node, current_node, next_node)
-                    push!(unexplored_states, new_state)
-                end
+                    },
+                }()
+            end
+
+            new_set = ngroute_create_set_alt(neighborhoods, current_set, next_node)
+            if !(new_set in keys(base_labels[starting_node][next_node][(first_node, current_node)]))
+                base_labels[starting_node][next_node][(first_node, current_node)][new_set] = SortedDict{ 
+                    NTuple{1, Int}, 
+                    BaseSubpathLabel,
+                    Base.Order.ForwardOrdering,
+                }(Base.Order.ForwardOrdering())
+            end
+            new_key = (new_subpath.time_taken,)
+            added = add_subpath_longlabel_to_collection!(
+                base_labels[starting_node][next_node][(first_node, current_node)][new_set],
+                new_key, new_subpath,
+                ;
+                verbose = false,
+            )
+            if added && next_node in graph.N_customers
+                new_state = (new_key..., new_set..., starting_node, first_node, current_node, next_node)
+                push!(unexplored_states, new_state)
             end
         end
     end
@@ -1022,7 +1029,7 @@ function generate_base_labels_ngroute_sigma(
         starting_node => Dict(
             current_node => Dict(
                 prev_node => Dict{
-                    Tuple{Vararg{Int}},
+                    NTuple{graph.n_nodes_extra, Int},
                     SortedDict{
                         NTuple{1, Int},
                         BaseSubpathLabel,
@@ -1035,9 +1042,11 @@ function generate_base_labels_ngroute_sigma(
         )
         for starting_node in graph.N_depots_charging_extra
     )
-    unexplored_states = SortedSet{NTuple{4, Int}}()
+    unexplored_states = SortedSet{NTuple{graph.n_nodes_extra + 4, Int}}()
     for node in graph.N_depots_charging_extra
-        base_labels[node][node][node][(node,)] => SortedDict{
+        node_labels = zeros(Int, graph.n_nodes_extra)
+        node_labels[node] = 1
+        base_labels[node][node][node][(node_labels...)] = SortedDict{
             NTuple{1, Int}, 
             BaseSubpathLabel,
         }(
@@ -1050,6 +1059,7 @@ function generate_base_labels_ngroute_sigma(
             unexplored_states, 
             (
                 0, 
+                node_labels...,
                 node, # starting_node
                 node, # prev_node
                 node, # current_node
@@ -1065,48 +1075,47 @@ function generate_base_labels_ngroute_sigma(
         starting_node = state[end-2]
         prev_node = state[end-1]
         current_node = state[end]
-        current_key = state[1:end-3]
-        for current_set in keys(base_labels[starting_node][current_node][prev_node])
-            if !(current_key in keys(base_labels[starting_node][current_node][prev_node][current_set]))
+        current_set = state[2:end-3]
+        current_key = state[1:1]
+        current_subpath = get(base_labels[starting_node][current_node][prev_node][current_set], current_key, nothing)
+        if isnothing(current_subpath)
+            continue
+        end
+        for next_node in setdiff(outneighbors(graph.G, current_node), current_node)
+            if next_node in graph.N_customers && current_set[next_node] == 1
+                # if next_node is a customer not yet visited, proceed
+                # only if one can extend current_subpath along next_node according to ng-route rules
                 continue
             end
-            current_subpath = base_labels[starting_node][current_node][prev_node][current_set][current_key]
-            for next_node in setdiff(outneighbors(graph.G, current_node), current_node)
-                if next_node in current_set
-                    # if next_node is a customer not yet visited, proceed
-                    # only if one can extend current_subpath along next_node according to ng-route rules
-                    continue
-                end
                                 
-                (feasible, new_subpath) = compute_next_subpath(
-                    current_subpath, graph,
-                    current_node, next_node, modified_costs,
-                )
-                if !feasible 
-                    continue 
-                end
+            (feasible, new_subpath) = compute_next_subpath(
+                current_subpath, graph,
+                current_node, next_node, modified_costs,
+            )
+            if !feasible 
+                continue 
+            end
 
-                new_subpath.cost += σ_costs[(prev_node, current_node, next_node)]
+            new_subpath.cost += σ_costs[(prev_node, current_node, next_node)]
 
-                new_set = ngroute_create_set(neighborhoods, current_set, next_node)
-                if !(new_set in keys(base_labels[starting_node][next_node][current_node]))
-                    base_labels[starting_node][next_node][current_node][new_set] = SortedDict{ 
-                        NTuple{1, Int}, 
-                        BaseSubpathLabel,
-                        Base.Order.ForwardOrdering,
-                    }(Base.Order.ForwardOrdering())
-                end
-                new_key = (new_subpath.time_taken,)
-                added = add_subpath_longlabel_to_collection!(
-                    base_labels[starting_node][next_node][current_node][new_set],
-                    new_key, new_subpath,
-                    ;
-                    verbose = false,
-                )
-                if added && next_node in graph.N_customers
-                    new_state = (new_key..., starting_node, current_node, next_node)
-                    push!(unexplored_states, new_state)
-                end
+            new_set = ngroute_create_set_alt(neighborhoods, current_set, next_node)
+            if !(new_set in keys(base_labels[starting_node][next_node][current_node]))
+                base_labels[starting_node][next_node][current_node][new_set] = SortedDict{ 
+                    NTuple{1, Int}, 
+                    BaseSubpathLabel,
+                    Base.Order.ForwardOrdering,
+                }(Base.Order.ForwardOrdering())
+            end
+            new_key = (new_subpath.time_taken,)
+            added = add_subpath_longlabel_to_collection!(
+                base_labels[starting_node][next_node][current_node][new_set],
+                new_key, new_subpath,
+                ;
+                verbose = false,
+            )
+            if added && next_node in graph.N_customers
+                new_state = (new_key..., new_set..., starting_node, current_node, next_node)
+                push!(unexplored_states, new_state)
             end
         end
     end
@@ -1171,7 +1180,7 @@ function generate_base_labels_ngroute_sigma_christofides(
             current_node => Dict{
                 NTuple{2, Int}, 
                 Dict{
-                    Tuple{Vararg{Int}},
+                    NTuple{graph.n_nodes_extra, Int},
                     SortedDict{
                         NTuple{1, Int},
                         BaseSubpathLabel,
@@ -1183,17 +1192,19 @@ function generate_base_labels_ngroute_sigma_christofides(
         )
         for starting_node in graph.N_depots_charging_extra
     )
-    unexplored_states = SortedSet{NTuple{5, Int}}()
+    unexplored_states = SortedSet{NTuple{graph.n_nodes_extra + 5, Int}}()
     for node in graph.N_depots_charging_extra
+        node_labels = zeros(Int, graph.n_nodes_extra)
+        node_labels[node] = 1
         base_labels[node][node][(node, node)] = Dict{
-            Tuple{Vararg{Int}},
+            NTuple{graph.n_nodes_extra, Int},
             SortedDict{
                 NTuple{1, Int}, 
                 BaseSubpathLabel,
                 Base.Order.ForwardOrdering,
             }
         }(
-            (node,) => SortedDict{
+            (node_labels...) => SortedDict{
                 NTuple{1, Int}, 
                 BaseSubpathLabel,
             }(
@@ -1207,6 +1218,7 @@ function generate_base_labels_ngroute_sigma_christofides(
             unexplored_states, 
             (
                 0, 
+                node_labels...,
                 node, # starting_node
                 node, # first_node
                 node, # prev_node
@@ -1224,69 +1236,68 @@ function generate_base_labels_ngroute_sigma_christofides(
         first_node = state[end-2]
         prev_node = state[end-1]
         current_node = state[end]
-        current_key = state[1:end-4]
-        for current_set in keys(base_labels[starting_node][current_node][(first_node, prev_node)])
-            if !(current_key in keys(base_labels[starting_node][current_node][(first_node, prev_node)][current_set]))
+        current_set = state[2:end-4]
+        current_key = state[1:1]
+        current_subpath = get(base_labels[starting_node][current_node][(first_node, prev_node)][current_set], current_key, nothing)
+        if isnothing(current_subpath)
+            continue
+        end
+        for next_node in setdiff(outneighbors(graph.G, current_node), current_node)
+            if next_node in graph.N_customers && current_set[next_node] == 1
+                # if next_node is a customer not yet visited, proceed
+                # only if one can extend current_subpath along next_node according to ng-route rules
                 continue
             end
-            current_subpath = base_labels[starting_node][current_node][(first_node, prev_node)][current_set][current_key]
-            for next_node in setdiff(outneighbors(graph.G, current_node), current_node)
-                if next_node in current_set
-                    # if next_node is a customer not yet visited, proceed
-                    # only if one can extend current_subpath along next_node according to ng-route rules
+            # Preventing customer 2-cycles (Christofides)
+            if next_node in graph.N_customers
+                if length(current_subpath.nodes) ≥ 2 && current_subpath.nodes[end-1] == prev_node == next_node
                     continue
                 end
-                # Preventing customer 2-cycles (Christofides)
-                if next_node in graph.N_customers
-                    if length(current_subpath.nodes) ≥ 2 && current_subpath.nodes[end-1] == prev_node == next_node
-                        continue
-                    end
-                end
+            end
                                 
-                (feasible, new_subpath) = compute_next_subpath(
-                    current_subpath, graph,
-                    current_node, next_node, modified_costs,
-                )
-                if !feasible 
-                    continue 
-                end
+            (feasible, new_subpath) = compute_next_subpath(
+                current_subpath, graph,
+                current_node, next_node, modified_costs,
+            )
+            if !feasible 
+                continue 
+            end
 
-                new_subpath.cost += σ_costs[(prev_node, current_node, next_node)]
+            new_subpath.cost += σ_costs[(prev_node, current_node, next_node)]
 
-                if first_node == starting_node
-                    first_node = current_node 
-                end
+            if first_node == starting_node
+                first_node = current_node 
+            end
 
-                if !((first_node, current_node) in keys(base_labels[starting_node][next_node]))
-                    base_labels[starting_node][next_node][(first_node, current_node)] = Dict{
-                        Tuple{Vararg{Int}},
-                        SortedDict{
-                            NTuple{1, Int},
-                            BaseSubpathLabel,
-                            Base.Order.ForwardOrdering,
-                        },
-                    }()
-                end
-
-                new_set = ngroute_create_set(neighborhoods, current_set, next_node)
-                if !(new_set in keys(base_labels[starting_node][next_node][(first_node, current_node)]))
-                    base_labels[starting_node][next_node][(first_node, current_node)][new_set] = SortedDict{ 
-                        NTuple{1, Int}, 
+            if !((first_node, current_node) in keys(base_labels[starting_node][next_node]))
+                base_labels[starting_node][next_node][(first_node, current_node)] = Dict{
+                    NTuple{graph.n_nodes_extra, Int},
+                    SortedDict{
+                        NTuple{1, Int},
                         BaseSubpathLabel,
                         Base.Order.ForwardOrdering,
-                    }(Base.Order.ForwardOrdering())
-                end
-                new_key = (new_subpath.time_taken,)
-                added = add_subpath_longlabel_to_collection!(
-                    base_labels[starting_node][next_node][(first_node, current_node)][new_set],
-                    new_key, new_subpath,
-                    ;
-                    verbose = false,
-                )
-                if added && next_node in graph.N_customers
-                    new_state = (new_key..., starting_node, first_node, current_node, next_node)
-                    push!(unexplored_states, new_state)
-                end
+                    },
+                }()
+            end
+
+            new_set = ngroute_create_set_alt(neighborhoods, current_set, next_node)
+            if !(new_set in keys(base_labels[starting_node][next_node][(first_node, current_node)]))
+                base_labels[starting_node][next_node][(first_node, current_node)][new_set] = SortedDict{ 
+                    NTuple{1, Int}, 
+                    BaseSubpathLabel,
+                    Base.Order.ForwardOrdering,
+                }(Base.Order.ForwardOrdering())
+            end
+            new_key = (new_subpath.time_taken,)
+            added = add_subpath_longlabel_to_collection!(
+                base_labels[starting_node][next_node][(first_node, current_node)][new_set],
+                new_key, new_subpath,
+                ;
+                verbose = false,
+            )
+            if added && next_node in graph.N_customers
+                new_state = (new_key..., new_set..., starting_node, first_node, current_node, next_node)
+                push!(unexplored_states, new_state)
             end
         end
     end
@@ -1404,7 +1415,7 @@ function generate_base_labels_ngroute_alt(
 
             new_subpath.cost += σ_costs[(prev_node, current_node, next_node)]
             
-            new_set = ngroute_create_set_alt(neighborhoods, collect(current_set), next_node)
+            new_set = ngroute_create_set_alt(neighborhoods, current_set, next_node)
             new_key = (new_subpath.time_taken, new_set...)
             added = add_subpath_longlabel_to_collection!(
                 base_labels[starting_node][next_node],
@@ -1556,7 +1567,7 @@ function generate_base_labels_ngroute_alt_christofides(
                 }(Base.Order.ForwardOrdering())
             end
 
-            new_set = ngroute_create_set_alt(neighborhoods, collect(current_set), next_node)
+            new_set = ngroute_create_set_alt(neighborhoods, current_set, next_node)
             new_key = (new_subpath.time_taken, new_set...)
             added = add_subpath_longlabel_to_collection!(
                 base_labels[starting_node][next_node][(first_node, current_node)],
@@ -1687,7 +1698,7 @@ function generate_base_labels_ngroute_alt_sigma(
 
             new_subpath.cost += σ_costs[(prev_node, current_node, next_node)]
 
-            new_set = ngroute_create_set_alt(neighborhoods, collect(current_set), next_node)
+            new_set = ngroute_create_set_alt(neighborhoods, current_set, next_node)
             new_key = (new_subpath.time_taken, new_set...)
             added = add_subpath_longlabel_to_collection!(
                 base_labels[starting_node][next_node][current_node],
@@ -1842,7 +1853,7 @@ function generate_base_labels_ngroute_alt_sigma_christofides(
                 }(Base.Order.ForwardOrdering())
             end
 
-            new_set = ngroute_create_set_alt(neighborhoods, collect(current_set), next_node)
+            new_set = ngroute_create_set_alt(neighborhoods, current_set, next_node)
             new_key = (new_subpath.time_taken, new_set...)
             added = add_subpath_longlabel_to_collection!(
                 base_labels[starting_node][next_node][(first_node, current_node)],

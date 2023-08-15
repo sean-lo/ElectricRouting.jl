@@ -557,7 +557,7 @@ function find_nondominated_paths_ngroute(
     pure_path_labels = Dict(
         starting_node => Dict(
             current_node => Dict{
-                Tuple{Vararg{Int}}, 
+                NTuple{graph.n_nodes_extra, Int}, 
                 SortedDict{
                     NTuple{3, Int}, 
                     PurePathLabel,
@@ -569,11 +569,12 @@ function find_nondominated_paths_ngroute(
         for starting_node in graph.N_depots
     )
 
-    unexplored_states = SortedSet{NTuple{5, Int}}()
+    unexplored_states = SortedSet{NTuple{graph.n_nodes_extra + 5, Int}}()
     for depot in graph.N_depots
         key = (0, -graph.B, -graph.B)
-        set = (depot,) # NG
-        pure_path_labels[depot][depot][set] = SortedDict{
+        node_labels = zeros(Int, graph.n_nodes_extra)
+        node_labels[depot] = 1
+        pure_path_labels[depot][depot][(node_labels...,)] = SortedDict{
             NTuple{3, Int},
             PurePathLabel,
         }(
@@ -596,6 +597,7 @@ function find_nondominated_paths_ngroute(
             unexplored_states, 
             (
                 key..., 
+                node_labels...,
                 depot, # starting_node
                 depot, # current_node 
             )
@@ -609,52 +611,44 @@ function find_nondominated_paths_ngroute(
         state = pop!(unexplored_states)
         starting_node = state[end-1]
         current_node = state[end]
-        current_key = state[1:end-2]
-        for current_set in keys(pure_path_labels[starting_node][current_node])
-            if !(current_key in keys(pure_path_labels[starting_node][current_node][current_set]))
-                continue
-            end
-            current_path = pure_path_labels[starting_node][current_node][current_set][current_key]
-            for next_node in setdiff(outneighbors(graph.G, current_node), current_node)
-                if next_node in current_set
-                    # if next_node is a customer not yet visited, proceed
-                    # only if one can extend current_subpath along next_node according to ng-route rules
-                    continue
-                end
-
-                (feasible, new_path) = compute_new_pure_path(
-                    current_path, 
-                    current_node, next_node, 
-                    data, graph,
-                    α, β, modified_costs,
-                )
-                if !feasible
-                    continue
-                end
+        current_set = state[4:end-2]
+        current_key = state[1:3]
+        current_path = get(pure_path_labels[starting_node][current_node][current_set], current_key, nothing)
+        isnothing(current_path) && continue
+        for next_node in setdiff(outneighbors(graph.G, current_node), current_node)
+            (feasible, new_set) = ngroute_check_create_set(
+                graph.N_customers, neighborhoods, current_set, next_node,
+            )
+            !feasible && continue
+            (feasible, new_path) = compute_new_pure_path(
+                current_path, 
+                current_node, next_node, 
+                data, graph,
+                α, β, modified_costs,
+            )
+            !feasible && continue
                 
-                new_set = ngroute_create_set(neighborhoods, current_set, next_node)
-                if !(new_set in keys(pure_path_labels[starting_node][next_node]))
-                    pure_path_labels[starting_node][next_node][new_set] = SortedDict{
-                        NTuple{3, Int},
-                        PurePathLabel,
-                        Base.Order.ForwardOrdering,
-                    }(Base.Order.ForwardOrdering())
-                end
-                new_key = (
-                    new_path.time_mincharge, 
-                    - new_path.charge_maxcharge, 
-                    new_path.time_mincharge - new_path.charge_mincharge
-                )
-                added = add_pure_path_label_to_collection!(
-                    pure_path_labels[starting_node][next_node][new_set], 
-                    new_key, new_path, 
-                    ;
-                    verbose = false,
-                )
-                if added && !(next_node in graph.N_depots)
-                    new_state = (new_key..., starting_node, next_node)
-                    push!(unexplored_states, new_state)
-                end
+            if !(new_set in keys(pure_path_labels[starting_node][next_node]))
+                pure_path_labels[starting_node][next_node][new_set] = SortedDict{
+                    NTuple{3, Int},
+                    PurePathLabel,
+                    Base.Order.ForwardOrdering,
+                }(Base.Order.ForwardOrdering())
+            end
+            new_key = (
+                new_path.time_mincharge, 
+                - new_path.charge_maxcharge, 
+                new_path.time_mincharge - new_path.charge_mincharge
+            )
+            added = add_pure_path_label_to_collection!(
+                pure_path_labels[starting_node][next_node][new_set], 
+                new_key, new_path, 
+                ;
+                verbose = false,
+            )
+            if added && !(next_node in graph.N_depots)
+                new_state = (new_key..., new_set..., starting_node, next_node)
+                push!(unexplored_states, new_state)
             end
         end
     end
@@ -710,7 +704,7 @@ function find_nondominated_paths_ngroute_christofides(
         starting_node => Dict(
             current_node => Dict(
                 prev_node => Dict{
-                    Tuple{Vararg{Int}}, 
+                    NTuple{graph.n_nodes_extra, Int}, 
                     SortedDict{
                         NTuple{3, Int}, 
                         PurePathLabel,
@@ -724,11 +718,12 @@ function find_nondominated_paths_ngroute_christofides(
         for starting_node in graph.N_depots
     )
 
-    unexplored_states = SortedSet{NTuple{6, Int}}()
+    unexplored_states = SortedSet{NTuple{graph.n_nodes_extra + 6, Int}}()
     for depot in graph.N_depots
         key = (0, -graph.B, -graph.B)
-        set = (depot,) # NG
-        pure_path_labels[depot][depot][depot][set] = SortedDict{
+        node_labels = zeros(Int, graph.n_nodes_extra)
+        node_labels[depot] = 1
+        pure_path_labels[depot][depot][depot][(node_labels...,)] = SortedDict{
             NTuple{3, Int},
             PurePathLabel,
         }(
@@ -751,6 +746,7 @@ function find_nondominated_paths_ngroute_christofides(
             unexplored_states, 
             (
                 key..., 
+                node_labels...,
                 depot, # starting_node
                 depot, # prev_node
                 depot, # current_node 
@@ -766,69 +762,51 @@ function find_nondominated_paths_ngroute_christofides(
         starting_node = state[end-2]
         prev_node = state[end-1]
         current_node = state[end]
-        current_key = state[1:end-3]
-        for current_set in keys(pure_path_labels[starting_node][current_node][prev_node])
-            if !(current_key in keys(pure_path_labels[starting_node][current_node][prev_node][current_set]))
-                continue
+        current_set = state[4:end-3]
+        current_key = state[1:3]
+        current_path = get(pure_path_labels[starting_node][current_node][prev_node][current_set], current_key, nothing)
+        isnothing(current_path) && continue
+        for next_node in setdiff(outneighbors(graph.G, current_node), current_node)
+            if next_node in graph.N_customers
+                # Preventing customer 2-cycles (Christofides)
+                if length(current_path.nodes) ≥ 2 && current_path.nodes[end-1] == prev_node == next_node
+                    continue
+                end
             end
-            current_path = pure_path_labels[starting_node][current_node][prev_node][current_set][current_key]
-            for next_node in setdiff(outneighbors(graph.G, current_node), current_node)
-                if next_node in current_set
-                    # if next_node is a customer not yet visited, proceed
-                    # only if one can extend current_subpath along next_node according to ng-route rules
-                    continue
-                end
-                if next_node in graph.N_customers
-                    # Preventing customer 2-cycles (Christofides)
-                    if length(current_path.nodes) ≥ 2 && current_path.nodes[end-1] == prev_node == next_node
-                        continue
-                    end
-                end
 
-                
-                (feasible, new_path) = compute_new_pure_path(
-                    current_path, 
-                    current_node, next_node, 
-                    data, graph,
-                    α, β, modified_costs,
-                )
-                if !feasible
-                    continue
-                end
+            (feasible, new_set) = ngroute_check_create_set(
+                graph.N_customers, neighborhoods, current_set, next_node,
+            )
+            !feasible && continue
+            (feasible, new_path) = compute_new_pure_path(
+                current_path, 
+                current_node, next_node, 
+                data, graph,
+                α, β, modified_costs,
+            )
+            !feasible && continue
 
-                # if !(current_node in keys(pure_path_labels[starting_node][next_node]))
-                #     pure_path_labels[starting_node][next_node][current_node] = Dict{
-                #         Tuple{Vararg{Int}},
-                #         SortedDict{
-                #             NTuple{3, Int},
-                #             PurePathLabel,
-                #             Base.Order.ForwardOrdering,
-                #         },
-                #     }()
-                # end
-                new_set = ngroute_create_set(neighborhoods, current_set, next_node)
-                if !(new_set in keys(pure_path_labels[starting_node][next_node][current_node]))
-                    pure_path_labels[starting_node][next_node][current_node][new_set] = SortedDict{
-                        NTuple{3, Int},
-                        PurePathLabel,
-                        Base.Order.ForwardOrdering,
-                    }(Base.Order.ForwardOrdering())
-                end
-                new_key = (
-                    new_path.time_mincharge, 
-                    - new_path.charge_maxcharge, 
-                    new_path.time_mincharge - new_path.charge_mincharge
-                )
-                added = add_pure_path_label_to_collection!(
-                    pure_path_labels[starting_node][next_node][current_node][new_set], 
-                    new_key, new_path, 
-                    ;
-                    verbose = false,
-                )
-                if added && !(next_node in graph.N_depots)
-                    new_state = (new_key..., starting_node, current_node, next_node)
-                    push!(unexplored_states, new_state)
-                end
+            if !(new_set in keys(pure_path_labels[starting_node][next_node][current_node]))
+                pure_path_labels[starting_node][next_node][current_node][new_set] = SortedDict{
+                    NTuple{3, Int},
+                    PurePathLabel,
+                    Base.Order.ForwardOrdering,
+                }(Base.Order.ForwardOrdering())
+            end
+            new_key = (
+                new_path.time_mincharge, 
+                - new_path.charge_maxcharge, 
+                new_path.time_mincharge - new_path.charge_mincharge
+            )
+            added = add_pure_path_label_to_collection!(
+                pure_path_labels[starting_node][next_node][current_node][new_set], 
+                new_key, new_path, 
+                ;
+                verbose = false,
+            )
+            if added && !(next_node in graph.N_depots)
+                new_state = (new_key..., new_set..., starting_node, current_node, next_node)
+                push!(unexplored_states, new_state)
             end
         end
     end
@@ -892,7 +870,7 @@ function find_nondominated_paths_ngroute_sigma(
             current_node => Dict{
                 NTuple{2, Int}, 
                 Dict{
-                    Tuple{Vararg{Int}}, 
+                    NTuple{graph.n_nodes_extra, Int}, 
                     SortedDict{
                         NTuple{3, Int}, 
                         PurePathLabel,
@@ -905,16 +883,17 @@ function find_nondominated_paths_ngroute_sigma(
         for starting_node in graph.N_depots
     )
 
-    unexplored_states = SortedSet{NTuple{7, Int}}()
+    unexplored_states = SortedSet{NTuple{graph.n_nodes_extra + 7, Int}}()
     for depot in graph.N_depots
         key = (0, -graph.B, -graph.B)
-        set = (depot,) # NG
+        node_labels = zeros(Int, graph.n_nodes_extra)
+        node_labels[depot] = 1
         pure_path_labels[depot][depot][(depot, depot)] = Dict(
-            set => SortedDict{
+            (node_labels...,) => SortedDict{
                 NTuple{3, Int},
                 PurePathLabel,
             }(
-                # Base.Order.ForwardOrdering(),
+                Base.Order.ForwardOrdering(),
                 key => PurePathLabel(
                     0.0,
                     [depot],
@@ -934,6 +913,7 @@ function find_nondominated_paths_ngroute_sigma(
             unexplored_states, 
             (
                 key..., 
+                node_labels...,
                 depot, # starting_node
                 depot, # prev_prev_node
                 depot, # prev_node
@@ -951,73 +931,65 @@ function find_nondominated_paths_ngroute_sigma(
         prev_prev_node = state[end-2]
         prev_node = state[end-1]
         current_node = state[end]
-        current_key = state[1:end-4]
-        for current_set in keys(pure_path_labels[starting_node][current_node][(prev_prev_node, prev_node)])
-            if !(current_key in keys(pure_path_labels[starting_node][current_node][(prev_prev_node, prev_node)][current_set]))
-                continue
-            end
-            current_path = pure_path_labels[starting_node][current_node][(prev_prev_node, prev_node)][current_set][current_key]
-            for next_node in setdiff(outneighbors(graph.G, current_node), current_node)
-                if next_node in current_set
-                    # if next_node is a customer not yet visited, proceed
-                    # only if one can extend current_subpath along next_node according to ng-route rules
-                    continue
-                end
-                if next_node in graph.N_customers
-                    # Preventing customer 2-cycles (Christofides)
-                    if christofides 
-                        if length(current_path.nodes) ≥ 2 && current_path.nodes[end-1] == next_node
-                            continue
-                        end
+        current_set = state[4:end-4]
+        current_key = state[1:3]
+        current_path = get(pure_path_labels[starting_node][current_node][(prev_prev_node, prev_node)][current_set], current_key, nothing)
+        isnothing(current_path) && continue
+        for next_node in setdiff(outneighbors(graph.G, current_node), current_node)
+            if next_node in graph.N_customers
+                # Preventing customer 2-cycles (Christofides)
+                if christofides 
+                    if length(current_path.nodes) ≥ 2 && current_path.nodes[end-1] == next_node
+                        continue
                     end
                 end
+            end
 
-                
-                (feasible, new_path) = compute_new_pure_path(
-                    current_path, 
-                    current_node, next_node, 
-                    data, graph,
-                    α, β, modified_costs,
-                )
-                if !feasible
-                    continue
-                end
+            (feasible, new_set) = ngroute_check_create_set(
+                graph.N_customers, neighborhoods, current_set, next_node,
+            )
+            !feasible && continue
+            (feasible, new_path) = compute_new_pure_path(
+                current_path, 
+                current_node, next_node, 
+                data, graph,
+                α, β, modified_costs,
+            )
+            !feasible && continue
 
-                new_path.cost += σ_costs[(prev_prev_node, prev_node, current_node, next_node)]
+            new_path.cost += σ_costs[(prev_prev_node, prev_node, current_node, next_node)]
 
-                if !((prev_node, current_node) in keys(pure_path_labels[starting_node][next_node]))
-                    pure_path_labels[starting_node][next_node][(prev_node, current_node)] = Dict{
-                        Tuple{Vararg{Int}},
-                        SortedDict{
-                            NTuple{3, Int},
-                            PurePathLabel,
-                            Base.Order.ForwardOrdering,
-                        },
-                    }()
-                end
-                new_set = ngroute_create_set(neighborhoods, current_set, next_node)
-                if !(new_set in keys(pure_path_labels[starting_node][next_node][(prev_node, current_node)]))
-                    pure_path_labels[starting_node][next_node][(prev_node, current_node)][new_set] = SortedDict{
+            if !((prev_node, current_node) in keys(pure_path_labels[starting_node][next_node]))
+                pure_path_labels[starting_node][next_node][(prev_node, current_node)] = Dict{
+                    NTuple{graph.n_nodes_extra, Int},
+                    SortedDict{
                         NTuple{3, Int},
                         PurePathLabel,
                         Base.Order.ForwardOrdering,
-                    }(Base.Order.ForwardOrdering())
-                end
-                new_key = (
-                    new_path.time_mincharge, 
-                    - new_path.charge_maxcharge, 
-                    new_path.time_mincharge - new_path.charge_mincharge
-                )
-                added = add_pure_path_label_to_collection!(
-                    pure_path_labels[starting_node][next_node][(prev_node, current_node)][new_set], 
-                    new_key, new_path, 
-                    ;
-                    verbose = false,
-                )
-                if added && !(next_node in graph.N_depots)
-                    new_state = (new_key..., starting_node, prev_node, current_node, next_node)
-                    push!(unexplored_states, new_state)
-                end
+                    },
+                }()
+            end
+            if !(new_set in keys(pure_path_labels[starting_node][next_node][(prev_node, current_node)]))
+                pure_path_labels[starting_node][next_node][(prev_node, current_node)][new_set] = SortedDict{
+                    NTuple{3, Int},
+                    PurePathLabel,
+                    Base.Order.ForwardOrdering,
+                }(Base.Order.ForwardOrdering())
+            end
+            new_key = (
+                new_path.time_mincharge, 
+                - new_path.charge_maxcharge, 
+                new_path.time_mincharge - new_path.charge_mincharge
+            )
+            added = add_pure_path_label_to_collection!(
+                pure_path_labels[starting_node][next_node][(prev_node, current_node)][new_set], 
+                new_key, new_path, 
+                ;
+                verbose = false,
+            )
+            if added && !(next_node in graph.N_depots)
+                new_state = (new_key..., new_set..., starting_node, prev_node, current_node, next_node)
+                push!(unexplored_states, new_state)
             end
         end
     end
@@ -1091,8 +1063,8 @@ function find_nondominated_paths_ngroute_alt(
     for depot in graph.N_depots
         node_labels = zeros(Int, graph.n_nodes_extra)
         node_labels[depot] = 1
-        key = (0, -graph.B, -graph.B, node_labels...)
-        pure_path_labels[depot][depot][key] = PurePathLabel(
+        key = (0, -graph.B, -graph.B)
+        pure_path_labels[depot][depot][(key..., node_labels...)] = PurePathLabel(
             0.0,
             [depot],
             Int[],
@@ -1105,7 +1077,15 @@ function find_nondominated_paths_ngroute_alt(
             zeros(Int, graph.n_customers),
             false,
         )
-        push!(unexplored_states, (key..., depot, depot))
+        push!(
+            unexplored_states, 
+            (
+                key..., 
+                node_labels..., 
+                depot, # starting_node
+                depot, # current_node
+            )
+        )
     end
 
     while length(unexplored_states) > 0
@@ -1115,44 +1095,36 @@ function find_nondominated_paths_ngroute_alt(
         state = pop!(unexplored_states)
         starting_node = state[end-1]
         current_node = state[end]
-        current_key = state[1:end-2]
-        if !(current_key in keys(pure_path_labels[starting_node][current_node]))
-            continue
-        end
         current_set = state[4:end-2]
-        current_path = pure_path_labels[starting_node][current_node][current_key]
+        current_key = state[1:end-2]
+        current_path = get(pure_path_labels[starting_node][current_node], current_key, nothing)
+        isnothing(current_path) && continue
         for next_node in setdiff(outneighbors(graph.G, current_node), current_node)
-            if next_node in graph.N_customers && current_set[next_node] == 1
-                # if next_node is a customer not yet visited, proceed
-                # only if one can extend current_subpath along next_node according to ng-route rules
-                continue
-            end
-
+            (feasible, new_set) = ngroute_check_create_set(
+                graph.N_customers, neighborhoods, current_set, next_node,
+            )
+            !feasible && continue
             (feasible, new_path) = compute_new_pure_path(
                 current_path, 
                 current_node, next_node, 
                 data, graph,
                 α, β, modified_costs,
             )
-            if !feasible
-                continue
-            end
+            !feasible && continue
 
-            new_set = ngroute_create_set_alt(neighborhoods, collect(current_set), next_node)
             new_key = (
                 new_path.time_mincharge, 
                 - new_path.charge_maxcharge, 
                 new_path.time_mincharge - new_path.charge_mincharge,
-                new_set...,
             )
             added = add_pure_path_label_to_collection!(
                 pure_path_labels[starting_node][next_node], 
-                new_key, new_path, 
+                (new_key..., new_set...), new_path, 
                 ;
                 verbose = false,
             )
             if added && !(next_node in graph.N_depots)
-                new_state = (new_key..., starting_node, next_node)
+                new_state = (new_key..., new_set..., starting_node, next_node)
                 push!(unexplored_states, new_state)
             end
         end
@@ -1221,8 +1193,8 @@ function find_nondominated_paths_ngroute_alt_christofides(
     for depot in graph.N_depots
         node_labels = zeros(Int, graph.n_nodes_extra)
         node_labels[depot] = 1
-        key = (0, -graph.B, -graph.B, node_labels...)
-        pure_path_labels[depot][depot][depot][key] = PurePathLabel(
+        key = (0, -graph.B, -graph.B)
+        pure_path_labels[depot][depot][depot][(key..., node_labels...)] = PurePathLabel(
             0.0,
             [depot],
             Int[],
@@ -1239,6 +1211,7 @@ function find_nondominated_paths_ngroute_alt_christofides(
             unexplored_states, 
             (
                 key..., 
+                node_labels...,
                 depot, # starting_node
                 depot, # prev_node
                 depot, # current_node
@@ -1254,15 +1227,11 @@ function find_nondominated_paths_ngroute_alt_christofides(
         starting_node = state[end-2]
         prev_node = state[end-1]
         current_node = state[end]
-        current_key = state[1:end-3]
         current_set = state[4:end-3]
-        current_path = pure_path_labels[starting_node][current_node][prev_node][current_key]
+        current_key = state[1:end-3]
+        current_path = get(pure_path_labels[starting_node][current_node][prev_node], current_key, nothing)
+        isnothing(current_path) && continue
         for next_node in setdiff(outneighbors(graph.G, current_node), current_node)
-            if next_node in graph.N_customers && current_set[next_node] == 1
-                # if next_node is a customer not yet visited, proceed
-                # only if one can extend current_subpath along next_node according to ng-route rules
-                continue
-            end
             if next_node in graph.N_customers
                 # Preventing customer 2-cycles (Christofides)
                 if length(current_path.nodes) ≥ 2 && current_path.nodes[end-1] == prev_node == next_node
@@ -1270,31 +1239,31 @@ function find_nondominated_paths_ngroute_alt_christofides(
                 end
             end
 
+            (feasible, new_set) = ngroute_check_create_set(
+                graph.N_customers, neighborhoods, current_set, next_node,
+            )
+            !feasible && continue
             (feasible, new_path) = compute_new_pure_path(
                 current_path, 
                 current_node, next_node, 
                 data, graph,
                 α, β, modified_costs,
             )
-            if !feasible
-                continue
-            end
+            !feasible && continue 
 
-            new_set = ngroute_create_set_alt(neighborhoods, collect(current_set), next_node)
             new_key = (
                 new_path.time_mincharge, 
                 - new_path.charge_maxcharge, 
                 new_path.time_mincharge - new_path.charge_mincharge,
-                new_set...,
             )
             added = add_pure_path_label_to_collection!(
                 pure_path_labels[starting_node][next_node][current_node], 
-                new_key, new_path, 
+                (new_key..., new_set...), new_path, 
                 ;
                 verbose = false,
             )
             if added && !(next_node in graph.N_depots)
-                new_state = (new_key..., starting_node, current_node, next_node)
+                new_state = (new_key..., new_set..., starting_node, current_node, next_node)
                 push!(unexplored_states, new_state)
             end
         end
@@ -1370,13 +1339,13 @@ function find_nondominated_paths_ngroute_alt_sigma(
     for depot in graph.N_depots
         node_labels = zeros(Int, graph.n_nodes_extra)
         node_labels[depot] = 1
-        key = (0, -graph.B, -graph.B, node_labels...)
+        key = (0, -graph.B, -graph.B)
         pure_path_labels[depot][depot][(depot, depot)] = SortedDict{
             NTuple{graph.n_nodes_extra + 3, Int}, 
             PurePathLabel,
         }(
             Base.Order.ForwardOrdering(),
-            key => PurePathLabel(
+            (key..., node_labels...) => PurePathLabel(
                 0.0,
                 [depot],
                 Int[],
@@ -1394,6 +1363,7 @@ function find_nondominated_paths_ngroute_alt_sigma(
             unexplored_states, 
             (
                 key..., 
+                node_labels...,
                 depot, # starting_node
                 depot, # prev_prev_node
                 depot, # prev_node
@@ -1411,15 +1381,11 @@ function find_nondominated_paths_ngroute_alt_sigma(
         prev_prev_node = state[end-2]
         prev_node = state[end-1]
         current_node = state[end]
-        current_key = state[1:end-4]
         current_set = state[4:end-4]
-        current_path = pure_path_labels[starting_node][current_node][(prev_prev_node, prev_node)][current_key]
+        current_key = state[1:end-4]
+        current_path = get(pure_path_labels[starting_node][current_node][(prev_prev_node, prev_node)], current_key, nothing)
+        isnothing(current_path) && continue
         for next_node in setdiff(outneighbors(graph.G, current_node), current_node)
-            if next_node in graph.N_customers && current_set[next_node] == 1
-                # if next_node is a customer not yet visited, proceed
-                # only if one can extend current_subpath along next_node according to ng-route rules
-                continue
-            end
             if next_node in graph.N_customers
                 # Preventing customer 2-cycles (Christofides)
                 if christofides 
@@ -1429,15 +1395,17 @@ function find_nondominated_paths_ngroute_alt_sigma(
                 end
             end
 
+            (feasible, new_set) = ngroute_check_create_set(
+                graph.N_customers, neighborhoods, current_set, next_node,
+            )
+            !feasible && continue
             (feasible, new_path) = compute_new_pure_path(
                 current_path, 
                 current_node, next_node, 
                 data, graph,
                 α, β, modified_costs,
             )
-            if !feasible
-                continue
-            end
+            !feasible && continue
 
             new_path.cost += σ_costs[(prev_prev_node, prev_node, current_node, next_node)]
 
@@ -1448,21 +1416,19 @@ function find_nondominated_paths_ngroute_alt_sigma(
                     Base.Order.ForwardOrdering,
                 }(Base.Order.ForwardOrdering())
             end
-            new_set = ngroute_create_set_alt(neighborhoods, collect(current_set), next_node)
             new_key = (
                 new_path.time_mincharge, 
                 - new_path.charge_maxcharge, 
                 new_path.time_mincharge - new_path.charge_mincharge,
-                new_set...,
             )
             added = add_pure_path_label_to_collection!(
                 pure_path_labels[starting_node][next_node][(prev_node, current_node)], 
-                new_key, new_path, 
+                (new_key..., new_set...), new_path, 
                 ;
                 verbose = false,
             )
             if added && !(next_node in graph.N_depots)
-                new_state = (new_key..., starting_node, prev_node, current_node, next_node)
+                new_state = (new_key..., new_set..., starting_node, prev_node, current_node, next_node)
                 push!(unexplored_states, new_state)
             end
         end

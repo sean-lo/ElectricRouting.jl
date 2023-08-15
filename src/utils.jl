@@ -766,7 +766,7 @@ end
 
 function ngroute_create_set_alt(
     neighborhoods::BitMatrix, 
-    set::Vector{Int},
+    set::Tuple{Vararg{Int}},
     next_node::Int,
 )
     new_set = zeros(Int, length(set))
@@ -776,7 +776,7 @@ function ngroute_create_set_alt(
         end
     end
     new_set[next_node] = 1
-    return new_set
+    return Tuple(new_set)
 end
 
 function compute_arc_modified_costs(
