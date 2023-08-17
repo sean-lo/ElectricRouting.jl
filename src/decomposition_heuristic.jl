@@ -451,54 +451,26 @@ function find_nondominated_paths_nocharge_ngroute_alt(
 
 end
 
+unwrap_base_labels(b) = BaseSubpathLabel[b]
 
-function get_negative_base_labels_from_base_labels(
-    graph::EVRPGraph,
-    base_labels::Dict{
-        Int, 
-        Dict{
-            Int, 
-            SortedDict{
-                Tuple{Vararg{Int}},
-                BaseSubpathLabel,
-                Base.Order.ForwardOrdering,
-            },
-        },
-    },
-)
-    return BaseSubpathLabel[
-        base_label
-        for starting_node in graph.N_depots
-            for end_node in graph.N_depots
-                for (key, base_label) in base_labels[starting_node][end_node]
-                    if base_label.cost < -1e-6
-    ]
+function unwrap_base_labels(d::AbstractDict)
+    u = BaseSubpathLabel[]
+    for v in values(d)
+        append!(u, unwrap_base_labels(v))
+    end
+    return u
 end
 
-function get_negative_base_labels_from_base_labels_ngroute(
-    graph::EVRPGraph,
+function get_negative_base_labels_from_base_labels(
     base_labels::Dict{
         Int, 
-        Dict{
-            Int, 
-            Dict{
-                Tuple{Vararg{Int}},
-                SortedDict{
-                    Tuple{Vararg{Int}},
-                    BaseSubpathLabel,
-                    Base.Order.ForwardOrdering,
-                },
-            },
-        },
+        Dict{Int, T},
     },
-)
+) where {T <: AbstractDict}
     return BaseSubpathLabel[
         base_label
-        for starting_node in graph.N_depots
-            for end_node in graph.N_depots
-                for set in keys(base_labels[starting_node][end_node])
-                    for (key, base_label) in base_labels[starting_node][end_node][set]
-                        if base_label.cost < -1e-6
+        for base_label in unwrap_base_labels(base_labels)
+            if base_label.cost < -1e-6
     ]
 end
 
@@ -519,21 +491,21 @@ function subproblem_iteration_nocharge(
 )
     if ngroute && !ngroute_alt
         base_labels_result = @timed find_nondominated_paths_nocharge_ngroute(
-            graph, neighborhoods, κ, μ, ν, T_heuristic,
+            data, graph, neighborhoods, κ, μ, ν, T_heuristic,
             ;
             time_windows = time_windows,
             christofides = christofides,
         )
     elseif ngroute && ngroute_alt
         base_labels_result = @timed find_nondominated_paths_nocharge_ngroute_alt(
-            graph, neighborhoods, κ, μ, ν, T_heuristic,
+            data, graph, neighborhoods, κ, μ, ν, T_heuristic,
             ;
             time_windows = time_windows,
             christofides = christofides,
         )
     else
         base_labels_result = @timed find_nondominated_paths_nocharge(
-            graph, κ, μ, ν, T_heuristic,
+            data, graph, κ, μ, ν, T_heuristic,
             ;
             time_windows = time_windows,
             christofides = christofides,
@@ -542,9 +514,9 @@ function subproblem_iteration_nocharge(
         )
     end
     if ngroute && !ngroute_alt
-        negative_base_labels = get_negative_base_labels_from_base_labels_ngroute(graph, base_labels_result.value)
+        negative_base_labels = get_negative_base_labels_from_base_labels_ngroute(base_labels_result.value)
     elseif (ngroute && ngroute_alt) || !ngroute
-        negative_base_labels = get_negative_base_labels_from_base_labels(graph, base_labels_result.value)
+        negative_base_labels = get_negative_base_labels_from_base_labels(base_labels_result.value)
     end
     return (negative_base_labels, length(negative_base_labels), base_labels_result.time)
 end
