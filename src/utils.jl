@@ -751,24 +751,17 @@ function compute_ngroute_neighborhoods(
     return neighborhoods
 end
 
-function ngroute_create_set(
-    neighborhoods::BitMatrix, 
-    set::Tuple{Vararg{Int}}, 
-    next_node::Int,
-)
-    new_set = Int[
-        node for node in set
-            if neighborhoods[next_node, node]
-    ]
-    push!(new_set, next_node) 
-    return Tuple(sort(unique(new_set)))
-end
-
-function ngroute_create_set_alt(
-    neighborhoods::BitMatrix, 
+function ngroute_check_create_set(
+    N_customers::Vector{Int},
+    neighborhoods::BitMatrix,
     set::Tuple{Vararg{Int}},
     next_node::Int,
 )
+    if next_node in N_customers && set[next_node] == 1
+        # if next_node is a customer not yet visited, proceed
+        # only if one can extend current_subpath along next_node according to ng-route rules
+        return (false, nothing)
+    end
     new_set = zeros(Int, length(set))
     for node in eachindex(set)
         if set[node] == 1 && neighborhoods[next_node, node]
@@ -776,7 +769,7 @@ function ngroute_create_set_alt(
         end
     end
     new_set[next_node] = 1
-    return Tuple(new_set)
+    return (true, Tuple(new_set))
 end
 
 function compute_arc_modified_costs(

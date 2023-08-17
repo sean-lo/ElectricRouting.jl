@@ -758,21 +758,16 @@ function generate_base_labels_ngroute(
             continue
         end
         for next_node in setdiff(outneighbors(graph.G, current_node), current_node)
-            if next_node in graph.N_customers && current_set[next_node] == 1
-                # if next_node is a customer not yet visited, proceed
-                # only if one can extend current_subpath along next_node according to ng-route rules
-                continue
-            end
-                
+            (feasible, new_set) = ngroute_check_create_set(
+                graph.N_customers, neighborhoods, current_set, next_node,
+            )
+            !feasible && continue
             (feasible, new_subpath) = compute_next_subpath(
                 current_subpath, graph,
                 current_node, next_node, modified_costs,
             )
-            if !feasible 
-                continue 
-            end
+            !feasible && continue
 
-            new_set = ngroute_create_set_alt(neighborhoods, current_set, next_node)
             if !(new_set in keys(base_labels[starting_node][next_node]))
                 base_labels[starting_node][next_node][new_set] = SortedDict{ 
                     NTuple{1, Int}, 
@@ -913,25 +908,21 @@ function generate_base_labels_ngroute_christofides(
             continue
         end
         for next_node in setdiff(outneighbors(graph.G, current_node), current_node)
-            if next_node in graph.N_customers && current_set[next_node] == 1
-                # if next_node is a customer not yet visited, proceed
-                # only if one can extend current_subpath along next_node according to ng-route rules
-                continue
-            end
             # Preventing customer 2-cycles (Christofides)
             if next_node in graph.N_customers
                 if length(current_subpath.nodes) ≥ 2 && current_subpath.nodes[end-1] == prev_node == next_node
                     continue
                 end
             end
-                                
+            (feasible, new_set) = ngroute_check_create_set(
+                graph.N_customers, neighborhoods, current_set, next_node
+            )
+            !feasible && continue              
             (feasible, new_subpath) = compute_next_subpath(
                 current_subpath, graph,
                 current_node, next_node, modified_costs,
             )
-            if !feasible 
-                continue 
-            end
+            !feasible && continue
 
             if first_node == starting_node
                 first_node = current_node 
@@ -948,7 +939,6 @@ function generate_base_labels_ngroute_christofides(
                 }()
             end
 
-            new_set = ngroute_create_set_alt(neighborhoods, current_set, next_node)
             if !(new_set in keys(base_labels[starting_node][next_node][(first_node, current_node)]))
                 base_labels[starting_node][next_node][(first_node, current_node)][new_set] = SortedDict{ 
                     NTuple{1, Int}, 
@@ -1082,23 +1072,18 @@ function generate_base_labels_ngroute_sigma(
             continue
         end
         for next_node in setdiff(outneighbors(graph.G, current_node), current_node)
-            if next_node in graph.N_customers && current_set[next_node] == 1
-                # if next_node is a customer not yet visited, proceed
-                # only if one can extend current_subpath along next_node according to ng-route rules
-                continue
-            end
-                                
+            (feasible, new_set) = ngroute_check_create_set(
+                graph.N_customers, neighborhoods, current_set, next_node
+            )
+            !feasible && continue
             (feasible, new_subpath) = compute_next_subpath(
                 current_subpath, graph,
                 current_node, next_node, modified_costs,
             )
-            if !feasible 
-                continue 
-            end
+            !feasible && continue
 
             new_subpath.cost += σ_costs[(prev_node, current_node, next_node)]
 
-            new_set = ngroute_create_set_alt(neighborhoods, current_set, next_node)
             if !(new_set in keys(base_labels[starting_node][next_node][current_node]))
                 base_labels[starting_node][next_node][current_node][new_set] = SortedDict{ 
                     NTuple{1, Int}, 
@@ -1243,25 +1228,22 @@ function generate_base_labels_ngroute_sigma_christofides(
             continue
         end
         for next_node in setdiff(outneighbors(graph.G, current_node), current_node)
-            if next_node in graph.N_customers && current_set[next_node] == 1
-                # if next_node is a customer not yet visited, proceed
-                # only if one can extend current_subpath along next_node according to ng-route rules
-                continue
-            end
             # Preventing customer 2-cycles (Christofides)
             if next_node in graph.N_customers
                 if length(current_subpath.nodes) ≥ 2 && current_subpath.nodes[end-1] == prev_node == next_node
                     continue
                 end
             end
-                                
+
+            (feasible, new_set) = ngroute_check_create_set(
+                graph.N_customers, neighborhoods, current_set, next_node
+            )
+            !feasible && continue
             (feasible, new_subpath) = compute_next_subpath(
                 current_subpath, graph,
                 current_node, next_node, modified_costs,
             )
-            if !feasible 
-                continue 
-            end
+            !feasible && continue
 
             new_subpath.cost += σ_costs[(prev_node, current_node, next_node)]
 
@@ -1280,7 +1262,6 @@ function generate_base_labels_ngroute_sigma_christofides(
                 }()
             end
 
-            new_set = ngroute_create_set_alt(neighborhoods, current_set, next_node)
             if !(new_set in keys(base_labels[starting_node][next_node][(first_node, current_node)]))
                 base_labels[starting_node][next_node][(first_node, current_node)][new_set] = SortedDict{ 
                     NTuple{1, Int}, 
@@ -1399,23 +1380,18 @@ function generate_base_labels_ngroute_alt(
         current_set = state[2:end-2]
         current_subpath = base_labels[starting_node][current_node][current_key]
         for next_node in setdiff(outneighbors(graph.G, current_node), current_node)
-            if next_node in graph.N_customers && current_set[next_node] == 1
-                # if next_node is a customer not yet visited, proceed
-                # only if one can extend current_subpath along next_node according to ng-route rules
-                continue
-            end
-                            
+            (feasible, new_set) = ngroute_check_create_set(
+                graph.N_customers, neighborhoods, current_set, next_node
+            )
+            !feasible && continue
             (feasible, new_subpath) = compute_next_subpath(
                 current_subpath, graph,
                 current_node, next_node, modified_costs,
             )
-            if !feasible 
-                continue 
-            end
+            !feasible && continue
 
             new_subpath.cost += σ_costs[(prev_node, current_node, next_node)]
             
-            new_set = ngroute_create_set_alt(neighborhoods, current_set, next_node)
             new_key = (new_subpath.time_taken, new_set...)
             added = add_subpath_longlabel_to_collection!(
                 base_labels[starting_node][next_node],
@@ -1534,11 +1510,6 @@ function generate_base_labels_ngroute_alt_christofides(
         current_set = state[2:end-4]
         current_subpath = base_labels[starting_node][current_node][(first_node, prev_node)][current_key]
         for next_node in setdiff(outneighbors(graph.G, current_node), current_node)
-            if next_node in graph.N_customers && current_set[next_node] == 1
-                # if next_node is a customer not yet visited, proceed
-                # only if one can extend current_subpath along next_node according to ng-route rules
-                continue
-            end
             # Preventing customer 2-cycles (Christofides)
             if next_node in graph.N_customers
                 if length(current_subpath.nodes) ≥ 2 && current_subpath.nodes[end-1] == prev_node == next_node
@@ -1546,13 +1517,15 @@ function generate_base_labels_ngroute_alt_christofides(
                 end
             end
                             
+            (feasible, new_set) = ngroute_check_create_set(
+                graph.N_customers, neighborhoods, current_set, next_node
+            )
+            !feasible && continue
             (feasible, new_subpath) = compute_next_subpath(
                 current_subpath, graph,
                 current_node, next_node, modified_costs,
             )
-            if !feasible 
-                continue 
-            end
+            !feasible && continue
 
             new_subpath.cost += σ_costs[(prev_node, current_node, next_node)]
 
@@ -1567,7 +1540,6 @@ function generate_base_labels_ngroute_alt_christofides(
                 }(Base.Order.ForwardOrdering())
             end
 
-            new_set = ngroute_create_set_alt(neighborhoods, current_set, next_node)
             new_key = (new_subpath.time_taken, new_set...)
             added = add_subpath_longlabel_to_collection!(
                 base_labels[starting_node][next_node][(first_node, current_node)],
@@ -1682,23 +1654,18 @@ function generate_base_labels_ngroute_alt_sigma(
         current_set = state[2:end-4]
         current_subpath = base_labels[starting_node][current_node][prev_node][current_key]
         for next_node in setdiff(outneighbors(graph.G, current_node), current_node)
-            if next_node in graph.N_customers && current_set[next_node] == 1
-                # if next_node is a customer not yet visited, proceed
-                # only if one can extend current_subpath along next_node according to ng-route rules
-                continue
-            end
-                           
+            (feasible, new_set) = ngroute_check_create_set(
+                graph.N_customers, neighborhoods, current_set, next_node
+            )
+            !feasible && continue
             (feasible, new_subpath) = compute_next_subpath(
                 current_subpath, graph,
                 current_node, next_node, modified_costs,
             )
-            if !feasible 
-                continue 
-            end
+            !feasible && continue
 
             new_subpath.cost += σ_costs[(prev_node, current_node, next_node)]
 
-            new_set = ngroute_create_set_alt(neighborhoods, current_set, next_node)
             new_key = (new_subpath.time_taken, new_set...)
             added = add_subpath_longlabel_to_collection!(
                 base_labels[starting_node][next_node][current_node],
@@ -1820,25 +1787,22 @@ function generate_base_labels_ngroute_alt_sigma_christofides(
         current_set = state[2:end-4]
         current_subpath = base_labels[starting_node][current_node][(first_node, prev_node)][current_key]
         for next_node in setdiff(outneighbors(graph.G, current_node), current_node)
-            if next_node in graph.N_customers && current_set[next_node] == 1
-                # if next_node is a customer not yet visited, proceed
-                # only if one can extend current_subpath along next_node according to ng-route rules
-                continue
-            end
             # Preventing customer 2-cycles (Christofides)
             if next_node in graph.N_customers
                 if length(current_subpath.nodes) ≥ 2 && current_subpath.nodes[end-1] == prev_node == next_node
                     continue
                 end
             end
-                            
+
+            (feasible, new_set) = ngroute_check_create_set(
+                graph.N_customers, neighborhoods, current_set, next_node
+            )
+            !feasible && continue
             (feasible, new_subpath) = compute_next_subpath(
                 current_subpath, graph,
                 current_node, next_node, modified_costs,
             )
-            if !feasible 
-                continue 
-            end
+            !feasible && continue
 
             new_subpath.cost += σ_costs[(prev_node, current_node, next_node)]
 
@@ -1853,7 +1817,6 @@ function generate_base_labels_ngroute_alt_sigma_christofides(
                 }(Base.Order.ForwardOrdering())
             end
 
-            new_set = ngroute_create_set_alt(neighborhoods, current_set, next_node)
             new_key = (new_subpath.time_taken, new_set...)
             added = add_subpath_longlabel_to_collection!(
                 base_labels[starting_node][next_node][(first_node, current_node)],
