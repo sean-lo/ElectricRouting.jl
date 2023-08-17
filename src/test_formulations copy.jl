@@ -35,8 +35,8 @@ plot_instance(data)
 
 p_b_ngs_ch_LP_results, p_b_ngs_ch_IP_results, p_b_ngs_ch_params, p_b_ngs_ch_printlist, p_b_ngs_ch_some_paths, p_b_ngs_ch_model = path_formulation_column_generation(data; method = "benchmark", ngroute = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true, christofides = true);
 p_o_ngs_ch_LP_results, p_o_ngs_ch_IP_results, p_o_ngs_ch_params, p_o_ngs_ch_printlist, p_o_ngs_ch_some_paths, p_o_ngs_ch_model = path_formulation_column_generation(data; method = "ours", ngroute = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true, christofides = true);
-sp_b_ngs_ch_LP_results, sp_b_ngs_ch_IP_results, sp_b_ngs_ch_params, sp_b_ngs_ch_printlist, sp_b_ngs_ch_some_subpaths, sp_b_ngs_ch_some_charging_arcs, sp_b_ngs_ch_model = subpath_formulation_column_generation_integrated_from_paths(data, G; method = "benchmark", ngroute = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true, christofides = true);
-sp_o_ngs_ch_LP_results, sp_o_ngs_ch_IP_results, sp_o_ngs_ch_params, sp_o_ngs_ch_printlist, sp_o_ngs_ch_some_subpaths, sp_o_ngs_ch_some_charging_arcs, sp_o_ngs_ch_model = subpath_formulation_column_generation_integrated_from_paths(data, G; method = "ours", ngroute = true, ngroute_neighborhood_charging_depots_size = "small", christofides = true, verbose = true);
+sp_b_ngs_ch_LP_results, sp_b_ngs_ch_IP_results, sp_b_ngs_ch_params, sp_b_ngs_ch_printlist, sp_b_ngs_ch_some_subpaths, sp_b_ngs_ch_some_charging_arcs, sp_b_ngs_ch_model = subpath_formulation_column_generation_integrated_from_paths(data, graph; method = "benchmark", ngroute = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true, christofides = true);
+sp_o_ngs_ch_LP_results, sp_o_ngs_ch_IP_results, sp_o_ngs_ch_params, sp_o_ngs_ch_printlist, sp_o_ngs_ch_some_subpaths, sp_o_ngs_ch_some_charging_arcs, sp_o_ngs_ch_model = subpath_formulation_column_generation_integrated_from_paths(data, graph; method = "ours", ngroute = true, ngroute_neighborhood_charging_depots_size = "small", christofides = false, verbose = true);
 
 
 collect_path_solution_metrics!(p_b_ngs_ch_LP_results, data, graph, p_b_ngs_ch_some_paths)
@@ -262,22 +262,63 @@ data = generate_instance(
 )
 graph = generate_graph_from_data(data)
 
+for (method, ngroute, ngroute_alt, christofides) in [
+    # ("benchmark", true, false, false),
+    # ("benchmark", true, false, true),
+    # ("benchmark", true, true, false),
+    # ("benchmark", true, true, true),
+    ("ours", true, false, false),
+    # ("ours", true, false, true),
+    ("ours", true, true, false),
+    # ("ours", true, true, true),
+]
+    data = generate_instance(
+        ;
+        n_depots = 4,
+        n_customers = 10,
+        n_charging = 7,
+        n_vehicles = 6,
+        depot_pattern = "circular",
+        customer_pattern = "random_box",
+        charging_pattern = "circular_packing",
+        shrinkage_depots = 1.0,
+        shrinkage_charging = 1.0,
+        T = 40000,
+        seed = 6,
+        B = 15000,
+        μ = 5,
+        travel_cost_coeff = 7,
+        charge_cost_coeff = 3,
+        load_scale = 5.0,
+        load_shape = 20.0,
+        load_tolerance = 1.3,
+        batch = 1,
+        permissiveness = 0.2,
+    )
+    graph = generate_graph_from_data(data)
+    LP_results, IP_results, CG_params, printlist, some_paths, model, z, WSR3_constraints = path_formulation_column_generation_with_cuts(
+        data, graph; 
+        method = method, 
+        ngroute = ngroute, 
+        ngroute_alt = ngroute_alt, 
+        ngroute_neighborhood_charging_depots_size = "small", 
+        verbose = true, 
+        christofides = christofides,
+    )
+end
+
 LP_results, IP_results, CG_params, printlist, some_paths, model, z, WSR3_constraints = path_formulation_column_generation_with_cuts(data, graph; method = "benchmark", ngroute = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true, christofides = true);
 
-plot_path_solution(
-    LP_results,
-    data,
-    graph,
-    some_paths,
-)
+LP_results, IP_results, CG_params, printlist, some_paths, model, z, WSR3_constraints = path_formulation_column_generation_with_cuts(data, graph; method = "benchmark", ngroute = true, ngroute_alt = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true, christofides = true);
 
-LP_results["paths"][1]
 
 # LP_results, IP_results, CG_params, printlist, some_paths, model, z, WSR3_constraints = path_formulation_column_generation_with_cuts(data, graph; method = "ours", ngroute = false, subpath_single_service = false, ngroute_neighborhood_charging_depots_size = "small", verbose = true, christofides = true);
 
-LP_results, IP_results, CG_params, printlist, some_paths, model, z, WSR3_constraints = path_formulation_column_generation_with_cuts(data, graph; method = "ours", ngroute = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true, christofides = true);
+LP_results, IP_results, CG_params, printlist, some_paths, model, z, WSR3_constraints = path_formulation_column_generation_with_cuts(data, graph; method = "ours", ngroute = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true, christofides = false);
 
-p = LP_results["paths"][1][2]
+LP_results, IP_results, CG_params, printlist, some_paths, model, z, WSR3_constraints = path_formulation_column_generation_with_cuts(data, graph; method = "ours", ngroute = true, ngroute_alt = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true, christofides = false);
+
+LP_results, IP_results, CG_params, printlist, some_paths, model, z, WSR3_constraints = path_formulation_column_generation_with_cuts(data, graph; method = "ours", ngroute = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true, christofides = true);
 
 LP_results, IP_results, CG_params, printlist, some_paths, model, z, WSR3_constraints = path_formulation_column_generation_with_cuts(data, graph; method = "ours", ngroute = true, ngroute_alt = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true, christofides = true);
 
@@ -287,7 +328,6 @@ plot_path_solution(
     data, graph,
     some_paths,
 )
-LP_results["paths"]
 
 
 
@@ -455,47 +495,46 @@ neighborhoods = augment_neighborhoods_extra_with_WSR3_duals(
     neighborhoods,
     generated_WSR3_to_charging_extra_map,
 )
-neighborhoods
 
 # debug 
 
-p = CGLP_all_results[2]["paths"][1][2]
-compute_path_modified_cost(
-    data,
-    graph,
-    p,
-    CGLP_all_results[1]["κ"],
-    CGLP_all_results[1]["μ"],
-    CGLP_all_results[1]["ν"],
-)
+# p = CGLP_all_results[2]["paths"][1][2]
+# compute_path_modified_cost(
+#     data,
+#     graph,
+#     p,
+#     CGLP_all_results[1]["κ"],
+#     CGLP_all_results[1]["μ"],
+#     CGLP_all_results[1]["ν"],
+# )
 
-b = generate_base_labels_ngroute_sigma(
-    data,
-    graph,
-    neighborhoods,
-    CGLP_all_results[1]["κ"],
-    CGLP_all_results[1]["μ"],
-    CGLP_all_results[1]["ν"],
-    Dict{Tuple{Vararg{Int}}, Float64}(),
-    ;
-    christofides = true,
-)
-p.arcs
-b[18][21][7]
-b[18][18][15]
-b[21][21][7]
+# b = generate_base_labels_ngroute_sigma(
+#     data,
+#     graph,
+#     neighborhoods,
+#     CGLP_all_results[1]["κ"],
+#     CGLP_all_results[1]["μ"],
+#     CGLP_all_results[1]["ν"],
+#     Dict{Tuple{Vararg{Int}}, Float64}(),
+#     ;
+#     christofides = true,
+# )
+# p.arcs
+# b[18][21][7]
+# b[18][18][15]
+# b[21][21][7]
 
-s1 = p.subpaths[2]
-s2 = b[21][21][7][(21,)][(44530,)]
-compute_subpath_modified_cost(
-    data,
-    graph,
-    s1,
-    CGLP_all_results[1]["κ"],
-    CGLP_all_results[1]["μ"],
-    CGLP_all_results[1]["ν"],
-)
-s2.cost
+# s1 = p.subpaths[2]
+# s2 = b[21][21][7][(21,)][(44530,)]
+# compute_subpath_modified_cost(
+#     data,
+#     graph,
+#     s1,
+#     CGLP_all_results[1]["κ"],
+#     CGLP_all_results[1]["μ"],
+#     CGLP_all_results[1]["ν"],
+# )
+# s2.cost
 
 
 function generate_new_WSR3_to_charging_extra_map(
@@ -677,7 +716,6 @@ full_labels_result.time
 negative_full_labels = get_negative_path_labels_from_path_labels(full_labels_result.value)
 normalize_path_labels!(negative_full_labels, graph)
 
-negative_full_labels[1]
 generated_paths = get_paths_from_negative_path_labels(
     graph, negative_full_labels,
 )
@@ -698,8 +736,52 @@ mp_constraint_time = add_paths_to_path_model!(
     path_costs,
     path_service,
     generated_paths,
+    WSR3_constraints,
     data, graph,
 )
+
+WSR3_constraints[(4, 5, 6, 21)]
+
+list_of_constraint_types(model, )
+all_constraints(model, AffExpr, MOI.LessThan{Float64})
+
+generated_paths
+
+WSR3_constraints
+
+p = generated_paths[(13, 0, 15000), (11, 136962, 0)][1]
+
+S = (4, 5, 6)
+intersect(p.arcs, Tuple.(permutations(S, 2)))
+
+function check_path_in_WSR3_constraint(
+    path::Path,
+    S::NTuple{3, Int},
+    included_charging_stations::Tuple{Vararg{Int}},
+)
+    if length(intersect(path.arcs, Tuple.(permutations(S, 2)))) ≥ 1
+        return true
+    end
+    if length(intersect(path.customer_arcs, Tuple.(permutations(S, 2)))) == 0
+        return false
+    end
+    for cs in included_charging_stations
+        if length(intersect(path.arcs, Tuple.(permutations(vcat(S, cs), 2)))) ≥ 2 
+            return true
+        end
+    end
+    return false
+end
+
+for (key, p_list) in pairs(generated_paths)
+    for p in p_list
+        println(p.arcs)
+        println(p.customer_arcs)
+        println(check_path_in_WSR3_constraint(p, (4, 5, 6), (21,)))
+    end
+end
+
+T
 
 CGLP_results["paths"] = collect_path_solution_support(
     CGLP_results, 
