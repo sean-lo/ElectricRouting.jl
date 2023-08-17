@@ -353,6 +353,25 @@ function path_formulation_build_model(
     return model, z
 end
 
+function check_path_in_WSR3_constraint(
+    path::Path,
+    S::NTuple{3, Int},
+    included_charging_stations::Tuple{Vararg{Int}},
+)
+    if length(intersect(path.arcs, Tuple.(permutations(S, 2)))) ≥ 1
+        return true
+    end
+    if length(intersect(path.customer_arcs, Tuple.(permutations(S, 2)))) == 0
+        return false
+    end
+    for cs in included_charging_stations
+        if length(intersect(path.arcs, Tuple.(permutations(vcat(S, cs), 2)))) ≥ 2 
+            return true
+        end
+    end
+    return false
+end
+
 function add_paths_to_path_model!(
     model::Model,
     z::Dict{
@@ -380,6 +399,10 @@ function add_paths_to_path_model!(
     generated_paths::Dict{
         Tuple{NTuple{3, Int}, NTuple{3, Int}},
         Vector{Path},
+    },
+    WSR3_constraints::Dict{
+        Tuple{Vararg{Int}}, 
+        ConstraintRef, 
     },
     data::EVRPData,
     graph::EVRPGraph,
@@ -427,6 +450,12 @@ function add_paths_to_path_model!(
                 end
                 # 7: modify objective
                 set_objective_coefficient(model, z[state_pair, count], path_costs[state_pair][count])
+                # 8: add variable to violated WSR3 constraints (if applicable)
+                for (WSR3_key, WSR3_con) in pairs(WSR3_constraints)
+                    if check_path_in_WSR3_constraint(p_new, WSR3_key[1:3], WSR3_key[4:end])
+                        set_normalized_coefficient(WSR3_con, z[state_pair,count], 1)
+                    end
+                end
             end
         end
     end
@@ -636,6 +665,7 @@ function path_formulation_column_generation!(
             path_costs,
             path_service,
             generated_paths,
+            WSR3_constraints,
             data, graph,
         )
 
@@ -1131,12 +1161,12 @@ function path_formulation_column_generation_with_cuts(
                     generated_WSR3_list,
                     graph,
                 )
-                if ngroute # FIXME
-                    neighborhoods = augment_neighborhoods_with_WSR3_duals(
-                        neighborhoods,
-                        generated_WSR3_to_charging_extra_map,
-                    )
-                end
+                # if ngroute # FIXME
+                #     neighborhoods = augment_neighborhoods_with_WSR3_duals(
+                #         neighborhoods,
+                #         generated_WSR3_to_charging_extra_map,
+                #     )
+                # end
             end
         end
     end
