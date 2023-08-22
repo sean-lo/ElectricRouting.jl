@@ -972,6 +972,285 @@ function augment_graph_with_WSR3_duals!(
     return graph
 end
 
+
+function detect_cycle_in_path(
+    p::Path,
+    node::Int,
+)
+    # Assumes that `node` is a customer.
+
+    # finds first and last occurrences of node
+    nodeseq = vcat(p.arcs[1][1], [a[2] for a in p.arcs])
+    
+    start_ind = findfirst(x -> x == node, nodeseq)
+    end_ind = findlast(x -> x == node, nodeseq)
+    return nodeseq[start_ind:end_ind]
+end
+
+
+function detect_cycles_in_path_solution(
+    path_results::Vector{Path},
+    graph::EVRPGraph,
+)
+    cycles = Dict{Int, Set{Int}}()
+    for p in path_results
+        for node in findall(x -> x > 1, p.served)
+            if !(node in keys(cycles))
+                cycles[node] = Set{Int}()
+            end
+            union!(cycles[node], detect_cycle_in_path(p, node))
+        end
+    end
+    return cycles
+end
+
+
+function modify_neighborhoods_with_found_cycles!(
+    neighborhoods::BitMatrix,
+    cycles_lookup::Dict{Int, Set{Int}},
+)
+    for (node, changed_nodes) in pairs(cycles_lookup)
+        neighborhoods[collect(changed_nodes), node] .= 1
+    end
+end
+
+
+function delete_paths_with_found_cycles_from_model!(
+    model::Model,
+    z::Dict{
+        Tuple{
+            Tuple{NTuple{3, Int}, NTuple{3, Int}}, 
+            Int,
+        }, 
+        VariableRef,
+    },
+    some_paths::Dict{
+        Tuple{NTuple{3, Int}, NTuple{3, Int}},
+        Vector{Path},
+    },
+    path_costs::Dict{
+        Tuple{NTuple{3, Int}, NTuple{3, Int}},
+        Vector{Int},
+    },
+    path_service::Dict{
+        Tuple{
+            Tuple{NTuple{3, Int}, NTuple{3, Int}},
+            Int,
+        },
+        Vector{Int},
+    },
+    cycles_lookup::Dict{
+        Int,
+        Set{Int},
+    },
+    graph::EVRPGraph,
+)
+    for state_pair in keys(some_paths)
+        delete_inds = Int[]
+        for (count, path) in enumerate(some_paths[state_pair])
+            # check if path needs to be removed
+            removed = false
+            for (node, changed_nodes) in pairs(cycles_lookup)
+                if path.served[node] ≤ 1
+                    continue
+                end
+                cycle = detect_cycle_in_path(path, node)
+                if !isempty(setdiff(intersect(cycle, changed_nodes), [node]))
+                    removed = true
+                    # println("""
+                    # Deleted path due to $node, $changed_nodes: 
+                    # $cycle; \t $(path.arcs)
+                    # """)
+                    break
+                end
+            end
+            if removed
+                push!(delete_inds, count)
+            end
+        end
+        # delete variables from model
+        orig_inds = 1:length(some_paths[state_pair])
+        for count in delete_inds
+            delete(model, z[(state_pair, count)])
+            pop!(z, (state_pair, count))
+        end
+        # rename variable bindings in dictionary `z`
+        for (i, ind) in enumerate(sort(setdiff(orig_inds, delete_inds)))
+            z[(state_pair, i)] = pop!(z, (state_pair, ind))
+        end
+        # delete paths, their costs, and service info via `delete_inds`
+        deleteat!(some_paths[state_pair], delete_inds)
+        deleteat!(path_costs[state_pair], delete_inds)
+        for node in graph.N_customers
+            deleteat!(path_service[(state_pair, node)], delete_inds)
+        end
+    end
+end
+
+
+function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
+    data::EVRPData, 
+    graph::EVRPGraph,
+    ;
+    Env = nothing,
+    method::String = "ours",
+    time_windows::Bool = false,
+    ngroute_alt::Bool = false,
+    ngroute_neighborhood_size::Int = Int(ceil(sqrt(graph.n_customers))),
+    ngroute_neighborhood_charging_depots_size::String = "small",
+    verbose::Bool = true,
+    time_limit::Float64 = Inf,
+    max_iters::Float64 = Inf,
+    one_run::Bool = false,
+)
+    start_time = time()
+
+    neighborhoods = compute_ngroute_neighborhoods(
+        graph,
+        ngroute_neighborhood_size; 
+        charging_depots_size = ngroute_neighborhood_charging_depots_size,
+    )
+
+    some_paths = generate_artificial_paths(data, graph)
+    path_costs = compute_path_costs(
+        data, graph, 
+        some_paths,
+    )
+    path_service = compute_path_service(
+        graph,
+        some_paths,
+    )
+
+    printlist = String[]
+
+    add_message!(
+        printlist,
+        @sprintf(
+            """
+            Starting column generation on the path formulation.
+            # customers:                    %2d
+            # depots:                       %2d
+            # charging stations:            %2d
+            # vehicles:                     %2d
+            time windows?:                  %s
+
+            method:                         %s
+            ngroute:                        %s
+            ngroute_alt:                    %s
+            ngroute neighborhood size:
+                customers                   %2d
+                charging / depots           %s
+
+            """,
+            graph.n_customers,
+            graph.n_depots,
+            graph.n_charging,
+            data.n_vehicles,
+            time_windows,
+            method,
+            true,
+            ngroute_alt,
+            ngroute_neighborhood_size,
+            ngroute_neighborhood_charging_depots_size,
+        ),
+        verbose,
+    )
+    add_message!(
+        printlist,
+        @sprintf("              |  Objective | #    paths | Time (LP) | Time (SP) | Time (SP) | Time (LP) | #    paths \n"),
+        verbose,
+    )
+    add_message!(
+        printlist,
+        @sprintf("              |            |            |           |    (base) |    (full) |    (cons) |      (new) \n"),
+        verbose,
+    )
+
+    model, z = path_formulation_build_model(
+        data, graph, some_paths, path_costs, path_service,
+        ; 
+        Env = Env,
+    )
+
+    local CGLP_results
+    local CG_params
+    local CGIP_results
+    local converged = false
+
+    WSR3_constraints = Dict{Tuple{Vararg{Int}}, ConstraintRef}()
+    WSR3_list = Tuple{Float64, Vararg{Int}}[]
+    CGLP_all_results = []
+    CGIP_all_results = []
+    CG_all_params = []
+
+    while true
+        CGLP_results, CG_params = path_formulation_column_generation!(
+            model, z, WSR3_constraints, 
+            data, graph,
+            some_paths, path_costs, path_service,
+            printlist,
+            ;
+            method = method,
+            time_windows = time_windows,
+            subpath_single_service = false,
+            subpath_check_customers = false,
+            path_single_service = false,
+            path_check_customers = false,
+            christofides = false,
+            neighborhoods = neighborhoods,
+            ngroute = true,
+            ngroute_alt = ngroute_alt,
+            verbose = verbose,
+            time_limit = time_limit - (time() - start_time),
+            max_iters = max_iters,
+        )
+        CGIP_results = path_formulation_solve_integer_model!(
+            model,
+            z,
+        )
+        push!(CGLP_all_results, CGLP_results)
+        push!(CGIP_all_results, CGIP_results)
+        push!(CG_all_params, CG_params)
+
+        # Termination criteria
+        CG_params["LP_IP_gap"] = 1.0 - CGLP_results["objective"] / CGIP_results["objective"]
+        for message in [
+            @sprintf("\n"),
+            @sprintf("Time taken (s):       %9.3f s\n", CG_params["time_taken"]),
+            @sprintf("(CGLP) Objective:         %.4e\n", CGLP_results["objective"]),
+            @sprintf("(CGIP) Objective:         %.4e\n", CGIP_results["objective"]),
+            @sprintf("%% gap:                %9.3f %%\n", CG_params["LP_IP_gap"] * 100.0),
+        ]
+            add_message!(printlist, message, verbose)
+        end
+        
+        # check if converged
+        if CGIP_results["objective"] ≈ CGLP_results["objective"]
+            converged = true
+            break
+        end
+
+        # see if any path in solution was non-elementary
+        CGLP_results["paths"] = collect_path_solution_support(
+            CGLP_results, some_paths, data, graph
+        )
+        cycles_lookup = detect_cycles_in_path_solution([p for (val, p) in CGLP_results["paths"]], graph)
+        if length(cycles_lookup) > 0 
+            delete_paths_with_found_cycles_from_model!(model, z, some_paths, path_costs, path_service, cycles_lookup, graph)
+            modify_neighborhoods_with_found_cycles!(neighborhoods, cycles_lookup)
+            one_run ? break : continue
+        end
+
+        break
+    end
+
+    return (
+        CGLP_all_results, CGIP_all_results, CG_all_params, printlist, 
+        some_paths, model, z, neighborhoods, WSR3_constraints
+    )
+end
+
+
 function path_formulation_column_generation_with_cuts(
     data::EVRPData, 
     graph::EVRPGraph,
@@ -1082,6 +1361,9 @@ function path_formulation_column_generation_with_cuts(
 
     WSR3_constraints = Dict{Tuple{Vararg{Int}}, ConstraintRef}()
     WSR3_list = Tuple{Float64, Vararg{Int}}[]
+    CGLP_all_results = []
+    CGIP_all_results = []
+    CG_all_params = []
 
     while true
         CGLP_results, CG_params = path_formulation_column_generation!(
@@ -1108,6 +1390,9 @@ function path_formulation_column_generation_with_cuts(
             model,
             z,
         )
+        push!(CGLP_all_results, CGLP_results)
+        push!(CGIP_all_results, CGIP_results)
+        push!(CG_all_params, CG_params)
 
         # Termination criteria
         CG_params["LP_IP_gap"] = 1.0 - CGLP_results["objective"] / CGIP_results["objective"]
@@ -1172,7 +1457,7 @@ function path_formulation_column_generation_with_cuts(
     end
 
     return (
-        CGLP_results, CGIP_results, CG_params, printlist, 
+        CGLP_all_results, CGIP_all_results, CG_all_params, printlist, 
         some_paths, model, z, WSR3_constraints
     )
 end

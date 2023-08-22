@@ -735,10 +735,17 @@ function compute_ngroute_neighborhoods(
     neighborhoods = falses(graph.n_nodes_extra, graph.n_nodes_extra)
     for i in graph.N_customers
         neighborhoods[i, sortperm(graph.c[i, graph.N_customers])[1:k]] .= true
+        # do not include any charging stations / depots in the neighborhoods of customers,
+        # since there is no limit on repeat visits to charging stations / depots
     end
     if charging_depots_size == "small"
         for i in graph.N_depots_charging_extra
             neighborhoods[i,i] = true
+        end
+    elseif charging_depots_size == "medium"
+        for i in graph.N_depots_charging_extra
+            neighborhoods[i,i] = true
+            neighborhoods[i, sortperm(graph.c[i, graph.N_customers])[1:k]] .= true
         end
     elseif charging_depots_size == "large"
         for i in graph.N_depots_charging_extra
@@ -762,13 +769,13 @@ function ngroute_check_create_set(
         # only if one can extend current_subpath along next_node according to ng-route rules
         return (false, nothing)
     end
+    new_set_inds = intersect(
+        findall(x -> x > 0, set),
+        findall(neighborhoods[next_node,:]),
+    )
+    push!(new_set_inds, next_node)
     new_set = zeros(Int, length(set))
-    for node in eachindex(set)
-        if set[node] == 1 && neighborhoods[next_node, node]
-            new_set[node] = 1
-        end
-    end
-    new_set[next_node] = 1
+    new_set[new_set_inds] .= 1
     return (true, Tuple(new_set))
 end
 

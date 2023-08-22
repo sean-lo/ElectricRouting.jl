@@ -383,11 +383,182 @@ T1 <: T2
 
 
 
+data = generate_instance(
+    ;
+    n_depots = 4,
+    n_customers = 15,
+    n_charging = 7,
+    n_vehicles = 6,
+    depot_pattern = "circular",
+    customer_pattern = "random_box",
+    charging_pattern = "circular_packing",
+    shrinkage_depots = 1.0,
+    shrinkage_charging = 1.0,
+    T = 40000,
+    seed = 1,
+    B = 15000,
+    μ = 5,
+    travel_cost_coeff = 7,
+    charge_cost_coeff = 3,
+    load_scale = 5.0,
+    load_shape = 20.0,
+    load_tolerance = 1.3,
+    batch = 1,
+    permissiveness = 0.2,
+)
+graph = generate_graph_from_data(data)
+
+LP_results, IP_results, CG_params, printlist, some_paths, model, z, WSR3_constraints = path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(data, graph; method = "ours", ngroute_neighborhood_charging_depots_size = "medium", verbose = true);
+
+data = generate_instance(
+    ;
+    n_depots = 4,
+    n_customers = 15,
+    n_charging = 7,
+    n_vehicles = 6,
+    depot_pattern = "circular",
+    customer_pattern = "random_box",
+    charging_pattern = "circular_packing",
+    shrinkage_depots = 1.0,
+    shrinkage_charging = 1.0,
+    T = 40000,
+    seed = 1,
+    B = 15000,
+    μ = 5,
+    travel_cost_coeff = 7,
+    charge_cost_coeff = 3,
+    load_scale = 5.0,
+    load_shape = 20.0,
+    load_tolerance = 1.3,
+    batch = 1,
+    permissiveness = 0.2,
+)
+graph = generate_graph_from_data(data)
+
+some_paths = generate_artificial_paths(data, graph)
+path_costs = compute_path_costs(
+    data, graph,
+    some_paths,
+)
+path_service = compute_path_service(
+    graph,
+    some_paths,
+)
+neighborhoods = compute_ngroute_neighborhoods(
+    graph,
+    Int(ceil(sqrt(graph.n_customers))); 
+    charging_depots_size = "medium",
+)
+printlist = String[]
+converged = false
+
+model, z = path_formulation_build_model(
+    data, graph, some_paths, path_costs, path_service,
+    ;
+)
+
+SR3_constraints = Dict{NTuple{3, Int}, ConstraintRef}()
+SR3_list = Tuple{Float64, NTuple{3, Int}}[]
+WSR3_constraints = Dict{Tuple{Vararg{Int}}, ConstraintRef}()
+WSR3_list = Tuple{Float64, Vararg{Int}}[]
+CGLP_all_results = []
+CGIP_all_results = []
+# Start of while loop
+
+CGLP_results, CG_params = path_formulation_column_generation!(
+    model, z, WSR3_constraints, SR3_constraints,
+    data, graph, 
+    some_paths, path_costs, path_service,
+    printlist,
+    ;
+    method = "ours",
+    christofides = false,
+    neighborhoods = neighborhoods,
+    ngroute = true,
+    ngroute_alt = false,
+    verbose = true,
+)
+
+CGIP_results = path_formulation_solve_integer_model!(
+    model,
+    z,
+)
 
 
+push!(CGLP_all_results, CGLP_results)
+push!(CGIP_all_results, CGIP_results)
+
+CGLP_results["objective"]
+CGIP_results["objective"]
+CG_params["LP_IP_gap"] = 1.0 - CGLP_results["objective"] / CGIP_results["objective"]
 
 
+CGLP_results["paths"] = collect_path_solution_support(
+    CGLP_results, some_paths, data, graph,
+)
+plot_path_solution(
+    CGLP_results, 
+    data, graph, some_paths,
+)
 
+cycles_lookup = detect_cycles_in_path_solution([p for (val, p) in CGLP_results["paths"]], graph)
+delete_paths_with_found_cycles_from_model!(model, z, some_paths, path_costs, path_service, cycles_lookup, graph)
+modify_neighborhoods_with_found_cycles!(neighborhoods, cycles_lookup)
+
+
+generated_WSR3_list = enumerate_violated_path_WSR3_inequalities(
+    CGLP_results["paths"], 
+    graph,
+)
+
+
+SR3_constraints = Dict{
+    NTuple{3, Int},
+    ConstraintRef
+}()
+generated_SR3_list = Vector{Tuple{Float64, NTuple{3, Int}}}[]
+
+function check_path_in_SR3_constraint(
+    path::Path,
+    S::NTuple{3, Int},
+)
+    return Int(floor(sum(path.served[collect(S)]) / 2))
+end
+
+
+function add_SR3_constraints_to_path_model!(
+    model::Model, 
+    z::Dict{
+        Tuple{
+            Tuple{NTuple{3, Int}, NTuple{3, Int}},
+            Int,
+        },
+        VariableRef,
+    },
+    some_paths::Dict{
+        Tuple{NTuple{3, Int}, NTuple{3, Int}},
+        Vector{Path},
+    },
+    SR3_constraints::Dict{
+        NTuple{3, Int},
+        ConstraintRef
+    }, 
+    generated_SR3_list::Vector{Tuple{Float64, NTuple{3, Int}}}, 
+)
+    for item in generated_SR3_list
+        S = item[2]
+        SR3_constraints[S] = @constraint(
+            model,
+            sum(
+                sum(
+                    floor(sum(p.served[collect(S)]) / 2) * z[state_pair, p_ind]
+                    for (p_ind, p) in enumerate(some_paths[state_pair])
+                )
+                for state_pair in keys(some_paths)
+            ) ≤ 1
+        )
+    end
+end
 
 data = generate_instance(
     ;
@@ -426,7 +597,7 @@ path_service = compute_path_service(
 neighborhoods = compute_ngroute_neighborhoods(
     graph,
     Int(ceil(sqrt(graph.n_customers))); 
-    charging_depots_size = "small",
+    charging_depots_size = "medium",
 )
 printlist = String[]
 converged = false
@@ -446,7 +617,7 @@ CGLP_results, CG_params = path_formulation_column_generation!(
     printlist,
     ;
     method = "ours",
-    christofides = true,
+    christofides = false,
     neighborhoods = neighborhoods,
     ngroute = true,
     ngroute_alt = false,
@@ -465,6 +636,8 @@ push!(CGIP_all_results, CGIP_results)
 
 CGLP_results["objective"]
 CGIP_results["objective"]
+CG_params["LP_IP_gap"] = 1.0 - CGLP_results["objective"] / CGIP_results["objective"]
+
 
 CGLP_results["paths"] = collect_path_solution_support(
     CGLP_results, some_paths, data, graph,
