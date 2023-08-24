@@ -252,7 +252,6 @@ function subpath_formulation_column_generation_integrated_from_paths(
     path_single_service::Bool = false,
     path_check_customers::Bool = false,
     check_customers_accelerated::Bool = false,
-    christofides::Bool = false,
     ngroute::Bool = false,
     ngroute_alt::Bool = false,
     ngroute_neighborhood_size::Int = Int(ceil(sqrt(graph.n_customers))),
@@ -330,7 +329,6 @@ function subpath_formulation_column_generation_integrated_from_paths(
             path_single_service:            %s
             path_check_customers:           %s
             check_customers_accelerated:    %s
-            christofides:                   %s
             ngroute:                        %s
             ngroute_alt:                    %s
             ngroute neighborhood size:
@@ -349,7 +347,6 @@ function subpath_formulation_column_generation_integrated_from_paths(
             path_single_service,
             path_check_customers,
             check_customers_accelerated,
-            christofides,
             ngroute,
             ngroute_alt,
             ngroute_neighborhood_size,
@@ -508,7 +505,6 @@ function subpath_formulation_column_generation_integrated_from_paths(
                         subpath_check_customers = subpath_check_customers,
                         path_single_service = path_single_service,
                         path_check_customers = path_check_customers,
-                        christofides = christofides,
                         time_limit = time_limit - (time() - start_time),
                     )
                 elseif check_customers_accelerated && !checkpoint_reached
@@ -520,11 +516,10 @@ function subpath_formulation_column_generation_integrated_from_paths(
                         Dict{Tuple{Vararg{Int}}, Float64}(), 
                         ;
                         ngroute = false,
-                        subpath_single_service = subpath_single_service,        
+                        subpath_single_service = subpath_single_service, 
                         subpath_check_customers = false,
                         path_single_service = path_single_service,
                         path_check_customers = false,
-                        christofides = christofides,
                         time_limit = time_limit - (time() - start_time),
                     )
                     if negative_full_labels_count == 0
@@ -537,11 +532,10 @@ function subpath_formulation_column_generation_integrated_from_paths(
                             Dict{Tuple{Vararg{Int}}, Float64}(), 
                             ;
                             ngroute = false,
-                            subpath_single_service = subpath_single_service,        
+                            subpath_single_service = subpath_single_service, 
                             subpath_check_customers = subpath_check_customers,
                             path_single_service = path_single_service,
                             path_check_customers = path_check_customers,
-                            christofides = christofides,
                             time_limit = time_limit - (time() - start_time),
                         )
                         base_labels_time += base_labels_time_new
@@ -556,11 +550,10 @@ function subpath_formulation_column_generation_integrated_from_paths(
                         Dict{Tuple{Vararg{Int}}, Float64}(), 
                         ;
                         ngroute = false,
-                        subpath_single_service = subpath_single_service,        
+                        subpath_single_service = subpath_single_service, 
                         subpath_check_customers = subpath_check_customers,
                         path_single_service = path_single_service,
                         path_check_customers = path_check_customers,
-                        christofides = christofides,
                         time_limit = time_limit - (time() - start_time),
                     )
                 else
@@ -576,7 +569,6 @@ function subpath_formulation_column_generation_integrated_from_paths(
                         subpath_check_customers = subpath_check_customers,
                         path_single_service = path_single_service,
                         path_check_customers = path_check_customers,
-                        christofides = christofides,
                         time_limit = time_limit - (time() - start_time),
                     )
                 end
@@ -617,7 +609,6 @@ function subpath_formulation_column_generation_integrated_from_paths(
                         time_windows = time_windows,
                         path_single_service = path_single_service,
                         path_check_customers = path_check_customers,
-                        christofides = christofides,
                         time_limit = time_limit - (time() - start_time),
                     )
                 elseif check_customers_accelerated && !checkpoint_reached
@@ -628,7 +619,6 @@ function subpath_formulation_column_generation_integrated_from_paths(
                         time_windows = time_windows,
                         path_single_service = true,
                         path_check_customers = false,
-                        christofides = christofides,
                         time_limit = time_limit - (time() - start_time),
                     )
                     if negative_pure_path_labels_count == 0
@@ -640,7 +630,6 @@ function subpath_formulation_column_generation_integrated_from_paths(
                             time_windows = time_windows,
                             path_single_service = true,
                             path_check_customers = true,
-                            christofides = christofides,
                             time_limit = time_limit - (time() - start_time),
                         )
                         pure_path_labels_time += pure_path_labels_time_new
@@ -653,7 +642,6 @@ function subpath_formulation_column_generation_integrated_from_paths(
                         time_windows = time_windows,
                         path_single_service = true,
                         path_check_customers = true,
-                        christofides = christofides,
                         time_limit = time_limit - (time() - start_time),
                     )
                 else
@@ -664,7 +652,6 @@ function subpath_formulation_column_generation_integrated_from_paths(
                         time_windows = time_windows,
                         path_single_service = path_single_service,
                         path_check_customers = path_check_customers,
-                        christofides = christofides,
                         time_limit = time_limit - (time() - start_time),
                     )
                 end

@@ -502,7 +502,6 @@ function path_formulation_column_generation!(
     subpath_check_customers::Bool = false,
     path_single_service::Bool = false,
     path_check_customers::Bool = false,
-    christofides::Bool = false,
     neighborhoods::Union{Nothing, BitMatrix} = nothing,
     ngroute::Bool = false,
     ngroute_alt::Bool = false,
@@ -579,7 +578,6 @@ function path_formulation_column_generation!(
                     subpath_check_customers = subpath_check_customers,
                     path_single_service = path_single_service,
                     path_check_customers = path_check_customers,
-                    christofides = christofides,
                     time_limit = time_limit - (time() - start_time),
                 )
             catch e
@@ -621,7 +619,6 @@ function path_formulation_column_generation!(
                     time_windows = time_windows,
                     path_single_service = path_single_service,
                     path_check_customers = path_check_customers,
-                    christofides = christofides,
                     time_limit = time_limit - (time() - start_time),
                 )
             catch e
@@ -1197,7 +1194,6 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
             subpath_check_customers = false,
             path_single_service = false,
             path_check_customers = false,
-            christofides = false,
             neighborhoods = neighborhoods,
             ngroute = true,
             ngroute_alt = ngroute_alt,
@@ -1264,7 +1260,6 @@ function path_formulation_column_generation_with_cuts(
     subpath_check_customers::Bool = false,
     path_single_service::Bool = false,
     path_check_customers::Bool = false,
-    christofides::Bool = false,
     ngroute::Bool = false,
     ngroute_alt::Bool = false,
     ngroute_neighborhood_size::Int = Int(ceil(sqrt(graph.n_customers))),
@@ -1313,7 +1308,6 @@ function path_formulation_column_generation_with_cuts(
             subpath_check_customers:        %s
             path_single_service:            %s
             path_check_customers:           %s
-            christofides:                   %s
             ngroute:                        %s
             ngroute_alt:                    %s
             ngroute neighborhood size:
@@ -1331,7 +1325,6 @@ function path_formulation_column_generation_with_cuts(
             subpath_check_customers,
             path_single_service,
             path_check_customers,
-            christofides,
             ngroute,
             ngroute_alt,
             ngroute_neighborhood_size,
@@ -1381,7 +1374,6 @@ function path_formulation_column_generation_with_cuts(
             subpath_check_customers = subpath_check_customers,
             path_single_service = path_single_service,
             path_check_customers = path_check_customers,
-            christofides = christofides,
             neighborhoods = neighborhoods,
             ngroute = ngroute,
             ngroute_alt = ngroute_alt,

@@ -1790,7 +1790,6 @@ begin
             subpath_check_customers = subpath_check_customers,
             path_single_service = path_single_service,
             path_check_customers = path_check_customers,
-            christofides = christofides,
         )
         (generated_paths) = get_paths_from_negative_path_labels(
             graph, negative_full_labels,
@@ -1815,7 +1814,6 @@ begin
             time_windows = time_windows,
             path_single_service = path_single_service,
             path_check_customers = path_check_customers,
-            christofides = christofides,
         )
         generated_paths = get_paths_from_negative_pure_path_labels(
             graph, negative_pure_path_labels,
@@ -2186,7 +2184,6 @@ time_windows = false
 path_check_customers = true
 verbose = true 
 warm_start = false 
-christofides = true
 
 start_time = time()
 S = Int[]
