@@ -1182,6 +1182,7 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
     CGLP_all_results = []
     CGIP_all_results = []
     CG_all_params = []
+    CG_all_neighborhoods = BitMatrix[]
 
     while true
         CGLP_results, CG_params = path_formulation_column_generation!(
@@ -1211,6 +1212,7 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
         push!(CGLP_all_results, CGLP_results)
         push!(CGIP_all_results, CGIP_results)
         push!(CG_all_params, CG_params)
+        push!(CG_all_neighborhoods, neighborhoods)
 
         # Termination criteria
         CG_params["LP_IP_gap"] = 1.0 - CGLP_results["objective"] / CGIP_results["objective"]
@@ -1223,6 +1225,9 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
         ]
             add_message!(printlist, message, verbose)
         end
+        CGLP_results["paths"] = collect_path_solution_support(
+            CGLP_results, some_paths, data, graph
+        )
         
         # check if converged
         if CGIP_results["objective"] ≈ CGLP_results["objective"]
@@ -1231,9 +1236,6 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
         end
 
         # see if any path in solution was non-elementary
-        CGLP_results["paths"] = collect_path_solution_support(
-            CGLP_results, some_paths, data, graph
-        )
         cycles_lookup = detect_cycles_in_path_solution([p for (val, p) in CGLP_results["paths"]], graph)
         if length(cycles_lookup) > 0 
             delete_paths_with_found_cycles_from_model!(model, z, some_paths, path_costs, path_service, cycles_lookup, graph)
@@ -1246,7 +1248,7 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
 
     return (
         CGLP_all_results, CGIP_all_results, CG_all_params, printlist, 
-        some_paths, model, z, neighborhoods, WSR3_constraints
+        some_paths, model, z, CG_all_neighborhoods, WSR3_constraints
     )
 end
 
@@ -1364,6 +1366,7 @@ function path_formulation_column_generation_with_cuts(
     CGLP_all_results = []
     CGIP_all_results = []
     CG_all_params = []
+    CG_all_neighborhoods = BitMatrix[]
 
     while true
         CGLP_results, CG_params = path_formulation_column_generation!(
@@ -1393,6 +1396,7 @@ function path_formulation_column_generation_with_cuts(
         push!(CGLP_all_results, CGLP_results)
         push!(CGIP_all_results, CGIP_results)
         push!(CG_all_params, CG_params)
+        push!(CG_all_neighborhoods, neighborhoods)
 
         # Termination criteria
         CG_params["LP_IP_gap"] = 1.0 - CGLP_results["objective"] / CGIP_results["objective"]
@@ -1405,14 +1409,14 @@ function path_formulation_column_generation_with_cuts(
         ]
             add_message!(printlist, message, verbose)
         end
+        CGLP_results["paths"] = collect_path_solution_support(
+            CGLP_results, some_paths, data, graph
+        )
         if CGIP_results["objective"] ≈ CGLP_results["objective"]
             converged = true
             break
         else
             # Generate violated WSR3 inequalities
-            CGLP_results["paths"] = collect_path_solution_support(
-                CGLP_results, some_paths, data, graph
-            )
             generated_WSR3_list = enumerate_violated_path_WSR3_inequalities(
                 CGLP_results["paths"], 
                 graph,
@@ -1458,7 +1462,7 @@ function path_formulation_column_generation_with_cuts(
 
     return (
         CGLP_all_results, CGIP_all_results, CG_all_params, printlist, 
-        some_paths, model, z, WSR3_constraints
+        some_paths, model, z, CG_all_neighborhoods, WSR3_constraints
     )
 end
 
