@@ -738,17 +738,21 @@ function compute_ngroute_neighborhoods(
         # do not include any charging stations / depots in the neighborhoods of customers,
         # since there is no limit on repeat visits to charging stations / depots
     end
+    for i in graph.N_depots
+        neighborhoods[i,i] = true
+        neighborhoods[i, graph.N_customers] .= true
+    end
     if charging_depots_size == "small"
-        for i in graph.N_depots_charging_extra
+        for i in graph.N_charging_extra
             neighborhoods[i,i] = true
         end
     elseif charging_depots_size == "medium"
-        for i in graph.N_depots_charging_extra
+        for i in graph.N_charging_extra
             neighborhoods[i,i] = true
             neighborhoods[i, sortperm(graph.c[i, graph.N_customers])[1:k]] .= true
         end
     elseif charging_depots_size == "large"
-        for i in graph.N_depots_charging_extra
+        for i in graph.N_charging_extra
             neighborhoods[i,i] = true
             neighborhoods[i,graph.N_customers] .= true
         end
