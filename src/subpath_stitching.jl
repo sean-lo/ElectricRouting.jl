@@ -41,7 +41,6 @@ function add_subpath_longlabel_to_collection!(
     k1::NTuple{N, Int},
     v1::BaseSubpathLabel,
     ;
-    verbose::Bool = false,
 ) where {N}
     added = true
     for (k2, v2) in pairs(collection)
@@ -50,26 +49,53 @@ function add_subpath_longlabel_to_collection!(
         if v2.cost ≤ v1.cost
             if all(k2 .≤ k1)
                 added = false
-                if verbose
-                    println("$(k1), $(v1.cost) dominated by $(k2), $(v2.cost)")
-                end
                 break
             end
         end
         # check if v1 dominates v2
         if v1.cost ≤ v2.cost
             if all(k1 .≤ k2)
-                if verbose
-                    println("$(k1), $(v1.cost) dominates $(k2), $(v2.cost)")
-                end
                 pop!(collection, k2)
             end
         end
     end
     if added
-        if verbose
-            println("$(k1), $(v1.cost) added!")
+        insert!(collection, k1, v1)
+    end
+    return added
+end
+
+function add_subpath_longlabel_to_collection_verbose!(
+    collection::SortedDict{
+        NTuple{N, Int},
+        BaseSubpathLabel,
+        Base.Order.ForwardOrdering,
+    },
+    k1::NTuple{N, Int},
+    v1::BaseSubpathLabel,
+    ;
+) where {N}
+    added = true
+    for (k2, v2) in pairs(collection)
+        # println(k2)
+        # check if v2 dominates v1
+        if v2.cost ≤ v1.cost
+            if all(k2 .≤ k1)
+                added = false
+                println("$(k1), $(v1.cost) dominated by $(k2), $(v2.cost)")
+                break
+            end
         end
+        # check if v1 dominates v2
+        if v1.cost ≤ v2.cost
+            if all(k1 .≤ k2)
+                println("$(k1), $(v1.cost) dominates $(k2), $(v2.cost)")
+                pop!(collection, k2)
+            end
+        end
+    end
+    if added
+        println("$(k1), $(v1.cost) added!")
         insert!(collection, k1, v1)
     end
     return added
@@ -84,7 +110,6 @@ function add_path_label_to_collection!(
     k1::NTuple{N, Int},
     v1::PathLabel,
     ;
-    verbose::Bool = false,
 ) where {N}
     added = true
     for (k2, v2) in pairs(collection)
@@ -93,26 +118,53 @@ function add_path_label_to_collection!(
         if v2.cost ≤ v1.cost
             if all(k2 .≤ k1)
                 added = false
-                if verbose
-                    println("$(k1), $(v1.cost) dominated by $(k2), $(v2.cost)")
-                end
                 break
             end
         end
         # check if v1 dominates v2
         if v1.cost ≤ v2.cost
             if all(k1 .≤ k2)
-                if verbose
-                    println("$(k1), $(v1.cost) dominates $(k2), $(v2.cost)")
-                end
                 pop!(collection, k2)
             end
         end
     end
     if added
-        if verbose
-            println("$(k1), $(v1.cost) added!")
+        insert!(collection, k1, v1)
+    end
+    return added
+end
+
+function add_path_label_to_collection_verbose!(
+    collection::SortedDict{
+        NTuple{N, Int},
+        PathLabel,
+        Base.Order.ForwardOrdering,
+    },
+    k1::NTuple{N, Int},
+    v1::PathLabel,
+    ;
+) where {N}
+    added = true
+    for (k2, v2) in pairs(collection)
+        # println(k2)
+        # check if v2 dominates v1
+        if v2.cost ≤ v1.cost
+            if all(k2 .≤ k1)
+                added = false
+                println("$(k1), $(v1.cost) dominated by $(k2), $(v2.cost)")
+                break
+            end
         end
+        # check if v1 dominates v2
+        if v1.cost ≤ v2.cost
+            if all(k1 .≤ k2)
+                println("$(k1), $(v1.cost) dominates $(k2), $(v2.cost)")
+                pop!(collection, k2)
+            end
+        end
+    end
+    if added
+        println("$(k1), $(v1.cost) added!")
         insert!(collection, k1, v1)
     end
     return added
@@ -242,7 +294,6 @@ function generate_base_labels_nonsingleservice(
                 base_labels[starting_node][next_node], 
                 new_key, new_subpath,
                 ;
-                verbose = false,
             )
             if added && next_node in graph.N_customers
                 new_state = (new_key..., starting_node, next_node)
@@ -610,7 +661,6 @@ function generate_base_labels_ngroute(
                 base_labels[starting_node][next_node][new_set],
                 new_key, new_subpath,
                 ;
-                verbose = false,
             )
             if added && next_node in graph.N_customers
                 new_state = (new_key..., new_set..., starting_node, next_node)
@@ -754,7 +804,6 @@ function generate_base_labels_ngroute_sigma(
                 base_labels[starting_node][next_node][current_node][new_set],
                 new_key, new_subpath,
                 ;
-                verbose = false,
             )
             if added && next_node in graph.N_customers
                 new_state = (new_key..., new_set..., starting_node, current_node, next_node)
@@ -874,7 +923,6 @@ function generate_base_labels_ngroute_alt(
                 base_labels[starting_node][next_node],
                 new_key, new_subpath,
                 ;
-                verbose = false,
             )
             if added && next_node in graph.N_customers
                 new_state = (new_key..., starting_node, next_node)
@@ -999,7 +1047,6 @@ function generate_base_labels_ngroute_alt_sigma(
                 base_labels[starting_node][next_node][current_node],
                 new_key, new_subpath,
                 ;
-                verbose = false,
             )
             if added && next_node in graph.N_customers
                 new_state = (new_key..., starting_node, current_node, next_node)
@@ -1198,7 +1245,6 @@ function find_nondominated_paths_notimewindows(
                         full_labels[starting_node][next_node][new_prev_node],
                         new_key, new_path,
                         ;
-                        verbose = false,
                     )
                     if added && next_node in graph.N_charging_extra
                         new_state = (new_key..., starting_node, new_prev_node, next_node)
@@ -1357,7 +1403,6 @@ function find_nondominated_paths_notimewindows_ngroute_sigma(
                         full_labels[starting_node][next_node][new_set],
                         new_key, new_path,
                         ;
-                        verbose = false,
                     )
                     if added && next_node in graph.N_charging_extra
                         new_state = (new_key..., new_set..., starting_node, next_node)
@@ -1493,7 +1538,6 @@ function find_nondominated_paths_notimewindows_ngroute_alt(
                     full_labels[starting_node][next_node],
                     (new_key..., new_set...), new_path,
                     ;
-                    verbose = false,
                 )
                 if added && next_node in graph.N_charging_extra
                     new_state = (new_key..., new_set..., starting_node, next_node)
@@ -1628,7 +1672,6 @@ function find_nondominated_paths_notimewindows_ngroute_alt_sigma(
                         full_labels[starting_node][next_node],
                         (new_key..., new_set...), new_path,
                         ;
-                        verbose = false,
                     )
                     if added && next_node in graph.N_charging_extra
                         new_state = (new_key..., new_set..., starting_node, next_node)

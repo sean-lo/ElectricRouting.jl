@@ -95,32 +95,55 @@ function add_pure_path_label_to_collection!(
     key::NTuple{N, Int},
     path::PurePathLabel,
     ;
-    verbose::Bool = false,
 ) where {N}
     added = true
     for (k, p) in pairs(collection)
         if p.cost ≤ path.cost
             if all(k .≤ key)
                 added = false
-                if verbose
-                    println("$(key), $(path.cost) dominated by $(k), $(p.cost)")
-                end
                 break
             end
         end
         if path.cost ≤ p.cost
             if all(key .≤ k)
-                if verbose
-                    println("$(key), $(path.cost) dominates $(k), $(p.cost)")
-                end
                 pop!(collection, k)
             end
         end
     end
     if added
-        if verbose
-            println("$(key), $(path.cost) added!")
+        insert!(collection, key, path)
+    end
+    return added
+end
+
+function add_pure_path_label_to_collection_verbose!(
+    collection::SortedDict{
+        NTuple{N, Int},
+        PurePathLabel,
+        Base.Order.ForwardOrdering,
+    },
+    key::NTuple{N, Int},
+    path::PurePathLabel,
+    ;
+) where {N}
+    added = true
+    for (k, p) in pairs(collection)
+        if p.cost ≤ path.cost
+            if all(k .≤ key)
+                added = false
+                println("$(key), $(path.cost) dominated by $(k), $(p.cost)")
+                break
+            end
         end
+        if path.cost ≤ p.cost
+            if all(key .≤ k)
+                println("$(key), $(path.cost) dominates $(k), $(p.cost)")
+                pop!(collection, k)
+            end
+        end
+    end
+    if added
+        println("$(key), $(path.cost) added!")
         insert!(collection, key, path)
     end
     return added
@@ -336,7 +359,6 @@ function find_nondominated_paths(
                 pure_path_labels[starting_node][next_node], 
                 new_key, new_path, 
                 ;
-                verbose = false,
             )
             if added && !(next_node in graph.N_depots)
                 new_state = (new_key..., starting_node, next_node)
@@ -479,7 +501,6 @@ function find_nondominated_paths_ngroute(
                 pure_path_labels[starting_node][next_node][new_set], 
                 new_key, new_path, 
                 ;
-                verbose = false,
             )
             if added && !(next_node in graph.N_depots)
                 new_state = (new_key..., new_set..., starting_node, next_node)
@@ -650,7 +671,6 @@ function find_nondominated_paths_ngroute_sigma(
                 pure_path_labels[starting_node][next_node][(prev_node, current_node)][new_set], 
                 new_key, new_path, 
                 ;
-                verbose = false,
             )
             if added && !(next_node in graph.N_depots)
                 new_state = (new_key..., new_set..., starting_node, prev_node, current_node, next_node)
@@ -786,7 +806,6 @@ function find_nondominated_paths_ngroute_alt(
                 pure_path_labels[starting_node][next_node], 
                 (new_key..., new_set...), new_path, 
                 ;
-                verbose = false,
             )
             if added && !(next_node in graph.N_depots)
                 new_state = (new_key..., new_set..., starting_node, next_node)
@@ -938,7 +957,6 @@ function find_nondominated_paths_ngroute_alt_sigma(
                 pure_path_labels[starting_node][next_node][(prev_node, current_node)], 
                 (new_key..., new_set...), new_path, 
                 ;
-                verbose = false,
             )
             if added && !(next_node in graph.N_depots)
                 new_state = (new_key..., new_set..., starting_node, prev_node, current_node, next_node)
