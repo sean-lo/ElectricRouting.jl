@@ -1098,7 +1098,7 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
     verbose::Bool = true,
     time_limit::Float64 = Inf,
     max_iters::Float64 = Inf,
-    one_run::Bool = false,
+    use_adaptive_ngroute::Bool = true,
 )
     start_time = time()
 
@@ -1231,12 +1231,14 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
             break
         end
 
-        # see if any path in solution was non-elementary
-        cycles_lookup = detect_cycles_in_path_solution([p for (val, p) in CGLP_results["paths"]], graph)
-        if length(cycles_lookup) > 0 
-            delete_paths_with_found_cycles_from_model!(model, z, some_paths, path_costs, path_service, cycles_lookup, graph)
-            modify_neighborhoods_with_found_cycles!(neighborhoods, cycles_lookup)
-            one_run ? break : continue
+        if use_adaptive_ngroute
+            # see if any path in solution was non-elementary
+            cycles_lookup = detect_cycles_in_path_solution([p for (val, p) in CGLP_results["paths"]], graph)
+            if length(cycles_lookup) > 0 
+                delete_paths_with_found_cycles_from_model!(model, z, some_paths, path_costs, path_service, cycles_lookup, graph)
+                modify_neighborhoods_with_found_cycles!(neighborhoods, cycles_lookup)
+                continue
+            end
         end
 
         break
