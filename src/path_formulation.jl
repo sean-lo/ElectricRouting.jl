@@ -1094,7 +1094,8 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
     time_windows::Bool = false,
     ngroute_alt::Bool = false,
     ngroute_neighborhood_size::Int = Int(ceil(sqrt(graph.n_customers))),
-    ngroute_neighborhood_charging_depots_size::String = "small",
+    ngroute_neighborhood_depots_size::String = "small",
+    ngroute_neighborhood_charging_size::String = "small",
     verbose::Bool = true,
     time_limit::Float64 = Inf,
     max_iters::Float64 = Inf,
@@ -1105,7 +1106,8 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
     neighborhoods = compute_ngroute_neighborhoods(
         graph,
         ngroute_neighborhood_size; 
-        charging_depots_size = ngroute_neighborhood_charging_depots_size,
+        depots_size = ngroute_neighborhood_depots_size,
+        charging_size = ngroute_neighborhood_charging_size,
     )
 
     some_paths = generate_artificial_paths(data, graph)
@@ -1136,7 +1138,8 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
             ngroute_alt:                    %s
             ngroute neighborhood size:
                 customers                   %2d
-                charging / depots           %s
+                depots                      %s
+                charging                    %s
 
             """,
             graph.n_customers,
@@ -1148,7 +1151,8 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
             true,
             ngroute_alt,
             ngroute_neighborhood_size,
-            ngroute_neighborhood_charging_depots_size,
+            ngroute_neighborhood_depots_size,
+            ngroute_neighborhood_charging_size
         ),
         verbose,
     )
@@ -1265,7 +1269,8 @@ function path_formulation_column_generation_with_cuts(
     ngroute::Bool = false,
     ngroute_alt::Bool = false,
     ngroute_neighborhood_size::Int = Int(ceil(sqrt(graph.n_customers))),
-    ngroute_neighborhood_charging_depots_size::String = "small",
+    ngroute_neighborhood_depots_size::String = "small",
+    ngroute_neighborhood_charging_size::String = "small",
     verbose::Bool = true,
     time_limit::Float64 = Inf,
     max_iters::Float64 = Inf,
@@ -1276,7 +1281,8 @@ function path_formulation_column_generation_with_cuts(
         neighborhoods = compute_ngroute_neighborhoods(
             graph,
             ngroute_neighborhood_size; 
-            charging_depots_size = ngroute_neighborhood_charging_depots_size,
+            depots_size = ngroute_neighborhood_depots_size,
+            charging_size = ngroute_neighborhood_charging_size,
         )
     else
         neighborhoods = nothing
@@ -1314,7 +1320,8 @@ function path_formulation_column_generation_with_cuts(
             ngroute_alt:                    %s
             ngroute neighborhood size:
                 customers                   %2d
-                charging / depots           %s
+                depots                      %s
+                charging                    %s
 
             """,
             graph.n_customers,
@@ -1330,7 +1337,8 @@ function path_formulation_column_generation_with_cuts(
             ngroute,
             ngroute_alt,
             ngroute_neighborhood_size,
-            ngroute_neighborhood_charging_depots_size,
+            ngroute_neighborhood_depots_size,
+            ngroute_neighborhood_charging_size,
         ),
         verbose,
     )

@@ -727,7 +727,8 @@ function compute_ngroute_neighborhoods(
     graph::EVRPGraph,
     k::Int, 
     ;
-    charging_depots_size::String = "small",
+    depots_size::String = "small",
+    charging_size::String = "small",
 )
     if !(1 ≤ k ≤ graph.n_customers)
         error()
@@ -738,31 +739,44 @@ function compute_ngroute_neighborhoods(
         # do not include any charging stations / depots in the neighborhoods of customers,
         # since there is no limit on repeat visits to charging stations / depots
     end
-    for i in graph.N_depots
-        neighborhoods[i,i] = true
-        neighborhoods[i, graph.N_customers] .= true
-    end
-    if charging_depots_size == "small"
+    if depots_size == "small"
         for i in graph.N_charging_extra
             neighborhoods[i,i] = true
         end
-    elseif charging_depots_size == "medium"
+    elseif depots_size == "medium"
         for i in graph.N_charging_extra
             neighborhoods[i,i] = true
             neighborhoods[i, sortperm(graph.c[i, graph.N_customers])[1:k]] .= true
         end
-    elseif charging_depots_size == "large"
+    elseif depots_size == "large"
         for i in graph.N_charging_extra
             neighborhoods[i,i] = true
             neighborhoods[i,graph.N_customers] .= true
         end
     else
-        error("`charging_depots_size` argument not recognized.")
+        error("`depots_size` argument not recognized.")
+    end
+    if charging_size == "small"
+        for i in graph.N_charging_extra
+            neighborhoods[i,i] = true
+        end
+    elseif charging_size == "medium"
+        for i in graph.N_charging_extra
+            neighborhoods[i,i] = true
+            neighborhoods[i, sortperm(graph.c[i, graph.N_customers])[1:k]] .= true
+        end
+    elseif charging_size == "large"
+        for i in graph.N_charging_extra
+            neighborhoods[i,i] = true
+            neighborhoods[i,graph.N_customers] .= true
+        end
+    else
+        error("`charging_size` argument not recognized.")
     end
     return neighborhoods
 end
 
-function ngroute_check_create_set(
+function ngroute_check_create_fset(
     N_customers::Vector{Int},
     neighborhoods::BitMatrix,
     set::Tuple{Vararg{Int}},
@@ -781,6 +795,24 @@ function ngroute_check_create_set(
     new_set = zeros(Int, length(set))
     new_set[new_set_inds] .= 1
     return (true, Tuple(new_set))
+end
+
+function ngroute_create_bset(
+    neighborhoods::BitMatrix,
+    nodes::Vector{Int},
+    set::Tuple{Vararg{Int}},
+)
+    new_set_inds = findall(x -> x > 0, set)
+    next_node = nodes[end]
+    if all(
+        neighborhoods[node,next_node]
+        for node in nodes[1:end-1]
+    )
+        push!(new_set_inds, next_node)
+    end
+    new_set = zeros(Int, length(set))
+    new_set[new_set_inds] .= 1
+    return new_set 
 end
 
 function compute_arc_modified_costs(

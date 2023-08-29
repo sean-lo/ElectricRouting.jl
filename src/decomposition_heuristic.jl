@@ -222,7 +222,7 @@ function find_nondominated_paths_nocharge_ngroute(
                     continue
                 end
             end
-            (feasible, new_set) = ngroute_check_create_set(
+            (feasible, new_set) = ngroute_check_create_fset(
                 graph.N_customers, neighborhoods, current_set, next_node,
             )
             !feasible && continue
@@ -375,7 +375,7 @@ function find_nondominated_paths_nocharge_ngroute_alt(
                     continue
                 end
             end
-            (feasible, new_set) = ngroute_check_create_set(
+            (feasible, new_set) = ngroute_check_create_fset(
                 graph.N_customers, neighborhoods, current_set, next_node,
             )
             !feasible && continue
@@ -565,6 +565,8 @@ function path_formulation_column_generation_nocharge(
     ngroute::Bool = false,
     ngroute_alt::Bool = false,
     ngroute_neighborhood_size::Int = Int(ceil(sqrt(graph.n_customers))),
+    ngroute_neighborhood_depots_size::String = "small",
+    ngroute_neighborhood_charging_size::String = "small",
     verbose::Bool = true,
     time_limit::Float64 = Inf,
     max_iters::Float64 = Inf,
@@ -628,7 +630,8 @@ function path_formulation_column_generation_nocharge(
             ngroute_alt:                    %s
             ngroute neighborhood size:
                 customers                   %2d
-                charging / depots           %s
+                depots                      %s
+                charging                    %s
             
             """,
             graph.n_customers,
@@ -642,7 +645,8 @@ function path_formulation_column_generation_nocharge(
             ngroute,
             ngroute_alt,
             ngroute_neighborhood_size,
-            ngroute_neighborhood_charging_depots_size,
+            ngroute_neighborhood_depots_size,
+            ngroute_neighborhood_charging_size,
         ),
         verbose,
     )

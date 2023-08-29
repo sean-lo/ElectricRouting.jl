@@ -255,7 +255,8 @@ function subpath_formulation_column_generation_integrated_from_paths(
     ngroute::Bool = false,
     ngroute_alt::Bool = false,
     ngroute_neighborhood_size::Int = Int(ceil(sqrt(graph.n_customers))),
-    ngroute_neighborhood_charging_depots_size::String = "small",
+    ngroute_neighborhood_depots_size::String = "small",
+    ngroute_neighborhood_charging_size::String = "small",
     verbose::Bool = true,
     time_limit::Float64 = Inf,
     max_iters::Float64 = Inf,
@@ -267,7 +268,8 @@ function subpath_formulation_column_generation_integrated_from_paths(
         neighborhoods = compute_ngroute_neighborhoods(
             graph,
             ngroute_neighborhood_size; 
-            charging_depots_size = ngroute_neighborhood_charging_depots_size,
+            depots_size = ngroute_neighborhood_depots_size,
+            charging_size = ngroute_neighborhood_charging_size,
         )
     end
 
@@ -350,7 +352,8 @@ function subpath_formulation_column_generation_integrated_from_paths(
             ngroute,
             ngroute_alt,
             ngroute_neighborhood_size,
-            ngroute_neighborhood_charging_depots_size,
+            ngroute_neighborhood_depots_size,
+            ngroute_neighborhood_charging_size,
         ),
         verbose,
     )
@@ -601,7 +604,10 @@ function subpath_formulation_column_generation_integrated_from_paths(
                 if ngroute
                     (negative_pure_path_labels, negative_pure_path_labels_count, pure_path_labels_time) = subproblem_iteration_benchmark(
                         data, graph, 
-                        CGLP_results["κ"], CGLP_results["μ"], CGLP_results["ν"], Dict{Tuple{Vararg{Int}}, Float64}(),
+                        CGLP_results["κ"], 
+                        CGLP_results["μ"], 
+                        CGLP_results["ν"], 
+                        Dict{Tuple{Vararg{Int}}, Float64}(),
                         ;
                         neighborhoods = neighborhoods, 
                         ngroute = ngroute,
@@ -614,7 +620,10 @@ function subpath_formulation_column_generation_integrated_from_paths(
                 elseif check_customers_accelerated && !checkpoint_reached
                     (negative_pure_path_labels, negative_pure_path_labels_count, pure_path_labels_time) = subproblem_iteration_benchmark(
                         data, graph, 
-                        CGLP_results["κ"], CGLP_results["μ"], CGLP_results["ν"], Dict{Tuple{Vararg{Int}}, Float64}(),
+                        CGLP_results["κ"], 
+                        CGLP_results["μ"], 
+                        CGLP_results["ν"], 
+                        Dict{Tuple{Vararg{Int}}, Float64}(),
                         ;
                         time_windows = time_windows,
                         path_single_service = true,
@@ -625,7 +634,10 @@ function subpath_formulation_column_generation_integrated_from_paths(
                         checkpoint_reached = true
                         (negative_pure_path_labels, _, pure_path_labels_time_new) = subproblem_iteration_benchmark(
                             data, graph, 
-                            CGLP_results["κ"], CGLP_results["μ"], CGLP_results["ν"], Dict{Tuple{Vararg{Int}}, Float64}(),
+                            CGLP_results["κ"], 
+                            CGLP_results["μ"], 
+                            CGLP_results["ν"], 
+                            Dict{Tuple{Vararg{Int}}, Float64}(),
                             ;
                             time_windows = time_windows,
                             path_single_service = true,
@@ -637,7 +649,10 @@ function subpath_formulation_column_generation_integrated_from_paths(
                 elseif check_customers_accelerated && checkpoint_reached
                     (negative_pure_path_labels, _, pure_path_labels_time) = subproblem_iteration_benchmark(
                         data, graph, 
-                        CGLP_results["κ"], CGLP_results["μ"], CGLP_results["ν"], Dict{Tuple{Vararg{Int}}, Float64}(),
+                        CGLP_results["κ"], 
+                        CGLP_results["μ"], 
+                        CGLP_results["ν"], 
+                        Dict{Tuple{Vararg{Int}}, Float64}(),
                         ;
                         time_windows = time_windows,
                         path_single_service = true,
@@ -647,7 +662,10 @@ function subpath_formulation_column_generation_integrated_from_paths(
                 else
                     (negative_pure_path_labels, _, pure_path_labels_time) = subproblem_iteration_benchmark(
                         data, graph, 
-                        CGLP_results["κ"], CGLP_results["μ"], CGLP_results["ν"], Dict{NTuple{3, Int}, Float64}(),
+                        CGLP_results["κ"], 
+                        CGLP_results["μ"], 
+                        CGLP_results["ν"], 
+                        Dict{Tuple{Vararg{Int}}, Float64}(),
                         ;
                         time_windows = time_windows,
                         path_single_service = path_single_service,

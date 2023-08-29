@@ -578,7 +578,7 @@ function generate_base_labels_ngroute(
     base_labels = Dict(
         starting_node => Dict(
             current_node => Dict{
-                NTuple{graph.n_nodes_extra, Int},
+                NTuple{2 * graph.n_nodes_extra, Int},
                 SortedDict{
                     Tuple{Float64, Vararg{Int, 1}},
                     BaseSubpathLabel,
@@ -589,11 +589,14 @@ function generate_base_labels_ngroute(
         )
         for starting_node in graph.N_depots_charging_extra
     )
-    unexplored_states = SortedSet{Tuple{Float64, Vararg{Int, graph.n_nodes_extra + 3}}}()
+    unexplored_states = SortedSet{Tuple{Float64, Vararg{Int, 2 * graph.n_nodes_extra + 3}}}()
     for node in graph.N_depots_charging_extra
-        key = (0.0, 0,)
-        node_labels = zeros(Int, graph.n_nodes_extra)
+        key = (0.0, 0,)   
+        node_labels = zeros(Int, 2 * graph.n_nodes_extra)
+        # Forward NG-set
         node_labels[node] = 1
+        # Backward NG-set
+        node_labels[graph.n_nodes_extra + node] = 1
         base_labels[node][node][(node_labels...,)] = SortedDict{
             Tuple{Float64, Vararg{Int, 1}},
             BaseSubpathLabel,
@@ -622,14 +625,16 @@ function generate_base_labels_ngroute(
         starting_node = state[end-1]
         current_node = state[end]
         current_set = state[3:end-2]
+        current_fset = current_set[1:end/2]
+        current_bset = current_set[end/2+1:end]
         current_key = state[1:2]
         current_subpath = get(base_labels[starting_node][current_node][current_set], current_key, nothing)
         if isnothing(current_subpath)
             continue
         end
         for next_node in setdiff(outneighbors(graph.G, current_node), current_node)
-            (feasible, new_set) = ngroute_check_create_set(
-                graph.N_customers, neighborhoods, current_set, next_node,
+            (feasible, new_fset) = ngroute_check_create_fset(
+                graph.N_customers, neighborhoods, current_fset, next_node,
             )
             !feasible && continue
             (feasible, new_subpath) = compute_next_subpath(
@@ -637,6 +642,10 @@ function generate_base_labels_ngroute(
                 current_node, next_node, modified_costs,
             )
             !feasible && continue
+            new_bset = ngroute_create_bset(
+                neighborhoods, new_subpath.nodes, current_bset,
+            )
+            new_set = (new_fset..., new_bset...,)
 
             if !(new_set in keys(base_labels[starting_node][next_node]))
                 base_labels[starting_node][next_node][new_set] = SortedDict{ 
@@ -668,8 +677,11 @@ function generate_base_labels_ngroute(
     end
 
     for node in graph.N_depots_charging_extra
-        node_labels = zeros(Int, graph.n_nodes_extra)
+        node_labels = zeros(Int, 2 * graph.n_nodes_extra)
+        # Forward NG-set
         node_labels[node] = 1
+        # Backward NG-set
+        node_labels[graph.n_nodes_extra + node] = 1
         delete!(base_labels[node][node][(node_labels...,)], (0.0, 0,))
     end
 
@@ -719,7 +731,7 @@ function generate_base_labels_ngroute_sigma(
         starting_node => Dict(
             current_node => Dict(
                 prev_node => Dict{
-                    NTuple{graph.n_nodes_extra, Int},
+                    NTuple{2 * graph.n_nodes_extra, Int},
                     SortedDict{
                         Tuple{Float64, Vararg{Int, 1}},
                         BaseSubpathLabel,
@@ -735,8 +747,11 @@ function generate_base_labels_ngroute_sigma(
     unexplored_states = SortedSet{Tuple{Float64, Vararg{Int, graph.n_nodes_extra + 4}}}()
     for node in graph.N_depots_charging_extra
         key = (0.0, 0,)
-        node_labels = zeros(Int, graph.n_nodes_extra)
+        node_labels = zeros(Int, 2 * graph.n_nodes_extra)
+        # Forward NG-set
         node_labels[node] = 1
+        # Backward NG-set
+        node_labels[graph.n_nodes_extra + node] = 1
         base_labels[node][node][node][(node_labels...,)] = SortedDict{
             Tuple{Float64, Vararg{Int, 1}},
             BaseSubpathLabel,
@@ -767,14 +782,16 @@ function generate_base_labels_ngroute_sigma(
         prev_node = state[end-1]
         current_node = state[end]
         current_set = state[3:end-3]
+        current_fset = current_set[1:end/2]
+        current_bset = current_set[end/2+1:end]
         current_key = state[1:2]
         current_subpath = get(base_labels[starting_node][current_node][prev_node][current_set], current_key, nothing)
         if isnothing(current_subpath)
             continue
         end
         for next_node in setdiff(outneighbors(graph.G, current_node), current_node)
-            (feasible, new_set) = ngroute_check_create_set(
-                graph.N_customers, neighborhoods, current_set, next_node
+            (feasible, new_fset) = ngroute_check_create_fset(
+                graph.N_customers, neighborhoods, current_fset, next_node
             )
             !feasible && continue
             (feasible, new_subpath) = compute_next_subpath(
@@ -782,6 +799,10 @@ function generate_base_labels_ngroute_sigma(
                 current_node, next_node, modified_costs,
             )
             !feasible && continue
+            new_bset = ngroute_create_bset(
+                neighborhoods, new_subpath.nodes, current_bset,
+            )
+            new_set = (new_fset..., new_bset...,)
 
             new_subpath.cost += σ_costs[(prev_node, current_node, next_node)]
 
@@ -864,7 +885,7 @@ function generate_base_labels_ngroute_alt(
     base_labels = Dict(
         starting_node => Dict(
             current_node => SortedDict{
-                Tuple{Float64, Vararg{Int, graph.n_nodes_extra + 1}},
+                Tuple{Float64, Vararg{Int, 2 * graph.n_nodes_extra + 1}},
                 BaseSubpathLabel,
                 Base.Order.ForwardOrdering,
             }(Base.Order.ForwardOrdering())
@@ -872,10 +893,13 @@ function generate_base_labels_ngroute_alt(
         )
         for starting_node in graph.N_depots_charging_extra
     )
-    unexplored_states = SortedSet{Tuple{Float64, Vararg{Int, graph.n_nodes_extra + 3}}}()
+    unexplored_states = SortedSet{Tuple{Float64, Vararg{Int, 2 * graph.n_nodes_extra + 3}}}()
     for node in graph.N_depots_charging_extra
-        node_labels = zeros(Int, graph.n_nodes_extra)
+        node_labels = zeros(Int, 2 * graph.n_nodes_extra)
+        # Forward NG-set
         node_labels[node] = 1
+        # Backward NG-set
+        node_labels[graph.n_nodes_extra + node] = 1
         key = (0.0, 0, node_labels...)
         base_labels[node][node][key] = BaseSubpathLabel(
             0, 0, 0.0, [node,], zeros(Int, graph.n_customers),
@@ -902,10 +926,12 @@ function generate_base_labels_ngroute_alt(
             continue
         end
         current_set = state[3:end-2]
+        current_fset = current_set[1:end/2]
+        current_bset = current_set[end/2+1:end]
         current_subpath = base_labels[starting_node][current_node][current_key]
         for next_node in setdiff(outneighbors(graph.G, current_node), current_node)
-            (feasible, new_set) = ngroute_check_create_set(
-                graph.N_customers, neighborhoods, current_set, next_node
+            (feasible, new_fset) = ngroute_check_create_fset(
+                graph.N_customers, neighborhoods, current_fset, next_node
             )
             !feasible && continue
             (feasible, new_subpath) = compute_next_subpath(
@@ -913,11 +939,15 @@ function generate_base_labels_ngroute_alt(
                 current_node, next_node, modified_costs,
             )
             !feasible && continue
+            new_bset = ngroute_create_bset(
+                neighborhoods, new_subpath.nodes, current_bset,
+            )
             
             new_key = (
                 new_subpath.cost,
                 new_subpath.time_taken, 
-                new_set...,
+                new_fset...,
+                new_bset...,
             )
             added = add_subpath_longlabel_to_collection!(
                 base_labels[starting_node][next_node],
@@ -938,8 +968,11 @@ function generate_base_labels_ngroute_alt(
     end
 
     for node in graph.N_depots_charging_extra
-        node_labels = zeros(Int, graph.n_nodes_extra)
+        node_labels = zeros(Int, 2 * graph.n_nodes_extra)
+        # Forward NG-set
         node_labels[node] = 1
+        # Backward NG-set
+        node_labels[graph.n_nodes_extra + node] = 1
         key = (0.0, 0, node_labels...)
         delete!(base_labels[node][node], key)
     end
@@ -986,7 +1019,7 @@ function generate_base_labels_ngroute_alt_sigma(
         starting_node => Dict(
             current_node => Dict(
                 prev_node => SortedDict{
-                    Tuple{Float64, Vararg{Int, graph.n_nodes_extra + 1}}, 
+                    Tuple{Float64, Vararg{Int, 2 * graph.n_nodes_extra + 1}}, 
                     BaseSubpathLabel,
                     Base.Order.ForwardOrdering,
                 }(Base.Order.ForwardOrdering())
@@ -998,8 +1031,11 @@ function generate_base_labels_ngroute_alt_sigma(
     )
     unexplored_states = SortedSet{Tuple{Float64, Vararg{Int, graph.n_nodes_extra + 4}}}()
     for node in graph.N_depots_charging_extra
-        node_labels = zeros(Int, graph.n_nodes_extra)
+        node_labels = zeros(Int, 2 * graph.n_nodes_extra)
+        # Forward NG-set
         node_labels[node] = 1
+        # Backward NG-set
+        node_labels[graph.n_nodes_extra + node] = 1
         key = (0.0, 0, node_labels...)
         base_labels[node][node][node][key] = BaseSubpathLabel(
             0, 0, 0.0, [node,], zeros(Int, graph.n_customers),
@@ -1028,10 +1064,12 @@ function generate_base_labels_ngroute_alt_sigma(
             continue
         end
         current_set = state[3:end-3]
+        current_fset = current_set[1:end/2]
+        current_bset = current_set[end/2+1:end]
         current_subpath = base_labels[starting_node][current_node][prev_node][current_key]
         for next_node in setdiff(outneighbors(graph.G, current_node), current_node)
-            (feasible, new_set) = ngroute_check_create_set(
-                graph.N_customers, neighborhoods, current_set, next_node
+            (feasible, new_fset) = ngroute_check_create_fset(
+                graph.N_customers, neighborhoods, current_fset, next_node
             )
             !feasible && continue
             (feasible, new_subpath) = compute_next_subpath(
@@ -1039,13 +1077,17 @@ function generate_base_labels_ngroute_alt_sigma(
                 current_node, next_node, modified_costs,
             )
             !feasible && continue
+            new_bset = ngroute_create_bset(
+                neighborhoods, new_subpath.nodes, current_bset,
+            )
 
             new_subpath.cost += σ_costs[(prev_node, current_node, next_node)]
 
             new_key = (
                 new_subpath.cost,
                 new_subpath.time_taken, 
-                new_set...,
+                new_fset...,
+                new_bset...,
             )
             added = add_subpath_longlabel_to_collection!(
                 base_labels[starting_node][next_node][current_node],

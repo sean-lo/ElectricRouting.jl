@@ -467,7 +467,7 @@ function find_nondominated_paths_ngroute(
         current_path = get(pure_path_labels[starting_node][current_node][current_set], current_key, nothing)
         isnothing(current_path) && continue
         for next_node in setdiff(outneighbors(graph.G, current_node), current_node)
-            (feasible, new_set) = ngroute_check_create_set(
+            (feasible, new_set) = ngroute_check_create_fset(
                 graph.N_customers, neighborhoods, current_set, next_node,
             )
             !feasible && continue
@@ -626,7 +626,7 @@ function find_nondominated_paths_ngroute_sigma(
         isnothing(current_path) && continue
         for next_node in setdiff(outneighbors(graph.G, current_node), current_node)
 
-            (feasible, new_set) = ngroute_check_create_set(
+            (feasible, new_set) = ngroute_check_create_fset(
                 graph.N_customers, neighborhoods, current_set, next_node,
             )
             !feasible && continue
@@ -781,7 +781,7 @@ function find_nondominated_paths_ngroute_alt(
         current_path = get(pure_path_labels[starting_node][current_node], current_key, nothing)
         isnothing(current_path) && continue
         for next_node in setdiff(outneighbors(graph.G, current_node), current_node)
-            (feasible, new_set) = ngroute_check_create_set(
+            (feasible, new_set) = ngroute_check_create_fset(
                 graph.N_customers, neighborhoods, current_set, next_node,
             )
             !feasible && continue
@@ -924,7 +924,7 @@ function find_nondominated_paths_ngroute_alt_sigma(
         isnothing(current_path) && continue
         for next_node in setdiff(outneighbors(graph.G, current_node), current_node)
 
-            (feasible, new_set) = ngroute_check_create_set(
+            (feasible, new_set) = ngroute_check_create_fset(
                 graph.N_customers, neighborhoods, current_set, next_node,
             )
             !feasible && continue
