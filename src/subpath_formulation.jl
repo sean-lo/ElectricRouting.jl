@@ -499,7 +499,6 @@ function subpath_formulation_column_generation_integrated_from_paths(
                         CGLP_results["κ"], 
                         CGLP_results["μ"], 
                         CGLP_results["ν"],
-                        Dict{Tuple{Vararg{Int}}, Float64}(),
                         ;
                         neighborhoods = neighborhoods,
                         ngroute = ngroute,
@@ -516,7 +515,6 @@ function subpath_formulation_column_generation_integrated_from_paths(
                         CGLP_results["κ"], 
                         CGLP_results["μ"], 
                         CGLP_results["ν"], 
-                        Dict{Tuple{Vararg{Int}}, Float64}(), 
                         ;
                         ngroute = false,
                         subpath_single_service = subpath_single_service, 
@@ -532,7 +530,6 @@ function subpath_formulation_column_generation_integrated_from_paths(
                             CGLP_results["κ"], 
                             CGLP_results["μ"], 
                             CGLP_results["ν"], 
-                            Dict{Tuple{Vararg{Int}}, Float64}(), 
                             ;
                             ngroute = false,
                             subpath_single_service = subpath_single_service, 
@@ -550,7 +547,6 @@ function subpath_formulation_column_generation_integrated_from_paths(
                         CGLP_results["κ"], 
                         CGLP_results["μ"], 
                         CGLP_results["ν"], 
-                        Dict{Tuple{Vararg{Int}}, Float64}(), 
                         ;
                         ngroute = false,
                         subpath_single_service = subpath_single_service, 
@@ -565,7 +561,6 @@ function subpath_formulation_column_generation_integrated_from_paths(
                         CGLP_results["κ"], 
                         CGLP_results["μ"], 
                         CGLP_results["ν"], 
-                        Dict{Tuple{Vararg{Int}}, Float64}(), 
                         ;
                         ngroute = false,
                         subpath_single_service = subpath_single_service,
@@ -607,7 +602,6 @@ function subpath_formulation_column_generation_integrated_from_paths(
                         CGLP_results["κ"], 
                         CGLP_results["μ"], 
                         CGLP_results["ν"], 
-                        Dict{Tuple{Vararg{Int}}, Float64}(),
                         ;
                         neighborhoods = neighborhoods, 
                         ngroute = ngroute,
@@ -623,7 +617,6 @@ function subpath_formulation_column_generation_integrated_from_paths(
                         CGLP_results["κ"], 
                         CGLP_results["μ"], 
                         CGLP_results["ν"], 
-                        Dict{Tuple{Vararg{Int}}, Float64}(),
                         ;
                         time_windows = time_windows,
                         path_single_service = true,
@@ -637,7 +630,6 @@ function subpath_formulation_column_generation_integrated_from_paths(
                             CGLP_results["κ"], 
                             CGLP_results["μ"], 
                             CGLP_results["ν"], 
-                            Dict{Tuple{Vararg{Int}}, Float64}(),
                             ;
                             time_windows = time_windows,
                             path_single_service = true,
@@ -652,7 +644,6 @@ function subpath_formulation_column_generation_integrated_from_paths(
                         CGLP_results["κ"], 
                         CGLP_results["μ"], 
                         CGLP_results["ν"], 
-                        Dict{Tuple{Vararg{Int}}, Float64}(),
                         ;
                         time_windows = time_windows,
                         path_single_service = true,
@@ -665,7 +656,6 @@ function subpath_formulation_column_generation_integrated_from_paths(
                         CGLP_results["κ"], 
                         CGLP_results["μ"], 
                         CGLP_results["ν"], 
-                        Dict{Tuple{Vararg{Int}}, Float64}(),
                         ;
                         time_windows = time_windows,
                         path_single_service = path_single_service,

@@ -569,7 +569,6 @@ function path_formulation_column_generation!(
                     CGLP_results["κ"], 
                     CGLP_results["μ"], 
                     CGLP_results["ν"], 
-                    CGLP_results["σ"], 
                     ;
                     neighborhoods = neighborhoods,
                     ngroute = ngroute,
@@ -611,7 +610,6 @@ function path_formulation_column_generation!(
                     CGLP_results["κ"], 
                     CGLP_results["μ"], 
                     CGLP_results["ν"], 
-                    CGLP_results["σ"], 
                     ;
                     neighborhoods = neighborhoods, 
                     ngroute = ngroute, 

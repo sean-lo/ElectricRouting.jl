@@ -708,163 +708,6 @@ function generate_base_labels_ngroute(
 end
 
 
-function generate_base_labels_ngroute_sigma(
-    data::EVRPData,
-    graph::EVRPGraph,
-    neighborhoods::BitMatrix,
-    κ::Dict{Int, Float64},
-    μ::Dict{Int, Float64},
-    ν::Vector{Float64}, 
-    σ::Dict{Tuple{Vararg{Int}}, Float64},
-    ;
-    modified_costs::Union{Nothing, Matrix{Float64}} = nothing,
-    time_limit::Float64 = Inf,
-)
-
-    start_time = time()
-    if isnothing(modified_costs)
-        modified_costs = compute_arc_modified_costs(graph, data, ν; σ = σ)
-    end
-    σ_costs = compute_WSR3_sigma_costs(σ, graph)
-
-    base_labels = Dict(
-        starting_node => Dict(
-            current_node => Dict(
-                prev_node => Dict{
-                    NTuple{2 * graph.n_nodes_extra, Int},
-                    SortedDict{
-                        Tuple{Float64, Vararg{Int, 1}},
-                        BaseSubpathLabel,
-                        Base.Order.ForwardOrdering,
-                    },
-                }(Base.Order.ForwardOrdering())
-                for prev_node in graph.N_nodes_extra
-            )
-            for current_node in graph.N_nodes_extra
-        )
-        for starting_node in graph.N_depots_charging_extra
-    )
-    unexplored_states = SortedSet{Tuple{Float64, Vararg{Int, graph.n_nodes_extra + 4}}}()
-    for node in graph.N_depots_charging_extra
-        key = (0.0, 0,)
-        node_labels = zeros(Int, 2 * graph.n_nodes_extra)
-        # Forward NG-set
-        node_labels[node] = 1
-        # Backward NG-set
-        node_labels[graph.n_nodes_extra + node] = 1
-        base_labels[node][node][node][(node_labels...,)] = SortedDict{
-            Tuple{Float64, Vararg{Int, 1}},
-            BaseSubpathLabel,
-        }(
-            Base.Order.ForwardOrdering(),
-            key => BaseSubpathLabel(
-                0, 0, 0.0, [node,], zeros(Int, graph.n_customers),
-            )
-        )
-        push!(
-            unexplored_states, 
-            (
-                key...,
-                node_labels...,
-                node, # starting_node
-                node, # prev_node
-                node, # current_node
-            )
-        )
-    end
-
-    while length(unexplored_states) > 0
-        if time_limit < time() - start_time
-            throw(TimeLimitException())
-        end
-        state = pop!(unexplored_states)
-        starting_node = state[end-2]
-        prev_node = state[end-1]
-        current_node = state[end]
-        current_set = state[3:end-3]
-        current_fset = current_set[1:end/2]
-        current_bset = current_set[end/2+1:end]
-        current_key = state[1:2]
-        current_subpath = get(base_labels[starting_node][current_node][prev_node][current_set], current_key, nothing)
-        if isnothing(current_subpath)
-            continue
-        end
-        for next_node in setdiff(outneighbors(graph.G, current_node), current_node)
-            (feasible, new_fset) = ngroute_check_create_fset(
-                graph.N_customers, neighborhoods, current_fset, next_node
-            )
-            !feasible && continue
-            (feasible, new_subpath) = compute_next_subpath(
-                current_subpath, graph,
-                current_node, next_node, modified_costs,
-            )
-            !feasible && continue
-            new_bset = ngroute_create_bset(
-                neighborhoods, new_subpath.nodes, current_bset,
-            )
-            new_set = (new_fset..., new_bset...,)
-
-            new_subpath.cost += σ_costs[(prev_node, current_node, next_node)]
-
-            if !(new_set in keys(base_labels[starting_node][next_node][current_node]))
-                base_labels[starting_node][next_node][current_node][new_set] = SortedDict{ 
-                    Tuple{Float64, Vararg{Int, 1}},
-                    BaseSubpathLabel,
-                    Base.Order.ForwardOrdering,
-                }(Base.Order.ForwardOrdering())
-            end
-            new_key = (
-                new_subpath.cost,
-                new_subpath.time_taken,
-            )
-            added = add_subpath_longlabel_to_collection!(
-                base_labels[starting_node][next_node][current_node][new_set],
-                new_key, new_subpath,
-                ;
-            )
-            if added && next_node in graph.N_customers
-                new_state = (new_key..., new_set..., starting_node, current_node, next_node)
-                push!(unexplored_states, new_state)
-            end
-        end
-    end
-
-    for starting_node in graph.N_depots_charging_extra
-        for end_node in graph.N_customers
-            delete!(base_labels[starting_node], end_node)
-        end
-    end
-
-    for node in graph.N_depots_charging_extra
-        delete!(base_labels[node][node], node)
-    end
-
-    for starting_node in graph.N_depots
-        for end_node in graph.N_depots_charging_extra
-            for prev_node in keys(base_labels[starting_node][end_node])
-                for set in keys(base_labels[starting_node][end_node][prev_node])
-                    for v in values(base_labels[starting_node][end_node][prev_node][set])
-                        v.cost = v.cost - κ[starting_node]
-                    end
-                end
-            end
-        end
-    end
-    for end_node in graph.N_depots
-        for starting_node in graph.N_depots_charging_extra
-            for prev_node in keys(base_labels[starting_node][end_node])
-                for set in keys(base_labels[starting_node][end_node][prev_node])
-                    for v in values(base_labels[starting_node][end_node][prev_node][set])
-                        v.cost = v.cost - μ[end_node]
-                    end
-                end
-            end
-        end
-    end
-
-    return base_labels
-end
-
 function generate_base_labels_ngroute_alt(
     data::EVRPData,
     graph::EVRPGraph,
@@ -988,144 +831,6 @@ function generate_base_labels_ngroute_alt(
         for starting_node in graph.N_depots_charging_extra
             for v in values(base_labels[starting_node][end_node])
                 v.cost = v.cost - μ[end_node]
-            end
-        end
-    end
-
-    return base_labels
-end
-
-
-function generate_base_labels_ngroute_alt_sigma(
-    data::EVRPData,
-    graph::EVRPGraph,
-    neighborhoods::BitMatrix, 
-    κ::Dict{Int, Float64},
-    μ::Dict{Int, Float64},
-    ν::Vector{Float64}, 
-    σ::Dict{Tuple{Vararg{Int}}, Float64},
-    ;
-    modified_costs::Union{Nothing, Matrix{Float64}} = nothing,
-    time_limit::Float64 = Inf,
-)
-
-    start_time = time()    
-    if isnothing(modified_costs)
-        modified_costs = compute_arc_modified_costs(graph, data, ν; σ = σ)
-    end
-    σ_costs = compute_WSR3_sigma_costs(σ, graph)
-
-    base_labels = Dict(
-        starting_node => Dict(
-            current_node => Dict(
-                prev_node => SortedDict{
-                    Tuple{Float64, Vararg{Int, 2 * graph.n_nodes_extra + 1}}, 
-                    BaseSubpathLabel,
-                    Base.Order.ForwardOrdering,
-                }(Base.Order.ForwardOrdering())
-                for prev_node in graph.N_nodes_extra
-            )
-            for current_node in graph.N_nodes_extra
-        )
-        for starting_node in graph.N_depots_charging_extra
-    )
-    unexplored_states = SortedSet{Tuple{Float64, Vararg{Int, graph.n_nodes_extra + 4}}}()
-    for node in graph.N_depots_charging_extra
-        node_labels = zeros(Int, 2 * graph.n_nodes_extra)
-        # Forward NG-set
-        node_labels[node] = 1
-        # Backward NG-set
-        node_labels[graph.n_nodes_extra + node] = 1
-        key = (0.0, 0, node_labels...)
-        base_labels[node][node][node][key] = BaseSubpathLabel(
-            0, 0, 0.0, [node,], zeros(Int, graph.n_customers),
-        )
-        push!(
-            unexplored_states, 
-            (
-                key..., 
-                node, # starting_node
-                node, # prev_node
-                node, # current_node
-            )
-        )
-    end
-
-    while length(unexplored_states) > 0
-        if time_limit < time() - start_time
-            throw(TimeLimitException())
-        end
-        state = pop!(unexplored_states)
-        starting_node = state[end-2]
-        prev_node = state[end-1]
-        current_node = state[end]
-        current_key = state[1:end-3]
-        if !(current_key in keys(base_labels[starting_node][current_node][prev_node]))
-            continue
-        end
-        current_set = state[3:end-3]
-        current_fset = current_set[1:end/2]
-        current_bset = current_set[end/2+1:end]
-        current_subpath = base_labels[starting_node][current_node][prev_node][current_key]
-        for next_node in setdiff(outneighbors(graph.G, current_node), current_node)
-            (feasible, new_fset) = ngroute_check_create_fset(
-                graph.N_customers, neighborhoods, current_fset, next_node
-            )
-            !feasible && continue
-            (feasible, new_subpath) = compute_next_subpath(
-                current_subpath, graph,
-                current_node, next_node, modified_costs,
-            )
-            !feasible && continue
-            new_bset = ngroute_create_bset(
-                neighborhoods, new_subpath.nodes, current_bset,
-            )
-
-            new_subpath.cost += σ_costs[(prev_node, current_node, next_node)]
-
-            new_key = (
-                new_subpath.cost,
-                new_subpath.time_taken, 
-                new_fset...,
-                new_bset...,
-            )
-            added = add_subpath_longlabel_to_collection!(
-                base_labels[starting_node][next_node][current_node],
-                new_key, new_subpath,
-                ;
-            )
-            if added && next_node in graph.N_customers
-                new_state = (new_key..., starting_node, current_node, next_node)
-                push!(unexplored_states, new_state)
-            end
-        end
-    end
-
-    for starting_node in graph.N_depots_charging_extra
-        for end_node in graph.N_customers
-            delete!(base_labels[starting_node], end_node)
-        end
-    end
-
-    for node in graph.N_depots_charging_extra
-        delete!(base_labels[node][node], node)
-    end
-
-    for starting_node in graph.N_depots
-        for end_node in graph.N_depots_charging_extra
-            for prev_node in keys(base_labels[starting_node][end_node])
-                for v in values(base_labels[starting_node][end_node][prev_node])
-                    v.cost = v.cost - κ[starting_node]
-                end
-            end
-        end
-    end
-    for end_node in graph.N_depots
-        for starting_node in graph.N_depots_charging_extra
-            for prev_node in keys(base_labels[starting_node][end_node])
-                for v in values(base_labels[starting_node][end_node][prev_node])
-                    v.cost = v.cost - μ[end_node]
-                end
             end
         end
     end
@@ -1623,143 +1328,6 @@ function find_nondominated_paths_notimewindows_ngroute_alt(
 
 end
 
-function find_nondominated_paths_notimewindows_ngroute_alt_sigma(
-    data::EVRPData,
-    graph::EVRPGraph,
-    neighborhoods::BitMatrix,
-    base_labels::Dict{
-        Int, 
-        Dict{
-            Int, 
-            Dict{
-                Int, 
-                SortedDict{
-                    T,
-                    BaseSubpathLabel,
-                    Base.Order.ForwardOrdering,
-                },
-            }
-        },
-    },
-    κ::Dict{Int, Float64},
-    μ::Dict{Int, Float64},
-    ;
-    time_limit::Float64 = Inf,
-) where {T <: Tuple{Float64, Vararg{Int}}}
-
-    start_time = time()
-    full_labels = Dict(
-        starting_node => Dict(
-            current_node => SortedDict{
-                Tuple{Float64, Vararg{Int, graph.n_nodes_extra + 2}}, 
-                PathLabel,
-                Base.Order.ForwardOrdering,
-            }(Base.Order.ForwardOrdering())
-            for current_node in graph.N_depots_charging_extra
-        )
-        for starting_node in graph.N_depots
-    )
-
-    unexplored_states = SortedSet{Tuple{Float64, Vararg{Int, graph.n_nodes_extra + 4}}}()
-    for depot in graph.N_depots
-        node_labels = zeros(Int, graph.n_nodes_extra)
-        node_labels[depot] = 1
-        key = (0.0, 0, -graph.B)
-        full_labels[depot][depot][(key..., node_labels...)] = PathLabel(
-            0.0,
-            BaseSubpathLabel[],
-            NTuple{2, Int}[],
-            zeros(Int, graph.n_customers),
-        )
-        push!(
-            unexplored_states, 
-            (
-                key..., 
-                node_labels...,
-                depot, # starting_node
-                depot, # current_node
-            )
-        )
-    end
-
-    while length(unexplored_states) > 0
-        if time_limit < time() - start_time
-            throw(TimeLimitException())
-        end
-        state = pop!(unexplored_states)
-        starting_node = state[end-1]
-        current_node = state[end]
-        current_set = state[4:end-2]
-        current_key = state[1:end-2]
-        current_path = get(full_labels[starting_node][current_node], current_key, nothing)
-        isnothing(current_path) && continue
-        for next_node in graph.N_depots_charging_extra
-            for prev_node in keys(base_labels[current_node][next_node])
-                for s in values(base_labels[current_node][next_node][prev_node])
-                    # ngroute stitching subpaths check
-                    (feasible, new_set) = ngroute_extend_partial_path_check(
-                        neighborhoods, current_set, s, graph.N_nodes_extra,
-                    )
-                    !feasible && continue
-                    (feasible, new_path, end_time, end_charge) = compute_new_path(
-                        current_path, s, state[2:3], next_node, 
-                        data, graph,
-                    )
-                    !feasible && continue
-
-                    new_key = (
-                        new_path.cost,
-                        end_time + s.time_taken, 
-                        - (end_charge - s.charge_taken),
-                    )
-                    added = add_path_label_to_collection!(
-                        full_labels[starting_node][next_node],
-                        (new_key..., new_set...), new_path,
-                        ;
-                    )
-                    if added && next_node in graph.N_charging_extra
-                        new_state = (new_key..., new_set..., starting_node, next_node)
-                        push!(unexplored_states, new_state)
-                    end
-                end
-            end
-        end
-    end
-
-    # label key here has the following fields:
-    # 0) current reduced cost
-    # 1) current time
-    # 2) negative of current charge
-    key = (0.0, 0, -graph.B)
-    for depot in graph.N_depots
-        node_labels = zeros(Int, graph.n_nodes_extra)
-        node_labels[depot] = 1
-        full_labels[depot][depot][(key..., node_labels...)] = PathLabel(
-            - κ[depot] - μ[depot],
-            [
-                BaseSubpathLabel(
-                    0,
-                    0,
-                    - κ[depot] - μ[depot],
-                    [depot, depot],
-                    zeros(Int, graph.n_customers),
-                )
-            ],
-            Int[],
-            zeros(Int, graph.n_customers),
-        )
-    end
-
-    for starting_node in graph.N_depots
-        for end_node in graph.N_charging_extra
-            delete!(full_labels[starting_node], end_node)
-        end
-    end
-
-    return full_labels
-
-end
-
 
 unwrap_path_labels(p::PathLabel) = PathLabel[p]
 
@@ -1805,7 +1373,6 @@ function subproblem_iteration_ours(
     κ::Dict{Int, Float64},
     μ::Dict{Int, Float64},
     ν::Vector{Float64}, 
-    σ::Dict{Tuple{Vararg{Int}}, Float64}, 
     ;
     neighborhoods::Union{Nothing, BitMatrix} = nothing,
     ngroute::Bool = false,
@@ -1818,69 +1385,35 @@ function subproblem_iteration_ours(
 )
     start_time = time()
     if ngroute && !ngroute_alt
-        if length(σ) == 0
-            base_labels_result = @timed generate_base_labels_ngroute(
-                data, graph, neighborhoods, 
-                κ, μ, ν,
-                ;
-                time_limit = time_limit - (time() - start_time),
-            )
-            base_labels_time = base_labels_result.time
-            full_labels_result = @timed find_nondominated_paths_notimewindows_ngroute(
-                data, graph, neighborhoods, 
-                base_labels_result.value, κ, μ,
-                ;
-                time_limit = time_limit - (time() - start_time),
-            )
-            full_labels_time = full_labels_result.time
-        else
-            base_labels_result = @timed generate_base_labels_ngroute_sigma(
-                data, graph, neighborhoods, 
-                κ, μ, ν, σ,
-                ;
-                time_limit = time_limit - (time() - start_time),
-            )
-            base_labels_time = base_labels_result.time
-            full_labels_result = @timed find_nondominated_paths_notimewindows_ngroute_sigma(
-                data, graph, neighborhoods, 
-                base_labels_result.value, κ, μ,
-                ;
-                time_limit = time_limit - (time() - start_time),
-            )
-            full_labels_time = full_labels_result.time
-        end
+        base_labels_result = @timed generate_base_labels_ngroute(
+            data, graph, neighborhoods, 
+            κ, μ, ν,
+            ;
+            time_limit = time_limit - (time() - start_time),
+        )
+        base_labels_time = base_labels_result.time
+        full_labels_result = @timed find_nondominated_paths_notimewindows_ngroute(
+            data, graph, neighborhoods, 
+            base_labels_result.value, κ, μ,
+            ;
+            time_limit = time_limit - (time() - start_time),
+        )
+        full_labels_time = full_labels_result.time
     elseif ngroute && ngroute_alt
-        if length(σ) == 0
-            base_labels_result = @timed generate_base_labels_ngroute_alt(
-                data, graph, neighborhoods, 
-                κ, μ, ν,
-                ;
-                time_limit = time_limit - (time() - start_time),
-            )
-            base_labels_time = base_labels_result.time
-            full_labels_result = @timed find_nondominated_paths_notimewindows_ngroute_alt(
-                data, graph, neighborhoods, 
-                base_labels_result.value, κ, μ,
-                ;
-                time_limit = time_limit - (time() - start_time),
-            )
-            full_labels_time = full_labels_result.time
-        else
-            base_labels_result = @timed generate_base_labels_ngroute_alt_sigma(
-                data, graph, neighborhoods, 
-                κ, μ, ν, σ,
-                ;
-                time_limit = time_limit - (time() - start_time),
-            )
-            base_labels_time = base_labels_result.time
-            full_labels_result = @timed find_nondominated_paths_notimewindows_ngroute_alt_sigma(
-                data, graph, neighborhoods, 
-                base_labels_result.value, κ, μ,
-                ;
-                time_limit = time_limit - (time() - start_time),
-            )
-            full_labels_time = full_labels_result.time
-        end
+        base_labels_result = @timed generate_base_labels_ngroute_alt(
+            data, graph, neighborhoods, 
+            κ, μ, ν,
+            ;
+            time_limit = time_limit - (time() - start_time),
+        )
+        base_labels_time = base_labels_result.time
+        full_labels_result = @timed find_nondominated_paths_notimewindows_ngroute_alt(
+            data, graph, neighborhoods, 
+            base_labels_result.value, κ, μ,
+            ;
+            time_limit = time_limit - (time() - start_time),
+        )
+        full_labels_time = full_labels_result.time
     elseif subpath_single_service
         base_labels_result = @timed generate_base_labels_singleservice(
             data, graph, κ, μ, ν,
