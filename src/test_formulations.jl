@@ -1785,6 +1785,7 @@ begin
             CGLP_results["κ"], 
             CGLP_results["μ"], 
             CGLP_results["ν"], 
+            OrderedDict{NTuple{3, Int}, Float64}(),
             ;
             subpath_single_service = subpath_single_service,
             subpath_check_customers = subpath_check_customers,
@@ -1809,7 +1810,10 @@ begin
     elseif method == "benchmark"
         (negative_pure_path_labels, _, pure_path_labels_time) = subproblem_iteration_benchmark(
             data, graph, 
-            CGLP_results["κ"], CGLP_results["μ"], CGLP_results["ν"], Dict{Tuple{Vararg{Int}}, Float64}(),
+            CGLP_results["κ"], 
+            CGLP_results["μ"], 
+            CGLP_results["ν"], 
+            OrderedDict{NTuple{3, Int}, Float64}(),
             ;
             time_windows = time_windows,
             path_single_service = path_single_service,

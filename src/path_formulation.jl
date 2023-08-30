@@ -353,6 +353,13 @@ function path_formulation_build_model(
     return model, z
 end
 
+function check_path_in_SR3_constraint(
+    path::Path,
+    S::NTuple{3, Int},
+)
+    return Int(floor(sum(path.served[collect(S)]) / 2))
+end
+
 function check_path_in_WSR3_constraint(
     path::Path,
     S::NTuple{3, Int},
@@ -402,6 +409,10 @@ function add_paths_to_path_model!(
     },
     WSR3_constraints::Dict{
         Tuple{Vararg{Int}}, 
+        ConstraintRef, 
+    },
+    SR3_constraints::Dict{
+        NTuple{3, Int}, 
         ConstraintRef, 
     },
     data::EVRPData,
@@ -456,6 +467,13 @@ function add_paths_to_path_model!(
                         set_normalized_coefficient(WSR3_con, z[state_pair,count], 1)
                     end
                 end
+                # 9: add variable to violated SR3 constraints (if applicable)
+                for (SR3_key, SR3_con) in pairs(SR3_constraints)
+                    val = check_path_in_SR3_constraint(p_new, SR3_key)
+                    if val > 0
+                        set_normalized_coefficient(SR3_con, z[state_pair,count], val)
+                    end
+                end
             end
         end
     end
@@ -475,6 +493,10 @@ function path_formulation_column_generation!(
     },
     WSR3_constraints::Dict{
         Tuple{Vararg{Int}}, 
+        ConstraintRef,
+    },
+    SR3_constraints::Dict{
+        NTuple{3, Int}, 
         ConstraintRef,
     },
     data::EVRPData,
@@ -522,6 +544,7 @@ function path_formulation_column_generation!(
     CG_params["μ"] = Dict{Int, Float64}[]
     CG_params["ν"] = Vector{Float64}[]
     CG_params["σ"] = Dict{Tuple{Vararg{Int}}, Float64}[]
+    CG_params["λ"] = Dict{NTuple{3, Int}, Float64}[]
     CG_params["lp_relaxation_solution_time_taken"] = Float64[]
     CG_params["sp_base_time_taken"] = Float64[]
     CG_params["sp_full_time_taken"] = Float64[]
@@ -550,13 +573,18 @@ function path_formulation_column_generation!(
             "σ" => Dict{Tuple{Vararg{Int}}, Float64}(
                 S => dual(WSR3_constraints[S])
                 for S in keys(WSR3_constraints)
-            )
+            ),
+            "λ" => sort(Dict{NTuple{3, Int}, Float64}(
+                S => dual(SR3_constraints[S])
+                for S in keys(SR3_constraints)
+            )),
         )
         push!(CG_params["objective"], CGLP_results["objective"])
         push!(CG_params["κ"], CGLP_results["κ"])
         push!(CG_params["μ"], CGLP_results["μ"])
         push!(CG_params["ν"], CGLP_results["ν"])
         push!(CG_params["σ"], CGLP_results["σ"])
+        push!(CG_params["λ"], CGLP_results["λ"])
         push!(CG_params["lp_relaxation_solution_time_taken"], round(mp_solution_end_time - mp_solution_start_time, digits = 3))
 
         if method == "ours"
@@ -569,6 +597,7 @@ function path_formulation_column_generation!(
                     CGLP_results["κ"], 
                     CGLP_results["μ"], 
                     CGLP_results["ν"], 
+                    CGLP_results["λ"], 
                     ;
                     neighborhoods = neighborhoods,
                     ngroute = ngroute,
@@ -610,6 +639,7 @@ function path_formulation_column_generation!(
                     CGLP_results["κ"], 
                     CGLP_results["μ"], 
                     CGLP_results["ν"], 
+                    CGLP_results["λ"], 
                     ;
                     neighborhoods = neighborhoods, 
                     ngroute = ngroute, 
@@ -661,6 +691,7 @@ function path_formulation_column_generation!(
             path_service,
             generated_paths,
             WSR3_constraints,
+            SR3_constraints,
             data, graph,
         )
 
@@ -1083,6 +1114,60 @@ function delete_paths_with_found_cycles_from_model!(
 end
 
 
+function enumerate_violated_path_SR3_inequalities(
+    paths::Vector{Tuple{Float64, Path}},
+    graph::EVRPGraph,
+)
+    S_list = Tuple{Float64, NTuple{3, Int}}[]
+    for S in combinations(graph.N_customers, 3)
+        violation = sum(
+            val * floor(sum(p.served[S]) / 2)
+            for (val, p) in values(paths)
+        ) - 1.0
+        if violation > 1e-6
+            push!(S_list, (violation, Tuple(S)))
+        end
+    end
+    sort!(S_list, by = x -> x[1], rev = true)
+    return S_list
+end
+
+
+function add_SR3_constraints_to_path_model!(
+    model::Model, 
+    z::Dict{
+        Tuple{
+            Tuple{NTuple{3, Int}, NTuple{3, Int}},
+            Int,
+        },
+        VariableRef,
+    },
+    some_paths::Dict{
+        Tuple{NTuple{3, Int}, NTuple{3, Int}},
+        Vector{Path},
+    },
+    SR3_constraints::Dict{
+        NTuple{3, Int},
+        ConstraintRef
+    }, 
+    generated_SR3_list::Vector{Tuple{Float64, NTuple{3, Int}}}, 
+)
+    for item in generated_SR3_list
+        S = item[2]
+        SR3_constraints[S] = @constraint(
+            model,
+            sum(
+                sum(
+                    floor(sum(p.served[collect(S)]) / 2) * z[state_pair, p_ind]
+                    for (p_ind, p) in enumerate(some_paths[state_pair])
+                )
+                for state_pair in keys(some_paths)
+            ) ≤ 1
+        )
+    end
+end
+
+
 function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
     data::EVRPData, 
     graph::EVRPGraph,
@@ -1098,6 +1183,7 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
     time_limit::Float64 = Inf,
     max_iters::Float64 = Inf,
     use_adaptive_ngroute::Bool = true,
+    use_SR3_cuts::Bool = true,
 )
     start_time = time()
 
@@ -1178,6 +1264,8 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
 
     WSR3_constraints = Dict{Tuple{Vararg{Int}}, ConstraintRef}()
     WSR3_list = Tuple{Float64, Vararg{Int}}[]
+    SR3_constraints = Dict{NTuple{3, Int}, ConstraintRef}()
+    SR3_list = Tuple{Float64, NTuple{3, Int}}[]
     CGLP_all_results = []
     CGIP_all_results = []
     CG_all_params = []
@@ -1185,7 +1273,7 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
 
     while true
         CGLP_results, CG_params = path_formulation_column_generation!(
-            model, z, WSR3_constraints, 
+            model, z, WSR3_constraints, SR3_constraints,
             data, graph,
             some_paths, path_costs, path_service,
             printlist,
@@ -1243,6 +1331,32 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
             end
         end
 
+        if use_SR3_cuts
+            # if no path in solution was non-elementary, 
+            # generate violated WSR3 inequalities
+            generated_WSR3_list = enumerate_violated_path_WSR3_inequalities(
+                CGLP_results["paths"], 
+                graph,
+            )
+            generated_SR3_list = [(t[1], t[2:4]) for t in generated_WSR3_list]
+            if length(generated_SR3_list) == 0
+                # backup: generate violated SR3 inequalities
+                generated_SR3_list = enumerate_violated_path_SR3_inequalities(
+                    CGLP_results["paths"],
+                    graph,
+                )
+            end
+            if length(generated_SR3_list) == 0
+                break 
+            end
+            append!(SR3_list, generated_SR3_list)
+            # Add violated inequalities to master problem
+            add_SR3_constraints_to_path_model!(
+                model, z, some_paths, 
+                SR3_constraints, generated_SR3_list, 
+            )
+            continue
+        end
         break
     end
 
@@ -1364,6 +1478,8 @@ function path_formulation_column_generation_with_cuts(
 
     WSR3_constraints = Dict{Tuple{Vararg{Int}}, ConstraintRef}()
     WSR3_list = Tuple{Float64, Vararg{Int}}[]
+    SR3_constraints = Dict{NTuple{3, Int}, ConstraintRef}()
+    SR3_list = Tuple{Float64, NTuple{3, Int}}[]
     CGLP_all_results = []
     CGIP_all_results = []
     CG_all_params = []
@@ -1371,7 +1487,7 @@ function path_formulation_column_generation_with_cuts(
 
     while true
         CGLP_results, CG_params = path_formulation_column_generation!(
-            model, z, WSR3_constraints,
+            model, z, WSR3_constraints, SR3_constraints,
             data, graph,
             some_paths, path_costs, path_service,
             printlist,
