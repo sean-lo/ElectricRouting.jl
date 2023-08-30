@@ -41,7 +41,7 @@ for (
     [true, false],
     ["small",],
     # ["small",],
-    ["small", "medium", "large"],
+    ["small", "medium"],
     # [1],
     1:20,
     # [16],
@@ -142,14 +142,15 @@ all_results |>
     ])
 all_results.LP_IP_gap_first .*= 100
 all_results.LP_IP_gap_last .*= 100
-CSV.write("adaptive_ngroute.csv", all_results)
+CSV.write("adaptive_ngroute_cthulhu.csv", all_results)
 
+all_results_c = CSV.read("adaptive_ngroute_cthulhu.csv", DataFrame)
 all_results = CSV.read("adaptive_ngroute.csv", DataFrame)
 
 # Sensemaking
 
 for group in (
-    all_results
+    all_results_c
     |> x -> stack(
         x, 
         [:LP_objective_first, :LP_objective_last, :IP_objective_first, :IP_objective_last,],
@@ -164,7 +165,10 @@ for group in (
         [:seed, :n_customers,]
     )
 )
-    if (group.n_customers[1], group.seed[1]) in [(16, 7), (24, 7), (16, 17)]
+    # if (group.n_customers[1], group.seed[1]) in [(16, 7), (24, 7), (16, 17)]
+    #     continue
+    # end
+    if (group.n_customers[1], group.seed[1]) in [(24, 7), (16, 17)]
         continue
     end
     @test all(
@@ -187,7 +191,6 @@ for group in (
     @test all(
         filter(r -> r.ngroute_neighborhood_charging_size == "small", group_lp_first).value
         .≤ filter(r -> r.ngroute_neighborhood_charging_size == "medium", group_lp_first).value .+ 1e-6
-        .≤ filter(r -> r.ngroute_neighborhood_charging_size == "large", group_lp_first).value .+ 2e-6
     )
     @test all(
         filter(r -> r.method == "ours", group_lp_first).value
@@ -201,7 +204,6 @@ for group in (
     @test all(
         filter(r -> r.ngroute_neighborhood_charging_size == "small", group_lp_last).value
         .≈ filter(r -> r.ngroute_neighborhood_charging_size == "medium", group_lp_last).value
-        .≈ filter(r -> r.ngroute_neighborhood_charging_size == "large", group_lp_last).value
     )
     @test all(
         filter(r -> r.method == "ours", group_lp_last).value
@@ -215,7 +217,26 @@ for group in (
 end
 
 (
+    all_results_c
+    |> x -> filter(
+        r -> (
+            r.n_customers == 24
+            && r.seed == 7
+        ), 
+        x,
+    )
+    |> x -> select(
+        x, 
+        [:ngroute_neighborhood_charging_size, :method, :ngroute_alt, :LP_objective_first, :LP_objective_last, :IP_objective_first, :IP_objective_last,]
+    )
+)
+
+summary = (
     all_results
+    |> x -> filter(
+        r -> r.ngroute_neighborhood_charging_size != "large",
+        x,
+    )
     |> x -> groupby(x, [
         :method, 
         :n_customers,
@@ -224,14 +245,55 @@ end
     ])
     |> x -> combine(
         x, 
-        # :time_taken_first => geomean,
-        # :time_taken_total => geomean,
-        # :sp_time_taken_mean_first => geomean,
-        # :sp_time_taken_mean_last => geomean,
+        :time_taken_first => geomean,
+        :time_taken_total => geomean,
+        :sp_time_taken_mean_first => geomean,
+        :sp_time_taken_mean_last => geomean,
         :LP_IP_gap_first => mean,
         :LP_IP_gap_last => mean,
         :n_CG_iterations => mean,
         :n_iterations => mean,
+    )
+)
+
+summary_c = (
+    all_results_c
+    |> x -> groupby(x, [
+        :method, 
+        :n_customers,
+        :ngroute_alt,
+        :ngroute_neighborhood_charging_size,
+    ])
+    |> x -> combine(
+        x, 
+        :time_taken_first => geomean,
+        :time_taken_total => geomean,
+        :sp_time_taken_mean_first => geomean,
+        :sp_time_taken_mean_last => geomean,
+        :LP_IP_gap_first => mean,
+        :LP_IP_gap_last => mean,
+        :n_CG_iterations => mean,
+        :n_iterations => mean,
+    )
+)
+
+summary
+(
+    summary 
+    |> x -> unstack(
+        x, 
+        [:method, :ngroute_alt, :ngroute_neighborhood_charging_size,],
+        :n_customers,
+        :time_taken_first_geomean,
+    )
+)
+(
+    summary_c
+    |> x -> unstack(
+        x, 
+        [:method, :ngroute_alt, :ngroute_neighborhood_charging_size,],
+        :n_customers,
+        :time_taken_first_geomean,
     )
 )
 
@@ -525,9 +587,10 @@ data = generate_instance(
 graph = generate_graph_from_data(data)
 include("subpath_stitching.jl")
 include("desaulniers_benchmark.jl")
+include("utils.jl")
 for (method, ngroute_alt) in [
-    ("benchmark", false),
-    ("benchmark", true),
+    # ("benchmark", false),
+    # ("benchmark", true),
     ("ours", false),
     ("ours", true),
 ]
@@ -747,15 +810,14 @@ set[[1, 3, 5, 6, 8, 12, 14]] .= true
 Vector{Bool}(set)
 
 @btime ngroute_check_create_fset(
-    graph.N_customers,
     ours_CG_all_neighborhoods[2],
-    Tuple{Vararg{Int}}(set), 15,
+    set, 
+    15,
 )
 
 @btime ngroute_check_create_fset(
-    graph.N_customers,
     ours_CG_all_neighborhoods[2],
-    Vector{Bool}(set), 15,
+    set, 15,
 )
 
 @btime ngroute_create_bset(
@@ -789,19 +851,19 @@ keys(base_labels[27][27])
 neighborhoods = ours_CG_all_neighborhoods[2]
 
 
-findall(neighborhoods[27,:])
+findall(neighborhoods[:,27])
 # 3, 10, 16, 27
-findall(neighborhoods[9,:])
+findall(neighborhoods[:,9])
 # 3, 9, 10, 16
-findall(neighborhoods[11,:])
+findall(neighborhoods[:,11])
 # 11, 16
-findall(neighborhoods[6,:])
+findall(neighborhoods[:,6])
 # 6, 11
-findall(neighborhoods[26,:])
+findall(neighborhoods[:,26])
 # 26
 
 
-findall(neighborhoods[16,:])
+findall(neighborhoods[:,16])
 
-findall(neighborhoods[10,:])
+findall(neighborhoods[:,10])
 
