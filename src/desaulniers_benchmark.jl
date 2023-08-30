@@ -112,34 +112,6 @@ function add_pure_path_label_to_collection!(
     return added
 end
 
-function add_pure_path_label_to_collection_verbose!(
-    collection::SortedDict{
-        Tuple{Float64, Vararg{Int, N}},
-        PurePathLabel,
-        Base.Order.ForwardOrdering,
-    },
-    key::Tuple{Float64, Vararg{Int, N}},
-    path::PurePathLabel,
-    ;
-) where {N}
-    added = true
-    for (k, p) in pairs(collection)
-        if all(k .≤ key)
-            added = false
-            println("$(key), $(path.cost) dominated by $(k), $(p.cost)")
-            break
-        end
-        if all(key .≤ k)
-            println("$(key), $(path.cost) dominates $(k), $(p.cost)")
-            pop!(collection, k)
-        end
-    end
-    if added
-        println("$(key), $(path.cost) added!")
-        insert!(collection, key, path)
-    end
-    return added
-end
 
 function compute_new_pure_path(
     current_path::PurePathLabel,

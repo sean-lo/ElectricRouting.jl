@@ -61,38 +61,6 @@ function add_subpath_longlabel_to_collection!(
     return added
 end
 
-function add_subpath_longlabel_to_collection_verbose!(
-    collection::SortedDict{
-        Tuple{Float64, Vararg{Int, N}},
-        BaseSubpathLabel,
-        Base.Order.ForwardOrdering,
-    },
-    k1::Tuple{Float64, Vararg{Int, N}},
-    v1::BaseSubpathLabel,
-    ;
-) where {N}
-    added = true
-    for (k2, v2) in pairs(collection)
-        # println(k2)
-        # check if v2 dominates v1
-        if all(k2 .≤ k1)
-            added = false
-            println("$(k1), $(v1.cost) dominated by $(k2), $(v2.cost)")
-            break
-        end
-        # check if v1 dominates v2
-        if all(k1 .≤ k2)
-            println("$(k1), $(v1.cost) dominates $(k2), $(v2.cost)")
-            pop!(collection, k2)
-        end
-    end
-    if added
-        println("$(k1), $(v1.cost) added!")
-        insert!(collection, k1, v1)
-    end
-    return added
-end
-
 function add_path_label_to_collection!(
     collection::SortedDict{
         Tuple{Float64, Vararg{Int, N}},
@@ -122,37 +90,6 @@ function add_path_label_to_collection!(
     return added
 end
 
-function add_path_label_to_collection_verbose!(
-    collection::SortedDict{
-        Tuple{Float64, Vararg{Int, N}},
-        PathLabel,
-        Base.Order.ForwardOrdering,
-    },
-    k1::Tuple{Float64, Vararg{Int, N}},
-    v1::PathLabel,
-    ;
-) where {N}
-    added = true
-    for (k2, v2) in pairs(collection)
-        # println(k2)
-        # check if v2 dominates v1
-        if all(k2 .≤ k1)
-            added = false
-            println("$(k1), $(v1.cost) dominated by $(k2), $(v2.cost)")
-            break
-        end
-        # check if v1 dominates v2
-        if all(k1 .≤ k2)
-            println("$(k1), $(v1.cost) dominates $(k2), $(v2.cost)")
-            pop!(collection, k2)
-        end
-    end
-    if added
-        println("$(k1), $(v1.cost) added!")
-        insert!(collection, k1, v1)
-    end
-    return added
-end
 
 function ngroute_extend_partial_path_check(
     neighborhoods::BitMatrix,
