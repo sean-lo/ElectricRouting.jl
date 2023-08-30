@@ -543,7 +543,6 @@ function path_formulation_column_generation!(
     CG_params["κ"] = Dict{Int, Float64}[]
     CG_params["μ"] = Dict{Int, Float64}[]
     CG_params["ν"] = Vector{Float64}[]
-    CG_params["σ"] = Dict{Tuple{Vararg{Int}}, Float64}[]
     CG_params["λ"] = Dict{NTuple{3, Int}, Float64}[]
     CG_params["lp_relaxation_solution_time_taken"] = Float64[]
     CG_params["sp_base_time_taken"] = Float64[]
@@ -570,10 +569,6 @@ function path_formulation_column_generation!(
             "κ" => Dict(zip(graph.N_depots, dual.(model[:κ]).data)),
             "μ" => Dict(zip(graph.N_depots, dual.(model[:μ]).data)),
             "ν" => dual.(model[:ν]).data,
-            "σ" => Dict{Tuple{Vararg{Int}}, Float64}(
-                S => dual(WSR3_constraints[S])
-                for S in keys(WSR3_constraints)
-            ),
             "λ" => sort(Dict{NTuple{3, Int}, Float64}(
                 S => dual(SR3_constraints[S])
                 for S in keys(SR3_constraints)
@@ -583,7 +578,6 @@ function path_formulation_column_generation!(
         push!(CG_params["κ"], CGLP_results["κ"])
         push!(CG_params["μ"], CGLP_results["μ"])
         push!(CG_params["ν"], CGLP_results["ν"])
-        push!(CG_params["σ"], CGLP_results["σ"])
         push!(CG_params["λ"], CGLP_results["λ"])
         push!(CG_params["lp_relaxation_solution_time_taken"], round(mp_solution_end_time - mp_solution_start_time, digits = 3))
 
@@ -813,7 +807,7 @@ function enumerate_violated_path_WSR3_inequalities(
                                 a1[1] == ca[1] 
                                 && a1[2] != ca[2] 
                                 && a2[2] == ca[2]
-                                && a1[2] in graph.N_charging_extra
+                                && a1[2] in graph.N_charging
                             )
                     )
                 )
@@ -858,144 +852,6 @@ function add_WSR3_constraints_to_path_model!(
             ) ≤ 1
         )
     end
-end
-
-
-function generate_new_WSR3_to_charging_extra_map(
-    generated_WSR3_list::Vector{Tuple{Float64, Vararg{Int}}},
-    graph::EVRPGraph,
-)
-    WSR3_to_charging_extra_map = Dict{NTuple{4, Int}, Int}()
-    count = graph.n_nodes_extra
-    for WSR3 in generated_WSR3_list
-        S = Tuple(WSR3[2:4])
-        for cs in WSR3[5:end]
-            if (S..., cs) in values(graph.charging_extra_to_WSR3_map)
-                continue
-            end
-            count += 1
-            WSR3_to_charging_extra_map[(S..., cs)] = count
-        end
-    end
-    return WSR3_to_charging_extra_map
-end
-
-function augment_neighborhoods_with_WSR3_duals(
-    neighborhoods::BitMatrix,
-    generated_WSR3_to_charging_extra_map::Dict{NTuple{4, Int}, Int},
-)
-    new_neighborhoods = copy(neighborhoods)
-
-    for (key, _) in pairs(generated_WSR3_to_charging_extra_map)
-        S = Tuple(key[1:3])
-        cs = key[4]
-
-        # add cs and S to the neighborhood of i (for i in S)
-        for i in S
-            new_neighborhoods[cs, i] = true
-            new_neighborhoods[collect(S), i] .= true
-        end
-    end
-    return new_neighborhoods
-end
-
-function augment_neighborhoods_extra_with_WSR3_duals(
-    neighborhoods::BitMatrix,
-    generated_WSR3_to_charging_extra_map::Dict{NTuple{4, Int}, Int},
-)
-    n_new_nodes = length(generated_WSR3_to_charging_extra_map)
-    n_total_nodes = size(neighborhoods, 1)
-    n_total_nodes_new = size(neighborhoods, 1) + n_new_nodes
-    new_neighborhoods = falses(n_total_nodes_new, n_total_nodes_new)
-    new_neighborhoods[1:n_total_nodes, 1:n_total_nodes] .= neighborhoods
-
-    for (key, cs_new) in pairs(generated_WSR3_to_charging_extra_map)
-        S = Tuple(key[1:3])
-        cs = key[4]
-
-        # # add cs and S to the neighborhood of i (for i in S)
-        # for i in S
-        #     new_neighborhoods[cs, i] = true
-        #     new_neighborhoods[cs_new, i] = true
-        #     new_neighborhoods[collect(S), i] .= true
-        # end
-        new_neighborhoods[cs_new, cs_new] = true
-    end
-    return new_neighborhoods
-end
-
-function augment_graph_with_WSR3_duals!(
-    graph::EVRPGraph,
-    generated_WSR3_to_charging_extra_map::Dict{NTuple{4, Int}, Int},
-)
-    n_new_nodes = length(generated_WSR3_to_charging_extra_map)
-    n_total_nodes = graph.n_nodes_extra
-    n_total_nodes_new = graph.n_nodes_extra + n_new_nodes
-    
-    c = zeros(Float64, (n_total_nodes_new, n_total_nodes_new))
-    c[1:n_total_nodes, 1:n_total_nodes] .= graph.c
-    t = zeros(Float64, (n_total_nodes_new, n_total_nodes_new))
-    t[1:n_total_nodes, 1:n_total_nodes] .= graph.t
-    q = zeros(Float64, (n_total_nodes_new, n_total_nodes_new))
-    q[1:n_total_nodes, 1:n_total_nodes] .= graph.q
-
-    count = n_total_nodes
-    add_vertices!(graph.G, n_new_nodes)
-
-    for (key, cs_new) in pairs(generated_WSR3_to_charging_extra_map)
-        S = Tuple(key[1:3])
-        cs = key[4]
-
-        # initialize new vertex
-        graph.node_labels[cs_new] = graph.node_labels[cs]
-        graph.charging_extra_to_WSR3_map[cs_new] = (S..., cs)
-        graph.nodes_extra_to_nodes_map[cs_new] = cs
-            
-        # remove edges cs -> i (for i in S)
-        for i in S
-            rem_edge!(graph.G, cs, i)
-            delete!(graph.A, (cs, i))
-        end
-
-        # add edges i -> cs_new (for i in all nodes except cs)
-        for i in setdiff(graph.N_nodes, cs) # do not include extra CS
-            add_edge!(graph.G, i, cs_new)
-            push!(graph.A, (i, cs_new))
-            c[i, cs_new] = graph.c[i, cs]
-            t[i, cs_new] = graph.t[i, cs]
-            q[i, cs_new] = graph.q[i, cs]
-        end
-
-        # add edges cs_new -> i (for i in S)
-        for i in S
-            add_edge!(graph.G, cs_new, i)
-            push!(graph.A, (cs_new, i))
-            c[cs_new, i] = graph.c[cs, i]
-            t[cs_new, i] = graph.t[cs, i]
-            q[cs_new, i] = graph.q[cs, i]
-        end
-    end
-
-    merge!(graph.WSR3_to_charging_extra_map, generated_WSR3_to_charging_extra_map)
-
-    append!(graph.N_charging_extra, collect(n_total_nodes+1:n_total_nodes_new))
-    append!(graph.N_depots_charging_extra, collect(n_total_nodes+1:n_total_nodes_new))    
-    append!(graph.N_nodes_extra, collect(n_total_nodes+1:n_total_nodes_new))
-    append!(graph.α, zeros(Int, n_new_nodes))
-    append!(graph.β, fill(graph.T, n_new_nodes))
-
-    graph.n_charging_extra += n_new_nodes
-    graph.n_depots_charging_extra += n_new_nodes
-    graph.n_nodes_extra += n_new_nodes
-
-    graph.min_t = dijkstra_shortest_paths(graph.G, graph.N_depots, t).dists
-    graph.min_q = dijkstra_shortest_paths(graph.G, graph.N_depots_charging_extra, q).dists
-
-    graph.c = c
-    graph.t = t
-    graph.q = q
-
-    return graph
 end
 
 
@@ -1366,221 +1222,6 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
     )
 end
 
-
-function path_formulation_column_generation_with_cuts(
-    data::EVRPData, 
-    graph::EVRPGraph,
-    ;
-    Env = nothing,
-    method::String = "ours",
-    time_windows::Bool = false,
-    subpath_single_service::Bool = false,
-    subpath_check_customers::Bool = false,
-    path_single_service::Bool = false,
-    path_check_customers::Bool = false,
-    ngroute::Bool = false,
-    ngroute_alt::Bool = false,
-    ngroute_neighborhood_size::Int = Int(ceil(sqrt(graph.n_customers))),
-    ngroute_neighborhood_depots_size::String = "small",
-    ngroute_neighborhood_charging_size::String = "small",
-    verbose::Bool = true,
-    time_limit::Float64 = Inf,
-    max_iters::Float64 = Inf,
-)
-    start_time = time()
-
-    if ngroute
-        neighborhoods = compute_ngroute_neighborhoods(
-            graph,
-            ngroute_neighborhood_size; 
-            depots_size = ngroute_neighborhood_depots_size,
-            charging_size = ngroute_neighborhood_charging_size,
-        )
-    else
-        neighborhoods = nothing
-    end
-
-    some_paths = generate_artificial_paths(data, graph)
-    path_costs = compute_path_costs(
-        data, graph, 
-        some_paths,
-    )
-    path_service = compute_path_service(
-        graph,
-        some_paths,
-    )
-
-    printlist = String[]
-
-    add_message!(
-        printlist,
-        @sprintf(
-            """
-            Starting column generation on the path formulation.
-            # customers:                    %2d
-            # depots:                       %2d
-            # charging stations:            %2d
-            # vehicles:                     %2d
-            time windows?:                  %s
-
-            method:                         %s
-            subpath_single_service:         %s
-            subpath_check_customers:        %s
-            path_single_service:            %s
-            path_check_customers:           %s
-            ngroute:                        %s
-            ngroute_alt:                    %s
-            ngroute neighborhood size:
-                customers                   %2d
-                depots                      %s
-                charging                    %s
-
-            """,
-            graph.n_customers,
-            graph.n_depots,
-            graph.n_charging,
-            data.n_vehicles,
-            time_windows,
-            method,
-            subpath_single_service,
-            subpath_check_customers,
-            path_single_service,
-            path_check_customers,
-            ngroute,
-            ngroute_alt,
-            ngroute_neighborhood_size,
-            ngroute_neighborhood_depots_size,
-            ngroute_neighborhood_charging_size,
-        ),
-        verbose,
-    )
-    add_message!(
-        printlist,
-        @sprintf("              |  Objective | #    paths | Time (LP) | Time (SP) | Time (SP) | Time (LP) | #    paths \n"),
-        verbose,
-    )
-    add_message!(
-        printlist,
-        @sprintf("              |            |            |           |    (base) |    (full) |    (cons) |      (new) \n"),
-        verbose,
-    )
-
-    model, z = path_formulation_build_model(
-        data, graph, some_paths, path_costs, path_service,
-        ; 
-        Env = Env,
-    )
-
-    local CGLP_results
-    local CG_params
-    local CGIP_results
-    local converged = false
-
-    WSR3_constraints = Dict{Tuple{Vararg{Int}}, ConstraintRef}()
-    WSR3_list = Tuple{Float64, Vararg{Int}}[]
-    SR3_constraints = Dict{NTuple{3, Int}, ConstraintRef}()
-    SR3_list = Tuple{Float64, NTuple{3, Int}}[]
-    CGLP_all_results = []
-    CGIP_all_results = []
-    CG_all_params = []
-    CG_all_neighborhoods = BitMatrix[]
-
-    while true
-        CGLP_results, CG_params = path_formulation_column_generation!(
-            model, z, WSR3_constraints, SR3_constraints,
-            data, graph,
-            some_paths, path_costs, path_service,
-            printlist,
-            ;
-            method = method,
-            time_windows = time_windows,
-            subpath_single_service = subpath_single_service,
-            subpath_check_customers = subpath_check_customers,
-            path_single_service = path_single_service,
-            path_check_customers = path_check_customers,
-            neighborhoods = neighborhoods,
-            ngroute = ngroute,
-            ngroute_alt = ngroute_alt,
-            verbose = verbose,
-            time_limit = time_limit - (time() - start_time),
-            max_iters = max_iters,
-        )
-        CGIP_results = path_formulation_solve_integer_model!(
-            model,
-            z,
-        )
-        push!(CGLP_all_results, CGLP_results)
-        push!(CGIP_all_results, CGIP_results)
-        push!(CG_all_params, CG_params)
-        push!(CG_all_neighborhoods, neighborhoods)
-
-        # Termination criteria
-        CG_params["LP_IP_gap"] = 1.0 - CGLP_results["objective"] / CGIP_results["objective"]
-        for message in [
-            @sprintf("\n"),
-            @sprintf("Time taken (s):       %9.3f s\n", CG_params["time_taken"]),
-            @sprintf("(CGLP) Objective:         %.4e\n", CGLP_results["objective"]),
-            @sprintf("(CGIP) Objective:         %.4e\n", CGIP_results["objective"]),
-            @sprintf("%% gap:                %9.3f %%\n", CG_params["LP_IP_gap"] * 100.0),
-        ]
-            add_message!(printlist, message, verbose)
-        end
-        CGLP_results["paths"] = collect_path_solution_support(
-            CGLP_results, some_paths, data, graph
-        )
-        if CGIP_results["objective"] ≈ CGLP_results["objective"]
-            converged = true
-            break
-        else
-            # Generate violated WSR3 inequalities
-            generated_WSR3_list = enumerate_violated_path_WSR3_inequalities(
-                CGLP_results["paths"], 
-                graph,
-            )
-            if length(generated_WSR3_list) == 0
-                break
-            end
-            append!(WSR3_list, generated_WSR3_list)
-            # Add violated inequalities to master problem
-            add_WSR3_constraints_to_path_model!(
-                model, z, some_paths, 
-                WSR3_constraints, generated_WSR3_list, 
-            )
-            if method == "ours"
-                generated_WSR3_to_charging_extra_map = generate_new_WSR3_to_charging_extra_map(
-                    generated_WSR3_list,
-                    graph,
-                )
-                augment_graph_with_WSR3_duals!(
-                    graph,
-                    generated_WSR3_to_charging_extra_map,
-                )
-                if ngroute # FIXME
-                    neighborhoods = augment_neighborhoods_extra_with_WSR3_duals(
-                        neighborhoods,
-                        generated_WSR3_to_charging_extra_map,
-                    )
-                end
-            elseif method == "benchmark"
-                generated_WSR3_to_charging_extra_map = generate_new_WSR3_to_charging_extra_map(
-                    generated_WSR3_list,
-                    graph,
-                )
-                # if ngroute # FIXME
-                #     neighborhoods = augment_neighborhoods_with_WSR3_duals(
-                #         neighborhoods,
-                #         generated_WSR3_to_charging_extra_map,
-                #     )
-                # end
-            end
-        end
-    end
-
-    return (
-        CGLP_all_results, CGIP_all_results, CG_all_params, printlist, 
-        some_paths, model, z, CG_all_neighborhoods, WSR3_constraints
-    )
-end
 
 function collect_path_solution_support(
     results, 

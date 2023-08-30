@@ -121,12 +121,12 @@ struct EVRPData
     n_charging::Int
     n_depots_charging::Int
     n_nodes::Int
-    N_customers::Vector{Int}
-    N_depots::Vector{Int}
-    N_vehicles::Vector{Int}
-    N_charging::Vector{Int}
-    N_depots_charging::Vector{Int}
-    N_nodes::Vector{Int}
+    N_customers::UnitRange{Int}
+    N_depots::UnitRange{Int}
+    N_vehicles::UnitRange{Int}
+    N_charging::UnitRange{Int}
+    N_depots_charging::UnitRange{Int}
+    N_nodes::UnitRange{Int}
     node_labels::Dict{Int, String}
     shrinkage_depots::Float64
     shrinkage_charging::Float64
@@ -152,35 +152,26 @@ struct EVRPData
     charge_cost_coeff::Int
 end
 
-mutable struct EVRPGraph
+struct EVRPGraph
     G::SimpleDiGraph{Int}
     node_labels::Dict{Int, String}
-    charging_extra_to_WSR3_map::Dict{Int, NTuple{4, Int}}
-    WSR3_to_charging_extra_map::Dict{NTuple{4, Int}, Int}
-    nodes_extra_to_nodes_map::Dict{Int, Int}
     c::Array{Int, 2}
     t::Array{Int, 2}
     q::Array{Int, 2}
-    const N_customers::Vector{Int}
-    const n_customers::Int
-    const N_depots::Vector{Int}
-    const n_depots::Int
-    const N_charging::Vector{Int}
-    const n_charging::Int
-    N_charging_extra::Vector{Int}
-    n_charging_extra::Int
-    const N_depots_charging::Vector{Int}
-    const n_depots_charging::Int
-    N_depots_charging_extra::Vector{Int}
-    n_depots_charging_extra::Int
-    const N_nodes::Vector{Int}
-    const n_nodes::Int
-    N_nodes_extra::Vector{Int}
-    n_nodes_extra::Int
+    N_customers::UnitRange{Int}
+    n_customers::Int
+    N_depots::UnitRange{Int}
+    n_depots::Int
+    N_charging::UnitRange{Int}
+    n_charging::Int
+    N_depots_charging::UnitRange{Int}
+    n_depots_charging::Int
+    N_nodes::UnitRange{Int}
+    n_nodes::Int
     A::Set{Tuple{Int, Int}}
-    const T::Int
-    const B::Int
-    const μ::Int
+    T::Int
+    B::Int
+    μ::Int
     α::Vector{Int}
     β::Vector{Int}
     min_t::Vector{Int}
@@ -481,12 +472,12 @@ function generate_instance(
 
     seeds = abs.(rand(MersenneTwister(seed), Int, 6))
 
-    N_customers = collect(1:n_customers)
-    N_depots = collect(n_customers+1:n_customers+n_depots)
-    N_vehicles = collect(1:n_vehicles)
-    N_charging = collect(n_customers+n_depots+1:n_customers+n_depots+n_charging)
-    N_depots_charging = vcat(N_depots, N_charging)
-    N_nodes = vcat(N_customers, N_depots, N_charging)
+    N_customers = 1:n_customers
+    N_depots = n_customers+1:n_customers+n_depots
+    N_vehicles = 1:n_vehicles
+    N_charging = n_customers+n_depots+1:n_customers+n_depots+n_charging
+    N_depots_charging = n_customers+1:n_customers+n_depots+n_charging
+    N_nodes = 1:n_customers+n_depots+n_charging
 
     node_labels = merge(Dict(
         i => "Depot $ind" for (ind, i) in enumerate(N_depots)
@@ -599,8 +590,8 @@ function generate_graph_from_data(
         add_edge!(G, i, j)
     end
 
-    t_ds = dijkstra_shortest_paths(G, data.N_depots, data.t)
-    q_ds = dijkstra_shortest_paths(G, data.N_depots_charging, data.q)
+    t_ds = dijkstra_shortest_paths(G, collect(data.N_depots), data.t)
+    q_ds = dijkstra_shortest_paths(G, collect(data.N_depots_charging), data.q)
 
     node_labels = merge(Dict(
         i => "Depot $ind" for (ind, i) in enumerate(data.N_depots)
@@ -610,37 +601,21 @@ function generate_graph_from_data(
         i => "Charging $ind" for (ind, i) in enumerate(data.N_charging)
     ))
 
-    charging_extra_to_WSR3_map = Dict{Int, NTuple{4, Int}}()
-    WSR3_to_charging_extra_map = Dict{NTuple{4, Int}, Int}()
-    nodes_extra_to_nodes_map = Dict{Int, Int}(
-        i => i
-        for i in data.N_nodes
-    )
-
     return EVRPGraph(
         G,
         node_labels,
-        charging_extra_to_WSR3_map,
-        WSR3_to_charging_extra_map,
-        nodes_extra_to_nodes_map,
         copy(data.c),
         copy(data.t),
         copy(data.q),
-        copy(data.N_customers),
+        data.N_customers,
         data.n_customers,
-        copy(data.N_depots),
+        data.N_depots,
         data.n_depots,
-        copy(data.N_charging),
+        data.N_charging,
         data.n_charging,
-        copy(data.N_charging),
-        data.n_charging,
-        copy(data.N_depots_charging),
+        data.N_depots_charging,
         data.n_depots_charging,
-        copy(data.N_depots_charging),
-        data.n_depots_charging,
-        copy(data.N_nodes),
-        data.n_nodes,
-        copy(data.N_nodes),
+        data.N_nodes,
         data.n_nodes,
         A,
         data.T,
@@ -733,23 +708,23 @@ function compute_ngroute_neighborhoods(
     if !(1 ≤ k ≤ graph.n_customers)
         error()
     end
-    neighborhoods = falses(graph.n_nodes_extra, graph.n_nodes_extra)
+    neighborhoods = falses(graph.n_nodes, graph.n_nodes)
     for i in graph.N_customers
         neighborhoods[sortperm(graph.c[i, graph.N_customers])[1:k], i] .= true
         # do not include any charging stations / depots in the neighborhoods of customers,
         # since there is no limit on repeat visits to charging stations / depots
     end
     if depots_size == "small"
-        for i in graph.N_charging_extra
+        for i in graph.N_charging
             neighborhoods[i,i] = true
         end
     elseif depots_size == "medium"
-        for i in graph.N_charging_extra
+        for i in graph.N_charging
             neighborhoods[i,i] = true
             neighborhoods[sortperm(graph.c[i, graph.N_customers])[1:k], i] .= true
         end
     elseif depots_size == "large"
-        for i in graph.N_charging_extra
+        for i in graph.N_charging
             neighborhoods[i,i] = true
             neighborhoods[graph.N_customers, i] .= true
         end
@@ -757,16 +732,16 @@ function compute_ngroute_neighborhoods(
         error("`depots_size` argument not recognized.")
     end
     if charging_size == "small"
-        for i in graph.N_charging_extra
+        for i in graph.N_charging
             neighborhoods[i,i] = true
         end
     elseif charging_size == "medium"
-        for i in graph.N_charging_extra
+        for i in graph.N_charging
             neighborhoods[i,i] = true
             neighborhoods[sortperm(graph.c[i, graph.N_customers])[1:k], i] .= true
         end
     elseif charging_size == "large"
-        for i in graph.N_charging_extra
+        for i in graph.N_charging
             neighborhoods[i,i] = true
             neighborhoods[graph.N_customers, i] .= true
         end
@@ -811,117 +786,16 @@ function compute_arc_modified_costs(
     data::EVRPData,
     ν::Vector{Float64}, 
     ;
-    σ::Dict{Tuple{Vararg{Int}}, Float64} = Dict{Tuple{Vararg{Int}}, Float64}(),
 )
     modified_costs = data.travel_cost_coeff * Float64.(copy(graph.c))
     for j in graph.N_customers
-        for i in graph.N_nodes_extra
+        for i in graph.N_nodes
             modified_costs[i,j] -= ν[j]
-        end
-    end
-    for (key, val) in pairs(σ)
-        S = Tuple(key[1:3])
-        for cs in key[4:end]
-            csnew = graph.WSR3_to_charging_extra_map[(S..., cs)]
-            for i in S
-                modified_costs[i, csnew] -= val
-            end
         end
     end
     return modified_costs
 end
 
-function compute_WSR3_sigma_costs(
-    σ::Dict{Tuple{Vararg{Int}}, Float64},
-    graph::EVRPGraph,
-)
-    σ_costs = Dict{NTuple{3, Int}, Float64}()
-    for (prev_node, current_node, next_node) in Iterators.product(
-        graph.N_customers,
-        graph.N_customers,
-        graph.N_customers,
-    )
-        σ_costs[(prev_node, current_node, next_node)] = - sum(
-            [
-                σ[S] for S in keys(σ)
-                if next_node in S && current_node in S && !(prev_node in S)
-            ],
-            init = 0.0
-        )
-    end
-    for (prev_node, current_node, next_node) in setdiff(
-        Iterators.product(
-            graph.N_nodes_extra, 
-            graph.N_nodes_extra, 
-            graph.N_nodes_extra,
-        ),
-        keys(σ_costs),
-    )
-        σ_costs[(prev_node, current_node, next_node)] = 0.0
-    end
-    return σ_costs
-end
-
-function compute_WSR3_sigma_2costs(
-    σ::Dict{Tuple{Vararg{Int}}, Float64},
-    graph::EVRPGraph,
-)
-    σ_costs = Dict{NTuple{4, Int}, Float64}()
-    for (prev_prev_node, prev_node, current_node, next_node) in Iterators.product(
-        graph.N_nodes_extra,
-        graph.N_customers,
-        graph.N_customers,
-        graph.N_customers,
-    )
-        σ_costs[(prev_prev_node, prev_node, current_node, next_node)] = - sum(
-            [
-                σ[S] for S in keys(σ)
-                if next_node in S && current_node in S && !(prev_node in S)
-            ], 
-            init = 0.0
-        )
-    end
-    for (prev_prev_node, prev_node, current_node, next_node) in Iterators.product(
-        graph.N_customers,
-        graph.N_charging_extra,
-        graph.N_customers,
-        graph.N_customers,
-    )
-        σ_costs[(prev_prev_node, prev_node, current_node, next_node)] = - sum(
-            [
-                σ[S] for S in keys(σ)
-                if next_node in S && current_node in S && !(prev_prev_node in S)
-            ], 
-            init = 0.0
-        )
-    end
-    for (prev_prev_node, prev_node, current_node, next_node) in Iterators.product(
-        graph.N_customers,
-        graph.N_customers,
-        graph.N_charging_extra,
-        graph.N_customers,
-    )
-        σ_costs[(prev_prev_node, prev_node, current_node, next_node)] = - sum(
-            [
-                σ[S] for S in keys(σ)
-                if next_node in S && prev_node in S && !(prev_prev_node in S)
-            ], 
-            init = 0.0
-        )
-    end
-    for (prev_prev_node, prev_node, current_node, next_node) in setdiff(
-        Iterators.product(
-            graph.N_nodes_extra, 
-            graph.N_nodes_extra, 
-            graph.N_nodes_extra, 
-            graph.N_nodes_extra, 
-        ),
-        keys(σ_costs),
-    )
-        σ_costs[(prev_prev_node, prev_node, current_node, next_node)] = 0.0
-    end
-    return σ_costs
-end
 
 function plot_instance(
     data::EVRPData,

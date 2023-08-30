@@ -1172,8 +1172,8 @@ if time_windows
     α = graph.α
     β = graph.β
 else
-    α = zeros(Int, graph.n_nodes_extra)
-    β = repeat([graph.T], graph.n_nodes_extra)
+    α = zeros(Int, graph.n_nodes)
+    β = repeat([graph.T], graph.n_nodes)
 end
 
 nodelist = nodelists[4]
@@ -1185,7 +1185,7 @@ pure_path_labels = Dict(
             PurePathLabel,
             Base.Order.ForwardOrdering,
         }(Base.Order.ForwardOrdering())
-        for current_node in graph.N_nodes_extra
+        for current_node in graph.N_nodes
     )
     for j in eachindex(nodelist)
 )
@@ -1233,7 +1233,7 @@ while length(unexplored_states) > 0
     current_path = pure_path_labels[current_nodeseq][current_node][current_key]
     println("current_path: $(current_path.nodes)")
     eventual_next_node = nodelist[length(current_nodeseq) + 1]
-    for next_node in setdiff(vcat(eventual_next_node, graph.N_charging_extra), current_node)
+    for next_node in setdiff(vcat(eventual_next_node, graph.N_charging), current_node)
         # feasibility checks
         # (1) battery
         excess = max(
@@ -1251,11 +1251,11 @@ while length(unexplored_states) > 0
         end
         # (3) charge interval 
         if (
-            (current_node in graph.N_charging_extra && excess > max(B - current_path.charge_mincharge, 0))
+            (current_node in graph.N_charging && excess > max(B - current_path.charge_mincharge, 0))
             || 
-            (!(current_node in graph.N_charging_extra) && excess > max(current_path.charge_maxcharge - current_path.charge_mincharge, 0))
+            (!(current_node in graph.N_charging) && excess > max(current_path.charge_maxcharge - current_path.charge_mincharge, 0))
         )
-            # if current_node in graph.N_charging_extra
+            # if current_node in graph.N_charging
             #     println("$excess, $(B), $(current_path.charge_mincharge)")
             # else
             #     println("$excess, $(current_path.charge_maxcharge), $(current_path.charge_mincharge)")
@@ -1275,7 +1275,7 @@ while length(unexplored_states) > 0
             α[next_node],
             current_path.time_mincharge + t[current_node,next_node] + excess
         )
-        if current_node in graph.N_charging_extra
+        if current_node in graph.N_charging
             slack = max(
                 # floating point accuracy
                 0, 
@@ -1360,7 +1360,7 @@ pure_path_labels = Dict(
             PurePathLabel,
             Base.Order.ForwardOrdering,
         }(Base.Order.ForwardOrdering())
-        for current_node in graph.N_nodes_extra
+        for current_node in graph.N_nodes
     )
     for j in eachindex(nodelist)
 )
@@ -1396,7 +1396,7 @@ while length(unexplored_states) > 0
     end
     current_path = pure_path_labels[starting_node][current_node][current_key]
     eventual_next_node = nodelist[state[end] + 1]
-    for next_node in vcat(eventual_next_node, graph.N_charging_extra)
+    for next_node in vcat(eventual_next_node, graph.N_charging)
         # feasibility checks
         # (1) battery
         excess = max(
@@ -1414,11 +1414,11 @@ while length(unexplored_states) > 0
         end
         # (3) charge interval 
         if (
-            (current_node in graph.N_charging_extra && excess > max(B - current_path.charge_mincharge, 0))
+            (current_node in graph.N_charging && excess > max(B - current_path.charge_mincharge, 0))
             || 
-            (!(current_node in graph.N_charging_extra) && excess > max(current_path.charge_maxcharge - current_path.charge_mincharge, 0))
+            (!(current_node in graph.N_charging) && excess > max(current_path.charge_maxcharge - current_path.charge_mincharge, 0))
         )
-            # if current_node in graph.N_charging_extra
+            # if current_node in graph.N_charging
             #     println("$excess, $(B), $(current_path.charge_mincharge)")
             # else
             #     println("$excess, $(current_path.charge_maxcharge), $(current_path.charge_mincharge)")
@@ -1438,7 +1438,7 @@ while length(unexplored_states) > 0
             α[next_node],
             current_path.time_mincharge + t[current_node,next_node] + excess
         )
-        if current_node in graph.N_charging_extra
+        if current_node in graph.N_charging
             slack = max(
                 # floating point accuracy
                 0, 
@@ -2011,11 +2011,11 @@ base_labels = Dict(
             SortedDict{Int, BaseSubpathLabel},
             Base.Order.ForwardOrdering,
         }(Base.Order.ForwardOrdering())
-        for current_node in graph.N_nodes_extra
+        for current_node in graph.N_nodes
     )
-    for starting_node in graph.N_depots_charging_extra
+    for starting_node in graph.N_depots_charging
 )
-for node in graph.N_depots_charging_extra
+for node in graph.N_depots_charging
     base_labels[node][node][(node,)] = SortedDict{
         Int, 
         BaseSubpathLabel,
@@ -2030,7 +2030,7 @@ end
 unexplored_states = SortedSet(
     [
         (0.0, node, node)
-        for node in graph.N_depots_charging_extra
+        for node in graph.N_depots_charging
     ]
 );
 
@@ -2111,14 +2111,14 @@ end
 unexplored_states
 base_labels
 
-for starting_node in graph.N_depots_charging_extra
+for starting_node in graph.N_depots_charging
     for end_node in graph.N_customers
         delete!(base_labels[starting_node], end_node)
     end
 end
 
 for starting_node in graph.N_depots
-    for end_node in graph.N_depots_charging_extra
+    for end_node in graph.N_depots_charging
         for set in keys(base_labels[starting_node][end_node])
             for v in values(base_labels[starting_node][end_node][set])
                 v.cost = v.cost - κ[starting_node]
@@ -2127,7 +2127,7 @@ for starting_node in graph.N_depots
     end
 end
 for end_node in graph.N_depots
-    for starting_node in graph.N_depots_charging_extra
+    for starting_node in graph.N_depots_charging
         for set in keys(base_labels[starting_node][end_node])
             for v in values(base_labels[starting_node][end_node][set])
                 v.cost = v.cost - μ[end_node]
@@ -2137,7 +2137,7 @@ for end_node in graph.N_depots
 end
 
 # remove self-loops with nonnegative cost
-for node in graph.N_depots_charging_extra
+for node in graph.N_depots_charging
     for set in keys(base_labels[node][node])
         for (k, v) in pairs(base_labels[node][node][set])
             if v.cost ≥ 0.0
@@ -2149,10 +2149,10 @@ end
 
 *("3", "3", "4")
 
-for starting_node in graph.N_depots_charging_extra
+for starting_node in graph.N_depots_charging
     vals = [
         length(keys(base_labels[starting_node][end_node]))
-        for end_node in graph.N_nodes_extra
+        for end_node in graph.N_nodes
     ]
     # vals = [
     #     sum(
@@ -2160,7 +2160,7 @@ for starting_node in graph.N_depots_charging_extra
     #         for set in keys(base_labels[starting_node][end_node])],
     #         init = 0,
     #     )
-    #     for end_node in graph.N_nodes_extra
+    #     for end_node in graph.N_nodes
     # ]
     println(*(["$val\t" for val in vals]...))
 end
@@ -2169,14 +2169,14 @@ end
 base_labels[28][24]
 sum(
     length(base_labels[starting_node][end_node][set])
-    for starting_node in graph.N_depots_charging_extra
-        for end_node in graph.N_depots_charging_extra
+    for starting_node in graph.N_depots_charging
+        for end_node in graph.N_depots_charging
             for set in keys(base_labels[starting_node][end_node])
 )
 sum(
     length(base_labels[starting_node][end_node])
-    for starting_node in graph.N_depots_charging_extra
-        for end_node in graph.N_depots_charging_extra
+    for starting_node in graph.N_depots_charging
+        for end_node in graph.N_depots_charging
 )
 
 plot_instance(data)

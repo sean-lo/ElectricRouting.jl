@@ -595,7 +595,7 @@ for (method, ngroute_alt) in [
     ("ours", false),
     ("ours", true),
 ]
-    path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
+    @time @suppress path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
         data, graph,
         ;
         method = method,
@@ -706,6 +706,7 @@ full_labels = @time find_nondominated_paths_notimewindows_ngroute(
 
 
 using Cthulhu
+using BenchmarkTools
 include("subpath_stitching.jl")
 include("utils.jl")
 
@@ -737,7 +738,7 @@ base_labels_ngroute_alt = @btime generate_base_labels_ngroute_alt(
     ours_CG_all_params[2]["ν"][end],
 )
 
-@btime find_nondominated_paths_notimewindows_ngroute(
+full_labels_ngroute = @btime find_nondominated_paths_notimewindows_ngroute(
     data, graph, ours_CG_all_neighborhoods[2], 
     base_labels_ngroute,
     ours_CG_all_params[2]["κ"][end],
@@ -751,7 +752,7 @@ base_labels_ngroute_alt = @btime generate_base_labels_ngroute_alt(
     ours_CG_all_params[2]["μ"][end],
 )
 
-@btime find_nondominated_paths_notimewindows_ngroute_alt(
+full_labels_ngroute_alt = @btime find_nondominated_paths_notimewindows_ngroute_alt(
     data, graph, ours_CG_all_neighborhoods[2], 
     base_labels_ngroute_alt,
     ours_CG_all_params[2]["κ"][end],
@@ -768,8 +769,8 @@ base_labels_ngroute_alt = @btime generate_base_labels_ngroute_alt(
 
 include("desaulniers_benchmark.jl")
 
-α = zeros(Int, graph.n_nodes_extra)
-β = fill(graph.T, graph.n_nodes_extra)
+α = zeros(Int, graph.n_nodes)
+β = fill(graph.T, graph.n_nodes)
 @btime find_nondominated_paths_ngroute(
     data, graph, ours_CG_all_neighborhoods[2], 
     ours_CG_all_params[2]["κ"][end],
@@ -807,7 +808,7 @@ include("subpath_stitching.jl")
 
 neighborhoods = ours_CG_all_neighborhoods[2]
 nodes = [27, 11, 3, 10, 27]
-set = falses(graph.n_nodes_extra)
+set = falses(graph.n_nodes)
 set[27] = 1
 @btime ngroute_check_create_fset(
     neighborhoods,
@@ -815,7 +816,7 @@ set[27] = 1
     nodes[4],
 )
 
-set = falses(graph.n_nodes_extra)
+set = falses(graph.n_nodes)
 set[27] = 1
 @btime ngroute_create_bset(
     $neighborhoods,
@@ -826,7 +827,7 @@ set[27] = 1
 findall(set)
 
 begin
-    set = falses(graph.n_nodes_extra)
+    set = falses(graph.n_nodes)
     set[27] = 1
     for i in 2:length(nodes)
         (f, set) = ngroute_check_create_fset(
@@ -839,7 +840,7 @@ begin
     println(findall(subpath_fset))
 end
 begin
-    set = falses(graph.n_nodes_extra)
+    set = falses(graph.n_nodes)
     set[27] = 1
     for i in 2:length(nodes)
         set = ngroute_create_bset(
@@ -855,12 +856,22 @@ path_fset = collect(keys(base_labels_ngroute[(17,27)]))[3]
 findall(path_fset)
 
 
-@btime ngroute_extend_partial_path_check(
-    neighborhoods,
-    path_fset,
-    nodes,
-    graph.N_nodes_extra
+(f1, s1) = @btime ngroute_extend_partial_path_check(
+    $neighborhoods,
+    $path_fset,
+    $nodes,
 )
+
+
+s1 == s2
+all(subpath_fset .≤ s1)
+all(s1 .≤ subpath_fset .| path_fset)
+
+findall(subpath_fset)
+findall(s1)
+findall(subpath_fset .| path_fset)
+
+findall(s2)
 
 neighborhoods
 

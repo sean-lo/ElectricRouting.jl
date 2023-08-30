@@ -197,11 +197,11 @@ function compute_new_pure_path(
     end
     # (3) charge interval 
     if (
-        (current_node in graph.N_charging_extra && excess > max(graph.B - current_path.charge_mincharge, 0))
+        (current_node in graph.N_charging && excess > max(graph.B - current_path.charge_mincharge, 0))
         || 
-        (!(current_node in graph.N_charging_extra) && excess > max(current_path.charge_maxcharge - current_path.charge_mincharge, 0))
+        (!(current_node in graph.N_charging) && excess > max(current_path.charge_maxcharge - current_path.charge_mincharge, 0))
     )
-        # if current_node in graph.N_charging_extra
+        # if current_node in graph.N_charging
         #     println("$excess, $(B), $(current_path.charge_mincharge)")
         # else
         #     println("$excess, $(current_path.charge_maxcharge), $(current_path.charge_mincharge)")
@@ -222,7 +222,7 @@ function compute_new_pure_path(
         current_path.time_mincharge + graph.t[current_node,next_node] + excess
     )
 
-    if current_node in graph.N_charging_extra
+    if current_node in graph.N_charging
         slack = min(
             new_path.time_mincharge - (current_path.time_mincharge + graph.t[current_node,next_node] + excess),
             graph.B - (current_path.charge_mincharge + excess),
@@ -293,7 +293,7 @@ function find_nondominated_paths(
             Base.Order.ForwardOrdering,
         }(Base.Order.ForwardOrdering())
         for starting_node in graph.N_depots,
-            current_node in graph.N_nodes_extra
+            current_node in graph.N_nodes
     )
 
     if check_customers
@@ -399,7 +399,7 @@ function find_nondominated_paths(
     end
     
     for starting_node in graph.N_depots
-        for end_node in setdiff(graph.N_nodes_extra, graph.N_depots)
+        for end_node in setdiff(graph.N_nodes, graph.N_depots)
             delete!(pure_path_labels, (starting_node, end_node))
         end
     end
@@ -442,13 +442,13 @@ function find_nondominated_paths_ngroute(
             },
         }()
         for starting_node in graph.N_depots,
-            current_node in graph.N_nodes_extra
+            current_node in graph.N_nodes
     )
 
     unexplored_states = SortedSet{Tuple{Float64, Int, Int, Int, BitVector, Int, Int}}()
     for depot in graph.N_depots
         key = (0.0, 0, -graph.B, -graph.B)
-        node_labels = falses(graph.n_nodes_extra)
+        node_labels = falses(graph.n_nodes)
         node_labels[depot] = true
         pure_path_labels[(depot, depot)][node_labels] = SortedDict{
             Tuple{Float64, Vararg{Int, 3}}, 
@@ -544,7 +544,7 @@ function find_nondominated_paths_ngroute(
     end
 
     for starting_node in graph.N_depots
-        for end_node in setdiff(graph.N_nodes_extra, graph.N_depots)
+        for end_node in setdiff(graph.N_nodes, graph.N_depots)
             delete!(pure_path_labels, (starting_node, end_node))
         end
     end
@@ -586,12 +586,12 @@ function find_nondominated_paths_ngroute_alt(
             Base.Order.ForwardOrdering,
         }(Base.Order.ForwardOrdering())
         for starting_node in graph.N_depots,
-            current_node in graph.N_nodes_extra
+            current_node in graph.N_nodes
     )
 
     unexplored_states = SortedSet{Tuple{Float64, Int, Int, Int, BitVector, Int, Int}}()
     for depot in graph.N_depots
-        node_labels = falses(graph.n_nodes_extra)
+        node_labels = falses(graph.n_nodes)
         node_labels[depot] = true
         key = (0.0, 0, -graph.B, -graph.B)
         pure_path_labels[(depot, depot)][(key..., node_labels)] = PurePathLabel(
@@ -673,7 +673,7 @@ function find_nondominated_paths_ngroute_alt(
     end
 
     for starting_node in graph.N_depots
-        for end_node in setdiff(graph.N_nodes_extra, graph.N_depots)
+        for end_node in setdiff(graph.N_nodes, graph.N_depots)
             delete!(pure_path_labels, (starting_node, end_node))
         end
     end
@@ -733,8 +733,8 @@ function subproblem_iteration_benchmark(
         α = graph.α
         β = graph.β
     else
-        α = zeros(Int, graph.n_nodes_extra)
-        β = fill(graph.T, graph.n_nodes_extra)
+        α = zeros(Int, graph.n_nodes)
+        β = fill(graph.T, graph.n_nodes)
     end
 
     if ngroute && !ngroute_alt

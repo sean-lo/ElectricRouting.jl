@@ -61,7 +61,7 @@ function find_nondominated_paths_nocharge(
         for next_node in setdiff(
             outneighbors(graph.G, current_node), 
             current_node, 
-            graph.N_charging_extra,
+            graph.N_charging,
         )
             if single_service
                 if next_node in graph.N_customers && current_subpath.served[next_node] > 0
@@ -214,7 +214,7 @@ function find_nondominated_paths_nocharge_ngroute(
         for next_node in setdiff(
             outneighbors(graph.G, current_node), 
             current_node, 
-            graph.N_charging_extra,
+            graph.N_charging,
         )
             # Preventing customer 2-cycles (Christofides) # FIXME
             if christofides && next_node in graph.N_customers
@@ -367,7 +367,7 @@ function find_nondominated_paths_nocharge_ngroute_alt(
         for next_node in setdiff(
             outneighbors(graph.G, current_node), 
             current_node, 
-            graph.N_charging_extra,
+            graph.N_charging,
         )
             # Preventing customer 2-cycles (Christofides) # FIXME
             if christofides && next_node in graph.N_customers
@@ -600,7 +600,6 @@ function path_formulation_column_generation_nocharge(
     CG_params["κ"] = Dict{Int, Float64}[]
     CG_params["μ"] = Dict{Int, Float64}[]
     CG_params["ν"] = Vector{Float64}[]
-    CG_params["σ"] = Dict{Tuple{Vararg{Int}}, Float64}[]
     CG_params["lp_relaxation_solution_time_taken"] = Float64[]
     CG_params["sp_base_time_taken"] = Float64[]
     CG_params["sp_full_time_taken"] = Float64[]
@@ -685,16 +684,11 @@ function path_formulation_column_generation_nocharge(
             "κ" => Dict(zip(graph.N_depots, dual.(model[:κ]).data)),
             "μ" => Dict(zip(graph.N_depots, dual.(model[:μ]).data)),
             "ν" => dual.(model[:ν]).data,
-            "σ" => Dict{Tuple{Vararg{Int}}, Float64}(
-                S => dual(WSR3_constraints[S])
-                for S in keys(WSR3_constraints)
-            )
         )
         push!(CG_params["objective"], CGLP_results["objective"])
         push!(CG_params["κ"], CGLP_results["κ"])
         push!(CG_params["μ"], CGLP_results["μ"])
         push!(CG_params["ν"], CGLP_results["ν"])
-        push!(CG_params["σ"], CGLP_results["σ"])
         push!(CG_params["lp_relaxation_solution_time_taken"], round(mp_solution_end_time - mp_solution_start_time, digits = 3))
 
 
@@ -832,8 +826,8 @@ function get_postcharge_shortest_pure_path_label(
         α = graph.α
         β = graph.β
     else
-        α = zeros(Int, graph.n_nodes_extra)
-        β = repeat([graph.T], graph.n_nodes_extra)
+        α = zeros(Int, graph.n_nodes)
+        β = repeat([graph.T], graph.n_nodes)
     end
 
     pure_path_labels = Dict(
@@ -843,7 +837,7 @@ function get_postcharge_shortest_pure_path_label(
                 PurePathLabel,
                 Base.Order.ForwardOrdering,
             }(Base.Order.ForwardOrdering())
-            for current_node in graph.N_nodes_extra
+            for current_node in graph.N_nodes
         )
         for j in eachindex(nodelist)
     )
@@ -877,7 +871,7 @@ function get_postcharge_shortest_pure_path_label(
         # println("current_path: $(current_path.nodes)")
         eventual_next_node = nodelist[length(current_nodeseq) + 1]
         for next_node in setdiff(
-            vcat(eventual_next_node, graph.N_charging_extra), 
+            vcat(eventual_next_node, graph.N_charging), 
             current_node,
         )
             if !(next_node in outneighbors(graph.G, current_node))

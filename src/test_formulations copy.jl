@@ -656,18 +656,6 @@ add_WSR3_constraints_to_path_model!(
     WSR3_constraints, generated_WSR3_list, 
 )
 
-generated_WSR3_to_charging_extra_map = generate_new_WSR3_to_charging_extra_map(
-    generated_WSR3_list,
-    graph,
-)
-augment_graph_with_WSR3_duals!(
-    graph,
-    generated_WSR3_to_charging_extra_map,
-)
-neighborhoods = augment_neighborhoods_extra_with_WSR3_duals(
-    neighborhoods,
-    generated_WSR3_to_charging_extra_map,
-)
 
 # debug 
 
@@ -681,17 +669,6 @@ neighborhoods = augment_neighborhoods_extra_with_WSR3_duals(
 #     CGLP_all_results[1]["ν"],
 # )
 
-# b = generate_base_labels_ngroute_sigma(
-#     data,
-#     graph,
-#     neighborhoods,
-#     CGLP_all_results[1]["κ"],
-#     CGLP_all_results[1]["μ"],
-#     CGLP_all_results[1]["ν"],
-#     Dict{Tuple{Vararg{Int}}, Float64}(),
-#     ;
-#     christofides = true,
-# )
 # p.arcs
 # b[18][21][7]
 # b[18][18][15]
@@ -709,144 +686,6 @@ neighborhoods = augment_neighborhoods_extra_with_WSR3_duals(
 # )
 # s2.cost
 
-
-function generate_new_WSR3_to_charging_extra_map(
-    generated_WSR3_list::Vector{Tuple{Float64, Vararg{Int}}},
-    graph::EVRPGraph,
-)
-    WSR3_to_charging_extra_map = Dict{NTuple{4, Int}, Int}()
-    count = graph.n_nodes_extra
-    for WSR3 in generated_WSR3_list
-        S = Tuple(WSR3[2:4])
-        for cs in WSR3[5:end]
-            if (S..., cs) in values(graph.charging_extra_to_WSR3_map)
-                continue
-            end
-            count += 1
-            WSR3_to_charging_extra_map[(S..., cs)] = count
-        end
-    end
-    return WSR3_to_charging_extra_map
-end
-
-function augment_neighborhoods_with_WSR3_duals(
-    neighborhoods::BitMatrix,
-    generated_WSR3_to_charging_extra_map::Dict{NTuple{4, Int}, Int},
-)
-    new_neighborhoods = copy(neighborhoods)
-
-    for (key, _) in pairs(generated_WSR3_to_charging_extra_map)
-        S = Tuple(key[1:3])
-        cs = key[4]
-
-        # add cs and S to the neighborhood of i (for i in S)
-        for i in S
-            new_neighborhoods[cs, i] = true
-            new_neighborhoods[collect(S), i] .= true
-        end
-    end
-    return new_neighborhoods
-end
-
-function augment_neighborhoods_extra_with_WSR3_duals(
-    neighborhoods::BitMatrix,
-    generated_WSR3_to_charging_extra_map::Dict{NTuple{4, Int}, Int},
-)
-    n_new_nodes = length(generated_WSR3_to_charging_extra_map)
-    n_total_nodes = size(neighborhoods, 1)
-    n_total_nodes_new = size(neighborhoods, 1) + n_new_nodes
-    new_neighborhoods = falses(n_total_nodes_new, n_total_nodes_new)
-    new_neighborhoods[1:n_total_nodes, 1:n_total_nodes] .= neighborhoods
-
-    for (key, cs_new) in pairs(generated_WSR3_to_charging_extra_map)
-        S = Tuple(key[1:3])
-        cs = key[4]
-
-        # add cs and S to the neighborhood of i (for i in S)
-        # for i in S
-        #     new_neighborhoods[cs, i] = true
-        #     new_neighborhoods[cs_new, i] = true
-        #     new_neighborhoods[collect(S), i] .= true
-        # end
-        new_neighborhoods[cs_new, cs_new] = true
-    end
-    return new_neighborhoods
-end
-
-function augment_graph_with_WSR3_duals!(
-    graph::EVRPGraph,
-    generated_WSR3_to_charging_extra_map::Dict{NTuple{4, Int}, Int},
-)
-    n_new_nodes = length(generated_WSR3_to_charging_extra_map)
-    n_total_nodes = graph.n_nodes_extra
-    n_total_nodes_new = graph.n_nodes_extra + n_new_nodes
-    
-    c = zeros(Float64, (n_total_nodes_new, n_total_nodes_new))
-    c[1:n_total_nodes, 1:n_total_nodes] .= graph.c
-    t = zeros(Float64, (n_total_nodes_new, n_total_nodes_new))
-    t[1:n_total_nodes, 1:n_total_nodes] .= graph.t
-    q = zeros(Float64, (n_total_nodes_new, n_total_nodes_new))
-    q[1:n_total_nodes, 1:n_total_nodes] .= graph.q
-
-    count = n_total_nodes
-    add_vertices!(graph.G, n_new_nodes)
-
-    for (key, cs_new) in pairs(generated_WSR3_to_charging_extra_map)
-        S = Tuple(key[1:3])
-        cs = key[4]
-
-        # initialize new vertex
-        graph.node_labels[cs_new] = graph.node_labels[cs]
-        graph.charging_extra_to_WSR3_map[cs_new] = (S..., cs)
-        graph.nodes_extra_to_nodes_map[cs_new] = cs
-            
-        # remove edges cs -> i (for i in S)
-        for i in S
-            rem_edge!(graph.G, cs, i)
-            delete!(graph.A, (cs, i))
-        end
-
-        # add edges i -> cs_new (for i in all nodes except cs)
-        for i in setdiff(graph.N_nodes, cs) # do not include extra CS
-            add_edge!(graph.G, i, cs_new)
-            push!(graph.A, (i, cs_new))
-            c[i, cs_new] = graph.c[i, cs]
-            t[i, cs_new] = graph.t[i, cs]
-            q[i, cs_new] = graph.q[i, cs]
-        end
-
-        # add edges cs_new -> i (for i in S)
-        for i in S
-            add_edge!(graph.G, cs_new, i)
-            push!(graph.A, (cs_new, i))
-            c[cs_new, i] = graph.c[cs, i]
-            t[cs_new, i] = graph.t[cs, i]
-            q[cs_new, i] = graph.q[cs, i]
-        end
-    end
-
-    merge!(graph.WSR3_to_charging_extra_map, generated_WSR3_to_charging_extra_map)
-
-    append!(graph.N_charging_extra, collect(n_total_nodes+1:n_total_nodes_new))
-    append!(graph.N_depots_charging_extra, collect(n_total_nodes+1:n_total_nodes_new))    
-    append!(graph.N_nodes_extra, collect(n_total_nodes+1:n_total_nodes_new))
-    append!(graph.α, zeros(Int, n_new_nodes))
-    append!(graph.β, fill(graph.T, n_new_nodes))
-
-    graph.n_charging_extra += n_new_nodes
-    graph.n_depots_charging_extra += n_new_nodes
-    graph.n_nodes_extra += n_new_nodes
-
-    graph.min_t = dijkstra_shortest_paths(graph.G, graph.N_depots, t).dists
-    graph.min_q = dijkstra_shortest_paths(graph.G, graph.N_depots_charging_extra, q).dists
-
-    graph.c = c
-    graph.t = t
-    graph.q = q
-
-    return graph
-end
-
 CGLP_results["objective"]
 optimize!(model)
 CGLP_results = Dict(
@@ -858,40 +697,12 @@ CGLP_results = Dict(
     "κ" => Dict(zip(graph.N_depots, dual.(model[:κ]).data)),
     "μ" => Dict(zip(graph.N_depots, dual.(model[:μ]).data)),
     "ν" => dual.(model[:ν]).data,
-    "σ" => Dict{Tuple{Vararg{Int}}, Float64}(
-        S => dual(WSR3_constraints[S])
-        for S in keys(WSR3_constraints)
-    )
 )
 
 
 κ = CGLP_results["κ"]
 μ = CGLP_results["μ"]
 ν = CGLP_results["ν"]
-σ = CGLP_results["σ"]
-
-base_labels_result = @timed generate_base_labels_ngroute_sigma(
-    data, graph, neighborhoods, κ, μ, ν, σ,
-    ;
-    christofides = true,
-    time_limit = Inf,
-);
-base_labels_result.time
-
-full_labels_result = @timed find_nondominated_paths_notimewindows_ngroute_sigma(
-    data, graph, neighborhoods, base_labels_result.value, 
-    κ, μ,
-    ;
-    christofides = true,
-);
-full_labels_result.time
-
-negative_full_labels = get_negative_path_labels_from_path_labels(full_labels_result.value)
-normalize_path_labels!(negative_full_labels, graph)
-
-generated_paths = get_paths_from_negative_path_labels(
-    graph, negative_full_labels,
-)
 
 [
     compute_path_modified_cost(
@@ -976,20 +787,3 @@ push!(CGIP_all_results, CGIP_results)
 
 
 compute_path_modified_cost(data, graph, p, CGLP_all_results[1]["κ"], CGLP_all_results[1]["μ"], CGLP_all_results[1]["ν"])
-
-b = generate_base_labels_ngroute_sigma(
-    data, 
-    graph, 
-    neighborhoods,
-    CGLP_all_results[1]["κ"], CGLP_all_results[1]["μ"], CGLP_all_results[1]["ν"], 
-    Dict{Tuple{Vararg{Int}}, Float64}(),
-    ;
-    christofides = true,
-)
-
-b
-p # this is an optimal path from 2nd iteration
-p.arcs
-
-b[18][21][7]
-b[21][21][7]
