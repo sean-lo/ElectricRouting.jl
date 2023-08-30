@@ -225,19 +225,20 @@ end
 function ngroute_extend_partial_path_check(
     neighborhoods::BitMatrix,
     set::BitVector,
-    s::BaseSubpathLabel,
+    nodes::Vector{Int},
     N_nodes_extra::Vector{Int},
 )
     new_set = copy(set)
-    for next_node in s.nodes[2:end]
-        if new_set[next_node] == 1
+    for next_node in nodes[2:end]
+        if new_set[next_node]
             return (false, set)
         end
         for node in N_nodes_extra
-            if new_set[node] == 1 && !(neighborhoods[next_node, node])
+            if new_set[node] && !(neighborhoods[node, next_node])
                 new_set[node] = 0
             end
         end
+        # new_set .&= neighborhoods[:, next_node]
         new_set[next_node] = 1
         # println("$next_node, $new_set")
     end
@@ -725,7 +726,7 @@ function generate_base_labels_ngroute(
         current_subpath = base_labels[(starting_node, current_node)][current_node_labels][current_key]
         for next_node in setdiff(outneighbors(graph.G, current_node), current_node)
             (feasible, new_fset) = ngroute_check_create_fset(
-                graph.N_customers, neighborhoods, current_fset, next_node,
+                neighborhoods, current_fset, next_node,
             )
             !feasible && continue
             (feasible, new_subpath) = compute_next_subpath(
@@ -890,7 +891,7 @@ function generate_base_labels_ngroute_alt(
         end
         for next_node in setdiff(outneighbors(graph.G, current_node), current_node)
             (feasible, new_fset) = ngroute_check_create_fset(
-                graph.N_customers, neighborhoods, current_fset, next_node
+                neighborhoods, current_fset, next_node
             )
             !feasible && continue
             (feasible, new_subpath) = compute_next_subpath(
@@ -1247,7 +1248,7 @@ function find_nondominated_paths_notimewindows_ngroute(
                 for s in values(base_labels[(current_node, next_node)][set])
                     # ngroute stitching subpaths check
                     (feasible, new_set) = ngroute_extend_partial_path_check(
-                        neighborhoods, current_set, s, graph.N_nodes_extra,
+                        neighborhoods, current_set, s.nodes, graph.N_nodes_extra,
                     )
                     !feasible && continue
                     (feasible, new_path, end_time, end_charge) = compute_new_path(
@@ -1390,7 +1391,7 @@ function find_nondominated_paths_notimewindows_ngroute_alt(
             for s in values(base_labels[(current_node, next_node)])
                 # ngroute stitching subpaths check
                 (feasible, new_set) = ngroute_extend_partial_path_check(
-                    neighborhoods, current_set, s, graph.N_nodes_extra,
+                    neighborhoods, current_set, s.nodes, graph.N_nodes_extra,
                 )
                 !feasible && continue
                 (feasible, new_path, end_time, end_charge) = compute_new_path(

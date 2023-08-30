@@ -1947,7 +1947,7 @@ function ngroute_extend_partial_path_check(
         end
         new_set = [
             node for node in new_set
-                if neighborhoods[next_node, node]
+                if neighborhoods[node, next_node]
         ]
         push!(new_set, next_node)
         println("$next_node, $new_set")

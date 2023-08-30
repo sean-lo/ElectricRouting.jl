@@ -892,8 +892,8 @@ function augment_neighborhoods_with_WSR3_duals(
 
         # add cs and S to the neighborhood of i (for i in S)
         for i in S
-            new_neighborhoods[i, cs] = true
-            new_neighborhoods[i, collect(S)] .= true
+            new_neighborhoods[cs, i] = true
+            new_neighborhoods[collect(S), i] .= true
         end
     end
     return new_neighborhoods
@@ -915,9 +915,9 @@ function augment_neighborhoods_extra_with_WSR3_duals(
 
         # # add cs and S to the neighborhood of i (for i in S)
         # for i in S
-        #     new_neighborhoods[i, cs] = true
-        #     new_neighborhoods[i, cs_new] = true
-        #     new_neighborhoods[i, collect(S)] .= true
+        #     new_neighborhoods[cs, i] = true
+        #     new_neighborhoods[cs_new, i] = true
+        #     new_neighborhoods[collect(S), i] .= true
         # end
         new_neighborhoods[cs_new, cs_new] = true
     end
@@ -1036,7 +1036,7 @@ function modify_neighborhoods_with_found_cycles!(
     cycles_lookup::Dict{Int, Set{Int}},
 )
     for (node, changed_nodes) in pairs(cycles_lookup)
-        neighborhoods[collect(changed_nodes), node] .= 1
+        neighborhoods[node, collect(changed_nodes)] .= 1
     end
 end
 

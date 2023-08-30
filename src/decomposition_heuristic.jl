@@ -223,7 +223,7 @@ function find_nondominated_paths_nocharge_ngroute(
                 end
             end
             (feasible, new_set) = ngroute_check_create_fset(
-                graph.N_customers, neighborhoods, current_set, next_node,
+                neighborhoods, current_set, next_node,
             )
             !feasible && continue
 
@@ -376,7 +376,7 @@ function find_nondominated_paths_nocharge_ngroute_alt(
                 end
             end
             (feasible, new_set) = ngroute_check_create_fset(
-                graph.N_customers, neighborhoods, current_set, next_node,
+                neighborhoods, current_set, next_node,
             )
             !feasible && continue
 

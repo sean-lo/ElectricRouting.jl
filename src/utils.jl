@@ -735,7 +735,7 @@ function compute_ngroute_neighborhoods(
     end
     neighborhoods = falses(graph.n_nodes_extra, graph.n_nodes_extra)
     for i in graph.N_customers
-        neighborhoods[i, sortperm(graph.c[i, graph.N_customers])[1:k]] .= true
+        neighborhoods[sortperm(graph.c[i, graph.N_customers])[1:k], i] .= true
         # do not include any charging stations / depots in the neighborhoods of customers,
         # since there is no limit on repeat visits to charging stations / depots
     end
@@ -746,12 +746,12 @@ function compute_ngroute_neighborhoods(
     elseif depots_size == "medium"
         for i in graph.N_charging_extra
             neighborhoods[i,i] = true
-            neighborhoods[i, sortperm(graph.c[i, graph.N_customers])[1:k]] .= true
+            neighborhoods[sortperm(graph.c[i, graph.N_customers])[1:k], i] .= true
         end
     elseif depots_size == "large"
         for i in graph.N_charging_extra
             neighborhoods[i,i] = true
-            neighborhoods[i,graph.N_customers] .= true
+            neighborhoods[graph.N_customers, i] .= true
         end
     else
         error("`depots_size` argument not recognized.")
@@ -763,12 +763,12 @@ function compute_ngroute_neighborhoods(
     elseif charging_size == "medium"
         for i in graph.N_charging_extra
             neighborhoods[i,i] = true
-            neighborhoods[i, sortperm(graph.c[i, graph.N_customers])[1:k]] .= true
+            neighborhoods[sortperm(graph.c[i, graph.N_customers])[1:k], i] .= true
         end
     elseif charging_size == "large"
         for i in graph.N_charging_extra
             neighborhoods[i,i] = true
-            neighborhoods[i,graph.N_customers] .= true
+            neighborhoods[graph.N_customers, i] .= true
         end
     else
         error("`charging_size` argument not recognized.")
@@ -781,13 +781,13 @@ function ngroute_check_create_fset(
     set::BitVector,
     next_node::Int,
 )
-    if set[next_node] == 1
+    if set[next_node]
         # if next_node is a customer not yet visited, proceed
         # only if one can extend current_subpath along next_node according to ng-route rules
         return (false, set)
     end
     new_set = copy(set)
-    new_set .&= neighborhoods[next_node, :]
+    new_set .&= neighborhoods[:, next_node]
     new_set[next_node] = true
     return (true, new_set)
 end
@@ -798,8 +798,11 @@ function ngroute_create_bset(
     set::BitVector,
 )
     new_set = copy(set)
-    next_node = nodes[end]
-    new_set[next_node] |= all(neighborhoods[nodes[1:end-1], next_node])
+    val = neighborhoods[nodes[end], nodes[1]]
+    for i in nodes[2:end-1]
+        val &= neighborhoods[nodes[end], i]
+    end
+    new_set[nodes[end]] |= val
     return new_set 
 end
 

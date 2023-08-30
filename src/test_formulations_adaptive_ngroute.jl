@@ -5,6 +5,7 @@ include("utils.jl")
 
 using CSV, DataFrames
 using BenchmarkTools
+using Cthulhu
 
 using Test
 
@@ -801,17 +802,67 @@ include("desaulniers_benchmark.jl")
     α, β,
 )
 
+include("utils.jl")
+include("subpath_stitching.jl")
+
 neighborhoods = ours_CG_all_neighborhoods[2]
-nodes = [27, 9, 11, 6, 26]
+nodes = [27, 11, 3, 10, 27]
 set = falses(graph.n_nodes_extra)
 set[27] = 1
 @btime ngroute_check_create_fset(
     neighborhoods,
     set,
-    nodes[2],
+    nodes[4],
 )
 
+set = falses(graph.n_nodes_extra)
+set[27] = 1
+@btime ngroute_create_bset(
+    $neighborhoods,
+    $nodes[1:4],
+    $set,
+)
 
+findall(set)
+
+begin
+    set = falses(graph.n_nodes_extra)
+    set[27] = 1
+    for i in 2:length(nodes)
+        (f, set) = ngroute_check_create_fset(
+            neighborhoods, 
+            set, 
+            nodes[i],
+        )
+    end
+    subpath_fset = set
+    println(findall(subpath_fset))
+end
+begin
+    set = falses(graph.n_nodes_extra)
+    set[27] = 1
+    for i in 2:length(nodes)
+        set = ngroute_create_bset(
+            neighborhoods,
+            nodes[1:i],
+            set,
+        )
+    end
+    subpath_bset = set
+    println(findall(subpath_bset))
+end
+path_fset = collect(keys(base_labels_ngroute[(17,27)]))[3]
+findall(path_fset)
+
+
+@btime ngroute_extend_partial_path_check(
+    neighborhoods,
+    path_fset,
+    nodes,
+    graph.N_nodes_extra
+)
+
+neighborhoods
 
 compute_subpath_modified_cost(
     data, graph, p.subpaths[2], 
@@ -821,6 +872,7 @@ compute_subpath_modified_cost(
 )
 p.subpaths[2].current_time - p.subpaths[2].starting_time
 
+base_labels_ngroute[(27,27)]
 
 base_labels_ngroute[(17,27)]
 base_labels_ngroute[(27,26)]
