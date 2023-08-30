@@ -92,26 +92,83 @@ function add_pure_path_label_to_collection!(
         PurePathLabel,
         Base.Order.ForwardOrdering,
     },
-    key::Tuple{Float64, Vararg{Int, N}},
-    path::PurePathLabel,
+    k1::Tuple{Float64, Vararg{Int, N}},
+    v1::PurePathLabel,
     ;
 ) where {N}
     added = true
-    for (k, p) in pairs(collection)
-        if all(k .≤ key)
+    for (k2, v2) in pairs(collection)
+        if all(k2 .≤ k1)
             added = false
             break
         end
-        if all(key .≤ k)
-            pop!(collection, k)
+        if all(k1 .≤ k2)
+            pop!(collection, k2)
         end
     end
     if added
-        insert!(collection, key, path)
+        insert!(collection, k1, v1)
     end
     return added
 end
 
+function add_pure_path_label_to_collection_ngroute!(
+    collection::SortedDict{
+        Tuple{Float64, Int, Int, Int},
+        PurePathLabel,
+        Base.Order.ForwardOrdering,
+    },
+    k1::Tuple{Float64, Int, Int, Int},
+    v1::PurePathLabel,
+    ;
+)
+    added = true
+    for (k2, v2) in pairs(collection)
+        if all(k2 .≤ k1)
+            added = false
+            break
+        end
+        if all(k1 .≤ k2)
+            pop!(collection, k2)
+        end
+    end
+    if added
+        insert!(collection, k1, v1)
+    end
+    return added
+end
+
+function add_pure_path_label_to_collection_ngroute_alt!(
+    collection::SortedDict{
+        Tuple{Float64, Int, Int, Int, BitVector},
+        PurePathLabel,
+        Base.Order.ForwardOrdering,
+    },
+    k1::Tuple{Float64, Int, Int, Int, BitVector},
+    v1::PurePathLabel,
+    ;
+)
+    added = true
+    for (k2, v2) in pairs(collection)
+        if (
+            all(k2[1:4] .≤ k1[1:4])
+            && all(k2[5] .≤ k1[5])
+        )
+            added = false
+            break
+        end
+        if (
+            all(k1[1:4] .≤ k2[1:4])
+            && all(k1[5] .≤ k2[5])
+        )
+            pop!(collection, k2)
+        end
+    end
+    if added
+        insert!(collection, k1, v1)
+    end
+    return added
+end
 
 function compute_new_pure_path(
     current_path::PurePathLabel,
@@ -133,10 +190,10 @@ function compute_new_pure_path(
     if current_path.time_mincharge + excess + graph.t[current_node,next_node] > β[next_node]
         # println("$(current_path.time_mincharge), $excess, $(t[current_node,next_node]), $(β[next_node])")
         # println("not time windows feasible")
-        return (false, nothing)
+        return (false, current_path)
     end
     if current_path.time_mincharge + excess + graph.t[current_node,next_node] + graph.min_t[next_node] > graph.T
-        return (false, nothing)
+        return (false, current_path)
     end
     # (3) charge interval 
     if (
@@ -150,7 +207,7 @@ function compute_new_pure_path(
         #     println("$excess, $(current_path.charge_maxcharge), $(current_path.charge_mincharge)")
         # end
         # println("not charge feasible")
-        return (false, nothing)
+        return (false, current_path)
     end
 
     new_path = copy(current_path)
@@ -230,15 +287,13 @@ function find_nondominated_paths(
 
     keylen = check_customers ? graph.n_customers + 3 : 3
     pure_path_labels = Dict(
-        starting_node => Dict(
-            current_node => SortedDict{
-                Tuple{Float64, Vararg{Int, keylen}}, 
-                PurePathLabel,
-                Base.Order.ForwardOrdering,
-            }(Base.Order.ForwardOrdering())
-            for current_node in graph.N_nodes_extra
-        )
-        for starting_node in graph.N_depots
+        (starting_node, current_node) => SortedDict{
+            Tuple{Float64, Vararg{Int, keylen}}, 
+            PurePathLabel,
+            Base.Order.ForwardOrdering,
+        }(Base.Order.ForwardOrdering())
+        for starting_node in graph.N_depots,
+            current_node in graph.N_nodes_extra
     )
 
     if check_customers
@@ -254,7 +309,7 @@ function find_nondominated_paths(
 
     unexplored_states = SortedSet{Tuple{Float64, Vararg{Int, keylen + 2}}}()
     for depot in graph.N_depots
-        pure_path_labels[depot][depot][key] = PurePathLabel(
+        pure_path_labels[(depot, depot)][key] = PurePathLabel(
             0.0,
             [depot],
             Int[],
@@ -278,10 +333,10 @@ function find_nondominated_paths(
         starting_node = state[end-1]
         current_node = state[end]
         current_key = state[1:end-2]
-        if !(current_key in keys(pure_path_labels[starting_node][current_node]))
+        if !(current_key in keys(pure_path_labels[(starting_node, current_node)]))
             continue
         end
-        current_path = pure_path_labels[starting_node][current_node][current_key]
+        current_path = pure_path_labels[(starting_node, current_node)][current_key]
         for next_node in setdiff(outneighbors(graph.G, current_node), current_node)
             if next_node in graph.N_customers
                 # single-service requirement
@@ -322,7 +377,7 @@ function find_nondominated_paths(
                 )
             end
             added = add_pure_path_label_to_collection!(
-                pure_path_labels[starting_node][next_node], 
+                pure_path_labels[(starting_node, next_node)], 
                 new_key, new_path, 
                 ;
             )
@@ -334,7 +389,7 @@ function find_nondominated_paths(
     end
 
     for depot in graph.N_depots
-        for path in values(pure_path_labels[depot][depot])
+        for path in values(pure_path_labels[(depot, depot)])
             if length(path.nodes) == 1
                 path.nodes = [depot, depot]
                 path.excesses = [0]
@@ -344,14 +399,14 @@ function find_nondominated_paths(
     end
     
     for starting_node in graph.N_depots
-        for end_node in setdiff(keys(pure_path_labels[starting_node]), graph.N_depots)
-            delete!(pure_path_labels[starting_node], end_node)
+        for end_node in setdiff(graph.N_nodes_extra, graph.N_depots)
+            delete!(pure_path_labels, (starting_node, end_node))
         end
     end
 
     for starting_node in graph.N_depots
         for end_node in graph.N_depots
-            for path in values(pure_path_labels[starting_node][end_node])
+            for path in values(pure_path_labels[(starting_node, end_node)])
                 path.cost = path.cost - κ[starting_node] - μ[end_node]
             end
         end
@@ -378,26 +433,24 @@ function find_nondominated_paths_ngroute(
     modified_costs = compute_arc_modified_costs(graph, data, ν)
 
     pure_path_labels = Dict(
-        starting_node => Dict(
-            current_node => Dict{
-                NTuple{graph.n_nodes_extra, Int}, 
-                SortedDict{
-                    Tuple{Float64, Vararg{Int, 3}}, 
-                    PurePathLabel,
-                    Base.Order.ForwardOrdering,
-                },
-            }()
-            for current_node in graph.N_nodes_extra
-        )
-        for starting_node in graph.N_depots
+        (starting_node, current_node) => Dict{
+            BitVector, 
+            SortedDict{
+                Tuple{Float64, Vararg{Int, 3}}, 
+                PurePathLabel,
+                Base.Order.ForwardOrdering,
+            },
+        }()
+        for starting_node in graph.N_depots,
+            current_node in graph.N_nodes_extra
     )
 
-    unexplored_states = SortedSet{Tuple{Float64, Vararg{Int, graph.n_nodes_extra + 5}}}()
+    unexplored_states = SortedSet{Tuple{Float64, Int, Int, Int, BitVector, Int, Int}}()
     for depot in graph.N_depots
         key = (0.0, 0, -graph.B, -graph.B)
-        node_labels = zeros(Int, graph.n_nodes_extra)
-        node_labels[depot] = 1
-        pure_path_labels[depot][depot][(node_labels...,)] = SortedDict{
+        node_labels = falses(graph.n_nodes_extra)
+        node_labels[depot] = true
+        pure_path_labels[(depot, depot)][node_labels] = SortedDict{
             Tuple{Float64, Vararg{Int, 3}}, 
             PurePathLabel,
         }(
@@ -420,7 +473,7 @@ function find_nondominated_paths_ngroute(
             unexplored_states, 
             (
                 key..., 
-                node_labels...,
+                node_labels,
                 depot, # starting_node
                 depot, # current_node 
             )
@@ -434,10 +487,12 @@ function find_nondominated_paths_ngroute(
         state = pop!(unexplored_states)
         starting_node = state[end-1]
         current_node = state[end]
-        current_set = state[5:end-2]
+        current_set = state[5]
         current_key = state[1:4]
-        current_path = get(pure_path_labels[starting_node][current_node][current_set], current_key, nothing)
-        isnothing(current_path) && continue
+        if !(current_key in keys(pure_path_labels[(starting_node, current_node)][current_set]))
+            continue
+        end
+        current_path = pure_path_labels[(starting_node, current_node)][current_set][current_key]
         for next_node in setdiff(outneighbors(graph.G, current_node), current_node)
             (feasible, new_set) = ngroute_check_create_fset(
                 graph.N_customers, neighborhoods, current_set, next_node,
@@ -451,8 +506,8 @@ function find_nondominated_paths_ngroute(
             )
             !feasible && continue
                 
-            if !(new_set in keys(pure_path_labels[starting_node][next_node]))
-                pure_path_labels[starting_node][next_node][new_set] = SortedDict{
+            if !(new_set in keys(pure_path_labels[(starting_node, next_node)]))
+                pure_path_labels[(starting_node, next_node)][new_set] = SortedDict{
                     Tuple{Float64, Vararg{Int, 3}}, 
                     PurePathLabel,
                     Base.Order.ForwardOrdering,
@@ -464,21 +519,21 @@ function find_nondominated_paths_ngroute(
                 - new_path.charge_maxcharge, 
                 new_path.time_mincharge - new_path.charge_mincharge
             )
-            added = add_pure_path_label_to_collection!(
-                pure_path_labels[starting_node][next_node][new_set], 
+            added = add_pure_path_label_to_collection_ngroute!(
+                pure_path_labels[(starting_node, next_node)][new_set], 
                 new_key, new_path, 
                 ;
             )
             if added && !(next_node in graph.N_depots)
-                new_state = (new_key..., new_set..., starting_node, next_node)
+                new_state = (new_key..., new_set, starting_node, next_node)
                 push!(unexplored_states, new_state)
             end
         end
     end
     
     for depot in graph.N_depots
-        for set in keys(pure_path_labels[depot][depot])
-            for path in values(pure_path_labels[depot][depot][set])
+        for set in keys(pure_path_labels[(depot, depot)])
+            for path in values(pure_path_labels[(depot, depot)][set])
                 if length(path.nodes) == 1
                     path.nodes = [depot, depot]
                     path.excesses = [0]
@@ -489,15 +544,15 @@ function find_nondominated_paths_ngroute(
     end
 
     for starting_node in graph.N_depots
-        for end_node in setdiff(keys(pure_path_labels[starting_node]), graph.N_depots)
-            delete!(pure_path_labels[starting_node], end_node)
+        for end_node in setdiff(graph.N_nodes_extra, graph.N_depots)
+            delete!(pure_path_labels, (starting_node, end_node))
         end
     end
 
     for starting_node in graph.N_depots
         for end_node in graph.N_depots
-            for set in keys(pure_path_labels[starting_node][end_node])
-                for path in values(pure_path_labels[starting_node][end_node][set])
+            for set in keys(pure_path_labels[(starting_node, end_node)])
+                for path in values(pure_path_labels[(starting_node, end_node)][set])
                     path.cost = path.cost - κ[starting_node] - μ[end_node]
                 end
             end
@@ -525,23 +580,21 @@ function find_nondominated_paths_ngroute_alt(
     modified_costs = compute_arc_modified_costs(graph, data, ν)
 
     pure_path_labels = Dict(
-        starting_node => Dict(
-            current_node => SortedDict{
-                Tuple{Float64, Vararg{Int, graph.n_nodes_extra + 3}}, 
-                PurePathLabel,
-                Base.Order.ForwardOrdering,
-            }(Base.Order.ForwardOrdering())
-            for current_node in graph.N_nodes_extra
-        )
-        for starting_node in graph.N_depots
+        (starting_node, current_node) => SortedDict{
+            Tuple{Float64, Int, Int, Int, BitVector}, 
+            PurePathLabel,
+            Base.Order.ForwardOrdering,
+        }(Base.Order.ForwardOrdering())
+        for starting_node in graph.N_depots,
+            current_node in graph.N_nodes_extra
     )
 
-    unexplored_states = SortedSet{Tuple{Float64, Vararg{Int, graph.n_nodes_extra + 5}}}()
+    unexplored_states = SortedSet{Tuple{Float64, Int, Int, Int, BitVector, Int, Int}}()
     for depot in graph.N_depots
-        node_labels = zeros(Int, graph.n_nodes_extra)
-        node_labels[depot] = 1
+        node_labels = falses(graph.n_nodes_extra)
+        node_labels[depot] = true
         key = (0.0, 0, -graph.B, -graph.B)
-        pure_path_labels[depot][depot][(key..., node_labels...)] = PurePathLabel(
+        pure_path_labels[(depot, depot)][(key..., node_labels)] = PurePathLabel(
             0.0,
             [depot],
             Int[],
@@ -558,7 +611,7 @@ function find_nondominated_paths_ngroute_alt(
             unexplored_states, 
             (
                 key..., 
-                node_labels..., 
+                node_labels, 
                 depot, # starting_node
                 depot, # current_node
             )
@@ -572,10 +625,12 @@ function find_nondominated_paths_ngroute_alt(
         state = pop!(unexplored_states)
         starting_node = state[end-1]
         current_node = state[end]
-        current_set = state[5:end-2]
+        current_set = state[end-2]
         current_key = state[1:end-2]
-        current_path = get(pure_path_labels[starting_node][current_node], current_key, nothing)
-        isnothing(current_path) && continue
+        if !(current_key in keys(pure_path_labels[(starting_node, current_node)]))
+            continue
+        end
+        current_path = pure_path_labels[(starting_node, current_node)][current_key]
         for next_node in setdiff(outneighbors(graph.G, current_node), current_node)
             (feasible, new_set) = ngroute_check_create_fset(
                 graph.N_customers, neighborhoods, current_set, next_node,
@@ -595,20 +650,20 @@ function find_nondominated_paths_ngroute_alt(
                 - new_path.charge_maxcharge, 
                 new_path.time_mincharge - new_path.charge_mincharge,
             )
-            added = add_pure_path_label_to_collection!(
-                pure_path_labels[starting_node][next_node], 
-                (new_key..., new_set...), new_path, 
+            added = add_pure_path_label_to_collection_ngroute_alt!(
+                pure_path_labels[(starting_node, next_node)], 
+                (new_key..., new_set), new_path, 
                 ;
             )
             if added && !(next_node in graph.N_depots)
-                new_state = (new_key..., new_set..., starting_node, next_node)
+                new_state = (new_key..., new_set, starting_node, next_node)
                 push!(unexplored_states, new_state)
             end
         end
     end
     
     for depot in graph.N_depots
-        for path in values(pure_path_labels[depot][depot])
+        for path in values(pure_path_labels[(depot, depot)])
             if length(path.nodes) == 1
                 path.nodes = [depot, depot]
                 path.excesses = [0]
@@ -618,13 +673,13 @@ function find_nondominated_paths_ngroute_alt(
     end
 
     for starting_node in graph.N_depots
-        for end_node in setdiff(keys(pure_path_labels[starting_node]), graph.N_depots)
-            delete!(pure_path_labels[starting_node], end_node)
+        for end_node in setdiff(graph.N_nodes_extra, graph.N_depots)
+            delete!(pure_path_labels, (starting_node, end_node))
         end
     end
     for starting_node in graph.N_depots
         for end_node in graph.N_depots
-            for path in values(pure_path_labels[starting_node][end_node])
+            for path in values(pure_path_labels[(starting_node, end_node)])
                 path.cost = path.cost - κ[starting_node] - μ[end_node]
             end
         end
@@ -646,8 +701,8 @@ end
 
 function get_negative_pure_path_labels_from_pure_path_labels(
     pure_path_labels::Dict{
-        Int, 
-        Dict{Int, T},
+        NTuple{2, Int}, 
+        T,
     },
 ) where {T <: AbstractDict}
     return PurePathLabel[
@@ -663,6 +718,7 @@ function subproblem_iteration_benchmark(
     κ::Dict{Int, Float64},
     μ::Dict{Int, Float64},
     ν::Vector{Float64}, 
+    λ::OrderedDict{NTuple{3, Int}, Float64},
     ;
     neighborhoods::Union{Nothing, BitMatrix} = nothing,
     ngroute::Bool = false,
@@ -678,7 +734,7 @@ function subproblem_iteration_benchmark(
         β = graph.β
     else
         α = zeros(Int, graph.n_nodes_extra)
-        β = repeat([graph.T], graph.n_nodes_extra)
+        β = fill(graph.T, graph.n_nodes_extra)
     end
 
     if ngroute && !ngroute_alt

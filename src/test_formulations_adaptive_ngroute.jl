@@ -499,21 +499,46 @@ findall(s_CG_all_neighborhoods[end][18,:])
 findall(s_CG_all_neighborhoods[end][19,:])
 findall(s_CG_all_neighborhoods[end][20,:])
 
-
+data = generate_instance(
+    ;
+    n_depots = 4,
+    n_customers = 16,
+    n_charging = 7,
+    n_vehicles = 6,
+    depot_pattern = "circular",    
+    customer_pattern = "random_box",
+    charging_pattern = "circular_packing",
+    shrinkage_depots = 1.0,
+    shrinkage_charging = 1.0,
+    T = 40000,
+    seed = 12,
+    B = 15000,
+    μ = 5,
+    travel_cost_coeff = 7,
+    charge_cost_coeff = 3,
+    load_scale = 5.0,
+    load_shape = 20.0,
+    load_tolerance = 1.3,
+    batch = 1,
+    permissiveness = 0.2,
+)
+graph = generate_graph_from_data(data)
+include("subpath_stitching.jl")
+include("desaulniers_benchmark.jl")
 for (method, ngroute_alt) in [
-    # ("benchmark", false),
-    # ("benchmark", true),
-    # ("ours", false),
+    ("benchmark", false),
+    ("benchmark", true),
+    ("ours", false),
     ("ours", true),
 ]
-    @time path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
+    @btime @suppress path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
         data, graph,
         ;
-        method = method,
+        method = $method,
         ngroute_neighborhood_size = Int(ceil(sqrt(graph.n_customers))),
         ngroute_neighborhood_depots_size = "small", 
         ngroute_neighborhood_charging_size = "small", 
-        ngroute_alt = ngroute_alt,
+        ngroute_alt = $ngroute_alt,
         verbose = true,
         use_adaptive_ngroute = true,
         use_SR3_cuts = false,
@@ -601,14 +626,145 @@ compute_path_modified_cost(
     verbose = true,
 )
 
-base_labels = generate_base_labels_ngroute(
+base_labels = @time generate_base_labels_ngroute(
+    data, graph, ours_CG_all_neighborhoods[2], 
+    ours_CG_all_params[2]["κ"][end],
+    ours_CG_all_params[2]["μ"][end],
+    ours_CG_all_params[2]["ν"][end],
+)
+full_labels = @time find_nondominated_paths_notimewindows_ngroute(
+    data, graph, ours_CG_all_neighborhoods[2], 
+    base_labels, 
+    ours_CG_all_params[2]["κ"][end],
+    ours_CG_all_params[2]["μ"][end],
+    ;
+)
+
+
+using Cthulhu
+include("subpath_stitching.jl")
+include("utils.jl")
+
+base_labels_ngroute = @btime generate_base_labels_ngroute(
     data, graph, ours_CG_all_neighborhoods[2], 
     ours_CG_all_params[2]["κ"][end],
     ours_CG_all_params[2]["μ"][end],
     ours_CG_all_params[2]["ν"][end],
 )
 
-p
+@descend generate_base_labels_ngroute(
+    data, graph, ours_CG_all_neighborhoods[2], 
+    ours_CG_all_params[2]["κ"][end],
+    ours_CG_all_params[2]["μ"][end],
+    ours_CG_all_params[2]["ν"][end],
+)
+
+base_labels_ngroute_alt = @btime generate_base_labels_ngroute_alt(
+    data, graph, ours_CG_all_neighborhoods[2], 
+    ours_CG_all_params[2]["κ"][end],
+    ours_CG_all_params[2]["μ"][end],
+    ours_CG_all_params[2]["ν"][end],
+)
+
+@descend generate_base_labels_ngroute_alt(
+    data, graph, ours_CG_all_neighborhoods[2], 
+    ours_CG_all_params[2]["κ"][end],
+    ours_CG_all_params[2]["μ"][end],
+    ours_CG_all_params[2]["ν"][end],
+)
+
+@btime find_nondominated_paths_notimewindows_ngroute(
+    data, graph, ours_CG_all_neighborhoods[2], 
+    base_labels_ngroute,
+    ours_CG_all_params[2]["κ"][end],
+    ours_CG_all_params[2]["μ"][end],
+)
+
+@descend find_nondominated_paths_notimewindows_ngroute(
+    data, graph, ours_CG_all_neighborhoods[2], 
+    base_labels_ngroute,
+    ours_CG_all_params[2]["κ"][end],
+    ours_CG_all_params[2]["μ"][end],
+)
+
+@btime find_nondominated_paths_notimewindows_ngroute_alt(
+    data, graph, ours_CG_all_neighborhoods[2], 
+    base_labels_ngroute_alt,
+    ours_CG_all_params[2]["κ"][end],
+    ours_CG_all_params[2]["μ"][end],
+)
+
+@descend find_nondominated_paths_notimewindows_ngroute_alt(
+    data, graph, ours_CG_all_neighborhoods[2], 
+    base_labels_ngroute_alt,
+    ours_CG_all_params[2]["κ"][end],
+    ours_CG_all_params[2]["μ"][end],
+)
+
+
+include("desaulniers_benchmark.jl")
+
+α = zeros(Int, graph.n_nodes_extra)
+β = fill(graph.T, graph.n_nodes_extra)
+@btime find_nondominated_paths_ngroute(
+    data, graph, ours_CG_all_neighborhoods[2], 
+    ours_CG_all_params[2]["κ"][end],
+    ours_CG_all_params[2]["μ"][end],
+    ours_CG_all_params[2]["ν"][end],
+    α, β,
+)
+
+@descend find_nondominated_paths_ngroute(
+    data, graph, ours_CG_all_neighborhoods[2], 
+    ours_CG_all_params[2]["κ"][end],
+    ours_CG_all_params[2]["μ"][end],
+    ours_CG_all_params[2]["ν"][end],
+    α, β,
+)
+
+@btime find_nondominated_paths_ngroute_alt(
+    data, graph, ours_CG_all_neighborhoods[2], 
+    ours_CG_all_params[2]["κ"][end],
+    ours_CG_all_params[2]["μ"][end],
+    ours_CG_all_params[2]["ν"][end],
+    α, β,
+)
+
+@descend find_nondominated_paths_ngroute(
+    data, graph, ours_CG_all_neighborhoods[2], 
+    ours_CG_all_params[2]["κ"][end],
+    ours_CG_all_params[2]["μ"][end],
+    ours_CG_all_params[2]["ν"][end],
+    α, β,
+)
+
+
+
+
+set = falses(graph.n_nodes_extra)
+set[[1, 3, 5, 6, 8, 12, 14]] .= true
+
+Vector{Bool}(set)
+
+@btime ngroute_check_create_fset(
+    graph.N_customers,
+    ours_CG_all_neighborhoods[2],
+    Tuple{Vararg{Int}}(set), 15,
+)
+
+@btime ngroute_check_create_fset(
+    graph.N_customers,
+    ours_CG_all_neighborhoods[2],
+    Vector{Bool}(set), 15,
+)
+
+@btime ngroute_create_bset(
+    ours_CG_all_neighborhoods[2],
+    [27, 3, 5, 8], 
+    set,
+)
+
+
 compute_subpath_modified_cost(
     data, graph, p.subpaths[2], 
     ours_CG_all_params[2]["κ"][end],
