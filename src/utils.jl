@@ -777,23 +777,18 @@ function compute_ngroute_neighborhoods(
 end
 
 function ngroute_check_create_fset(
-    N_customers::Vector{Int},
     neighborhoods::BitMatrix,
     set::BitVector,
     next_node::Int,
 )
-    if next_node in N_customers && set[next_node] == 1
+    if set[next_node] == 1
         # if next_node is a customer not yet visited, proceed
         # only if one can extend current_subpath along next_node according to ng-route rules
         return (false, set)
     end
-    new_set_inds = intersect(
-        findall(x -> x > 0, set),
-        findall(neighborhoods[next_node,:]),
-    )
-    push!(new_set_inds, next_node)
-    new_set = falses(length(set))
-    new_set[new_set_inds] .= true
+    new_set = copy(set)
+    new_set .&= neighborhoods[next_node, :]
+    new_set[next_node] = true
     return (true, new_set)
 end
 
@@ -802,16 +797,9 @@ function ngroute_create_bset(
     nodes::Vector{Int},
     set::BitVector,
 )
-    new_set_inds = findall(x -> x > 0, set)
+    new_set = copy(set)
     next_node = nodes[end]
-    if all(
-        neighborhoods[node,next_node]
-        for node in nodes[1:end-1]
-    )
-        push!(new_set_inds, next_node)
-    end
-    new_set = falses(length(set))
-    new_set[new_set_inds] .= true
+    new_set[next_node] |= all(neighborhoods[nodes[1:end-1], next_node])
     return new_set 
 end
 

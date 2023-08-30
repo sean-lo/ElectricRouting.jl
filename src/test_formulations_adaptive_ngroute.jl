@@ -589,19 +589,19 @@ include("subpath_stitching.jl")
 include("desaulniers_benchmark.jl")
 include("utils.jl")
 for (method, ngroute_alt) in [
-    # ("benchmark", false),
-    # ("benchmark", true),
+    ("benchmark", false),
+    ("benchmark", true),
     ("ours", false),
     ("ours", true),
 ]
-    @btime @suppress path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
+    path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
         data, graph,
         ;
-        method = $method,
+        method = method,
         ngroute_neighborhood_size = Int(ceil(sqrt(graph.n_customers))),
         ngroute_neighborhood_depots_size = "small", 
         ngroute_neighborhood_charging_size = "small", 
-        ngroute_alt = $ngroute_alt,
+        ngroute_alt = ngroute_alt,
         verbose = true,
         use_adaptive_ngroute = true,
         use_SR3_cuts = false,
@@ -801,30 +801,16 @@ include("desaulniers_benchmark.jl")
     α, β,
 )
 
-
-
-
+neighborhoods = ours_CG_all_neighborhoods[2]
+nodes = [27, 9, 11, 6, 26]
 set = falses(graph.n_nodes_extra)
-set[[1, 3, 5, 6, 8, 12, 14]] .= true
-
-Vector{Bool}(set)
-
+set[27] = 1
 @btime ngroute_check_create_fset(
-    ours_CG_all_neighborhoods[2],
-    set, 
-    15,
-)
-
-@btime ngroute_check_create_fset(
-    ours_CG_all_neighborhoods[2],
-    set, 15,
-)
-
-@btime ngroute_create_bset(
-    ours_CG_all_neighborhoods[2],
-    [27, 3, 5, 8], 
+    neighborhoods,
     set,
+    nodes[2],
 )
+
 
 
 compute_subpath_modified_cost(
@@ -836,9 +822,9 @@ compute_subpath_modified_cost(
 p.subpaths[2].current_time - p.subpaths[2].starting_time
 
 
-base_labels[17][27]
-base_labels[27][26]
-base_labels[26][18]
+base_labels_ngroute[(17,27)]
+base_labels_ngroute[(27,26)]
+base_labels_ngroute[(26,18)]
 
 base_labels[17][27][(0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1)]
 base_labels[27][26]
