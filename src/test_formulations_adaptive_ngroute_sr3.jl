@@ -6,8 +6,9 @@ include("utils.jl")
 using CSV, DataFrames
 using BenchmarkTools
 using Cthulhu
-
 using Test
+
+### Experiment
 
 all_results = DataFrame(
     seed = Int[],
@@ -19,16 +20,21 @@ all_results = DataFrame(
     ngroute_alt = Bool[],
     time_taken_first = Float64[],
     time_taken_total = Float64[],
+    time_taken_total_SR3 = Float64[],
     n_iterations = Int[],
     n_CG_iterations = Int[],
     sp_time_taken_mean_first = Float64[],
     sp_time_taken_mean_last = Float64[],
+    sp_time_taken_mean_last_SR3 = Float64[],
     LP_objective_first = Float64[],
     LP_objective_last = Float64[],
+    LP_objective_last_SR3 = Float64[],
     IP_objective_first = Float64[],
     IP_objective_last = Float64[],
+    IP_objective_last_SR3 = Float64[],
     LP_IP_gap_first = Float64[],
     LP_IP_gap_last = Float64[],
+    LP_IP_gap_last_SR3 = Float64[],
 )
 
 # compilation
@@ -38,7 +44,8 @@ for n_customers in [16, 20, 24],
         ("benchmark", true),
         ("ours", false),
         ("ours", true),
-    ]
+    ],
+    seed in [1]
     data = generate_instance(
         ;
         n_depots = 4,
@@ -51,7 +58,7 @@ for n_customers in [16, 20, 24],
         shrinkage_depots = 1.0,
         shrinkage_charging = 1.0,
         T = 40000,
-        seed = 1,
+        seed = seed,
         B = 15000,
         μ = 5,
         travel_cost_coeff = 7,
@@ -63,7 +70,7 @@ for n_customers in [16, 20, 24],
         permissiveness = 0.2,
     )
     graph = generate_graph_from_data(data)
-    @time @suppress path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
+    path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
         data, graph,
         ;
         method = method,
@@ -73,9 +80,49 @@ for n_customers in [16, 20, 24],
         ngroute_alt = ngroute_alt,
         verbose = true,
         use_adaptive_ngroute = true,
-        use_SR3_cuts = false,
+        use_SR3_cuts = true,
     );
 end
+
+(n_customers, seed, ngroute_alt, ngroute_neighborhood_charging_size, method) = (20, 3, true, "small", "ours")
+data = generate_instance(
+    ;
+    n_depots = 4,
+    n_customers = n_customers,
+    n_charging = 7,
+    n_vehicles = 6,
+    depot_pattern = "circular",    
+    customer_pattern = "random_box",
+    charging_pattern = "circular_packing",
+    shrinkage_depots = 1.0,
+    shrinkage_charging = 1.0,
+    T = 40000,
+    seed = seed,
+    B = 15000,
+    μ = 5,
+    travel_cost_coeff = 7,
+    charge_cost_coeff = 3,
+    load_scale = 5.0,
+    load_shape = 20.0,
+    load_tolerance = 1.3,
+    batch = 1,
+    permissiveness = 0.2,
+)
+graph = generate_graph_from_data(data)
+r = path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
+    data, graph,
+    ;
+    method = method,
+    ngroute_neighborhood_size = Int(ceil(sqrt(graph.n_customers))),
+    ngroute_neighborhood_depots_size = "small", 
+    ngroute_neighborhood_charging_size = "small", 
+    ngroute_alt = ngroute_alt,
+    verbose = true,
+    use_adaptive_ngroute = true,
+    use_SR3_cuts = true,
+    max_SR3_cuts = 10,
+);
+DataFrame(r[5])
 
 for (
     ngroute_alt,
@@ -129,12 +176,20 @@ for (
         ngroute_neighborhood_depots_size = ngroute_neighborhood_depots_size,
         ngroute_neighborhood_charging_size = ngroute_neighborhood_charging_size,
         use_adaptive_ngroute = true,
-        use_SR3_cuts = false,
+        use_SR3_cuts = true,
+        max_SR3_cuts = 10,
     );
     (
-        CGLP_all_results, CGIP_all_results, CG_all_params, printlist, 
-        some_paths, model, z, CG_all_neighborhoods, WSR3_constraints
+        CGLP_all_results, CGIP_all_results, CG_all_params, CG_all_neighborhoods, all_params, printlist, 
+        some_paths, model, z, SR3_constraints
     ) = run.value;
+
+    # last non-SR3 iteration index
+    all_params_df = DataFrame(all_params)
+    ind = findfirst(x -> x == "use_SR3_cuts", all_params_df.method)
+    if isnothing(ind)
+        ind = length(all_params)
+    end
 
     push!(all_results, 
         (
@@ -146,17 +201,22 @@ for (
             method,
             ngroute_alt,
             CG_all_params[1]["time_taken"],
-            run.time,
+            sum(all_params_df.CG_time_taken[1:ind]),
+            sum(all_params_df.CG_time_taken),
             length(CG_all_params),
             sum(CG_params["counter"] for CG_params in CG_all_params),
             CG_all_params[1]["sp_time_taken_mean"],
+            CG_all_params[ind]["sp_time_taken_mean"],
             CG_all_params[end]["sp_time_taken_mean"],
-            CGLP_all_results[1]["objective"],
-            CGLP_all_results[end]["objective"],
-            CGIP_all_results[1]["objective"],
-            CGIP_all_results[end]["objective"],
-            CG_all_params[1]["LP_IP_gap"],
-            CG_all_params[end]["LP_IP_gap"],
+            all_params_df.CGLP_objective[1],
+            all_params_df.CGLP_objective[ind],
+            all_params_df.CGLP_objective[end],
+            all_params_df.CGIP_objective[1],
+            all_params_df.CGIP_objective[ind],
+            all_params_df.CGIP_objective[end],
+            all_params_df.CG_LP_IP_gap[1],
+            all_params_df.CG_LP_IP_gap[ind],
+            all_params_df.CG_LP_IP_gap[end],
         )
     )
     # println("""
@@ -169,15 +229,15 @@ for (
     @printf("""
     %s    \t%s\t%2d\t%s\t%s\t%2d : \t%6.1f s.
 
-    %9.2f\t%9.2f
-    %9.2f\t%9.2f
+    %9.2f\t%9.2f\t%9.2f
+    %9.2f\t%9.2f\t%9.2f
 
     """,
         method, ngroute_alt, n_customers, 
         ngroute_neighborhood_depots_size, ngroute_neighborhood_charging_size, seed,
         run.time,
-        CGLP_all_results[1]["objective"], CGLP_all_results[end]["objective"],
-        CGIP_all_results[1]["objective"], CGIP_all_results[end]["objective"],
+        all_params_df.CGLP_objective[1], all_params_df.CGLP_objective[ind], all_params_df.CGLP_objective[end],
+        all_params_df.CGIP_objective[1], all_params_df.CGIP_objective[ind], all_params_df.CGIP_objective[end],
     )
 end
 
@@ -189,101 +249,23 @@ all_results |>
     ])
 all_results.LP_IP_gap_first .*= 100
 all_results.LP_IP_gap_last .*= 100
-CSV.write("adaptive_ngroute_cthulhu.csv", all_results)
+CSV.write("adaptive_ngroute_SR3.csv", all_results)
+all_results_SR3 = CSV.read("adaptive_ngroute_SR3.csv", DataFrame)
 
-all_results_c = CSV.read("adaptive_ngroute_cthulhu.csv", DataFrame)
-all_results = CSV.read("adaptive_ngroute.csv", DataFrame)
-
-# Sensemaking
-
-for group in (
-    all_results_c
-    |> x -> stack(
-        x, 
-        [:LP_objective_first, :LP_objective_last, :IP_objective_first, :IP_objective_last,],
-        [:seed, :n_customers, :method, :ngroute_alt, :ngroute_neighborhood_charging_size,]
-    )
-    |> x -> sort(
-        x, 
-        [:seed, :n_customers, :method, :ngroute_alt, :ngroute_neighborhood_charging_size,]
-    )
-    |> x -> groupby(
-        x, 
-        [:seed, :n_customers,]
-    )
+all_results_SR3[!, "converged_first"] .= (
+    all_results_SR3[!, "LP_IP_gap_first"]
+    .≈ 0.0
 )
-    # if (group.n_customers[1], group.seed[1]) in [(16, 7), (24, 7), (16, 17)]
-    #     continue
-    # end
-    if (group.n_customers[1], group.seed[1]) in [(24, 7), (16, 17)]
-        continue
-    end
-    @test all(
-        filter(r -> r.variable == "LP_objective_first", group).value
-        .≤ filter(r -> r.variable == "LP_objective_last", group).value .+ 1e-6
-    )
-    @test all(
-        filter(r -> r.variable == "IP_objective_first", group).value
-        .≥ filter(r -> r.variable == "IP_objective_last", group).value .- 1e-6
-    )
-    @test all(
-        filter(r -> r.variable == "LP_objective_first", group).value
-        .≤ filter(r -> r.variable == "IP_objective_first", group).value .+ 1e-6
-    )
-    @test all(
-        filter(r -> r.variable == "LP_objective_last", group).value
-        .≤ filter(r -> r.variable == "IP_objective_last", group).value .+ 1e-6
-    )
-    group_lp_first = filter(r -> r.variable == "LP_objective_first", group)
-    @test all(
-        filter(r -> r.ngroute_neighborhood_charging_size == "small", group_lp_first).value
-        .≤ filter(r -> r.ngroute_neighborhood_charging_size == "medium", group_lp_first).value .+ 1e-6
-    )
-    @test all(
-        filter(r -> r.method == "ours", group_lp_first).value
-        .≈ filter(r -> r.method == "benchmark", group_lp_first).value
-    )
-    @test all(
-        filter(r -> r.ngroute_alt == true, group_lp_first).value
-        .≈ filter(r -> r.ngroute_alt == false, group_lp_first).value
-    )
-    group_lp_last = filter(r -> r.variable == "LP_objective_last", group)
-    @test all(
-        filter(r -> r.ngroute_neighborhood_charging_size == "small", group_lp_last).value
-        .≈ filter(r -> r.ngroute_neighborhood_charging_size == "medium", group_lp_last).value
-    )
-    @test all(
-        filter(r -> r.method == "ours", group_lp_last).value
-        .≈ filter(r -> r.method == "benchmark", group_lp_last).value
-    )
-    @test all(
-        filter(r -> r.ngroute_alt == true, group_lp_last).value
-        .≈ filter(r -> r.ngroute_alt == false, group_lp_last).value
-    )
-    println("$(group.n_customers[1]), $(group.seed[1])")
-end
-
-(
-    all_results_c
-    |> x -> filter(
-        r -> (
-            r.n_customers == 24
-            && r.seed == 7
-        ), 
-        x,
-    )
-    |> x -> select(
-        x, 
-        [:ngroute_neighborhood_charging_size, :method, :ngroute_alt, :LP_objective_first, :LP_objective_last, :IP_objective_first, :IP_objective_last,]
-    )
+all_results_SR3[!, "converged_last"] .= (
+    all_results_SR3[!, "LP_IP_gap_last"]
+    .≈ 0.0
 )
-
-summary = (
-    all_results
-    |> x -> filter(
-        r -> r.ngroute_neighborhood_charging_size != "large",
-        x,
-    )
+all_results_SR3[!, "converged_last_SR3"] .= (
+    all_results_SR3[!, "LP_IP_gap_last_SR3"]
+    .≈ 0.0
+)
+summary_SR3 = (
+    all_results_SR3
     |> x -> groupby(x, [
         :method, 
         :n_customers,
@@ -294,75 +276,66 @@ summary = (
         x, 
         :time_taken_first => geomean,
         :time_taken_total => geomean,
+        :time_taken_total_SR3 => geomean,
         :sp_time_taken_mean_first => geomean,
         :sp_time_taken_mean_last => geomean,
+        :sp_time_taken_mean_last_SR3 => geomean,
         :LP_IP_gap_first => mean,
         :LP_IP_gap_last => mean,
+        :LP_IP_gap_last_SR3 => mean,
+        :converged_first => mean,
+        :converged_last => mean,
+        :converged_last_SR3 => mean,
         :n_CG_iterations => mean,
         :n_iterations => mean,
     )
 )
-
-summary_c = (
-    all_results_c
-    |> x -> groupby(x, [
-        :method, 
-        :n_customers,
-        :ngroute_alt,
-        :ngroute_neighborhood_charging_size,
-    ])
-    |> x -> combine(
-        x, 
-        :time_taken_first => geomean,
-        :time_taken_total => geomean,
-        :sp_time_taken_mean_first => geomean,
-        :sp_time_taken_mean_last => geomean,
-        :LP_IP_gap_first => mean,
-        :LP_IP_gap_last => mean,
-        :n_CG_iterations => mean,
-        :n_iterations => mean,
-    )
-)
-
 (
-    summary 
+    summary_SR3
     |> x -> unstack(
         x, 
         [:method, :ngroute_alt, :ngroute_neighborhood_charging_size,],
         :n_customers,
-        :time_taken_first_geomean,
+        :time_taken_total_geomean,
     )
 )
 (
-    summary_c
+    summary_SR3
     |> x -> unstack(
         x, 
         [:method, :ngroute_alt, :ngroute_neighborhood_charging_size,],
         :n_customers,
-        :time_taken_first_geomean,
+        :time_taken_total_SR3_geomean,
     )
 )
 
+# How the % converged increases as you add adaptive NG-route, and SR3 cuts
 (
-    summary_c
+    summary_SR3
     |> x -> unstack(
         x, 
         [:method, :ngroute_alt, :ngroute_neighborhood_charging_size,],
         :n_customers,
-        :LP_IP_gap_last_mean,
+        :converged_first_mean,
     )
 )
-
-
 (
-    all_results 
+    summary_SR3
     |> x -> unstack(
         x, 
-        [:n_customers, :seed], 
-        :ngroute_neighborhood_charging_size, 
-        :LP_IP_gap_last
+        [:method, :ngroute_alt, :ngroute_neighborhood_charging_size,],
+        :n_customers,
+        :converged_last_mean,
     )
-    |> x -> filter(r -> r.n_customers == 24, x)
+)
+(
+    summary_SR3
+    |> x -> unstack(
+        x, 
+        [:method, :ngroute_alt, :ngroute_neighborhood_charging_size,],
+        :n_customers,
+        :converged_last_SR3_mean,
+    )
 )
 
 (
@@ -370,33 +343,59 @@ summary_c = (
     |> x -> unstack(
         x, 
         [:n_customers, :seed], 
+        :ngroute_neighborhood_depots_size, 
         :ngroute_neighborhood_charging_size, 
         :LP_objective_last
     )
     |> x -> filter(r -> r.n_customers == 24, x)
 )
-[
-    (16, 1),
-    (16, 12),
-    (20, 16),
-    (20, 18),
-    (24, 12),
-]
 
-for row in all_results |>
-    x -> unstack(
-        x, 
-        [:n_customers, :seed],
-        :ngroute_neighborhood_depots_size, 
-        :ngroute_neighborhood_charging_size, 
-        :LP_objective_last,
-    ) |> eachrow
-    if row.small ≈ row.medium ≈ row.large
-        continue
-    end
-    println(
-        "$(row.n_customers), $(row.seed), $(row.small), $(row.medium), $(row.large)"
-    )
+
+### Testing
+
+data = generate_instance(
+    ;
+    n_depots = 4,
+    n_customers = 16,
+    n_charging = 7,
+    n_vehicles = 6,
+    depot_pattern = "circular",    
+    customer_pattern = "random_box",
+    charging_pattern = "circular_packing",
+    shrinkage_depots = 1.0,
+    shrinkage_charging = 1.0,
+    T = 40000,
+    seed = 2,
+    B = 15000,
+    μ = 5,
+    travel_cost_coeff = 7,
+    charge_cost_coeff = 3,
+    load_scale = 5.0,
+    load_shape = 20.0,
+    load_tolerance = 1.3,
+    batch = 1,
+    permissiveness = 0.2,
+)
+graph = generate_graph_from_data(data)
+
+for (method, ngroute_alt) in [
+    ("benchmark", false),
+    ("benchmark", true),
+    ("ours", false),
+    ("ours", true),
+]
+    path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
+        data, graph,
+        ;
+        method = method,
+        ngroute_neighborhood_size = Int(ceil(sqrt(graph.n_customers))),
+        ngroute_neighborhood_depots_size = "small", 
+        ngroute_neighborhood_charging_size = "small", 
+        ngroute_alt = ngroute_alt,
+        verbose = true,
+        use_adaptive_ngroute = true,
+        use_SR3_cuts = true,
+    );
 end
 
 data = generate_instance(
@@ -411,7 +410,7 @@ data = generate_instance(
     shrinkage_depots = 1.0,
     shrinkage_charging = 1.0,
     T = 40000,
-    seed = 12,
+    seed = 1,
     B = 15000,
     μ = 5,
     travel_cost_coeff = 7,
@@ -424,225 +423,57 @@ data = generate_instance(
 )
 graph = generate_graph_from_data(data)
 
-s_run = @timed path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
+ours_result = @timed path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
     data, graph,
     ;
     method = "ours",
+    ngroute_alt = false,
     ngroute_neighborhood_size = Int(ceil(sqrt(graph.n_customers))),
     ngroute_neighborhood_depots_size = "small", 
     ngroute_neighborhood_charging_size = "small", 
     verbose = true,
     use_adaptive_ngroute = true,
-    use_SR3_cuts = false,
+    use_SR3_cuts = true,
 );
 (
-    s_CGLP_all_results, s_CGIP_all_results, s_CG_all_params, s_printlist, 
-    s_some_paths, s_model, s_z, s_CG_all_neighborhoods, s_WSR3_constraints
-) = s_run.value;
+    ours_CGLP_all_results, ours_CGIP_all_results, ours_CG_all_params, ours_CG_all_neighborhoods, ours_all_params, 
+    ours_printlist, ours_some_paths, ours_model, ours_z, ours_SR3_constraints
+) = ours_result.value;
 
-s_CG_all_params[1]["time_taken"]
-
-m_run = @timed path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
-    data, graph,
-    ;
-    method = "ours",
-    ngroute_neighborhood_size = Int(ceil(sqrt(graph.n_customers))),
-    ngroute_neighborhood_depots_size = "medium", 
-    ngroute_neighborhood_charging_size = "medium", 
-    verbose = true,
-    use_adaptive_ngroute = true,
-    use_SR3_cuts = false,
-);
-(
-    m_CGLP_all_results, m_CGIP_all_results, m_CG_all_params, m_printlist, 
-    m_some_paths, m_model, m_z, m_CG_all_neighborhoods, m_WSR3_constraints
-) = m_run.value;
-
-
-l_run = @timed path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
-    data, graph,
-    ;
-    method = "ours",
-    ngroute_neighborhood_size = Int(ceil(sqrt(graph.n_customers))),
-    ngroute_neighborhood_depots_size = "large", 
-    ngroute_neighborhood_charging_size = "large", 
-    verbose = true,
-    use_adaptive_ngroute = true,
-    use_SR3_cuts = false,
-);
-(
-    l_CGLP_all_results, l_CGIP_all_results, l_CG_all_params, l_printlist, 
-    l_some_paths, l_model, l_z, l_CG_all_neighborhoods, l_WSR3_constraints
-) = l_run.value;
-
-ll_run = @timed path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
-    data, graph,
-    ;
-    method = "ours",
-    ngroute_neighborhood_size = graph.n_customers,
-    ngroute_neighborhood_depots_size = "large", 
-    ngroute_neighborhood_charging_size = "large", 
-    verbose = true,
-    use_adaptive_ngroute = true,
-    use_SR3_cuts = false,
-);
-(
-    ll_CGLP_all_results, ll_CGIP_all_results, ll_CG_all_params, ll_printlist, 
-    ll_some_paths, ll_model, ll_z, ll_CG_all_neighborhoods, ll_WSR3_constraints
-) = ll_run.value;
-
-ll_CGLP_all_results[end]["paths"] = collect_path_solution_support(
-    ll_CGLP_all_results[end], ll_some_paths, data, graph
-)
-
-[
-    x["objective"] for x in 
-    s_CGLP_all_results
-]
-[
-    x["objective"] for x in 
-    m_CGLP_all_results
-]
-[
-    x["objective"] for x in 
-    l_CGLP_all_results
-]
-[
-    x["objective"] for x in 
-    ll_CGLP_all_results
-]
-
-[
-    x["objective"] for x in 
-    s_CGIP_all_results
-]
-[
-    x["objective"] for x in 
-    m_CGIP_all_results
-]
-[
-    x["objective"] for x in 
-    l_CGIP_all_results
-]
-[
-    x["objective"] for x in 
-    ll_CGIP_all_results
-]
-
-for (ind, (val, p)) in enumerate(ll_CGLP_all_results[end]["paths"])
-    cost = compute_path_modified_cost(
-        data, graph, p,
-        s_CGLP_all_results[end]["κ"],
-        s_CGLP_all_results[end]["μ"],
-        s_CGLP_all_results[end]["ν"],
-        ;
-    )
-    if cost < 0
-        println(ind)
-        compute_path_modified_cost(
-            data, graph, p,
-            s_CGLP_all_results[end]["κ"],
-            s_CGLP_all_results[end]["μ"],
-            s_CGLP_all_results[end]["ν"],
-            ;
-            verbose = true,
-        )
-    end   
-end
+findfirst(x -> x == "use_SR3_cuts", DataFrame(ours_all_params).method)
 
 plot_path_solution(
-    ll_CGLP_all_results[end], data, graph, ll_some_paths
+    ours_CGLP_all_results[end], data, graph, ours_some_paths
 )
+
+
+ours_alt_result = @timed path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
+    data, graph,
+    ;
+    method = "ours",
+    ngroute_alt = true,
+    ngroute_neighborhood_size = Int(ceil(sqrt(graph.n_customers))),
+    ngroute_neighborhood_depots_size = "small", 
+    ngroute_neighborhood_charging_size = "small", 
+    verbose = true,
+    use_adaptive_ngroute = true,
+    use_SR3_cuts = true,
+);
+(
+    ours_alt_CGLP_all_results, ours_alt_CGIP_all_results, ours_alt_CG_all_params, ours_alt_printlist, 
+    ours_alt_some_paths, ours_alt_model, ours_alt_z, ours_alt_CG_all_neighborhoods, ours_alt_WSR3_constraints
+) = ours_alt_result.value;
 
 plot_path_solution(
-    l_CGLP_all_results[end], data, graph, l_some_paths
+    ours_CGLP_all_results[end], data, graph, ours_some_paths
 )
 
-enumerate_violated_path_SR3_inequalities(
-    l_CGLP_all_results[end]["paths"], graph,
+enumerate_violated_path_SRnk_inequalities(
+    ours_CGLP_all_results[end]["paths"],
+    graph,
+    4, 3
 )
 
-p = ll_CGLP_all_results[end]["paths"][1][2]
-
-s_CGLP_all_results[end]["paths"][1][2]
-
-compute_path_modified_cost(
-    data, graph, p,
-    s_CGLP_all_results[end]["κ"],
-    s_CGLP_all_results[end]["μ"],
-    s_CGLP_all_results[end]["ν"],
-    verbose = true,
-)
-
-base_labels = generate_base_labels_ngroute(
-    data, graph,
-    s_CG_all_neighborhoods[end], 
-    s_CGLP_all_results[end]["κ"],
-    s_CGLP_all_results[end]["μ"],
-    s_CGLP_all_results[end]["ν"],
-)
-
-
-base_labels[17][27][(0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1)]
-base_labels[27][26]
-base_labels[26][18]
-
-
-
-
-
-base_labels[17][27][(0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1)]
-base_labels[27][26][(0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0)]
-base_labels[26][18][(0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0)]
-
-data.N_depots
-findall(s_CG_all_neighborhoods[end][17,:])
-findall(s_CG_all_neighborhoods[end][18,:])
-findall(s_CG_all_neighborhoods[end][19,:])
-findall(s_CG_all_neighborhoods[end][20,:])
-
-findall(m_CG_all_neighborhoods[end][17,:])
-findall(m_CG_all_neighborhoods[end][18,:])
-findall(m_CG_all_neighborhoods[end][19,:])
-findall(m_CG_all_neighborhoods[end][20,:])
-
-findall(l_CG_all_neighborhoods[end][17,:])
-findall(l_CG_all_neighborhoods[end][18,:])
-findall(l_CG_all_neighborhoods[end][19,:])
-findall(l_CG_all_neighborhoods[end][20,:])
-
-findall(s_CG_all_neighborhoods[end][17,:])
-findall(s_CG_all_neighborhoods[end][18,:])
-findall(s_CG_all_neighborhoods[end][19,:])
-findall(s_CG_all_neighborhoods[end][20,:])
-
-data = generate_instance(
-    ;
-    n_depots = 4,
-    n_customers = 16,
-    n_charging = 7,
-    n_vehicles = 6,
-    depot_pattern = "circular",    
-    customer_pattern = "random_box",
-    charging_pattern = "circular_packing",
-    shrinkage_depots = 1.0,
-    shrinkage_charging = 1.0,
-    T = 40000,
-    seed = 12,
-    B = 15000,
-    μ = 5,
-    travel_cost_coeff = 7,
-    charge_cost_coeff = 3,
-    load_scale = 5.0,
-    load_shape = 20.0,
-    load_tolerance = 1.3,
-    batch = 1,
-    permissiveness = 0.2,
-)
-graph = generate_graph_from_data(data)
-include("subpath_stitching.jl")
-include("desaulniers_benchmark.jl")
-include("utils.jl")
 for (method, ngroute_alt) in [
     ("benchmark", false),
     ("benchmark", true),

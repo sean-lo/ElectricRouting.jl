@@ -5,6 +5,7 @@ using Distributions
 using Distances
 using Printf
 using Graphs
+using OrderedCollections
 
 Base.@kwdef mutable struct Subpath
     n_customers::Int
@@ -794,6 +795,19 @@ function compute_arc_modified_costs(
         end
     end
     return modified_costs
+end
+
+
+function prepare_lambda(
+    λ::OrderedDict{NTuple{3, Int}, Float64},
+    n_customers::Int,
+)
+    λvals = collect(values(λ))
+    λcust = falses(length(λ), n_customers)
+    for (i, k) in enumerate(keys(λ))
+        λcust[i, collect(k)] .= true
+    end
+    return λvals, λcust
 end
 
 
