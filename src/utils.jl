@@ -630,6 +630,70 @@ function generate_graph_from_data(
 
 end
 
+function prune_graph(
+    graph::EVRPGraph,
+    k::Int,
+)
+    A = Set{Tuple{Int, Int}}()
+    # 1. include self-loops in depots
+    union!(A, [(i, i) for i in graph.N_depots])
+    # 2. include all pairs between depots and charging stations
+    union!(A, [(i, j) for (i, j) in permutations(graph.N_depots_charging, 2)])
+    # 3. for each depot or charging station, include edges to and from nearest k customers
+    for node in graph.N_depots_charging
+        closest_customers = sortperm(graph.t[node, graph.N_customers])[1:k]
+        union!(A, [(node, i) for i in closest_customers])
+        union!(A, [(i, node) for i in closest_customers])
+    end
+    # 4. for each customer, include edges to and from nearest k customers (excluding themselves)
+    for node in graph.N_customers
+        closest_customers = setdiff(sortperm(graph.t[node, graph.N_customers])[1:k], node)
+        union!(A, [(node, i) for i in closest_customers])
+        union!(A, [(i, node) for i in closest_customers])
+    end
+
+    G = SimpleDiGraph{Int}(graph.n_nodes)
+    for (i, j) in A
+        add_edge!(G, i, j)
+    end
+    t_ds = dijkstra_shortest_paths(G, collect(graph.N_depots), graph.t)
+    q_ds = dijkstra_shortest_paths(G, collect(graph.N_depots_charging), data.q)
+
+    node_labels = merge(Dict(
+        i => "Depot $ind" for (ind, i) in enumerate(graph.N_depots)
+    ), Dict(
+        i => "Customer $ind" for (ind, i) in enumerate(graph.N_customers)
+    ), Dict(
+        i => "Charging $ind" for (ind, i) in enumerate(graph.N_charging)
+    ))
+
+    return EVRPGraph(
+        G,
+        node_labels,
+        copy(graph.c),
+        copy(graph.t),
+        copy(graph.q),
+        graph.N_customers,
+        graph.n_customers,
+        graph.N_depots,
+        graph.n_depots,
+        graph.N_charging,
+        graph.n_charging,
+        graph.N_depots_charging,
+        graph.n_depots_charging,
+        graph.N_nodes,
+        graph.n_nodes,
+        A,
+        graph.T,
+        graph.B,
+        graph.μ,
+        copy(graph.α), 
+        copy(graph.β),
+        t_ds.dists,
+        q_ds.dists,
+    )
+end
+
 function generate_time_windows(
     T::Int,
     n_customers::Int,

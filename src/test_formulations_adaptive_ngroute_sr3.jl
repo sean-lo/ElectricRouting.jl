@@ -38,7 +38,7 @@ all_results = DataFrame(
 )
 
 # compilation
-for n_customers in [16, 20, 24],
+for n_customers in [16, 20, 24, 28, 32],
     (method, ngroute_alt) in [
         ("benchmark", false),
         ("benchmark", true),
@@ -139,7 +139,7 @@ for (
     # [1],
     1:20,
     # [16],
-    [16, 20, 24],
+    [16, 20, 24, 28, 32],
     ["ours", "benchmark",],
 )
     data = generate_instance(
@@ -177,7 +177,7 @@ for (
         ngroute_neighborhood_charging_size = ngroute_neighborhood_charging_size,
         use_adaptive_ngroute = true,
         use_SR3_cuts = true,
-        max_SR3_cuts = 10,
+        max_SR3_cuts = 5,
     );
     (
         CGLP_all_results, CGIP_all_results, CG_all_params, CG_all_neighborhoods, all_params, printlist, 
@@ -240,6 +240,8 @@ for (
         all_params_df.CGIP_objective[1], all_params_df.CGIP_objective[ind], all_params_df.CGIP_objective[end],
     )
 end
+
+all_results
 
 all_results |>
     x -> sort!(x, [
@@ -356,7 +358,7 @@ summary_SR3 = (
 data = generate_instance(
     ;
     n_depots = 4,
-    n_customers = 16,
+    n_customers = 24,
     n_charging = 7,
     n_vehicles = 6,
     depot_pattern = "circular",    
@@ -378,11 +380,15 @@ data = generate_instance(
 )
 graph = generate_graph_from_data(data)
 
-for (method, ngroute_alt) in [
-    ("benchmark", false),
-    ("benchmark", true),
-    ("ours", false),
-    ("ours", true),
+for (method, ngroute_alt, use_smaller_graph) in [
+    # ("benchmark", false, false),
+    # ("benchmark", false, true),
+    # ("benchmark", true, false),
+    # ("benchmark", true, true),
+    # ("ours", false, false),
+    # ("ours", false, true),
+    ("ours", true, false),
+    ("ours", true, true),
 ]
     path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
         data, graph,
@@ -393,6 +399,7 @@ for (method, ngroute_alt) in [
         ngroute_neighborhood_charging_size = "small", 
         ngroute_alt = ngroute_alt,
         verbose = true,
+        use_smaller_graph = use_smaller_graph,
         use_adaptive_ngroute = true,
         use_SR3_cuts = true,
     );
@@ -410,7 +417,7 @@ data = generate_instance(
     shrinkage_depots = 1.0,
     shrinkage_charging = 1.0,
     T = 40000,
-    seed = 1,
+    seed = 12,
     B = 15000,
     μ = 5,
     travel_cost_coeff = 7,
@@ -509,8 +516,8 @@ ours_alt_results = @timed path_formulation_column_generation_with_adaptve_ngrout
 );
 
 (
-    ours_alt_CGLP_all_results, ours_alt_CGIP_all_results, ours_alt_CG_all_params, ours_alt_printlist, 
-    ours_alt_some_paths, ours_alt_model, ours_alt_z, ours_alt_CG_all_neighborhoods, ours_alt_WSR3_constraints
+    ours_alt_CGLP_all_results, ours_alt_CGIP_all_results, ours_alt_CG_all_params, ours_alt_CG_all_neighborhoods, ours_alt_all_params, ours_alt_printlist, 
+    ours_alt_some_paths, ours_alt_model, ours_alt_z, ours_alt_SR3_constraints
 ) = ours_alt_results.value;
 
 ours_results = @timed path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
@@ -526,9 +533,9 @@ ours_results = @timed path_formulation_column_generation_with_adaptve_ngroute_SR
     use_SR3_cuts = false,
 );
 (
-    ours_CGLP_all_results, ours_CGIP_all_results, ours_CG_all_params, ours_printlist, 
-    ours_some_paths, ours_model, ours_z, ours_CG_all_neighborhoods, ours_WSR3_constraints
-) = ours_results.value;
+    ours_CGLP_all_results, ours_CGIP_all_results, ours_CG_all_params, ours_CG_all_neighborhoods, ours_all_params, ours_printlist, 
+    ours_some_paths, ours_model, ours_z, ours_SR3_constraints
+) = ours_alt_results.value;
 
 ours_alt_results.time
 ours_results.time
@@ -610,17 +617,26 @@ base_labels_ngroute = @btime generate_base_labels_ngroute(
 )
 
 base_labels_ngroute_alt = @btime generate_base_labels_ngroute_alt(
-    data, graph, ours_CG_all_neighborhoods[2], 
-    ours_CG_all_params[2]["κ"][end],
-    ours_CG_all_params[2]["μ"][end],
-    ours_CG_all_params[2]["ν"][end],
+    data, graph, ours_alt_CG_all_neighborhoods[2], 
+    ours_alt_CG_all_params[2]["κ"][end],
+    ours_alt_CG_all_params[2]["μ"][end],
+    ours_alt_CG_all_params[2]["ν"][end],
 )
 
+base_labels_alt_ngroute_alt = @btime generate_base_labels_alt_ngroute_alt(
+    data, graph, ours_alt_CG_all_neighborhoods[2], 
+    ours_alt_CG_all_params[2]["κ"][end],
+    ours_alt_CG_all_params[2]["μ"][end],
+    ours_alt_CG_all_params[2]["ν"][end],
+)
+
+sum(length(v) for v in values(base_labels_alt_ngroute_alt))
+
 @descend generate_base_labels_ngroute_alt(
-    data, graph, ours_CG_all_neighborhoods[2], 
-    ours_CG_all_params[2]["κ"][end],
-    ours_CG_all_params[2]["μ"][end],
-    ours_CG_all_params[2]["ν"][end],
+    data, graph, ours_alt_CG_all_neighborhoods[2], 
+    ours_alt_CG_all_params[2]["κ"][end],
+    ours_alt_CG_all_params[2]["μ"][end],
+    ours_alt_CG_all_params[2]["ν"][end],
 )
 
 full_labels_ngroute = @btime find_nondominated_paths_notimewindows_ngroute(
