@@ -1785,7 +1785,7 @@ begin
             CGLP_results["κ"], 
             CGLP_results["μ"], 
             CGLP_results["ν"], 
-            OrderedDict{NTuple{3, Int}, Float64}(),
+            Dict{NTuple{3, Int}, Float64}(),
             ;
             subpath_single_service = subpath_single_service,
             subpath_check_customers = subpath_check_customers,
@@ -1813,7 +1813,7 @@ begin
             CGLP_results["κ"], 
             CGLP_results["μ"], 
             CGLP_results["ν"], 
-            OrderedDict{NTuple{3, Int}, Float64}(),
+            Dict{NTuple{3, Int}, Float64}(),
             ;
             time_windows = time_windows,
             path_single_service = path_single_service,

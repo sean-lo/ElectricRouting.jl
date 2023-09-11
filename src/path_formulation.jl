@@ -389,12 +389,12 @@ function add_paths_to_path_model!(
         Vector{Path},
     },
     SR3_constraints::Dict{
-        NTuple{3, Int}, 
+        T, 
         ConstraintRef, 
     },
     data::EVRPData,
     graph::EVRPGraph,
-)
+) where {T}
     mp_constraint_start_time = time()
     for state_pair in keys(generated_paths)
         if !(state_pair in keys(some_paths))
@@ -463,7 +463,7 @@ function path_formulation_column_generation!(
         VariableRef,
     },
     SR3_constraints::Dict{
-        NTuple{3, Int}, 
+        T,
         ConstraintRef,
     },
     data::EVRPData,
@@ -498,7 +498,7 @@ function path_formulation_column_generation!(
     verbose::Bool = true,
     time_limit::Float64 = Inf,
     max_iters::Float64 = Inf,
-)
+) where {T}
 
     start_time = time()
     counter = 0
@@ -511,7 +511,7 @@ function path_formulation_column_generation!(
     CG_params["κ"] = Dict{Int, Float64}[]
     CG_params["μ"] = Dict{Int, Float64}[]
     CG_params["ν"] = Vector{Float64}[]
-    CG_params["λ"] = Dict{NTuple{3, Int}, Float64}[]
+    CG_params["λ"] = Dict{keytype(SR3_constraints), Float64}[]
     CG_params["lp_relaxation_solution_time_taken"] = Float64[]
     CG_params["sp_base_time_taken"] = Float64[]
     CG_params["sp_full_time_taken"] = Float64[]
@@ -545,10 +545,10 @@ function path_formulation_column_generation!(
             "κ" => Dict(zip(use_graph.N_depots, dual.(model[:κ]).data)),
             "μ" => Dict(zip(use_graph.N_depots, dual.(model[:μ]).data)),
             "ν" => dual.(model[:ν]).data,
-            "λ" => sort(Dict{NTuple{3, Int}, Float64}(
+            "λ" => Dict{keytype(SR3_constraints), Float64}(
                 S => dual(SR3_constraints[S])
                 for S in keys(SR3_constraints)
-            )),
+            ),
         )
         push!(CG_params["objective"], CGLP_results["objective"])
         push!(CG_params["κ"], CGLP_results["κ"])

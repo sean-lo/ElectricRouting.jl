@@ -781,7 +781,7 @@ function find_nondominated_paths_ngroute_lambda(
     κ::Dict{Int, Float64},
     μ::Dict{Int, Float64},
     ν::Vector{Float64}, 
-    λ::OrderedDict{NTuple{3, Int}, Float64},
+    λ::Dict{NTuple{3, Int}, Float64},
     α::Vector{Int},
     β::Vector{Int},
     ;
@@ -937,7 +937,7 @@ function find_nondominated_paths_ngroute_alt_lambda(
     κ::Dict{Int, Float64},
     μ::Dict{Int, Float64},
     ν::Vector{Float64}, 
-    λ::OrderedDict{NTuple{3, Int}, Float64},
+    λ::Dict{NTuple{3, Int}, Float64},
     α::Vector{Int},
     β::Vector{Int},
     ;
@@ -1093,7 +1093,7 @@ function subproblem_iteration_benchmark(
     κ::Dict{Int, Float64},
     μ::Dict{Int, Float64},
     ν::Vector{Float64}, 
-    λ::OrderedDict{NTuple{3, Int}, Float64},
+    λ::Dict{T, Float64},
     ;
     neighborhoods::Union{Nothing, BitMatrix} = nothing,
     ngroute::Bool = false,
@@ -1102,7 +1102,7 @@ function subproblem_iteration_benchmark(
     path_single_service::Bool = true,
     path_check_customers::Bool = true,
     time_limit::Float64 = Inf,
-)
+) where {T}
     start_time = time()
     if time_windows
         α = graph.α
