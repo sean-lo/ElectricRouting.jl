@@ -872,15 +872,31 @@ end
 
 
 function prepare_lambda(
-    λ::OrderedDict{NTuple{3, Int}, Float64},
-    n_customers::Int,
+    λ::Dict{NTuple{3, Int}, Float64},
+    n_nodes::Int,
 )
     λvals = collect(values(λ))
-    λcust = falses(length(λ), n_customers)
+    λcust = falses(length(λ), n_nodes)
     for (i, k) in enumerate(keys(λ))
         λcust[i, collect(k)] .= true
     end
+    λmemory = falses(length(λ))
     return λvals, λcust
+end
+
+function prepare_lambda(
+    λ::Dict{Tuple{NTuple{3, Int}, Tuple{Vararg{Int}}}, Float64},
+    n_nodes::Int,
+)
+    λvals = collect(values(λ))
+    λcust = falses(length(λ), n_nodes)
+    λmemory = falses(length(λ), n_nodes)
+    for (i, k) in enumerate(keys(λ))
+        (S, M) = k
+        λcust[i, collect(S)] .= true
+        λmemory[i, collect(M)] .= true
+    end
+    return λvals, λcust, λmemory
 end
 
 

@@ -1146,7 +1146,7 @@ function generate_base_labels_ngroute_lambda(
 
     start_time = time()
     modified_costs = compute_arc_modified_costs(graph, data, ν)
-    λvals, λcust = prepare_lambda(λ, graph.n_customers)
+    λvals, λcust = prepare_lambda(λ, graph.n_nodes)
 
     base_labels = Dict(
         (starting_node, current_node) => Dict{
@@ -1244,13 +1244,11 @@ function generate_base_labels_ngroute_lambda(
                 current_node, next_node, modified_costs,
             )
             !feasible && continue
-            if next_node in graph.N_customers
-                new_λ_labels = compute_new_subpath_lambda!(
-                    new_subpath, current_λ_labels, λvals, λcust,
-                )
-            else
-                new_λ_labels = current_λ_labels
-            end
+
+            new_λ_labels = compute_new_lambda_labels!(
+                new_subpath, current_λ_labels, λvals, λcust,
+            )
+
             if starting_node in graph.N_depots
                 new_set = new_fset
             else
@@ -1345,7 +1343,7 @@ function generate_base_labels_ngroute_alt_lambda(
 
     start_time = time()
     modified_costs = compute_arc_modified_costs(graph, data, ν)
-    λvals, λcust = prepare_lambda(λ, graph.n_customers)
+    λvals, λcust = prepare_lambda(λ, graph.n_nodes)
 
     base_labels = Dict(
         (starting_node, current_node) => SortedDict{
@@ -1424,13 +1422,11 @@ function generate_base_labels_ngroute_alt_lambda(
                 current_node, next_node, modified_costs,
             )
             !feasible && continue
-            if next_node in graph.N_customers
-                new_λ_labels = compute_new_subpath_lambda!(
-                    new_subpath, current_λ_labels, λvals, λcust,
-                )
-            else
-                new_λ_labels = current_λ_labels
-            end
+
+            new_λ_labels = compute_new_lambda_labels!(
+                new_subpath, current_λ_labels, λvals, λcust,
+            )
+
             if starting_node in graph.N_depots
                 new_set = new_fset
             else
@@ -2024,7 +2020,7 @@ function find_nondominated_paths_notimewindows_ngroute_lambda(
 )
 
     start_time = time()
-    λvals, _ = prepare_lambda(λ, graph.n_customers)
+    λvals, _ = prepare_lambda(λ, graph.n_nodes)
 
     full_labels = Dict(
         (starting_node, current_node) => Dict{
@@ -2186,7 +2182,7 @@ function find_nondominated_paths_notimewindows_ngroute_alt_lambda(
 )
 
     start_time = time()
-    λvals, _ = prepare_lambda(λ, graph.n_customers)
+    λvals, _ = prepare_lambda(λ, graph.n_nodes)
 
     full_labels = Dict(
         (starting_node, current_node) => SortedDict{

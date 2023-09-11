@@ -790,7 +790,7 @@ function find_nondominated_paths_ngroute_lambda(
 
     start_time = time()
     modified_costs = compute_arc_modified_costs(graph, data, ν)
-    λvals, λcust = prepare_lambda(λ, graph.n_customers)
+    λvals, λcust = prepare_lambda(λ, graph.n_nodes)
 
     pure_path_labels = Dict(
         (starting_node, current_node) => Dict{
@@ -867,13 +867,10 @@ function find_nondominated_paths_ngroute_lambda(
                 α, β, modified_costs,
             )
             !feasible && continue
-            if next_node in graph.N_customers
-                new_λ_labels = compute_new_pure_path_lambda!(
-                    new_path, current_λ_labels, λvals, λcust,
-                )
-            else
-                new_λ_labels = current_λ_labels
-            end
+            
+            new_λ_labels = compute_new_pure_path_lambda!(
+                new_path, current_λ_labels, λvals, λcust,
+            )
                 
             if !(new_set in keys(pure_path_labels[(starting_node, next_node)]))
                 pure_path_labels[(starting_node, next_node)][new_set] = SortedDict{
@@ -949,7 +946,7 @@ function find_nondominated_paths_ngroute_alt_lambda(
 
     start_time = time()
     modified_costs = compute_arc_modified_costs(graph, data, ν)
-    λvals, λcust = prepare_lambda(λ, graph.n_customers)
+    λvals, λcust = prepare_lambda(λ, graph.n_nodes)
 
     pure_path_labels = Dict(
         (starting_node, current_node) => SortedDict{
@@ -1018,13 +1015,10 @@ function find_nondominated_paths_ngroute_alt_lambda(
                 α, β, modified_costs,
             )
             !feasible && continue
-            if next_node in graph.N_customers
-                new_λ_labels = compute_new_pure_path_lambda!(
-                    new_path, current_λ_labels, λvals, λcust,
-                )
-            else
-                new_λ_labels = current_λ_labels
-            end
+
+            new_λ_labels = compute_new_pure_path_lambda!(
+                new_path, current_λ_labels, λvals, λcust,
+            )
 
             new_key = (
                 new_path.cost,
