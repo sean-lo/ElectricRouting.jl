@@ -341,24 +341,21 @@ summary_SR3 = (
 )
 
 (
-    all_results 
-    |> x -> unstack(
-        x, 
-        [:n_customers, :seed], 
-        :ngroute_neighborhood_depots_size, 
-        :ngroute_neighborhood_charging_size, 
-        :LP_objective_last
-    )
-    |> x -> filter(r -> r.n_customers == 24, x)
+    all_results_SR3
+
+    |> x -> filter(r -> r.n_customers == 20, x)
+    |> x -> sort(x, order(:sp_time_taken_mean_last_SR3, rev = true))
 )
 
 
 ### Testing
 
+include("path_formulation.jl")
+include("utils.jl")
 data = generate_instance(
     ;
     n_depots = 4,
-    n_customers = 24,
+    n_customers = 20,
     n_charging = 7,
     n_vehicles = 6,
     depot_pattern = "circular",    
@@ -367,7 +364,7 @@ data = generate_instance(
     shrinkage_depots = 1.0,
     shrinkage_charging = 1.0,
     T = 40000,
-    seed = 2,
+    seed = 12,
     B = 15000,
     μ = 5,
     travel_cost_coeff = 7,
@@ -380,32 +377,33 @@ data = generate_instance(
 )
 graph = generate_graph_from_data(data)
 
-for (method, ngroute_alt, use_smaller_graph) in [
-    # ("benchmark", false, false),
-    # ("benchmark", false, true),
-    # ("benchmark", true, false),
-    # ("benchmark", true, true),
-    # ("ours", false, false),
-    # ("ours", false, true),
-    ("ours", true, false),
+for (method, ngroute_alt, use_lmSR3_cuts) in [
+    ("benchmark", false, false),
+    ("benchmark", false, true),
+    ("benchmark", true, false),
+    ("benchmark", true, true),
+    ("ours", false, false),
+    ("ours", false, true),
+    ("ours", true, false), 
     ("ours", true, true),
 ]
-    path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
+    @btime @suppress path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
         data, graph,
         ;
-        method = method,
+        method = $method,
         ngroute_neighborhood_size = Int(ceil(sqrt(graph.n_customers))),
         ngroute_neighborhood_depots_size = "small", 
         ngroute_neighborhood_charging_size = "small", 
-        ngroute_alt = ngroute_alt,
+        ngroute_alt = $ngroute_alt,
         verbose = true,
-        use_smaller_graph = use_smaller_graph,
+        use_smaller_graph = false,
         use_adaptive_ngroute = true,
         use_SR3_cuts = true,
+        use_lmSR3_cuts = $use_lmSR3_cuts,
     );
 end
 
-data = generate_instance(
+ data = generate_instance(
     ;
     n_depots = 4,
     n_customers = 16,
@@ -417,7 +415,7 @@ data = generate_instance(
     shrinkage_depots = 1.0,
     shrinkage_charging = 1.0,
     T = 40000,
-    seed = 12,
+    seed = 6,
     B = 15000,
     μ = 5,
     travel_cost_coeff = 7,
@@ -475,10 +473,29 @@ plot_path_solution(
     ours_CGLP_all_results[end], data, graph, ours_some_paths
 )
 
-enumerate_violated_path_SRnk_inequalities(
-    ours_CGLP_all_results[end]["paths"],
+nodes_list = [
+    vcat([a[1] for a in p.arcs], [p.arcs[end][2]])
+    for (val, p) in ours_CGLP_all_results[2]["paths"]
+]
+
+
+m = compute_memory_set_of_lmSRnk_inequality(
+    ours_CGLP_all_results[2]["paths"],
+    (4, 11, 13),
+    2
+)
+typeof(m)
+
+enumerate_violated_path_WSR3_inequalities(
+    ours_CGLP_all_results[2]["paths"],
     graph,
-    4, 3
+)
+
+
+enumerate_violated_path_SRnk_inequalities(
+    ours_CGLP_all_results[1]["paths"],
+    graph,
+    3, 2
 )
 
 for (method, ngroute_alt) in [

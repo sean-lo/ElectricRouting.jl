@@ -360,6 +360,29 @@ function check_path_in_SR3_constraint(
     return Int(floor(sum(path.served[collect(S)]) / 2))
 end
 
+function compute_path_coefficient_in_lmSRnk_constraint(
+    path::Path,
+    S::Tuple{Vararg{Int}},
+    M::Tuple{Vararg{Int}},
+    k::Int,
+)
+    nodes = get_nodes(path)
+    coeff = 0
+    state = 0
+    for node in nodes
+        if !(node in M)
+            state = 0
+        elseif node in S
+            state += 1
+            if state ≥ k
+                coeff += 1
+                state = 0
+            end
+        end
+    end
+    return coeff
+end
+
 function add_paths_to_path_model!(
     model::Model,
     z::Dict{
@@ -439,10 +462,19 @@ function add_paths_to_path_model!(
                 # 7: modify objective
                 set_objective_coefficient(model, z[state_pair, count], path_costs[state_pair][count])
                 # 8: add variable to violated SR3 constraints (if applicable)
-                for (SR3_key, SR3_con) in pairs(SR3_constraints)
-                    val = check_path_in_SR3_constraint(p_new, SR3_key)
-                    if val > 0
-                        set_normalized_coefficient(SR3_con, z[state_pair,count], val)
+                if keytype(SR3_constraints) == NTuple{3, Int}
+                    for (SR3_key, SR3_con) in pairs(SR3_constraints)
+                        val = check_path_in_SR3_constraint(p_new, SR3_key)
+                        if val > 0
+                            set_normalized_coefficient(SR3_con, z[state_pair,count], val)
+                        end
+                    end
+                elseif keytype(SR3_constraints) == Tuple{NTuple{3, Int}, Tuple{Vararg{Int}}}
+                    for ((S, M), SR3_con) in pairs(SR3_constraints)
+                        val = compute_path_coefficient_in_lmSRnk_constraint(p_new, S, M, 2)
+                        if val > 0
+                            set_normalized_coefficient(SR3_con, z[state_pair,count], val)
+                        end
                     end
                 end
             end
@@ -952,6 +984,31 @@ function enumerate_violated_path_SRnk_inequalities(
     return S_list
 end
 
+function compute_memory_set_of_lmSRnk_inequality(
+    paths::Vector{Tuple{Float64, Path}},
+    S::Tuple{Vararg{Int}},
+    k::Int,
+)
+    M = Set(S)
+    for (_, p) in paths
+        M_add = Set{Int}()
+        state = 0
+        nodes = get_nodes(p)
+        for node in nodes
+            if node in S
+                state += 1
+                if state ≥ k
+                    union!(M, M_add)
+                    M_add = Set{Int}()
+                    state = 0
+                end
+            elseif state > 0
+                union!(M_add, node)
+            end
+        end
+    end
+    return Tuple{Vararg{Int}}(sort(collect(M)))
+end
 
 
 function add_SR3_constraints_to_path_model!(
@@ -988,6 +1045,43 @@ function add_SR3_constraints_to_path_model!(
     end
 end
 
+function add_lmSR3_constraints_to_path_model!(
+    model::Model, 
+    z::Dict{
+        Tuple{
+            Tuple{NTuple{3, Int}, NTuple{3, Int}},
+            Int,
+        },
+        VariableRef,
+    },
+    some_paths::Dict{
+        Tuple{NTuple{3, Int}, NTuple{3, Int}},
+        Vector{Path},
+    },
+    lmSR3_constraints::Dict{
+        Tuple{NTuple{3, Int}, Tuple{Vararg{Int}}},
+        ConstraintRef,
+    }, 
+    generated_lmSR3_list::Vector{
+        Tuple{Float64, NTuple{3, Int}, T}
+    }, 
+) where {T <: Tuple{Vararg{Int}}}
+    for item in generated_lmSR3_list
+        S = item[2]
+        M = item[3]
+        lmSR3_constraints[(S, M)] = @constraint(
+            model,
+            sum(
+                sum(
+                    compute_path_coefficient_in_lmSRnk_constraint(p, S, M, 2) * z[state_pair, p_ind]
+                    for (p_ind, p) in enumerate(some_paths[state_pair])
+                )
+                for state_pair in keys(some_paths)
+            ) ≤ 1
+        )
+    end
+end
+
 
 function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
     data::EVRPData, 
@@ -1006,6 +1100,7 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
     use_smaller_graph::Bool = false,
     use_adaptive_ngroute::Bool = true,
     use_SR3_cuts::Bool = true,
+    use_lmSR3_cuts::Bool = true,
     max_SR3_cuts::Int = 100, 
 )
     start_time = time()
@@ -1088,8 +1183,16 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
     local CGIP_results
     local converged = false
 
-    SR3_constraints = Dict{NTuple{3, Int}, ConstraintRef}()
-    SR3_list = Tuple{Float64, NTuple{3, Int}}[]
+    if use_lmSR3_cuts
+        SR3_constraints = Dict{
+            Tuple{NTuple{3, Int}, Tuple{Vararg{Int}}},
+            ConstraintRef,
+        }()
+        SR3_list = Tuple{Float64, NTuple{3, Int}, Tuple{Vararg{Int}}}[]
+    else
+        SR3_constraints = Dict{NTuple{3, Int}, ConstraintRef}()
+        SR3_list = Tuple{Float64, NTuple{3, Int}}[]
+    end
     CGLP_all_results = []
     CGIP_all_results = []
     all_params = []
@@ -1150,14 +1253,14 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
         iteration_params["CG_time_taken"] = CG_params["time_taken"]
         iteration_params["method"] = "none"
         iteration_params["cycles_lookup_length"] = 0
-        iteration_params["implemented_SR3_cuts_cout"] = 0
+        iteration_params["implemented_SR3_cuts_count"] = 0
 
         # check if converged
         if CGIP_results["objective"] ≈ CGLP_results["objective"]
             converged = true
         end
 
-        if !continue_flag && use_adaptive_ngroute
+        if !continue_flag && !converged && use_adaptive_ngroute
             # see if any path in solution was non-elementary
             cycles_lookup = detect_cycles_in_path_solution([p for (val, p) in CGLP_results["paths"]], graph)
             if length(cycles_lookup) > 0 
@@ -1166,10 +1269,12 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
                 continue_flag = true
                 iteration_params["method"] = "use_adaptive_ngroute"
                 iteration_params["cycles_lookup_length"] = length(cycles_lookup)
+                add_message!(printlist, "Expanded ng-route neighborhoods by $(length(cycles_lookup))\n", verbose)
+                add_message!(printlist, "\n", verbose)
             end
         end
 
-        if !continue_flag && use_SR3_cuts
+        if !continue_flag && !converged && use_SR3_cuts
             # if no path in solution was non-elementary, 
             # generate violated WSR3 inequalities
             generated_WSR3_list = enumerate_violated_path_WSR3_inequalities(
@@ -1183,22 +1288,52 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
                     CGLP_results["paths"],
                     graph,
                 )
+                add_message!(printlist, "Found SR3 cuts:      $(length(generated_SR3_list))\n", verbose)
+            else
+                add_message!(printlist, "Found WSR3 cuts:     $(length(generated_SR3_list))\n", verbose)
             end
+            # sample cuts if too many
             if length(generated_SR3_list) + length(SR3_list) ≤ max_SR3_cuts
                 implemented_SR3_list = generated_SR3_list
             else
                 implemented_SR3_list = sample(generated_SR3_list, max_SR3_cuts - length(SR3_list), replace = false)
+                add_message!(printlist, "Sampled SR3 cuts:    $(length(implemented_SR3_list))\n", verbose)
             end
             if length(implemented_SR3_list) != 0
-                append!(SR3_list, implemented_SR3_list)
-                # Add violated inequalities to master problem
-                add_SR3_constraints_to_path_model!(
-                    model, z, some_paths, 
-                    SR3_constraints, implemented_SR3_list, 
-                )
-                iteration_params["method"] = "use_SR3_cuts"
-                iteration_params["implemented_SR3_cuts_cout"] = length(implemented_SR3_list)
-                continue_flag = true
+                if use_lmSR3_cuts
+                    implemented_SR3_list = [
+                        (val, S, compute_memory_set_of_lmSRnk_inequality(CGLP_results["paths"], S, 2))
+                        for (val, S) in implemented_SR3_list
+                    ]
+                    append!(SR3_list, implemented_SR3_list)
+                    add_lmSR3_constraints_to_path_model!(
+                        model, z, some_paths, 
+                        SR3_constraints, implemented_SR3_list,
+                    )
+                    iteration_params["method"] = "use_lmSR3_cuts"
+                    iteration_params["implemented_SR3_cuts_count"] = length(implemented_SR3_list)
+                    continue_flag = true
+                    add_message!(printlist, "Imposed lm-SR3 cuts: $(length(implemented_SR3_list))\n", verbose)
+                    for (val, S, M) in implemented_SR3_list
+                        add_message!(printlist, "$S, $M: $val\n", verbose)
+                    end
+                    add_message!(printlist, "\n", verbose)
+                else
+                    append!(SR3_list, implemented_SR3_list)
+                    # Add violated inequalities to master problem
+                    add_SR3_constraints_to_path_model!(
+                        model, z, some_paths, 
+                        SR3_constraints, implemented_SR3_list, 
+                    )
+                    iteration_params["method"] = "use_SR3_cuts"
+                    iteration_params["implemented_SR3_cuts_count"] = length(implemented_SR3_list)
+                    continue_flag = true
+                    add_message!(printlist, "Imposed SR3 cuts:    $(length(implemented_SR3_list))\n", verbose)
+                    for (val, S) in implemented_SR3_list
+                        add_message!(printlist, "$S: $val\n", verbose)
+                    end
+                    add_message!(printlist, "\n", verbose)
+                end
             end
         end
 
