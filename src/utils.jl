@@ -115,6 +115,15 @@ Base.copy(p::Path) = Path(
     customer_arcs = copy(p.customer_arcs),
 )
 
+function get_nodes(
+    p::Path,
+)
+    return vcat(
+        [a[1] for a in p.arcs],
+        [p.arcs[end][2]]
+    )
+end
+
 struct EVRPData
     n_depots::Int
     n_customers::Int

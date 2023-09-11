@@ -807,11 +807,10 @@ function detect_cycle_in_path(
     # Assumes that `node` is a customer.
 
     # finds first and last occurrences of node
-    nodeseq = vcat(p.arcs[1][1], [a[2] for a in p.arcs])
-    
-    start_ind = findfirst(x -> x == node, nodeseq)
-    end_ind = findlast(x -> x == node, nodeseq)
-    return nodeseq[start_ind:end_ind]
+    nodes = get_nodes(p)
+    start_ind = findfirst(x -> x == node, nodes)
+    end_ind = findlast(x -> x == node, nodes)
+    return nodes[start_ind:end_ind]
 end
 
 
