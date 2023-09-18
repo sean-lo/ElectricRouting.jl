@@ -5,7 +5,6 @@ using Distributions
 using Distances
 using Printf
 using Graphs
-using OrderedCollections
 
 Base.@kwdef mutable struct Subpath
     n_customers::Int
