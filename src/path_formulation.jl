@@ -1086,6 +1086,7 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
     elementary::Bool = false,
     ngroute::Bool = true,
     ngroute_alt::Bool = false,
+    neighborhoods::Union{Nothing, BitMatrix} = nothing,
     ngroute_neighborhood_size::Int = Int(ceil(sqrt(graph.n_customers))),
     ngroute_neighborhood_depots_size::String = "small",
     ngroute_neighborhood_charging_size::String = "small",
@@ -1100,15 +1101,13 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
 )
     start_time = time()
 
-    if ngroute
+    if ngroute && isnothing(neighborhoods)
         neighborhoods = compute_ngroute_neighborhoods(
             graph,
             ngroute_neighborhood_size; 
             depots_size = ngroute_neighborhood_depots_size,
             charging_size = ngroute_neighborhood_charging_size,
         )
-    else
-        neighborhoods = nothing
     end
 
     some_paths = generate_artificial_paths(data, graph)
