@@ -5,6 +5,8 @@ using Distributions
 using Distances
 using Printf
 using Graphs
+using LinearAlgebra
+using Plots
 
 Base.@kwdef mutable struct Subpath
     n_customers::Int
@@ -137,8 +139,10 @@ struct EVRPData
     N_depots_charging::UnitRange{Int}
     N_nodes::UnitRange{Int}
     node_labels::Dict{Int, String}
-    shrinkage_depots::Float64
-    shrinkage_charging::Float64
+    xmin::Float64
+    xmax::Float64
+    ymin::Float64
+    ymax::Float64
     customer_coords::Array{Float64, 2}
     depot_coords::Array{Float64, 2}
     charging_coords::Array{Float64, 2}
@@ -378,37 +382,35 @@ function compute_path_service(
     return path_service
 end
 
-function generate_instance(
+function generate_locations(
     ;
     n_depots::Int, 
     n_customers::Int,
     n_charging::Int,
-    n_vehicles::Int,
     depot_pattern::String,
     customer_pattern::String,
     charging_pattern::String,
-    shrinkage_depots::Float64,
-    shrinkage_charging::Float64,
-    T::Int,
+    customer_spread::Float64 = 1e-3,
+    xmin::Float64, 
+    xmax::Float64,
+    ymin::Float64,
+    ymax::Float64,
     seed::Int,
-    B::Int,
-    μ::Int,
-    travel_cost_coeff::Int,
-    charge_cost_coeff::Int,
-    load_scale::Float64,
-    load_shape::Float64,
-    load_tolerance::Float64,
-    batch::Int,
-    permissiveness::Float64,
     data_dir::String = "data/",
 )
     function complex_coords(
         n::Int,
+        xmin::Float64 = -1.0,
+        xmax::Float64 = 1.0,
+        ymin::Float64 = -1.0,
+        ymax::Float64 = 1.0,
     )
-        return hcat(
+        coords = hcat(
             [round.(collect(reim(exp(2 * pi * j * im / n))), digits = 5)
             for j in 1:n]...
         )
+        unit_coords = (coords .+ 1) ./ 2 # fit into 0-1 box
+        return [xmin; ymin] .+ unit_coords .* [xmax - xmin; ymax - ymin]
     end
 
     function get_rectangle(
@@ -444,39 +446,149 @@ function generate_instance(
 
     function circle_packing_coords(
         n::Int,
+        xmin::Float64 = -1.0,
+        xmax::Float64 = 1.0,
+        ymin::Float64 = -1.0,
+        ymax::Float64 = 1.0,
         ;
         data_dir::String = "data/",
     )
         lines = readlines(joinpath(data_dir, "cci_coords/cci$n.txt"))
-        return hcat(
+        coords = hcat(
             [
                 [parse(Float64, x[2]), parse(Float64, x[3])]
                 for x in split.(lines)
             ]...
         )
+        unit_coords = (coords .+ 1) ./ 2 # fit into 0-1 box
+        return [xmin; ymin] .+ unit_coords .* [xmax - xmin; ymax - ymin]
     end
 
     function complex_coords_random(
         n::Int, 
         seed::Int,
+        xmin::Float64 = -1.0,
+        xmax::Float64 = 1.0,
+        ymin::Float64 = -1.0,
+        ymax::Float64 = 1.0,
+        customer_spread::Float64 = 0.0,
     )
         Random.seed!(seed)
-        deg = rand(n) * 2 * pi
-        scale = rand(n)
-        return hcat(
-            [round.(collect(reim(scale[j] * exp(deg[j] * im))), digits = 5)
-            for j in 1:n]...
-        )
+        unit_coords = zeros(Float64, 2, n)
+        while true
+            deg = rand(n) * 2 * pi
+            scale = rand(n)
+            coords = hcat(
+                [round.(collect(reim(scale[j] * exp(deg[j] * im))), digits = 5)
+                for j in 1:n]...
+            )
+            unit_coords = (coords .+ 1) ./ 2 # fit into 0-1 box
+            d = Distances.pairwise(Euclidean(), unit_coords, dims = 2)
+            if minimum(d + I * customer_spread) ≥ customer_spread
+                break
+            end
+        end
+        return [xmin; ymin] .+ unit_coords .* [xmax - xmin; ymax - ymin]
     end
 
     function uniform_coords_random(        
         n::Int, 
         seed::Int,
+        xmin::Float64 = -1.0,
+        xmax::Float64 = 1.0,
+        ymin::Float64 = -1.0,
+        ymax::Float64 = 1.0,
+        customer_spread::Float64 = 0.0,
     )
         Random.seed!(seed)
-        return -1 .+ rand(Float64, 2, n) .* 2
+        coords = zeros(Float64, 2, n)
+        n_blocks = Int(round((xmax - xmin) * (ymax - ymin)))
+        while true
+            for (i, (x, y)) in enumerate(Iterators.product(
+                xmin:xmax-1,
+                ymin:ymax-1,
+            ))
+                coords[:, i:n_blocks:n] .= [x; y] .+ rand(Float64, 2, length(i:n_blocks:n)) 
+            end
+            d = Distances.pairwise(Euclidean(), coords, dims = 2)
+            if minimum(d + I * customer_spread) ≥ customer_spread
+                break
+            end
+        end
+        return coords
     end
 
+    if customer_pattern == "random_box"
+        customer_coords = uniform_coords_random(n_customers, seed, xmin, xmax, ymin, ymax, customer_spread)
+    elseif customer_pattern == "random_uniform_polar"
+        customer_coords = complex_coords_random(n_customers, seed, xmin, xmax, ymin, ymax, customer_spread)
+    end
+    if depot_pattern == "circular"
+        depot_coords = complex_coords(n_depots, xmin, xmax, ymin, ymax)
+    elseif depot_pattern == "grid"
+        (a, b) = get_rectangle(n_depots)
+        depot_coords = grid_coords(a, b, xmin, xmax, ymin, ymax)
+    elseif depot_pattern == "circular_packing"
+        depot_coords = circle_packing_coords(n_depots, xmin, xmax, ymin, ymax, data_dir = data_dir)
+    end
+    if charging_pattern == "circular"
+        charging_coords = complex_coords(n_depots, xmin, xmax, ymin, ymax)
+    elseif charging_pattern == "grid"
+        (a, b) = get_rectangle(n_charging)
+        charging_coords = grid_coords(a, b, xmin, xmax, ymin, ymax)
+    elseif charging_pattern == "grid_clipped"
+        a = Int(xmax - xmin + 1)
+        b = Int(ymax - ymin + 1)
+        charging_coords = grid_coords(a, b, xmin, xmax, ymin, ymax)
+        charging_coords = hcat(setdiff(eachcol(charging_coords), [[xmin, ymin], [xmin, ymax], [xmax, ymin], [xmax, ymax]])...)
+    elseif charging_pattern == "circular_packing"
+        charging_coords = circle_packing_coords(n_depots, xmin, xmax, ymin, ymax, data_dir = data_dir)
+    end
+    coords = hcat(
+        customer_coords,
+        depot_coords,
+        charging_coords,
+    )
+
+    distances = Distances.pairwise(Euclidean(), coords, dims=2)
+
+    return (
+        customer_coords,
+        depot_coords,
+        charging_coords,
+        coords,
+        distances,
+    )
+end
+
+
+function generate_instance(
+    ;
+    n_depots::Int, 
+    n_customers::Int,
+    n_charging::Int,
+    n_vehicles::Int,
+    depot_pattern::String,
+    customer_pattern::String,
+    charging_pattern::String,
+    customer_spread::Float64,
+    xmin::Float64,
+    xmax::Float64,
+    ymin::Float64,
+    ymax::Float64,
+    T::Int,
+    seed::Int,
+    B::Int,
+    μ::Int,
+    travel_cost_coeff::Int,
+    charge_cost_coeff::Int,
+    load_scale::Float64,
+    load_shape::Float64,
+    load_tolerance::Float64,
+    batch::Int,
+    permissiveness::Float64,
+    data_dir::String = "data/",
+)
     n_nodes = n_depots + n_customers + n_charging
 
     seeds = abs.(rand(MersenneTwister(seed), Int, 6))
@@ -496,29 +608,27 @@ function generate_instance(
         i => "Charging $ind" for (ind, i) in enumerate(N_charging)
     ))
 
-    if customer_pattern == "random_box"
-        customer_coords = uniform_coords_random(n_customers, seeds[1])
-    elseif customer_pattern == "random_uniform_polar"
-        customer_coords = complex_coords_random(n_customers, seeds[1])
-    end
-    if depot_pattern == "circular"
-        depot_coords = shrinkage_depots * complex_coords(n_depots)
-    end
-    if charging_pattern == "circular"
-        charging_coords = shrinkage_charging * complex_coords(n_charging)
-    elseif charging_pattern == "grid"
-        (a, b) = get_rectangle(n_charging)
-        charging_coords = shrinkage_charging * grid_coords(a, b)
-    elseif charging_pattern == "circular_packing"
-        charging_coords = shrinkage_charging * circle_packing_coords(n_charging, data_dir = data_dir)
-    end
-    coords = hcat(
+    (
         customer_coords,
         depot_coords,
         charging_coords,
+        coords,
+        distances,
+    ) = generate_locations(
+        n_depots = n_depots, 
+        n_customers = n_customers,
+        n_charging = n_charging,
+        depot_pattern = depot_pattern,
+        customer_pattern = customer_pattern,
+        charging_pattern = charging_pattern,
+        customer_spread = customer_spread,
+        xmin = xmin,
+        xmax = xmax,
+        ymin = ymin,
+        ymax = ymax,
+        seed = seeds[1],
+        data_dir = data_dir,
     )
-
-    distances = Distances.pairwise(Euclidean(), coords, dims=2)
 
     start_depots = StatsBase.sample(MersenneTwister(seeds[4]), N_depots, n_vehicles, replace = true)
     V = Dict(i => findall(x -> x==i, start_depots) for i in N_depots)
@@ -556,8 +666,10 @@ function generate_instance(
         N_depots_charging,
         N_nodes,
         node_labels,
-        shrinkage_depots,
-        shrinkage_charging,
+        xmin, 
+        xmax, 
+        ymin,
+        ymax, 
         customer_coords,
         depot_coords,
         charging_coords,
