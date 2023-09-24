@@ -1100,12 +1100,16 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
 )
     start_time = time()
 
-    neighborhoods = compute_ngroute_neighborhoods(
-        graph,
-        ngroute_neighborhood_size; 
-        depots_size = ngroute_neighborhood_depots_size,
-        charging_size = ngroute_neighborhood_charging_size,
-    )
+    if ngroute
+        neighborhoods = compute_ngroute_neighborhoods(
+            graph,
+            ngroute_neighborhood_size; 
+            depots_size = ngroute_neighborhood_depots_size,
+            charging_size = ngroute_neighborhood_charging_size,
+        )
+    else
+        neighborhoods = nothing
+    end
 
     some_paths = generate_artificial_paths(data, graph)
     path_costs = compute_path_costs(
@@ -1242,7 +1246,11 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
     CGIP_all_results = []
     all_params = []
     CG_all_params = []
-    CG_all_neighborhoods = BitMatrix[]
+    if ngroute
+        CG_all_neighborhoods = BitMatrix[]
+    else
+        CG_all_neighborhoods = nothing
+    end
 
     while true
         continue_flag = false
@@ -1258,7 +1266,7 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
             time_windows = time_windows,
             elementary = elementary,
             neighborhoods = neighborhoods,
-            ngroute = true,
+            ngroute = ngroute,
             ngroute_alt = ngroute_alt,
             use_smaller_graph = use_smaller_graph,
             verbose = verbose,
@@ -1272,7 +1280,9 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
         push!(CGLP_all_results, CGLP_results)
         push!(CGIP_all_results, CGIP_results)
         push!(CG_all_params, CG_params)
-        push!(CG_all_neighborhoods, neighborhoods)
+        if ngroute
+            push!(CG_all_neighborhoods, copy(neighborhoods))
+        end
 
         # Termination criteria
         CG_params["LP_IP_gap"] = 1.0 - CGLP_results["objective"] / CGIP_results["objective"]
@@ -1302,7 +1312,7 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
             converged = true
         end
 
-        if !continue_flag && !converged && use_adaptive_ngroute
+        if !continue_flag && !converged && ngroute && use_adaptive_ngroute
             # see if any path in solution was non-elementary
             cycles_lookup = detect_cycles_in_path_solution([p for (val, p) in CGLP_results["paths"]], graph)
             if length(cycles_lookup) > 0 
@@ -1316,7 +1326,7 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
             end
         end
 
-        if !continue_flag && !converged && use_SR3_cuts
+        if !continue_flag && !converged && ngroute && use_SR3_cuts
             # if no path in solution was non-elementary, 
             # generate violated WSR3 inequalities
             generated_WSR3_list = enumerate_violated_path_WSR3_inequalities(
