@@ -1096,7 +1096,7 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
     use_adaptive_ngroute::Bool = true,
     use_SR3_cuts::Bool = true,
     use_lmSR3_cuts::Bool = true,
-    max_SR3_cuts::Int = 100, 
+    max_SR3_cuts::Int = 10, 
 )
     start_time = time()
 
@@ -1341,15 +1341,21 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
                     graph,
                 )
                 add_message!(printlist, "Found SR3 cuts:      $(length(generated_SR3_list))\n", verbose)
+                # sample cuts if too many
+                if length(generated_SR3_list) ≤ max_SR3_cuts
+                    implemented_SR3_list = generated_SR3_list
+                else
+                    implemented_SR3_list = sample(
+                        generated_SR3_list, 
+                        Weights([val for (val, _) in generated_SR3_list]),
+                        max_SR3_cuts, 
+                        replace = false,
+                    )
+                    add_message!(printlist, "Sampled SR3 cuts:    $(length(implemented_SR3_list))\n", verbose)
+                end
             else
                 add_message!(printlist, "Found WSR3 cuts:     $(length(generated_SR3_list))\n", verbose)
-            end
-            # sample cuts if too many
-            if length(generated_SR3_list) + length(SR3_list) ≤ max_SR3_cuts
                 implemented_SR3_list = generated_SR3_list
-            else
-                implemented_SR3_list = sample(generated_SR3_list, max_SR3_cuts - length(SR3_list), replace = false)
-                add_message!(printlist, "Sampled SR3 cuts:    $(length(implemented_SR3_list))\n", verbose)
             end
             if length(implemented_SR3_list) != 0
                 if use_lmSR3_cuts
