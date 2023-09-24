@@ -916,7 +916,7 @@ function plot_instance(
     annotate!.(
         data.customer_coords[1,:] .+ 0.1, data.customer_coords[2,:], 
         text.(
-            collect(string(i) for i in 1:graph.n_customers), 
+            collect(string(i) for i in 1:data.n_customers), 
             :green, :left, 11
         )
     )
@@ -929,7 +929,7 @@ function plot_instance(
     annotate!.(
         data.depot_coords[1,:] .+ 0.1, data.depot_coords[2,:], 
         text.(
-            collect("M" * string(i) for i in 1:graph.n_depots), 
+            collect("M" * string(i) for i in 1:data.n_depots), 
             :black, :left, 11
         )
     )
@@ -942,7 +942,7 @@ function plot_instance(
     annotate!.(
         data.charging_coords[1,:] .+ 0.1, data.charging_coords[2,:], 
         text.(
-            collect("R" * string(i) for i in 1:graph.n_charging), 
+            collect("R" * string(i) for i in 1:data.n_charging), 
             :grey, :left, 11
         )
     )
