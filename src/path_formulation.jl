@@ -1119,27 +1119,19 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
 
     printlist = String[]
 
-    add_message!(
-        printlist,
+    start_printlist = String[]
+    push!(start_printlist, 
         @sprintf(
             """
             Starting column generation on the path formulation.
-            # customers:                    %2d
-            # depots:                       %2d
-            # charging stations:            %2d
-            # vehicles:                     %2d
+            # customers:                    %3d
+            # depots:                       %3d
+            # charging stations:            %3d
+            # vehicles:                     %3d
             time windows?:                  %s
 
             method:                         %s
-            ngroute:                        %s
-            ngroute_alt:                    %s
-            ngroute neighborhood size:
-                customers                   %2d
-                depots                      %s
-                charging                    %s
-
             use_smaller_graph:              %s
-
             """,
             graph.n_customers,
             graph.n_depots,
@@ -1147,15 +1139,73 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
             data.n_vehicles,
             time_windows,
             method,
-            true,
-            ngroute_alt,
-            ngroute_neighborhood_size,
-            ngroute_neighborhood_depots_size,
-            ngroute_neighborhood_charging_size,
             use_smaller_graph,
-        ),
-        verbose,
+        )
     )
+    if ngroute
+        push!(start_printlist, 
+            @sprintf(
+                """
+                ngroute:                        %s
+                ngroute_alt:                    %s
+                ngroute neighborhood size:
+                    customers                   %3d
+                    depots                      %s
+                    charging                    %s
+                """,
+                ngroute,
+                ngroute_alt,
+                ngroute_neighborhood_size,
+                ngroute_neighborhood_depots_size,
+                ngroute_neighborhood_charging_size,
+            )
+        )
+        push!(start_printlist,
+            @sprintf(
+                "use_adaptive_ngroute:           %s\n",
+                use_adaptive_ngroute
+            )
+        )
+        if use_SR3_cuts
+            push!(start_printlist,
+                @sprintf(
+                    """
+                    use_SR3_cuts:                   %s
+                        use_lmSR3_cuts:             %s
+                        max_SR3_cuts:               %3d
+                    """,
+                    use_SR3_cuts,
+                    use_lmSR3_cuts,
+                    max_SR3_cuts,
+                )
+            )
+        else
+            push!(start_printlist,
+                @sprintf(
+                    """
+                    use_SR3_cuts:                   %s
+                    """,
+                    use_SR3_cuts,
+                )
+            )
+        end
+    else
+        push!(start_printlist,
+            @sprintf(
+                """
+                ngroute:                        %s
+                elementary:                     %s
+                """,
+                ngroute,
+                elementary,
+            )
+        )
+    end
+
+    for message in start_printlist
+        add_message!(printlist, message, verbose)
+    end
+
     add_message!(
         printlist,
         @sprintf("              |  Objective | #    paths | Time (LP) | Time (SP) | Time (SP) | Time (LP) | #    paths \n"),
