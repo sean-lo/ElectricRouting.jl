@@ -504,10 +504,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
                         neighborhoods = neighborhoods,
                         ngroute = ngroute,
                         ngroute_alt = ngroute_alt,
-                        subpath_single_service = subpath_single_service,        
-                        subpath_check_customers = subpath_check_customers,
-                        path_single_service = path_single_service,
-                        path_check_customers = path_check_customers,
+                        elementary = elementary,
                         time_limit = time_limit - (time() - start_time),
                     )
                 elseif check_customers_accelerated && !checkpoint_reached
@@ -519,10 +516,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
                         Dict{NTuple{3, Int}, Float64}(),
                         ;
                         ngroute = false,
-                        subpath_single_service = subpath_single_service, 
-                        subpath_check_customers = false,
-                        path_single_service = path_single_service,
-                        path_check_customers = false,
+                        elementary = elementary,
                         time_limit = time_limit - (time() - start_time),
                     )
                     if negative_full_labels_count == 0
@@ -535,10 +529,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
                             Dict{NTuple{3, Int}, Float64}(),
                             ;
                             ngroute = false,
-                            subpath_single_service = subpath_single_service, 
-                            subpath_check_customers = subpath_check_customers,
-                            path_single_service = path_single_service,
-                            path_check_customers = path_check_customers,
+                            elementary = elementary,
                             time_limit = time_limit - (time() - start_time),
                         )
                         base_labels_time += base_labels_time_new
@@ -553,10 +544,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
                         Dict{NTuple{3, Int}, Float64}(),
                         ;
                         ngroute = false,
-                        subpath_single_service = subpath_single_service, 
-                        subpath_check_customers = subpath_check_customers,
-                        path_single_service = path_single_service,
-                        path_check_customers = path_check_customers,
+                        elementary = elementary,
                         time_limit = time_limit - (time() - start_time),
                     )
                 else
@@ -568,10 +556,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
                         Dict{NTuple{3, Int}, Float64}(),
                         ;
                         ngroute = false,
-                        subpath_single_service = subpath_single_service,
-                        subpath_check_customers = subpath_check_customers,
-                        path_single_service = path_single_service,
-                        path_check_customers = path_check_customers,
+                        elementary = elementary,
                         time_limit = time_limit - (time() - start_time),
                     )
                 end
@@ -613,8 +598,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
                         ngroute = ngroute,
                         ngroute_alt = ngroute_alt,
                         time_windows = time_windows,
-                        path_single_service = path_single_service,
-                        path_check_customers = path_check_customers,
+                        elementary = elementary,
                         time_limit = time_limit - (time() - start_time),
                     )
                 elseif check_customers_accelerated && !checkpoint_reached
@@ -626,8 +610,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
                         Dict{NTuple{3, Int}, Float64}(),
                         ;
                         time_windows = time_windows,
-                        path_single_service = true,
-                        path_check_customers = false,
+                        elementary = elementary,
                         time_limit = time_limit - (time() - start_time),
                     )
                     if negative_pure_path_labels_count == 0
@@ -640,8 +623,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
                             Dict{NTuple{3, Int}, Float64}(),
                             ;
                             time_windows = time_windows,
-                            path_single_service = true,
-                            path_check_customers = true,
+                            elementary = elementary,
                             time_limit = time_limit - (time() - start_time),
                         )
                         pure_path_labels_time += pure_path_labels_time_new
@@ -655,8 +637,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
                         Dict{NTuple{3, Int}, Float64}(),
                         ;
                         time_windows = time_windows,
-                        path_single_service = true,
-                        path_check_customers = true,
+                        elementary = elementary,
                         time_limit = time_limit - (time() - start_time),
                     )
                 else
@@ -668,8 +649,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
                         Dict{NTuple{3, Int}, Float64}(),
                         ;
                         time_windows = time_windows,
-                        path_single_service = path_single_service,
-                        path_check_customers = path_check_customers,
+                        elementary = elementary,
                         time_limit = time_limit - (time() - start_time),
                     )
                 end

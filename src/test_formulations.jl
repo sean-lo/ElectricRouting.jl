@@ -1787,10 +1787,7 @@ begin
             CGLP_results["ν"], 
             Dict{NTuple{3, Int}, Float64}(),
             ;
-            subpath_single_service = subpath_single_service,
-            subpath_check_customers = subpath_check_customers,
-            path_single_service = path_single_service,
-            path_check_customers = path_check_customers,
+            elementary = elementary,
         )
         (generated_paths) = get_paths_from_negative_path_labels(
             graph, negative_full_labels,
@@ -1816,8 +1813,6 @@ begin
             Dict{NTuple{3, Int}, Float64}(),
             ;
             time_windows = time_windows,
-            path_single_service = path_single_service,
-            path_check_customers = path_check_customers,
         )
         generated_paths = get_paths_from_negative_pure_path_labels(
             graph, negative_pure_path_labels,

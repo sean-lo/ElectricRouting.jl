@@ -376,15 +376,14 @@ function find_nondominated_paths(
     α::Vector{Int},
     β::Vector{Int},
     ;
-    single_service::Bool = false,
-    check_customers::Bool = true,
+    elementary::Bool = true,
     time_limit::Float64 = Inf,
 )
 
     start_time = time()
     modified_costs = compute_arc_modified_costs(graph, data, ν)
 
-    keylen = check_customers ? graph.n_customers + 3 : 3
+    keylen = elementary ? graph.n_customers + 3 : 3
     pure_path_labels = Dict(
         (starting_node, current_node) => SortedDict{
             Tuple{Float64, Vararg{Int, keylen}}, 
@@ -395,8 +394,9 @@ function find_nondominated_paths(
             current_node in graph.N_nodes
     )
 
-    if check_customers
+    if elementary
         # label key here has the following fields:
+        # 0) reduced cost
         # 1) current minimum time T_i(min)
         # 2) negative of current max charge -B_i(max)
         # 3) difference between min time and min charge, T_i(min) - B_i(min)
@@ -437,15 +437,14 @@ function find_nondominated_paths(
         end
         current_path = pure_path_labels[(starting_node, current_node)][current_key]
         for next_node in setdiff(outneighbors(graph.G, current_node), current_node)
-            if next_node in graph.N_customers
+            if (
+                next_node in graph.N_customers 
+                && elementary 
+                && current_path.served[next_node] > 0
+            )
                 # single-service requirement
-                if (
-                    single_service 
-                    && current_path.served[next_node] > 0
-                )
-                    # println("already served $next_node")
-                    continue
-                end
+                # println("already served $next_node")
+                continue
             end
 
             (feasible, new_path) = compute_new_pure_path(
@@ -454,12 +453,10 @@ function find_nondominated_paths(
                 data, graph,
                 α, β, modified_costs,
             )
-            if !feasible
-                continue
-            end
+            !feasible && continue
 
             # add new_path to collection
-            if check_customers
+            if elementary
                 new_key = (
                     new_path.cost,
                     new_path.time_mincharge, 
@@ -1407,8 +1404,7 @@ function subproblem_iteration_benchmark(
     ngroute::Bool = false,
     ngroute_alt::Bool = false,
     time_windows::Bool = false,
-    path_single_service::Bool = true,
-    path_check_customers::Bool = true,
+    elementary::Bool = true,
     time_limit::Float64 = Inf,
 ) where {T}
     start_time = time()
@@ -1472,8 +1468,7 @@ function subproblem_iteration_benchmark(
         pure_path_labels_result = @timed find_nondominated_paths(
             data, graph, κ, μ, ν, α, β,
             ;
-            single_service = path_single_service, 
-            check_customers = path_check_customers,
+            elementary = elementary,
             time_limit = time_limit - (time() - start_time),
         )
     end

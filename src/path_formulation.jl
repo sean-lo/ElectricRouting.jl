@@ -519,10 +519,7 @@ function path_formulation_column_generation!(
     ;
     method::String = "ours",
     time_windows::Bool = false,
-    subpath_single_service::Bool = false,
-    subpath_check_customers::Bool = false,
-    path_single_service::Bool = false,
-    path_check_customers::Bool = false,
+    elementary::Bool = true,
     neighborhoods::Union{Nothing, BitMatrix} = nothing,
     ngroute::Bool = false,
     ngroute_alt::Bool = false,
@@ -604,10 +601,7 @@ function path_formulation_column_generation!(
                     neighborhoods = neighborhoods,
                     ngroute = ngroute,
                     ngroute_alt = ngroute_alt,
-                    subpath_single_service = subpath_single_service,
-                    subpath_check_customers = subpath_check_customers,
-                    path_single_service = path_single_service,
-                    path_check_customers = path_check_customers,
+                    elementary = elementary,
                     time_limit = time_limit - (time() - start_time),
                 )
             catch e
@@ -647,8 +641,7 @@ function path_formulation_column_generation!(
                     ngroute = ngroute, 
                     ngroute_alt = ngroute_alt,
                     time_windows = time_windows,
-                    path_single_service = path_single_service,
-                    path_check_customers = path_check_customers,
+                    elementary = elementary,
                     time_limit = time_limit - (time() - start_time),
                 )
             catch e
@@ -1090,6 +1083,8 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
     Env = nothing,
     method::String = "ours",
     time_windows::Bool = false,
+    elementary::Bool = false,
+    ngroute::Bool = true,
     ngroute_alt::Bool = false,
     ngroute_neighborhood_size::Int = Int(ceil(sqrt(graph.n_customers))),
     ngroute_neighborhood_depots_size::String = "small",
@@ -1211,10 +1206,7 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
             ;
             method = method,
             time_windows = time_windows,
-            subpath_single_service = false,
-            subpath_check_customers = false,
-            path_single_service = false,
-            path_check_customers = false,
+            elementary = elementary,
             neighborhoods = neighborhoods,
             ngroute = true,
             ngroute_alt = ngroute_alt,
