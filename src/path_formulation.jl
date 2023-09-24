@@ -1298,6 +1298,9 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
         CGLP_results["paths"] = collect_path_solution_support(
             CGLP_results, some_paths, data, graph
         )
+        CGIP_results["paths"] = collect_path_solution_support(
+            CGIP_results, some_paths, data, graph
+        )
         
         iteration_params["CGLP_objective"] = CGLP_results["objective"]
         iteration_params["CGIP_objective"] = CGIP_results["objective"]
