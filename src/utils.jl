@@ -950,3 +950,37 @@ function plot_instance(
     plot!(legend = :outerright)
     return p
 end
+
+function compute_path_metrics(
+    some_paths::Dict{T, Vector{Path}},
+) where T
+    total_subpath_length = 0.0
+    num_subpaths = 0.0
+    total_path_length = 0.0
+    num_paths = 0.0
+    total_ps_length = 0.0
+    for path_l in values(some_paths)
+        for p in path_l
+            if (
+                length(p.subpaths) == 1 
+                && (
+                    p.subpaths[1].artificial # artificial path
+                    # || length(p.subpaths[1].arcs) == 1 # path from depot to depot
+                )
+            )
+                continue
+            end
+            total_subpath_length += sum(sum(s.served) + 1 for s in p.subpaths) 
+            num_subpaths += length(p.subpaths)
+            total_path_length += sum(p.served) + length(p.subpaths)
+            num_paths += 1
+            total_ps_length += length(p.subpaths)
+        end
+    end
+
+    return Dict(
+        "mean_subpath_length" => total_subpath_length / num_subpaths,
+        "mean_path_length" => total_path_length / num_paths,
+        "mean_ps_length" => total_ps_length / num_paths,
+    )
+end
