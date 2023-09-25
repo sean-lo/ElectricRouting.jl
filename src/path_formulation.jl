@@ -1284,6 +1284,8 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
         end
 
         # Termination criteria
+        CG_params["CGLP_objective"] = CGLP_results["objective"]
+        CG_params["CGIP_objective"] = CGIP_results["objective"]
         CG_params["LP_IP_gap"] = 1.0 - CGLP_results["objective"] / CGIP_results["objective"]
         for message in [
             @sprintf("\n"),
@@ -1301,11 +1303,13 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
             CGIP_results, some_paths, data, graph
         )
         
-        iteration_params["CGLP_objective"] = CGLP_results["objective"]
-        iteration_params["CGIP_objective"] = CGIP_results["objective"]
+        iteration_params["CGLP_objective"] = CG_params["CGLP_objective"]
+        iteration_params["CGIP_objective"] = CG_params["CGIP_objective"]
         iteration_params["CG_LP_IP_gap"] = CG_params["LP_IP_gap"]
         iteration_params["CG_time_taken"] = CG_params["time_taken"]
+        iteration_params["CG_sp_time_taken_mean"] = CG_params["sp_time_taken_mean"]
         iteration_params["method"] = "none"
+        iteration_params["ngroute_neighborhood_size"] = (graph.n_customers + graph.n_charging) * mean(neighborhoods[graph.N_customers, vcat(graph.N_customers, graph.N_charging)])
         iteration_params["cycles_lookup_length"] = 0
         iteration_params["implemented_SR3_cuts_count"] = 0
 
