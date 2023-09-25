@@ -532,7 +532,7 @@ function path_formulation_column_generation!(
     start_time = time()
     counter = 0
     converged = false
-    local CGLP_results
+    local CGLP_results = Dict{String, Any}()
 
     CG_params = Dict{String, Any}()
     CG_params["number_of_paths"] = [sum(length(v) for v in values(some_paths))]
