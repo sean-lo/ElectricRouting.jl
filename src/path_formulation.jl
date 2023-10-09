@@ -1312,6 +1312,7 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
         iteration_params["ngroute_neighborhood_size"] = (graph.n_customers + graph.n_charging) * mean(neighborhoods[graph.N_customers, vcat(graph.N_customers, graph.N_charging)])
         iteration_params["cycles_lookup_length"] = 0
         iteration_params["implemented_SR3_cuts_count"] = 0
+        iteration_params["time_limit_reached"] = false
 
         # check if converged
         if CGIP_results["objective"] ≈ CGLP_results["objective"]
@@ -1403,6 +1404,11 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
 
         push!(all_params, iteration_params)
 
+        if !(time_limit > time() - start_time)
+            iteration_params["time_limit_reached"] = true
+            break
+        end
+        
         if !continue_flag
             break
         end
