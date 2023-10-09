@@ -1313,7 +1313,7 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
         iteration_params["CG_time_taken"] = CG_params["time_taken"]
         iteration_params["CG_sp_time_taken_mean"] = CG_params["sp_time_taken_mean"]
         iteration_params["method"] = "none"
-        iteration_params["ngroute_neighborhood_size"] = (graph.n_customers + graph.n_charging) * mean(neighborhoods[graph.N_customers, vcat(graph.N_customers, graph.N_charging)])
+        iteration_params["ngroute_neighborhood_size"] = ngroute ? (graph.n_customers + graph.n_charging) * mean(neighborhoods[graph.N_customers, vcat(graph.N_customers, graph.N_charging)]) : 0
         iteration_params["cycles_lookup_length"] = 0
         iteration_params["implemented_SR3_cuts_count"] = 0
         iteration_params["converged"] = false
