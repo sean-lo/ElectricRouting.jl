@@ -547,6 +547,7 @@ function path_formulation_column_generation!(
     CG_params["sp_total_time_taken"] = Float64[]
     CG_params["lp_relaxation_constraint_time_taken"] = Float64[]
     CG_params["number_of_new_paths"] = Int[]
+    CG_params["converged"] = false
 
     if use_smaller_graph
         use_graph = prune_graph(graph, Int(ceil(sqrt(graph.n_customers))))
