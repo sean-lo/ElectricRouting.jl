@@ -1297,12 +1297,15 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
         ]
             add_message!(printlist, message, verbose)
         end
-        CGLP_results["paths"] = collect_path_solution_support(
-            CGLP_results, some_paths, data, graph
-        )
-        CGIP_results["paths"] = collect_path_solution_support(
-            CGIP_results, some_paths, data, graph
-        )
+
+        if CG_params["converged"]
+            CGLP_results["paths"] = collect_path_solution_support(
+                CGLP_results, some_paths, data, graph
+            )
+            CGIP_results["paths"] = collect_path_solution_support(
+                CGIP_results, some_paths, data, graph
+            )
+        end
         
         iteration_params["CGLP_objective"] = CG_params["CGLP_objective"]
         iteration_params["CGIP_objective"] = CG_params["CGIP_objective"]
@@ -1313,14 +1316,16 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
         iteration_params["ngroute_neighborhood_size"] = (graph.n_customers + graph.n_charging) * mean(neighborhoods[graph.N_customers, vcat(graph.N_customers, graph.N_charging)])
         iteration_params["cycles_lookup_length"] = 0
         iteration_params["implemented_SR3_cuts_count"] = 0
+        iteration_params["converged"] = false
         iteration_params["time_limit_reached"] = false
 
         # check if converged
         if CGIP_results["objective"] ≈ CGLP_results["objective"]
             converged = true
+            iteration_params["converged"] = true
         end
 
-        if !continue_flag && !converged && ngroute && use_adaptive_ngroute
+        if CG_params["converged"] && !continue_flag && !converged && ngroute && use_adaptive_ngroute
             # see if any path in solution was non-elementary
             cycles_lookup = detect_cycles_in_path_solution([p for (val, p) in CGLP_results["paths"]], graph)
             if length(cycles_lookup) > 0 
@@ -1334,7 +1339,7 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
             end
         end
 
-        if !continue_flag && !converged && ngroute && use_SR3_cuts
+        if CG_params["converged"] && !continue_flag && !converged && ngroute && use_SR3_cuts
             # if no path in solution was non-elementary, 
             # generate violated WSR3 inequalities
             generated_WSR3_list = enumerate_violated_path_WSR3_inequalities(
