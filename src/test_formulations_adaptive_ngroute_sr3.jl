@@ -84,19 +84,22 @@ for n_customers in [16, 20, 24, 28, 32],
     );
 end
 
-(n_customers, seed, ngroute_alt, ngroute_neighborhood_charging_size, method) = (20, 3, true, "small", "ours")
+(n_customers, seed, ngroute_alt, ngroute_neighborhood_charging_size, method) = (32, 3, true, "small", "ours")
 data = generate_instance(
     ;
     n_depots = 4,
     n_customers = n_customers,
-    n_charging = 7,
+    n_charging = 5,
     n_vehicles = 6,
-    depot_pattern = "circular",    
+    depot_pattern = "grid",
     customer_pattern = "random_box",
-    charging_pattern = "circular_packing",
-    shrinkage_depots = 1.0,
-    shrinkage_charging = 1.0,
-    T = 40000,
+    charging_pattern = "grid_clipped",
+    customer_spread = 0.1,
+    xmin = 0.0,
+    xmax = 2.0,
+    ymin = 0.0,
+    ymax = 2.0,
+    T = 54000,
     seed = seed,
     B = 15000,
     μ = 5,
@@ -120,8 +123,37 @@ r = path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
     verbose = true,
     use_adaptive_ngroute = true,
     use_SR3_cuts = true,
-    max_SR3_cuts = 10,
+    time_limit = 10.0
 );
+r[5][end]
+
+best_neighborhood = r[4][end]
+
+@btime @suppress path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
+    data, graph,
+    ;
+    method = method,
+    neighborhoods = best_neighborhood,
+    ngroute_alt = ngroute_alt,
+    verbose = true,
+    use_adaptive_ngroute = true,
+    use_SR3_cuts = false,
+);
+
+path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
+    data, graph,
+    ;
+    method = method,
+    ngroute_neighborhood_size = Int(ceil(sqrt(graph.n_customers))),
+    ngroute_neighborhood_depots_size = "small", 
+    ngroute_neighborhood_charging_size = "small", 
+    ngroute_alt = ngroute_alt,
+    verbose = true,
+    use_adaptive_ngroute = true,
+    use_SR3_cuts = false,
+);
+
+r[4][1]
 DataFrame(r[5])
 
 for (
