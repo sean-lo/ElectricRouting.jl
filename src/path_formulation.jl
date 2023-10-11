@@ -1564,21 +1564,21 @@ function plot_path_solution(
     paths,
 )
     results["paths"] = collect_path_solution_support(results, paths, data, graph)
-    return plot_solution(results, data)
+    return plot_solution(results["paths"], data)
 end
 
 
 function plot_solution(
-    results, 
+    results_paths::Vector{Tuple{Float64, Path}}, 
     data::EVRPData,
 )
     p = plot_instance(data)
     
-    n_paths = length(results["paths"]) 
+    n_paths = length(results_paths) 
     colors = get(ColorSchemes.tol_bright, collect(0:1:(n_paths-1)) ./(n_paths-1))
 
     all_plots = []
-    for (i, (val, path)) in enumerate(results["paths"])
+    for (i, (val, path)) in enumerate(results_paths)
         p = plot_instance(data)
         arcs = vcat(collect(s.arcs for s in path.subpaths)...)
         for (j, arc) in enumerate(arcs)
@@ -1602,4 +1602,11 @@ function plot_solution(
         fmt = :png,
     )
     return P
+end
+
+function plot_solution(
+    results::Dict{String, Any},
+    data::EVRPData,
+)
+    return plot_solution(results["paths"], data)
 end
