@@ -133,22 +133,28 @@ for density in density_range,
         )
     )
 end
-# results_df = vcat(
-#     [
-#         CSV.read(filepath, DataFrame)
-#         for filepath in glob("$(@__DIR__)/combined_*.csv")
-#     ]...
-# ) |>
-#     x -> select(
-#         x, 
-#         names(args_df)
-#     )
-# new_args_df = antijoin(
-#     args_df, 
-#     results_df, 
-#     on = names(results_df)
-# )
-new_args_df = args_df
+
+"$(@__DIR__)"
+
+glob("*.csv")
+results_df = vcat(
+    [
+        CSV.read(filepath, DataFrame)
+        for filepath in glob("combined_*.csv", "$(@__DIR__)")
+    ]...
+) |> x -> transform(
+    x, 
+    [:n_customers, :xmax, :ymax] => ((x, y, z) -> x ./ (y .* z)) => :density,
+) |>
+    x -> select(
+        x, names(args_df)
+    )
+new_args_df = antijoin(
+    args_df, 
+    results_df, 
+    on = names(results_df)
+)
+# new_args_df = args_df
 CSV.write("$(@__DIR__)/args.csv", new_args_df)
 
 test_args_df = args_df |> 

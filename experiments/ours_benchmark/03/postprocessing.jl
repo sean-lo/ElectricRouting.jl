@@ -1,5 +1,8 @@
 using DataFrames, CSV
 using DelimitedFiles
+using StatsBase
+using ColorSchemes
+using Plots
 
 results = CSV.read("$(@__DIR__)/combined.csv", DataFrame)
 # results.density .= results.n_customers ./ (results.xmax .* 2)
@@ -177,7 +180,7 @@ begin
             get(ColorSchemes.viridis, collect(0:1:(length(density_range)-1)) ./(length(density_range)-1))
         )
     )
-    plot(
+    Plots.plot(
         xlabel = "Time taken (s)",
         xscale = :log,
         xticks = xticks,
@@ -424,8 +427,7 @@ LP_IP_gap_ours_elementary_df = make_pivottable(
 using ColorSchemes
 using CairoMakie
 
-begin 
-    # masked time taken ratio
+begin # masked time taken ratio
 
     density_range = collect(1.5:0.5:4.0)
     TB_range = collect(2.5:0.5:4.0)
@@ -457,9 +459,9 @@ begin
     cmin = 1.0
 
 
-    fig = CairoMakie.Figure(resolution = (500, 900), fontsize = 15)
+    fig = CairoMakie.Figure(resolution = (500, 900), fontsize = 18)
     grid = fig[1,1] = GridLayout()
-    fig[0,:] = Label(fig, "Ratio of time taken: our method against benchmark", font = :bold, fontsize = 17)
+    fig[0,:] = Label(fig, "Ratio of time taken: our method against benchmark", font = :bold, fontsize = 18)
     for (ind, data) in enumerate(datas)
         if ind == length(datas)
             ax = Axis(
@@ -513,8 +515,7 @@ begin
     save("$(@__DIR__)/plots/time_taken_ratio_heatmap_masked.pdf", fig)
 end
 
-begin 
-    # time taken ratio
+begin # time taken ratio
 
     density_range = collect(1.5:0.5:4.0)
     TB_range = collect(2.5:0.5:4.0)
@@ -545,9 +546,9 @@ begin
     cmin, cmax = extrema(vcat(datas...))
 
 
-    fig = CairoMakie.Figure(resolution = (500, 900), fontsize = 15)
+    fig = CairoMakie.Figure(resolution = (500, 900), fontsize = 18)
     grid = fig[1,1] = GridLayout()
-    fig[0,:] = Label(fig, "Ratio of time taken: our method against benchmark", font = :bold, fontsize = 17)
+    fig[0,:] = Label(fig, "Ratio of time taken: our method against benchmark", font = :bold, fontsize = 18)
     for (ind, data) in enumerate(datas)
         if ind == length(datas)
             ax = Axis(
@@ -593,23 +594,88 @@ begin
     save("$(@__DIR__)/plots/time_taken_ratio_heatmap.png", fig)
 end
 
-begin 
-    # masked time taken percent gap
+begin # single masked time taken percent gap
 
     density_range = collect(1.5:0.5:4.0)
     TB_range = collect(2.5:0.5:4.0)
 
-    time_taken_none_percent_gap = Matrix(make_pivottable(
+    time_taken_none_percent_gap = -Matrix(make_pivottable(
         filtered_summary,
         false, false, false, 
         :time_taken_filtered, :percent_gap
     )[end:-1:1,2:end])
-    time_taken_elementary_percent_gap = Matrix(make_pivottable(
+    data = time_taken_none_percent_gap
+
+    cmin, cmax = (-100, 0)
+
+    fig = CairoMakie.Figure(resolution = (600, 400), fontsize = 18)
+    mygrid = fig[1,1] = GridLayout()
+    fig[0,1] = Label(
+        fig, 
+        "% reduction in time taken: our method against benchmark", 
+        font = :bold, fontsize = 18
+    )
+    
+    ax = Axis(
+        mygrid[1,1],
+        xlabel = "Customer density",
+        xticks = density_range,
+        ylabel = "Time horizon",
+        yticks = TB_range,
+        # title = titles[ind],
+    )
+
+    density_range_unfolded = repeat(density_range, inner = length(TB_range))
+    TB_range_unfolded = repeat(TB_range, outer = length(density_range))
+    mask = findall(!isnan, vec(data))
+    CairoMakie.heatmap!(
+        ax,
+        density_range_unfolded[mask],
+        TB_range_unfolded[mask],
+        vec(data)[mask],
+        colorrange = (cmin, cmax),
+        colormap = Makie.Reverse(:viridis),
+    )
+    for (density, TB, val) in zip(
+        density_range_unfolded[mask],
+        TB_range_unfolded[mask],
+        vec(data)[mask],
+    )
+        textcolor = val > -50 ? :white : :black
+        text!(
+            ax, 
+            string(Int(round(val, digits = 0))) * "%",
+            fontsize = 22,
+            position = (density, TB),
+            color = textcolor,
+            align = (:center, :center),
+        )
+    end
+    Colorbar(mygrid[:,end+1], colorrange = (cmin, cmax), colormap = Makie.Reverse(:viridis))
+    colgap!(mygrid, 20)
+    rowgap!(mygrid, 10)
+    display(fig)
+
+    save("$(@__DIR__)/plots/time_taken_percent_gap_heatmap_masked_single.pdf", fig)
+    save("$(@__DIR__)/plots/time_taken_percent_gap_heatmap_masked_single.png", fig)
+end
+
+begin # masked time taken percent gap
+
+    density_range = collect(1.5:0.5:4.0)
+    TB_range = collect(2.5:0.5:4.0)
+
+    time_taken_none_percent_gap = -Matrix(make_pivottable(
+        filtered_summary,
+        false, false, false, 
+        :time_taken_filtered, :percent_gap
+    )[end:-1:1,2:end])
+    time_taken_elementary_percent_gap = -Matrix(make_pivottable(
         filtered_summary,
         true, false, false, 
         :time_taken_filtered, :percent_gap
     )[end:-1:1,2:end])
-    time_taken_ngroute_percent_gap = Matrix(make_pivottable(
+    time_taken_ngroute_percent_gap = -Matrix(make_pivottable(
         filtered_summary,
         false, true, true, 
         :time_taken_filtered, :percent_gap
@@ -624,27 +690,26 @@ begin
 
     # cmax = extrema(vcat([vec(x)[findall(!isnan, vec(x))] for x in datas]...))[2]
     # cmin = extrema(vcat([vec(x)[findall(!isnan, vec(x))] for x in datas]...))[1]
-    cmin, cmax = (0, 100)
+    cmin, cmax = (-100, 0)
 
-
-    fig = CairoMakie.Figure(resolution = (600, 900), fontsize = 15)
-    grid = fig[1,1] = GridLayout()
-    fig[0,:] = Label(fig, "% improvement in time taken: our method against benchmark", font = :bold, fontsize = 17)
+    fig = CairoMakie.Figure(resolution = (600, 900), fontsize = 18)
+    mygrid = fig[1,1] = GridLayout()
+    fig[0,:] = Label(fig, "% reduction in time taken: our method against benchmark", font = :bold, fontsize = 18)
     for (ind, data) in enumerate(datas)
         if ind == length(datas)
             ax = Axis(
-                grid[ind,1],
+                mygrid[ind,1],
                 xlabel = "Customer density",
                 xticks = density_range,
-                ylabel = "T / B",
+                ylabel = "Time horizon",
                 yticks = TB_range,
                 title = titles[ind],
             )
         else
             ax = Axis(
-                grid[ind,1],
+                mygrid[ind,1],
                 xticks = density_range,
-                ylabel = "T / B",
+                ylabel = "Time horizon",
                 yticks = TB_range,
                 title = titles[ind],
             )
@@ -658,48 +723,49 @@ begin
             TB_range_unfolded[mask],
             vec(data)[mask],
             colorrange = (cmin, cmax),
+            colormap = Makie.Reverse(:viridis),
         )
         for (density, TB, val) in zip(
             density_range_unfolded[mask],
             TB_range_unfolded[mask],
             vec(data)[mask],
         )
-            textcolor = val < 50 ? :white : :black
+            textcolor = val > -50 ? :white : :black
             text!(
                 ax, 
                 string(round(val, digits = 2)),
                 position = (density, TB),
                 color = textcolor,
                 align = (:center, :center),
+                fontsize = 18,
             )
         end
     end
-    Colorbar(grid[:,end+1], colorrange = (cmin, cmax))
-    colgap!(grid, 20)
-    rowgap!(grid, 10)
+    Colorbar(mygrid[:,end+1], colorrange = (cmin, cmax), colormap = Makie.Reverse(:viridis))
+    colgap!(mygrid, 20)
+    rowgap!(mygrid, 10)
     display(fig)
 
     save("$(@__DIR__)/plots/time_taken_percent_gap_heatmap_masked.pdf", fig)
     save("$(@__DIR__)/plots/time_taken_percent_gap_heatmap_masked.png", fig)
 end
 
-begin 
-    # time taken percent gap
+begin # time taken percent gap
 
     density_range = collect(1.5:0.5:4.0)
     TB_range = collect(2.5:0.5:4.0)
 
-    time_taken_none_percent_gap = Matrix(make_pivottable(
+    time_taken_none_percent_gap = -Matrix(make_pivottable(
         filtered_summary,
         false, false, false, 
         :time_taken, :percent_gap
     )[end:-1:1,2:end])
-    time_taken_elementary_percent_gap = Matrix(make_pivottable(
+    time_taken_elementary_percent_gap = -Matrix(make_pivottable(
         filtered_summary,
         true, false, false, 
         :time_taken, :percent_gap
     )[end:-1:1,2:end])
-    time_taken_ngroute_percent_gap = Matrix(make_pivottable(
+    time_taken_ngroute_percent_gap = -Matrix(make_pivottable(
         filtered_summary,
         false, true, true, 
         :time_taken, :percent_gap
@@ -712,27 +778,26 @@ begin
     ]
     titles = ["No elementarity", "ng-route", "Elementary"]
 
-    cmin, cmax = (0, 100)
+    cmin, cmax = (-100, 0)
 
-
-    fig = CairoMakie.Figure(resolution = (600, 900), fontsize = 15)
-    grid = fig[1,1] = GridLayout()
-    fig[0,:] = Label(fig, "% improvement in time taken: our method against benchmark", font = :bold, fontsize = 17)
+    fig = CairoMakie.Figure(resolution = (600, 900), fontsize = 18)
+    mygrid = fig[1,1] = GridLayout()
+    fig[0,:] = Label(fig, "% reduction in time taken: our method against benchmark", font = :bold, fontsize = 18)
     for (ind, data) in enumerate(datas)
         if ind == length(datas)
             ax = Axis(
-                grid[ind,1],
+                mygrid[ind,1],
                 xlabel = "Customer density",
                 xticks = density_range,
-                ylabel = "T / B",
+                ylabel = "Time horizon",
                 yticks = TB_range,
                 title = titles[ind],
             )
         else
             ax = Axis(
-                grid[ind,1],
+                mygrid[ind,1],
                 xticks = density_range,
-                ylabel = "T / B",
+                ylabel = "Time horizon",
                 yticks = TB_range,
                 title = titles[ind],
             )
@@ -743,21 +808,23 @@ begin
             TB_range,
             data',
             colorrange = (cmin, cmax),
+            colormap = Makie.Reverse(:viridis),
         )
         for i in 1:length(density_range), j in 1:length(TB_range)
-            textcolor = data'[i,j] < 6 ? :white : :black
+            textcolor = data'[i,j] > -50 ? :white : :black
             text!(
                 ax, 
                 string(round(data'[i,j], digits = 2)),
                 position = (density_range[i], TB_range[j]),
                 color = textcolor,
                 align = (:center, :center),
+                fontsize = 18,
             )
         end
     end
-    Colorbar(grid[:,end+1], colorrange = (cmin, cmax))
-    colgap!(grid, 20)
-    rowgap!(grid, 10)
+    Colorbar(mygrid[:,end+1], colorrange = (cmin, cmax), colormap = Makie.Reverse(:viridis))
+    colgap!(mygrid, 20)
+    rowgap!(mygrid, 10)
 
     save("$(@__DIR__)/plots/time_taken_percent_gap_heatmap.pdf", fig)
     save("$(@__DIR__)/plots/time_taken_percent_gap_heatmap.png", fig)

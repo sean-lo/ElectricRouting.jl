@@ -118,9 +118,70 @@ summary = (
 )
 
 # Plotting: aggregate grouped bar plots with StatsPlots
-# begin
-
+# For presentation
 using StatsPlots
+begin
+    T_range = 72000:9000:90000
+    ngroute_neighborhood_charging_size_range = ["small", "medium"]
+    groupnames = ["CG", "CG + acceleration", "CG + acceleration + cuts"]
+    sizenames = string.(20:4:40)
+    for T in T_range, ngroute_neighborhood_charging_size in ngroute_neighborhood_charging_size_range
+        data_df = (
+            summary 
+            |> x -> filter(
+                r -> (
+                    r.T == T
+                    && r.ngroute_neighborhood_charging_size == ngroute_neighborhood_charging_size
+                ),
+                x
+            )
+        )
+        time_taken_df = (
+            data_df
+            |> x -> filter(r -> r.use_lmSR3_cuts, x) 
+            |> x -> select(x, :n_customers, :time_taken_first, :time_taken_total, :time_taken_total_SR3)
+        )
+        LP_IP_gap_df = (
+            data_df
+            |> x -> filter(r -> r.use_lmSR3_cuts, x) 
+            |> x -> select(x, :n_customers, :LP_IP_gap_first, :LP_IP_gap_last, :LP_IP_gap_last_SR3)
+        )
+
+        p1 = groupedbar(
+            repeat(sizenames, outer = length(groupnames)),
+            Matrix(time_taken_df[!, 2:end]),
+            group = repeat(groupnames, inner = length(sizenames)),
+            barwidth = 0.75,
+            framestyle = :box,
+            xlabel = "# customers",
+            yscale = :log10,
+            ylabel = "Time taken (s)",
+            ylim = 10.0.^(-0.5, 4.0),
+            yticks = 10.0.^(0:1:4),
+            legend = :topleft,
+        )
+        hline!([3600], linestyle = :dash, label = false, color = :black)
+        savefig(p1, "$(@__DIR__)/plots/time_taken_groupedbar_simple_$(T)_$ngroute_neighborhood_charging_size.pdf")
+        savefig(p1, "$(@__DIR__)/plots/time_taken_groupedbar_simple_$(T)_$ngroute_neighborhood_charging_size.png")
+        p2 = groupedbar(
+            repeat(sizenames, outer = length(groupnames)),
+            Matrix(LP_IP_gap_df[!, 2:end]),
+            group = repeat(groupnames, inner = length(sizenames)),
+            barwidth = 0.75,
+            framestyle = :box,
+            xlabel = "# customers",
+            yscale = :log10,
+            ylabel = "Optimality gap (%)",
+            ylim = 10.0.^(-2.5, 2),
+            yticks = 10.0.^(-3:1:2),
+            legend = :left,
+        )        
+        savefig(p2, "$(@__DIR__)/plots/LP_IP_gap_groupedbar_simple_$(T)_$ngroute_neighborhood_charging_size.pdf")
+        savefig(p2, "$(@__DIR__)/plots/LP_IP_gap_groupedbar_simple_$(T)_$ngroute_neighborhood_charging_size.png")
+    end
+end
+
+# Plotting: aggregate grouped bar plots with StatsPlots
 begin
     T_range = 72000:9000:90000
     ngroute_neighborhood_charging_size_range = ["small", "medium"]

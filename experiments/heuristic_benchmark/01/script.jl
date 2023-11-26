@@ -107,16 +107,27 @@ function run_instance(
 
     some_paths_metrics = compute_path_metrics(some_paths)
     
-    heuristic_run = @timed path_formulation_decomposition_heuristic(
-        data, graph;
-        elementary = false,
-        ngroute = true,
-        ngroute_alt = true,
-        use_adaptive_ngroute = heuristic_use_adaptive_ngroute,
-        use_SR3_cuts = heuristic_use_SR3_cuts,
-        use_lmSR3_cuts = heuristic_use_lmSR3_cuts,
-        time_heuristic_slack = 0.9,
-    );
+    local heuristic_run
+
+    try
+        heuristic_run = @timed path_formulation_decomposition_heuristic(
+            data, graph;
+            elementary = false,
+            ngroute = true,
+            ngroute_alt = true,
+            use_adaptive_ngroute = heuristic_use_adaptive_ngroute,
+            use_SR3_cuts = heuristic_use_SR3_cuts,
+            use_lmSR3_cuts = heuristic_use_lmSR3_cuts,
+            time_heuristic_slack = 0.9,
+        );
+    catch e
+        if isa(e, CGException)
+            println("Row $row_index errored due to CGException.:\n $(args_df[row_index, :])")
+            return
+        else
+            throw(e)
+        end
+    end
     (
         hCGIP_result, 
         heuristic_results,
@@ -188,7 +199,7 @@ end
 begin
     test_args_df = DataFrame(CSV.File("$(@__DIR__)/test_args.csv"))
     for i in 1:nrow(test_args_df)
-        run_instance(
+        @suppress run_instance(
             test_args_df, i, 3600.0,
             ;
             write_log = false,
