@@ -979,15 +979,14 @@ function path_formulation_column_generation_nocharge!(
         )
         
         if length(generated_paths) == 0
-            push!(CG_params["number_of_new_paths"], 0)
+            added_num_paths = 0
             converged = true
         else
-            push!(
-                CG_params["number_of_new_paths"],
-                sum(length(v) for v in values(generated_paths))
-            )
+            added_num_paths = sum(length(v) for v in values(generated_paths))
         end
+        push!(CG_params["number_of_new_paths"], added_num_paths)
 
+        current_num_paths = sum(length(v) for v in values(some_paths))
         mp_constraint_time = add_paths_to_path_model!(
             model,
             z,
@@ -998,10 +997,11 @@ function path_formulation_column_generation_nocharge!(
             Dict{Tuple{Int, 3}, ConstraintRef}(),
             data, graph,
         )
+        new_num_paths = sum(length(v) for v in values(some_paths))
 
         push!(
             CG_params["number_of_paths"], 
-            sum(length(v) for v in values(some_paths))
+            new_num_paths,
         )
         push!(
             CG_params["lp_relaxation_constraint_time_taken"],
@@ -1022,6 +1022,9 @@ function path_formulation_column_generation_nocharge!(
             ),
             verbose,
         )
+        if current_num_paths + added_num_paths != new_num_paths
+            throw(CGException())
+        end
     end
 
     CG_params["converged"] = converged

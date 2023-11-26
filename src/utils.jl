@@ -192,6 +192,7 @@ struct EVRPGraph
 end
 
 struct TimeLimitException <: Exception end
+struct CGException <: Exception end
 
 function add_message!(
     printlist::Vector{String}, 
