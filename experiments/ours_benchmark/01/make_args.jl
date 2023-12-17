@@ -2,7 +2,7 @@ using CSV
 using DataFrames
 using Glob
 
-seed_range = collect(1:10)
+seed_range = collect(1:20)
 
 # data_params
 (
@@ -32,15 +32,22 @@ seed_range = collect(1:10)
     1, 0.2,
 )
 
-xmax_range = [1.0, 2.0, 3.0]
 n_customers_range = [12, 15, 18, 21]
-k_range = [
-    1.5, 2.0, 2.5, 3.0
+# k_range = [
+    # 2.5, 3.0, 3.5, 4.0,
+# ]
+# xmax_range = [2.0, 3.0, 4.0,]
+xmax_k_range = [
+    (2.0, 2.0),
+    (2.0, 2.5),
+    (2.0, 3.0),
+    (3.0, 3.0),
+    (2.0, 3.5),
+    (3.0, 3.5),
+    (3.0, 4.0),
+    (4.0, 4.0),
 ]
-# n_charging = Int((xmax - xmin + 1)*(ymax - ymin + 1) - 4)
-k = 1.5
-T = Int(B * k * (μ + 1) / μ)
-# n_vehicles = 6
+density_range = [1.5, 2.0, 2.5, 3.0, 3.5, 4.0]
 
 setting_params = [
     # load
@@ -63,6 +70,7 @@ method_params = [
 ]
 
 args_df = DataFrame(
+    density = Float64[],
     n_depots = Int[],
     n_customers = Int[],
     n_charging = Int[],
@@ -95,9 +103,8 @@ args_df = DataFrame(
     ngroute = Bool[],
     ngroute_alt = Bool[],
 )
-for xmax in xmax_range,
-    n_customers in n_customers_range,
-    k in k_range,
+for density in density_range,
+    (xmax, k) in xmax_k_range,
     method_param in method_params, 
     setting_param in setting_params,
     seed in seed_range
@@ -105,11 +112,13 @@ for xmax in xmax_range,
         # time_windows not compatible with "ours" (for now)
         continue
     end
+    n_customers = Int(density * (xmax - xmin) * (ymax - ymin))
     n_charging = Int((xmax - xmin + 1)*(ymax - ymin + 1) - 4)
     T = Int(B * k * (μ + 1) / μ)
     n_vehicles = 6
     push!(args_df, 
         (
+            density,
             n_depots,
             n_customers,
             n_charging,
@@ -156,16 +165,42 @@ end
 new_args_df = args_df
 CSV.write("$(@__DIR__)/args.csv", new_args_df)
 
-test_args_df = filter(
-    r -> (
-        r.seed == 1
-        && r.xmax == 1.0
-        && r.T == 27000
-        && (
-            r.elementary == true
-            || r.n_customers == 12
-        )
-    ),
-    args_df
+test_args_df = vcat(
+    args_df |> 
+        x -> filter(
+            r -> (
+                r.seed == 1
+                && r.density == 1.5
+                && r.xmax == 2.0
+                && r.T == 36000
+            ),
+            x
+        ),
+    args_df |> 
+        x -> filter(
+            r -> (
+                r.seed == 1
+                && r.elementary == true
+                && r.method == "benchmark"
+            ),
+            x
+        ) |> 
+        x -> unique(
+            x,
+            [:n_customers]
+        ),
+    args_df |> 
+        x -> filter(
+            r -> (
+                r.seed == 1
+                && r.elementary == true
+                && r.method == "ours"
+            ),
+            x
+        ) |> 
+        x -> unique(
+            x,
+            [:n_customers]
+        ),
 )
 CSV.write("$(@__DIR__)/test_args.csv", test_args_df)

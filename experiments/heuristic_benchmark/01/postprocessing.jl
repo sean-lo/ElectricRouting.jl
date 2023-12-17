@@ -1,6 +1,8 @@
 using DataFrames, CSV
 using DelimitedFiles
-using StatsPlots
+using Glob
+using StatsBase
+using CairoMakie
 
 results = vcat(
     [

@@ -1,14 +1,16 @@
 using DataFrames, CSV
 using DelimitedFiles
+using StatsBase
+using ColorSchemes
+using Plots
 
 results = CSV.read("$(@__DIR__)/combined.csv", DataFrame)
 names(results)
 
-
+args = CSV.read("$(@__DIR__)/args.csv", DataFrame)
+args.index = collect(1:nrow(args))
 # merge individual CSVs in results folder
 begin
-    args = CSV.read("$(@__DIR__)/args.csv", DataFrame)
-    args.index = collect(1:nrow(args))
     all_dfs = DataFrame[]
     for ind in 1:nrow(args)
         data = CSV.read("$(@__DIR__)/results/$ind.csv", DataFrame)

@@ -1,6 +1,8 @@
 using DataFrames, CSV
 using DelimitedFiles
+using StatsBase
 using StatsPlots
+using ColorSchemes
 
 results = CSV.read("$(@__DIR__)/combined.csv", DataFrame)
 names(results)
@@ -119,7 +121,6 @@ summary = (
 
 # Plotting: aggregate grouped bar plots with StatsPlots
 # For presentation
-using StatsPlots
 begin
     T_range = 72000:9000:90000
     ngroute_neighborhood_charging_size_range = ["small", "medium"]
@@ -269,6 +270,19 @@ begin
     end
 end
 
+
+data = (
+    summary 
+    |> x -> filter(
+        r -> (
+            r.ngroute_neighborhood_charging_size == "small"
+            && r.n_customers == 20
+            && r.T == Int(5 * 15000 * (μ + 1)/μ)
+        ),
+        x
+    )
+)
+
 # Plotting: aggregate 
 begin
 
@@ -301,14 +315,14 @@ begin
         )
         
         for n_customers in n_customers_range
-            println("$n_customers, $TB")
+            println("$n_customers, $T")
             data = (
                 summary 
                 |> x -> filter(
                     r -> (
                         r.ngroute_neighborhood_charging_size == ngroute_neighborhood_charging_size
                         && r.n_customers == n_customers
-                        && r.T == Int(TB * 15000 * (μ + 1)/μ)
+                        && r.T == T
                     ),
                     x
                 )

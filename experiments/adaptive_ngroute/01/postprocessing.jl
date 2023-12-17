@@ -1,5 +1,8 @@
 using DataFrames, CSV
 using DelimitedFiles
+using StatsBase
+using ColorSchemes
+using Plots
 
 results = CSV.read("$(@__DIR__)/combined.csv", DataFrame)
 
