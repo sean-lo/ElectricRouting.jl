@@ -4,17 +4,17 @@ using StatsBase
 using StatsPlots
 using ColorSchemes
 
-results = CSV.read("$(@__DIR__)/combined.csv", DataFrame)
+results = CSV.read("$(@__DIR__)/../01/combined.csv", DataFrame)
 names(results)
 
 
+args = CSV.read("$(@__DIR__)/../01/args.csv", DataFrame)
+args.index = collect(1:nrow(args))
 # merge individual CSVs in results folder
 begin
-    args = CSV.read("$(@__DIR__)/args.csv", DataFrame)
-    args.index = collect(1:nrow(args))
     all_dfs = DataFrame[]
     for ind in 1:nrow(args)
-        data = CSV.read("$(@__DIR__)/results/$ind.csv", DataFrame)
+        data = CSV.read("$(@__DIR__)/../01/results/$ind.csv", DataFrame)
         data.instance .= ind
         data.iteration .= collect(1:nrow(data))
         push!(all_dfs, data)
@@ -117,6 +117,38 @@ summary = (
         :neighborhood_size_mean_last => mean => :neighborhood_size_mean_last,
         :neighborhood_size_mean_last_SR3 => mean => :neighborhood_size_mean_last_SR3,
         :implemented_SR3_cuts_count_total => mean => :implemented_SR3_cuts_count,
+    )
+)
+
+
+
+(
+    summary 
+    |> x -> unstack(
+        x, 
+        [:n_customers, :T, :use_lmSR3_cuts],
+        :ngroute_neighborhood_charging_size,
+        # :time_taken_total_SR3,
+        :LP_IP_gap_last_SR3,
+    )
+    |> x -> show(
+        x, 
+        allrows = true,
+    )
+)
+
+(
+    summary 
+    |> x -> unstack(
+        x, 
+        [:n_customers, :T, :ngroute_neighborhood_charging_size,],
+        :use_lmSR3_cuts,
+        :time_taken_total_SR3,
+        # :LP_IP_gap_last_SR3,
+    )
+    |> x -> show(
+        x, 
+        allrows = true,
     )
 )
 
