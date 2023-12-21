@@ -15,6 +15,7 @@ seed_range = collect(1:50)
     xmin,
     ymin,
     ymax,
+    B, 
     μ,
     travel_cost_coeff,
     charge_cost_coeff,
@@ -26,13 +27,12 @@ seed_range = collect(1:50)
 ) = (
     6, 4, "grid", "random_box", "grid_clipped", 
     0.2, 0.0, 0.0, 2.0,
-    5,
+    15000, 5,
     7, 3, 
     5.0, 20.0, 1.3,
     1, 0.2,
 )
 
-B_range = [15000, 20000]
 xmax_k_range = [
     # k is proportional to time horizon
     # xmax defines the grid area
@@ -44,7 +44,7 @@ xmax_k_range = [
 density_range = [
     # number of customers per unit area
     # multiply by xmax * ymax (= 8) to get number of customers
-    6.25, 7.5, 8.75, 10.0,
+    2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 5.5, 6.0,
 ]
 setting_params = [
     # load
@@ -56,8 +56,8 @@ method_params = [
     # ngroute_neighborhood_charging_size
     # use_lmSR3_cuts
     # max_SR3_cuts
-    # ("ours", "small", false, 10),
-    ("ours", "small", true, 10),
+    ("ours", "small", false, 10),
+    # ("ours", "small", true, 10),
     # ("ours", "medium", false, 10),
     # ("ours", "medium", true, 10),
 ]
@@ -96,8 +96,7 @@ args_df = DataFrame(
     use_lmSR3_cuts = Bool[],
     max_SR3_cuts = Int[],
 )
-for B in B_range,
-    (xmax, k) in xmax_k_range,
+for (xmax, k) in xmax_k_range,
     density in density_range,
     method_param in method_params, 
     setting_param in setting_params,
@@ -156,6 +155,12 @@ end
 #     on = names(results_df)
 # )
 new_args_df = args_df
+sort!(
+    new_args_df,
+    [
+        order(:n_customers),
+    ],
+)
 CSV.write("$(@__DIR__)/args.csv", new_args_df)
 
 test_args_df = args_df |> 
