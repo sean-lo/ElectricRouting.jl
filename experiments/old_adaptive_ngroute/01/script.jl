@@ -48,18 +48,6 @@ function run_instance(
     
     method = String(args_df[row_index, :method])
     ngroute_neighborhood_charging_size = String(args_df[row_index, :ngroute_neighborhood_charging_size])
-    ngroute_neighborhood_size_string = String(args_df[row_index, :ngroute_neighborhood_size_string])
-    if ngroute_neighborhood_size_string == "1"
-        ngroute_neighborhood_size = 1
-    elseif ngroute_neighborhood_size_string == "cbrt"
-        ngroute_neighborhood_size = Int(ceil(cbrt(n_customers)))
-    elseif ngroute_neighborhood_size_string == "sqrt"
-        ngroute_neighborhood_size = Int(ceil(sqrt(n_customers)))
-    elseif ngroute_neighborhood_size_string == "third"
-        ngroute_neighborhood_size = n_customers ÷ 3
-    elseif ngroute_neighborhood_size_string == "all"
-        ngroute_neighborhood_size = n_customers
-    end
 
     data = generate_instance(
         n_depots = n_depots,
@@ -98,7 +86,7 @@ function run_instance(
         elementary = false,
         ngroute = true,
         ngroute_alt = true,
-        ngroute_neighborhood_size = ngroute_neighborhood_size,
+        ngroute_neighborhood_size = Int(ceil(sqrt(graph.n_customers))),
         ngroute_neighborhood_depots_size = "small",
         ngroute_neighborhood_charging_size = ngroute_neighborhood_charging_size,
         verbose = true,
@@ -148,7 +136,7 @@ function run_instance(
             elementary = false,
             ngroute = true,
             ngroute_alt = true,
-            ngroute_neighborhood_size = ngroute_neighborhood_size,
+            ngroute_neighborhood_size = Int(ceil(sqrt(graph.n_customers))),
             ngroute_neighborhood_depots_size = "small",
             ngroute_neighborhood_charging_size = ngroute_neighborhood_charging_size,
             use_smaller_graph = false,
@@ -156,14 +144,11 @@ function run_instance(
             use_SR3_cuts = false,
             use_lmSR3_cuts = false,
             # Time taken
-            time_taken_first = all_params_df[1, :CG_time_taken],
-            time_taken_total = sum(all_params_df[1:end, :CG_time_taken]),
+            time_taken_first = CG_all_params[1]["time_taken"],
+            time_taken_total = run.time,
             sp_time_taken_mean_first = CG_all_params[1]["sp_time_taken_mean"],
             sp_time_taken_mean_last = CG_all_params[end]["sp_time_taken_mean"],
             # n_iterations
-            converged = all_params_df[end, :converged],
-            time_limit = time_limit,
-            time_limit_reached = all_params_df[end, :time_limit_reached],
             n_iterations = length(CG_all_params),
             n_CG_iterations = sum(CG_params["counter"] for CG_params in CG_all_params),
             # Objective values and gaps
@@ -199,7 +184,7 @@ begin
     test_args_df = DataFrame(CSV.File("$(@__DIR__)/test_args.csv"))
     for i in 1:nrow(test_args_df)
         run_instance(
-            test_args_df, i, 100.0,
+            test_args_df, i, 3600.0,
             ;
             write_log = false,
             write_results = false,

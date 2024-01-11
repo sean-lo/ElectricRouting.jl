@@ -34,14 +34,11 @@ seed_range = collect(1:20)
 )
 
 xmax_k_range = [
-    # k is proportional to time horizon
-    # xmax defines the grid area
-    # (ymax fixed at 2)
+    (4.0, 4.0),
+    (4.0, 4.5),
     (4.0, 5.0),
 ]
 density_range = [
-    # number of customers per unit area
-    # multiply by xmax * ymax (= 8) to get number of customers
     2.5, 3.0, 3.5, 4.0, 4.5, 
 ]
 setting_params = [
@@ -52,15 +49,10 @@ setting_params = [
 method_params = [
     # method
     # ngroute_neighborhood_charging_size
-    # ngroute_neighborhood_size_string
-    ("ours", "small", "1"),
-    ("ours", "small", "cbrt"),
-    ("ours", "medium", "cbrt"),
-    ("ours", "small", "sqrt"),
-    ("ours", "medium", "sqrt"),
-    ("ours", "small", "third"),
-    ("ours", "medium", "third"),
-    ("ours", "medium", "all"),
+    ("benchmark", "small"),
+    ("ours", "small"),
+    ("benchmark", "medium"),
+    ("ours", "medium"),
 ]
 
 args_df = DataFrame(
@@ -94,11 +86,10 @@ args_df = DataFrame(
 
     method = String[],
     ngroute_neighborhood_charging_size = String[],
-    ngroute_neighborhood_size_string = String[],
 )
-for method_param in method_params, 
-    (xmax, k) in xmax_k_range,
+for (xmax, k) in xmax_k_range,
     density in density_range,
+    method_param in method_params, 
     setting_param in setting_params,
     seed in seed_range
     if setting_param[2] == true && method_param[1] == "ours" 
@@ -161,8 +152,8 @@ test_args_df = args_df |>
     x -> filter(
         r -> (
             r.seed == 1
-            && r.density == minimum(density_range)
-            && r.T == 90000
+            && r.density == 2.5
+            && r.T == 72000
         ),
         x
     )

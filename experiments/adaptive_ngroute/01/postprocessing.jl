@@ -1,26 +1,32 @@
 using DataFrames, CSV
 using DelimitedFiles
+using Glob
 using StatsBase
+using StatsPlots
 using ColorSchemes
-using Plots
+using CairoMakie
 
 results = CSV.read("$(@__DIR__)/combined.csv", DataFrame)
+names(results)
 
-# merge individual CSVs in results folder
-begin
-    args = CSV.read("$(@__DIR__)/args.csv", DataFrame)
-    args.index = collect(1:nrow(args))
-    all_dfs = DataFrame[]
-    for ind in 1:nrow(args)
-        data = CSV.read("$(@__DIR__)/results/$ind.csv", DataFrame)
-        data.instance .= ind
-        data.iteration .= collect(1:nrow(data))
-        push!(all_dfs, data)
-    end
-    all_data = vcat(all_dfs...)
-    select!(all_data, [:instance, :iteration], Not([:instance, :iteration]))
-    CSV.write("$(@__DIR__)/all_results.csv", all_data)
-end
+args = CSV.read("$(@__DIR__)/args.csv", DataFrame)
+args.index = collect(1:nrow(args))
+
+# # merge individual CSVs in results folder
+# begin
+#     all_dfs = DataFrame[]
+#     for ind in 1:nrow(args)
+#         fp = "$(@__DIR__)/results/$ind.csv"
+#         !isfile(fp) && continue
+#         data = CSV.read(fp, DataFrame)
+#         data.instance .= ind
+#         data.iteration .= collect(1:nrow(data))
+#         push!(all_dfs, data)
+#     end
+#     all_data = vcat(all_dfs...)
+#     select!(all_data, [:instance, :iteration], Not([:instance, :iteration]))
+#     CSV.write("$(@__DIR__)/all_results.csv", all_data)
+# end
 
 data_fields = [
     :n_customers,
@@ -30,183 +36,136 @@ data_fields = [
 ]
 method_fields = [
     :method,
+    :ngroute_neighborhood_size,
     :ngroute_neighborhood_charging_size,
 ]
+
 
 (
     results 
     |> x -> sort!(
         x, 
-        vcat(data_fields,  [:seed], method_fields),
+        vcat(data_fields, [:seed], method_fields),
     )
 )
 
 results.LP_IP_gap_first .*= 100
 results.LP_IP_gap_last .*= 100
 
-summary = (
-    results 
-    |> x -> groupby(
-        x, 
-        vcat(data_fields, method_fields)
-    )
+results.LP_IP_gap_first .= max.(results.LP_IP_gap_first, 0)
+results.LP_IP_gap_last .= max.(results.LP_IP_gap_last, 0)
+
+all_results = CSV.read("$(@__DIR__)/all_results.csv", DataFrame)
+all_results.CG_LP_IP_gap .*= 100
+all_results.CG_LP_IP_gap .= ifelse.(all_results.CG_LP_IP_gap .≤ 1e-10, 0.0, all_results.CG_LP_IP_gap)
+
+all_results = outerjoin(all_results, args, on = :instance => :index, makeunique = true)
+select!(all_results, Not(:method_1))
+
+method_args_fields = [
+    :method,
+    :ngroute_neighborhood_size_string,
+    :ngroute_neighborhood_charging_size,
+]
+
+all_summary = (
+    all_results
+    |> x -> groupby(x, :instance)
     |> x -> combine(
         x, 
-        nrow,
-        :time_taken_first => geomean => :time_taken_first,
-        :time_taken_total => geomean => :time_taken_total,
-        :sp_time_taken_mean_first => geomean => :sp_time_taken_mean_first,
-        :sp_time_taken_mean_last => geomean => :sp_time_taken_mean_last,
-        :LP_IP_gap_first => mean => :LP_IP_gap_first,
-        :LP_IP_gap_last => mean => :LP_IP_gap_last,
-        :neighborhood_size_mean_first => mean => :neighborhood_size_mean_first,
-        :neighborhood_size_mean_last => mean => :neighborhood_size_mean_last,
+        :CG_time_taken => first => :CG_time_taken_first,
+        :CG_time_taken => sum => :CG_time_taken_last,
+        :CGLP_objective => (x -> first(x) / last(x)) => :LP_objective_first,
+        :CGLP_objective => (x -> 1.0) => :LP_objective_last,
+        :CG_LP_IP_gap => first => :LP_IP_gap_first,
+        :CG_LP_IP_gap => last => :LP_IP_gap_last,
+    )
+    |> x -> outerjoin(x, args, on = :instance => :index)
+    |> x -> groupby(x, vcat(data_fields, method_args_fields))
+    |> x -> combine(
+        x, 
+        :CG_time_taken_first => geomean => :CG_time_taken_first,
+        :CG_time_taken_last => geomean => :CG_time_taken_last,
+        :LP_objective_first => geomean => :LP_objective_first,
+        :LP_objective_last => geomean => :LP_objective_last,
+        :LP_IP_gap_first => (x -> geomean(x .+ 100) - 100) => :LP_IP_gap_first,
+        :LP_IP_gap_last => (x -> geomean(x .+ 100) - 100) => :LP_IP_gap_last,
+    )
+    |> x -> sort!(
+        x, :n_customers,
     )
 )
 
-# Plotting: aggregate 
-begin
-    μ = 5
-    B = 15000
-    density_range = collect(2.5:0.5:4.5)
-    n_customers_range = Int.(density_range * 8)
-    # TB_range = collect(4.0:0.5:5.0)
-    TB_range = collect(4.0:0.5:4.0)
-    
-    colors = Dict(
-        n_customers => c
-        for (n_customers, c) in zip(
-            n_customers_range[end:-1:1],
-            get(ColorSchemes.viridis, collect(0:1:(length(n_customers_range)-1)) ./(length(n_customers_range)-1))
-        )
-    )
 
-    plot(
-        xlabel = "Time taken (s)", 
-        ylabel = "Optimality gap (%)",
-        xscale = :log10,
-        ylim = (0.0, 100.0),
-    )
-    
-    for n_customers in n_customers_range,
-        TB in TB_range
-        println("$n_customers, $TB")
-        data = (
-            summary 
-            |> x -> filter(
-                r -> (
-                    r.ngroute_neighborhood_charging_size == "small"
-                    && r.n_customers == n_customers
-                    && r.T == Int(TB * 15000 * (μ + 1)/μ)
-                ),
-                x
-            )
-        )
-        plot!(
-            (
-                data 
-                |> x -> collect(filter(
-                    r -> (
-                        r.method == "benchmark"
-                    ),
-                    x
-                )[1, [:time_taken_first, :time_taken_total]])
-            ),
-            (
-                data 
-                |> x -> collect(filter(
-                    r -> (
-                        r.method == "benchmark"
-                    ),
-                    x
-                )[1, [:LP_IP_gap_first, :LP_IP_gap_last]])
-            ),
-            shape = :circle,
-            label = "$n_customers customers, T/B = $TB",
-            color = colors[n_customers],
-        )
-        plot!(
-            (
-                data 
-                |> x -> collect(filter(
-                    r -> (
-                        r.method == "ours"
-                    ),
-                    x
-                )[1, [:time_taken_first, :time_taken_total]])
-            ),
-            (
-                data 
-                |> x -> collect(filter(
-                    r -> (
-                        r.method == "ours"
-                    ),
-                    x
-                )[1, [:LP_IP_gap_first, :LP_IP_gap_last]])
-            ),
-            shape = :square,
-            label = "$n_customers customers, T/B = $TB, ours",
-            color = colors[n_customers],
-        )
-    end
-    plot!(legend = :topright, legendfontsize = 7)
-end
-
-# Plotting: granular
-
-
-all_results = CSV.read("$(@__DIR__)/all_results.csv", DataFrame)
-all_results = all_results |>
-    x -> groupby(x, :instance) |>
-    x -> transform(
-        x, 
-        :CG_time_taken => cumsum,
-        :CG_LP_IP_gap => (x -> x .* 100) => :CG_LP_IP_gap,
-    )
-
-begin
-    xmax = 4.0
-    k = 4.0
-    density = 2.5
-    method = "ours"
-    ngroute_neighborhood_charging_size = "small"
-
-    B = 15000
-    μ = 5
-    args = CSV.read("$(@__DIR__)/args.csv", DataFrame)
-    args.index = collect(1:nrow(args))
-    instances = filter(
+(
+    all_summary
+    |> x -> filter!(
         r -> (
-            r.xmax == xmax
-            # && r.k == k
-            && r.T == Int(B * k * (μ + 1) / μ)
-            && r.density == density
-            && r.method == method
-            && r.ngroute_neighborhood_charging_size == ngroute_neighborhood_charging_size
+            r.ngroute_neighborhood_charging_size == "small"
+            # r.ngroute_neighborhood_charging_size == "medium"
+            || 
+            r.ngroute_neighborhood_size_string == "all"
+            # r.ngroute_neighborhood_size_string == "1"
         ),
-        args
-    )[!, :index]
-
-    plot(
-        xlabel = "Time taken (s)",
-        # xscale = :log10,
-        ylabel = "Objective gap (%)",
-        ylim = (-2.0, 50.0),
-        xlim = (0.0, 3.5),
+        x
     )
-    for ind in instances
-        data = all_results |> 
-            x -> filter(
-                r -> r.instance == ind,
-                all_results,
-            )
-        plot!(
-            data.CG_time_taken_cumsum,
-            data.CG_LP_IP_gap,
-            shape = :circle,
-            # color = :black,
+)
+
+
+
+n_customers_range = unique(all_summary.n_customers)
+colors = Dict(
+    n_customers => c
+    for (n_customers, c) in zip(
+        n_customers_range[end:-1:1],
+        get(ColorSchemes.viridis, collect(0:1:(length(n_customers_range)-1)) ./(length(n_customers_range)-1))
+    )
+)
+
+for ngroute_neighborhood_charging_size in ["small", "medium"]
+    for varname in ["LP_IP_gap", "LP_objective"]
+        p = Plots.plot(
+            figsize = (500, 400),
+            xscale = :log10,
+            format = :png,
+        )
+        Plots.hline!(
+            [varname == "LP_IP_gap" ? 0.0 : 1.0],
+            color = :black,
+            style = :dash,
             label = false,
         )
+        for n_customers in n_customers_range
+            data = filter(
+                r -> (
+                    r.n_customers == n_customers
+                    && (
+                        r.ngroute_neighborhood_charging_size == ngroute_neighborhood_charging_size
+                        || r.ngroute_neighborhood_size_string in ["1", "all"]
+                    )
+                ),
+                all_summary
+            )
+            for ngroute_neighborhood_size_string in ["1", "cbrt", "sqrt", "third", "all"]
+                data1 = filter(r -> r.ngroute_neighborhood_size_string == ngroute_neighborhood_size_string, data)
+                Plots.plot!(
+                    [data1[1,:CG_time_taken_first], data1[1,:CG_time_taken_last]],
+                    [data1[1, varname * "_first"], data1[1, varname * "_last"]],
+                    label = false,
+                    shape = [:none, :dtriangle],
+                    color = colors[n_customers],
+                )
+            end
+            Plots.plot!(
+                data.CG_time_taken_first,
+                data[:, varname * "_first"],
+                shape = :circ,
+                style = :dash,
+                color = colors[n_customers],
+                label = "$n_customers customers"
+            )
+        end
+        savefig(p, "$(@__DIR__)/plots/$(varname)_time_$(ngroute_neighborhood_charging_size)_pareto.png")
+        savefig(p, "$(@__DIR__)/plots/$(varname)_time_$(ngroute_neighborhood_charging_size)_pareto.pdf")
     end
-    plot!(legend = :topright)
 end
