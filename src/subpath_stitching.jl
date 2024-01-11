@@ -2095,7 +2095,8 @@ end
 function compute_new_path(
     current_path::PathLabel,
     s::BaseSubpathLabel,
-    state::NTuple{2, Int},
+    current_time::Int,
+    current_charge::Int,
     next_node::Int,
     data::EVRPData,
     graph::EVRPGraph,
@@ -2110,11 +2111,13 @@ function compute_new_path(
 
     # time horizon and charge feasibility
     (delta, end_time, end_charge) = charge_to_specified_level(
-        - state[2], # current charge
-        s.charge_taken, 
-        state[1], # current time
+        current_charge,
+        s.charge_taken, # desired charge  
+        current_time,
     )
-    if end_time + s.time_taken + graph.min_t[next_node] > graph.T
+    end_time += s.time_taken
+    end_charge -= s.charge_taken
+    if end_time + graph.min_t[next_node] > graph.T
         return (false, current_path, 0, 0)
     end
 
@@ -2195,7 +2198,7 @@ function find_nondominated_paths_notimewindows(
         # label key here has the following fields:
         # 0) current reduced cost
         # 1) current time
-        # 2) negative of current charge
+        # 2) time - charge
         # 3) if applicable, whether i-th customer served
         key = (0.0, 0, -graph.B, zeros(Int, graph.n_customers)...,)
         unexplored_states = SortedSet{Tuple{Float64, Int, Int, Vararg{Int, graph.n_customers + 2}}}()
@@ -2253,16 +2256,21 @@ function find_nondominated_paths_notimewindows(
                 end
 
                 (feasible, new_path, end_time, end_charge) = compute_new_path(
-                    current_path, s, state[2:3], next_node, 
-                    data, graph,
+                    current_path, 
+                    s, 
+                    state[2],
+                    state[2] - state[3],
+                    next_node, 
+                    data, 
+                    graph,
                 )
                 !feasible && continue
 
                 if elementary
                     new_key = (
                         new_path.cost,
-                        end_time + s.time_taken, 
-                        - (end_charge - s.charge_taken),
+                        end_time, 
+                        end_time - end_charge,
                         new_path.served...,
                     )
                     added = add_path_label_to_collection_nodelabels!(
@@ -2273,8 +2281,8 @@ function find_nondominated_paths_notimewindows(
                 else
                     new_key = (
                         new_path.cost,
-                        end_time + s.time_taken, 
-                        - (end_charge - s.charge_taken),
+                        end_time, 
+                        end_time - end_charge,
                     )
                     added = add_path_label_to_collection!(
                         full_labels[(starting_node, next_node)],
@@ -2295,7 +2303,7 @@ function find_nondominated_paths_notimewindows(
         # label key here has the following fields:
         # 0) current reduced cost
         # 1) current time
-        # 2) negative of current charge
+        # 2) time - charge
         # 3) if applicable, whether i-th customer served
         key = (0.0, 0, -graph.B, zeros(Int, graph.n_customers)...,)
     else
@@ -2372,6 +2380,10 @@ function find_nondominated_paths_notimewindows_ngroute(
     for depot in graph.N_depots
         node_labels = falses(graph.n_nodes)
         node_labels[depot] = true
+        # label key here has the following fields:
+        # 0) current reduced cost
+        # 1) current time
+        # 2) time - charge
         key = (0.0, 0, -graph.B,)
         full_labels[(depot, depot)][node_labels] = SortedDict{
             Tuple{Float64, Int, Int},
@@ -2418,15 +2430,20 @@ function find_nondominated_paths_notimewindows_ngroute(
                     )
                     !feasible && continue
                     (feasible, new_path, end_time, end_charge) = compute_new_path(
-                        current_path, s, state[2:3], next_node, 
-                        data, graph,
+                        current_path, 
+                        s, 
+                        state[2],
+                        state[2] - state[3],
+                        next_node, 
+                        data, 
+                        graph,
                     )
                     !feasible && continue
 
                     new_key = (
                         new_path.cost,
-                        end_time + s.time_taken, 
-                        - (end_charge - s.charge_taken),
+                        end_time, 
+                        end_time - end_charge,
                     )
                     
                     if !(new_set in keys(full_labels[(starting_node, next_node)]))
@@ -2453,7 +2470,7 @@ function find_nondominated_paths_notimewindows_ngroute(
     # label key here has the following fields:
     # 0) current reduced cost
     # 1) current time
-    # 2) negative of current charge
+    # 2) time - charge
     key = (0.0, 0, -graph.B)
     for depot in graph.N_depots
         node_labels = falses(graph.n_nodes)
@@ -2522,6 +2539,10 @@ function find_nondominated_paths_notimewindows_ngroute_alt(
     for depot in graph.N_depots
         node_labels = falses(graph.n_nodes)
         node_labels[depot] = true
+        # label key here has the following fields:
+        # 0) current reduced cost
+        # 1) current time
+        # 2) time - charge
         key = (0.0, 0, -graph.B)
         full_labels[(depot, depot)][(key..., node_labels)] = PathLabel(
             0.0,
@@ -2561,15 +2582,20 @@ function find_nondominated_paths_notimewindows_ngroute_alt(
                 )
                 !feasible && continue
                 (feasible, new_path, end_time, end_charge) = compute_new_path(
-                    current_path, s, state[2:3], next_node, 
-                    data, graph,
+                    current_path, 
+                    s, 
+                    state[2],
+                    state[2] - state[3],
+                    next_node, 
+                    data, 
+                    graph,
                 )
                 !feasible && continue
 
                 new_key = (
                     new_path.cost,
-                    end_time + s.time_taken, 
-                    - (end_charge - s.charge_taken),
+                    end_time, 
+                    end_time - end_charge,
                 )
                 added = add_path_label_to_collection_ngroute_alt!(
                     full_labels[(starting_node, next_node)],
@@ -2587,7 +2613,7 @@ function find_nondominated_paths_notimewindows_ngroute_alt(
     # label key here has the following fields:
     # 0) current reduced cost
     # 1) current time
-    # 2) negative of current charge
+    # 2) time - charge
     key = (0.0, 0, -graph.B)
     for depot in graph.N_depots
         node_labels = falses(graph.n_nodes)
@@ -2662,6 +2688,11 @@ function find_nondominated_paths_notimewindows_ngroute_lambda(
         λ_labels = falses(length(λ))
         node_labels = falses(graph.n_nodes)
         node_labels[depot] = true
+        # label key here has the following fields:
+        # 0) current reduced cost
+        # 1) current time
+        # 2) time - charge
+        # 3) one binary label per SR3 inequality added
         key = (0.0, 0, -graph.B, λ_labels,)
         full_labels[(depot, depot)][node_labels] = SortedDict{
             Tuple{Float64, Int, Int, BitVector},
@@ -2709,8 +2740,13 @@ function find_nondominated_paths_notimewindows_ngroute_lambda(
                     )
                     !feasible && continue
                     (feasible, new_path, end_time, end_charge) = compute_new_path(
-                        current_path, s, state[2:3], next_node, 
-                        data, graph,
+                        current_path, 
+                        s, 
+                        state[2],
+                        state[2] - state[3],
+                        next_node, 
+                        data, 
+                        graph,
                     )
                     !feasible && continue
                     new_path_λ_labels = compute_new_path_lambda!(
@@ -2719,8 +2755,8 @@ function find_nondominated_paths_notimewindows_ngroute_lambda(
 
                     new_key = (
                         new_path.cost,
-                        end_time + s.time_taken, 
-                        - (end_charge - s.charge_taken),
+                        end_time, 
+                        end_time - end_charge,
                         new_path_λ_labels,
                     )
                     
@@ -2748,7 +2784,7 @@ function find_nondominated_paths_notimewindows_ngroute_lambda(
     # label key here has the following fields:
     # 0) current reduced cost
     # 1) current time
-    # 2) negative of current charge
+    # 2) time - charge
     # 3) one binary label per SR3 inequality added
     key = (0.0, 0, -graph.B, falses(length(λ)))
     for depot in graph.N_depots
@@ -2821,6 +2857,11 @@ function find_nondominated_paths_notimewindows_ngroute_alt_lambda(
         λ_labels = falses(length(λ))
         node_labels = falses(graph.n_nodes)
         node_labels[depot] = true
+        # label key here has the following fields:
+        # 0) current reduced cost
+        # 1) current time
+        # 2) time - charge
+        # 3) one binary label per SR3 inequality added
         key = (0.0, 0, -graph.B)
         full_labels[(depot, depot)][(key..., λ_labels, node_labels)] = PathLabel(
             0.0,
@@ -2862,8 +2903,13 @@ function find_nondominated_paths_notimewindows_ngroute_alt_lambda(
                 )
                 !feasible && continue
                 (feasible, new_path, end_time, end_charge) = compute_new_path(
-                    current_path, s, state[2:3], next_node, 
-                    data, graph,
+                    current_path, 
+                    s, 
+                    state[2],
+                    state[2] - state[3],
+                    next_node, 
+                    data, 
+                    graph,
                 )
                 !feasible && continue
                 new_path_λ_labels = compute_new_path_lambda!(
@@ -2872,8 +2918,8 @@ function find_nondominated_paths_notimewindows_ngroute_alt_lambda(
 
                 new_key = (
                     new_path.cost,
-                    end_time + s.time_taken, 
-                    - (end_charge - s.charge_taken),
+                    end_time, 
+                    end_time - end_charge,
                 )
                 added = add_path_label_to_collection_ngroute_alt_lambda!(
                     full_labels[(starting_node, next_node)],
@@ -2891,7 +2937,7 @@ function find_nondominated_paths_notimewindows_ngroute_alt_lambda(
     # label key here has the following fields:
     # 0) current reduced cost
     # 1) current time
-    # 2) negative of current charge
+    # 2) time - charge
     key = (0.0, 0, -graph.B)
     for depot in graph.N_depots
         node_labels = falses(graph.n_nodes)
@@ -2967,6 +3013,11 @@ function find_nondominated_paths_notimewindows_ngroute_lambda_lmSR3(
         λ_labels = falses(length(λ))
         node_labels = falses(graph.n_nodes)
         node_labels[depot] = true
+        # label key here has the following fields:
+        # 0) current reduced cost
+        # 1) current time
+        # 2) time - charge
+        # 3) one binary label per SR3 inequality added
         key = (0.0, 0, -graph.B, λ_labels,)
         full_labels[(depot, depot)][node_labels] = SortedDict{
             Tuple{Float64, Int, Int, BitVector},
@@ -3014,8 +3065,13 @@ function find_nondominated_paths_notimewindows_ngroute_lambda_lmSR3(
                     )
                     !feasible && continue
                     (feasible, new_path, end_time, end_charge) = compute_new_path(
-                        current_path, s, state[2:3], next_node, 
-                        data, graph,
+                        current_path, 
+                        s, 
+                        state[2],
+                        state[2] - state[3],
+                        next_node, 
+                        data, 
+                        graph,
                     )
                     !feasible && continue
                     new_path_λ_labels = compute_new_path_lambda_lmSR3!(
@@ -3025,8 +3081,8 @@ function find_nondominated_paths_notimewindows_ngroute_lambda_lmSR3(
 
                     new_key = (
                         new_path.cost,
-                        end_time + s.time_taken, 
-                        - (end_charge - s.charge_taken),
+                        end_time, 
+                        end_time - end_charge,
                         new_path_λ_labels,
                     )
                     
@@ -3054,7 +3110,7 @@ function find_nondominated_paths_notimewindows_ngroute_lambda_lmSR3(
     # label key here has the following fields:
     # 0) current reduced cost
     # 1) current time
-    # 2) negative of current charge
+    # 2) time - charge
     # 3) one binary label per SR3 inequality added
     key = (0.0, 0, -graph.B, falses(length(λ)))
     for depot in graph.N_depots
@@ -3127,6 +3183,10 @@ function find_nondominated_paths_notimewindows_ngroute_alt_lambda_lmSR3(
         λ_labels = falses(length(λ))
         node_labels = falses(graph.n_nodes)
         node_labels[depot] = true
+        # label key here has the following fields:
+        # 0) current reduced cost
+        # 1) current time
+        # 2) time - charge
         key = (0.0, 0, -graph.B)
         full_labels[(depot, depot)][(key..., λ_labels, node_labels)] = PathLabel(
             0.0,
@@ -3168,8 +3228,13 @@ function find_nondominated_paths_notimewindows_ngroute_alt_lambda_lmSR3(
                 )
                 !feasible && continue
                 (feasible, new_path, end_time, end_charge) = compute_new_path(
-                    current_path, s, state[2:3], next_node, 
-                    data, graph,
+                    current_path, 
+                    s, 
+                    state[2],
+                    state[2] - state[3],
+                    next_node, 
+                    data, 
+                    graph,
                 )
                 !feasible && continue
                 new_path_λ_labels = compute_new_path_lambda_lmSR3!(
@@ -3179,8 +3244,8 @@ function find_nondominated_paths_notimewindows_ngroute_alt_lambda_lmSR3(
 
                 new_key = (
                     new_path.cost,
-                    end_time + s.time_taken, 
-                    - (end_charge - s.charge_taken),
+                    end_time, 
+                    end_time - end_charge,
                 )
                 added = add_path_label_to_collection_ngroute_alt_lambda!(
                     full_labels[(starting_node, next_node)],
@@ -3198,7 +3263,7 @@ function find_nondominated_paths_notimewindows_ngroute_alt_lambda_lmSR3(
     # label key here has the following fields:
     # 0) current reduced cost
     # 1) current time
-    # 2) negative of current charge
+    # 2) time - charge
     key = (0.0, 0, -graph.B)
     for depot in graph.N_depots
         node_labels = falses(graph.n_nodes)
