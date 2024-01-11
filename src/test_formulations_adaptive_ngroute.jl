@@ -16,7 +16,6 @@ all_results = DataFrame(
     ngroute_neighborhood_depots_size = String[],
     ngroute_neighborhood_charging_size = String[],
     method = String[],
-    ngroute_alt = Bool[],
     time_taken_first = Float64[],
     time_taken_total = Float64[],
     n_iterations = Int[],
@@ -33,11 +32,11 @@ all_results = DataFrame(
 
 # compilation
 for n_customers in [16, 20, 24],
-    (method, ngroute_alt) in [
-        ("benchmark", false),
-        ("benchmark", true),
-        ("ours", false),
-        ("ours", true),
+    (method,) in [
+        ("benchmark",),
+        ("benchmark",),
+        ("ours",),
+        ("ours",),
     ]
     data = generate_instance(
         ;
@@ -70,7 +69,6 @@ for n_customers in [16, 20, 24],
         ngroute_neighborhood_size = Int(ceil(sqrt(graph.n_customers))),
         ngroute_neighborhood_depots_size = "small", 
         ngroute_neighborhood_charging_size = "small", 
-        ngroute_alt = ngroute_alt,
         verbose = true,
         use_adaptive_ngroute = true,
         use_SR3_cuts = false,
@@ -78,14 +76,12 @@ for n_customers in [16, 20, 24],
 end
 
 for (
-    ngroute_alt,
     ngroute_neighborhood_depots_size, 
     ngroute_neighborhood_charging_size,
     seed, 
     n_customers, 
     method, 
 ) in Iterators.product(
-    [true, false],
     ["small",],
     # ["small",],
     ["small", "medium"],
@@ -124,7 +120,6 @@ for (
         data, graph,
         ;
         method = method,
-        ngroute_alt = ngroute_alt,
         ngroute_neighborhood_size = Int(ceil(sqrt(graph.n_customers))),
         ngroute_neighborhood_depots_size = ngroute_neighborhood_depots_size,
         ngroute_neighborhood_charging_size = ngroute_neighborhood_charging_size,
@@ -144,7 +139,6 @@ for (
             ngroute_neighborhood_depots_size,
             ngroute_neighborhood_charging_size,
             method,
-            ngroute_alt,
             CG_all_params[1]["time_taken"],
             run.time,
             length(CG_all_params),
@@ -160,7 +154,7 @@ for (
         )
     )
     # println("""
-    # $method\t$ngroute_alt\t$(n_customers)
+    # $method\t$(n_customers)
     # $(ngroute_neighborhood_depots_size)\t$(ngroute_neighborhood_charging_size)\t$(seed)
     # Completed in $(run.time) s.
     # $(CGLP_all_results[1]["objective"]),\t$(CGLP_all_results[end]["objective"])
@@ -173,7 +167,7 @@ for (
     %9.2f\t%9.2f
 
     """,
-        method, ngroute_alt, n_customers, 
+        method, n_customers, 
         ngroute_neighborhood_depots_size, ngroute_neighborhood_charging_size, seed,
         run.time,
         CGLP_all_results[1]["objective"], CGLP_all_results[end]["objective"],
@@ -201,11 +195,11 @@ for group in (
     |> x -> stack(
         x, 
         [:LP_objective_first, :LP_objective_last, :IP_objective_first, :IP_objective_last,],
-        [:seed, :n_customers, :method, :ngroute_alt, :ngroute_neighborhood_charging_size,]
+        [:seed, :n_customers, :method, :ngroute_neighborhood_charging_size,]
     )
     |> x -> sort(
         x, 
-        [:seed, :n_customers, :method, :ngroute_alt, :ngroute_neighborhood_charging_size,]
+        [:seed, :n_customers, :method, :ngroute_neighborhood_charging_size,]
     )
     |> x -> groupby(
         x, 
@@ -243,10 +237,6 @@ for group in (
         filter(r -> r.method == "ours", group_lp_first).value
         .≈ filter(r -> r.method == "benchmark", group_lp_first).value
     )
-    @test all(
-        filter(r -> r.ngroute_alt == true, group_lp_first).value
-        .≈ filter(r -> r.ngroute_alt == false, group_lp_first).value
-    )
     group_lp_last = filter(r -> r.variable == "LP_objective_last", group)
     @test all(
         filter(r -> r.ngroute_neighborhood_charging_size == "small", group_lp_last).value
@@ -255,10 +245,6 @@ for group in (
     @test all(
         filter(r -> r.method == "ours", group_lp_last).value
         .≈ filter(r -> r.method == "benchmark", group_lp_last).value
-    )
-    @test all(
-        filter(r -> r.ngroute_alt == true, group_lp_last).value
-        .≈ filter(r -> r.ngroute_alt == false, group_lp_last).value
     )
     println("$(group.n_customers[1]), $(group.seed[1])")
 end
@@ -274,7 +260,7 @@ end
     )
     |> x -> select(
         x, 
-        [:ngroute_neighborhood_charging_size, :method, :ngroute_alt, :LP_objective_first, :LP_objective_last, :IP_objective_first, :IP_objective_last,]
+        [:ngroute_neighborhood_charging_size, :method, :LP_objective_first, :LP_objective_last, :IP_objective_first, :IP_objective_last,]
     )
 )
 
@@ -287,7 +273,6 @@ summary = (
     |> x -> groupby(x, [
         :method, 
         :n_customers,
-        :ngroute_alt,
         :ngroute_neighborhood_charging_size,
     ])
     |> x -> combine(
@@ -308,7 +293,6 @@ summary_c = (
     |> x -> groupby(x, [
         :method, 
         :n_customers,
-        :ngroute_alt,
         :ngroute_neighborhood_charging_size,
     ])
     |> x -> combine(
@@ -328,7 +312,7 @@ summary_c = (
     summary 
     |> x -> unstack(
         x, 
-        [:method, :ngroute_alt, :ngroute_neighborhood_charging_size,],
+        [:method, :ngroute_neighborhood_charging_size,],
         :n_customers,
         :time_taken_first_geomean,
     )
@@ -337,7 +321,7 @@ summary_c = (
     summary_c
     |> x -> unstack(
         x, 
-        [:method, :ngroute_alt, :ngroute_neighborhood_charging_size,],
+        [:method, :ngroute_neighborhood_charging_size,],
         :n_customers,
         :time_taken_first_geomean,
     )
@@ -347,7 +331,7 @@ summary_c = (
     summary_c
     |> x -> unstack(
         x, 
-        [:method, :ngroute_alt, :ngroute_neighborhood_charging_size,],
+        [:method, :ngroute_neighborhood_charging_size,],
         :n_customers,
         :LP_IP_gap_last_mean,
     )
@@ -643,11 +627,9 @@ graph = generate_graph_from_data(data)
 include("subpath_stitching.jl")
 include("desaulniers_benchmark.jl")
 include("utils.jl")
-for (method, ngroute_alt) in [
-    ("benchmark", false),
-    ("benchmark", true),
-    ("ours", false),
-    ("ours", true),
+for (method,) in [
+    ("benchmark",),
+    ("ours",),
 ]
     @time @suppress path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
         data, graph,
@@ -656,7 +638,6 @@ for (method, ngroute_alt) in [
         ngroute_neighborhood_size = Int(ceil(sqrt(graph.n_customers))),
         ngroute_neighborhood_depots_size = "small", 
         ngroute_neighborhood_charging_size = "small", 
-        ngroute_alt = ngroute_alt,
         verbose = true,
         use_adaptive_ngroute = true,
         use_SR3_cuts = false,
@@ -671,7 +652,6 @@ ours_alt_results = @timed path_formulation_column_generation_with_adaptve_ngrout
     ngroute_neighborhood_size = Int(ceil(sqrt(graph.n_customers))),
     ngroute_neighborhood_depots_size = "small", 
     ngroute_neighborhood_charging_size = "small", 
-    ngroute_alt = true,
     verbose = true,
     use_adaptive_ngroute = true,
     use_SR3_cuts = false,
@@ -689,7 +669,6 @@ ours_results = @timed path_formulation_column_generation_with_adaptve_ngroute_SR
     ngroute_neighborhood_size = Int(ceil(sqrt(graph.n_customers))),
     ngroute_neighborhood_depots_size = "small", 
     ngroute_neighborhood_charging_size = "small", 
-    ngroute_alt = false,
     verbose = true,
     use_adaptive_ngroute = true,
     use_SR3_cuts = false,
@@ -778,20 +757,6 @@ base_labels_ngroute = @btime generate_base_labels_ngroute(
     ours_CG_all_params[2]["ν"][end],
 )
 
-base_labels_ngroute_alt = @btime generate_base_labels_ngroute_alt(
-    data, graph, ours_CG_all_neighborhoods[2], 
-    ours_CG_all_params[2]["κ"][end],
-    ours_CG_all_params[2]["μ"][end],
-    ours_CG_all_params[2]["ν"][end],
-)
-
-@descend generate_base_labels_ngroute_alt(
-    data, graph, ours_CG_all_neighborhoods[2], 
-    ours_CG_all_params[2]["κ"][end],
-    ours_CG_all_params[2]["μ"][end],
-    ours_CG_all_params[2]["ν"][end],
-)
-
 full_labels_ngroute = @btime find_nondominated_paths_notimewindows_ngroute(
     data, graph, ours_CG_all_neighborhoods[2], 
     base_labels_ngroute,
@@ -802,20 +767,6 @@ full_labels_ngroute = @btime find_nondominated_paths_notimewindows_ngroute(
 @descend find_nondominated_paths_notimewindows_ngroute(
     data, graph, ours_CG_all_neighborhoods[2], 
     base_labels_ngroute,
-    ours_CG_all_params[2]["κ"][end],
-    ours_CG_all_params[2]["μ"][end],
-)
-
-full_labels_ngroute_alt = @btime find_nondominated_paths_notimewindows_ngroute_alt(
-    data, graph, ours_CG_all_neighborhoods[2], 
-    base_labels_ngroute_alt,
-    ours_CG_all_params[2]["κ"][end],
-    ours_CG_all_params[2]["μ"][end],
-)
-
-@descend find_nondominated_paths_notimewindows_ngroute_alt(
-    data, graph, ours_CG_all_neighborhoods[2], 
-    base_labels_ngroute_alt,
     ours_CG_all_params[2]["κ"][end],
     ours_CG_all_params[2]["μ"][end],
 )
@@ -841,21 +792,6 @@ include("desaulniers_benchmark.jl")
     α, β,
 )
 
-@btime find_nondominated_paths_ngroute_alt(
-    data, graph, ours_CG_all_neighborhoods[2], 
-    ours_CG_all_params[2]["κ"][end],
-    ours_CG_all_params[2]["μ"][end],
-    ours_CG_all_params[2]["ν"][end],
-    α, β,
-)
-
-@descend find_nondominated_paths_ngroute(
-    data, graph, ours_CG_all_neighborhoods[2], 
-    ours_CG_all_params[2]["κ"][end],
-    ours_CG_all_params[2]["μ"][end],
-    ours_CG_all_params[2]["ν"][end],
-    α, β,
-)
 
 include("utils.jl")
 include("subpath_stitching.jl")

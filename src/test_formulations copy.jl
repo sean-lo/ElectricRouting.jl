@@ -172,11 +172,9 @@ sp_o_ngs_ch_WWSR3_list = enumerate_violated_path_WWSR3_inequalities(sp_o_ngs_ch_
 
 ## Adding inequalities to models
 
-for (method, ngroute_alt) in [
-    ("benchmark", false),
-    ("benchmark", true),
-    ("ours", false),
-    ("ours", true),
+for (method) in [
+    ("benchmark"),
+    ("ours"),
 ]
     data = generate_instance(
         ;
@@ -202,7 +200,7 @@ for (method, ngroute_alt) in [
         permissiveness = 0.2,
     )
     graph = generate_graph_from_data(data)
-    LP_results, IP_results, CG_params, printlist, some_paths, model, z, WSR3_constraints = path_formulation_column_generation_with_cuts(data, graph; method = method, ngroute = true, ngroute_alt = ngroute_alt, ngroute_neighborhood_charging_depots_size = "small", verbose = true, christofides = true);
+    LP_results, IP_results, CG_params, printlist, some_paths, model, z, WSR3_constraints = path_formulation_column_generation_with_cuts(data, graph; method = method, ngroute = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true, christofides = true);
 end
 
 
@@ -262,15 +260,11 @@ data = generate_instance(
 )
 graph = generate_graph_from_data(data)
 
-for (method, ngroute, ngroute_alt, christofides) in [
-    # ("benchmark", true, false, false),
-    # ("benchmark", true, false, true),
-    # ("benchmark", true, true, false),
-    # ("benchmark", true, true, true),
-    ("ours", true, false, false),
-    # ("ours", true, false, true),
-    ("ours", true, true, false),
-    # ("ours", true, true, true),
+for (method, ngroute, christofides) in [
+    # ("benchmark", true, false),
+    # ("benchmark", true, true),
+    ("ours", true, false),
+    # ("ours", true, true),
 ]
     data = generate_instance(
         ;
@@ -300,7 +294,6 @@ for (method, ngroute, ngroute_alt, christofides) in [
         data, graph; 
         method = method, 
         ngroute = ngroute, 
-        ngroute_alt = ngroute_alt, 
         ngroute_neighborhood_charging_depots_size = "small", 
         verbose = true, 
         christofides = christofides,
@@ -309,18 +302,18 @@ end
 
 LP_results, IP_results, CG_params, printlist, some_paths, model, z, WSR3_constraints = path_formulation_column_generation_with_cuts(data, graph; method = "benchmark", ngroute = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true, christofides = true);
 
-LP_results, IP_results, CG_params, printlist, some_paths, model, z, WSR3_constraints = path_formulation_column_generation_with_cuts(data, graph; method = "benchmark", ngroute = true, ngroute_alt = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true, christofides = true);
+LP_results, IP_results, CG_params, printlist, some_paths, model, z, WSR3_constraints = path_formulation_column_generation_with_cuts(data, graph; method = "benchmark", ngroute = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true, christofides = true);
 
 
 # LP_results, IP_results, CG_params, printlist, some_paths, model, z, WSR3_constraints = path_formulation_column_generation_with_cuts(data, graph; method = "ours", ngroute = false, subpath_single_service = false, ngroute_neighborhood_charging_depots_size = "small", verbose = true, christofides = true);
 
 LP_results, IP_results, CG_params, printlist, some_paths, model, z, WSR3_constraints = path_formulation_column_generation_with_cuts(data, graph; method = "ours", ngroute = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true, christofides = false);
 
-LP_results, IP_results, CG_params, printlist, some_paths, model, z, WSR3_constraints = path_formulation_column_generation_with_cuts(data, graph; method = "ours", ngroute = true, ngroute_alt = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true, christofides = false);
+LP_results, IP_results, CG_params, printlist, some_paths, model, z, WSR3_constraints = path_formulation_column_generation_with_cuts(data, graph; method = "ours", ngroute = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true, christofides = false);
 
 LP_results, IP_results, CG_params, printlist, some_paths, model, z, WSR3_constraints = path_formulation_column_generation_with_cuts(data, graph; method = "ours", ngroute = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true, christofides = true);
 
-LP_results, IP_results, CG_params, printlist, some_paths, model, z, WSR3_constraints = path_formulation_column_generation_with_cuts(data, graph; method = "ours", ngroute = true, ngroute_alt = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true, christofides = true);
+LP_results, IP_results, CG_params, printlist, some_paths, model, z, WSR3_constraints = path_formulation_column_generation_with_cuts(data, graph; method = "ours", ngroute = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true, christofides = true);
 
 
 plot_path_solution(
@@ -475,7 +468,6 @@ CGLP_results, CG_params = path_formulation_column_generation!(
     christofides = false,
     neighborhoods = neighborhoods,
     ngroute = true,
-    ngroute_alt = false,
     verbose = true,
 )
 
@@ -620,7 +612,6 @@ CGLP_results, CG_params = path_formulation_column_generation!(
     christofides = false,
     neighborhoods = neighborhoods,
     ngroute = true,
-    ngroute_alt = false,
     verbose = true,
 )
 

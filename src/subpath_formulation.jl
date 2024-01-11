@@ -253,7 +253,6 @@ function subpath_formulation_column_generation_integrated_from_paths(
     path_check_customers::Bool = false,
     check_customers_accelerated::Bool = false,
     ngroute::Bool = false,
-    ngroute_alt::Bool = false,
     ngroute_neighborhood_size::Int = Int(ceil(sqrt(graph.n_customers))),
     ngroute_neighborhood_depots_size::String = "small",
     ngroute_neighborhood_charging_size::String = "small",
@@ -332,7 +331,6 @@ function subpath_formulation_column_generation_integrated_from_paths(
             path_check_customers:           %s
             check_customers_accelerated:    %s
             ngroute:                        %s
-            ngroute_alt:                    %s
             ngroute neighborhood size:
                 customers                   %2d
                 charging / depots           %s
@@ -350,7 +348,6 @@ function subpath_formulation_column_generation_integrated_from_paths(
             path_check_customers,
             check_customers_accelerated,
             ngroute,
-            ngroute_alt,
             ngroute_neighborhood_size,
             ngroute_neighborhood_depots_size,
             ngroute_neighborhood_charging_size,
@@ -503,7 +500,6 @@ function subpath_formulation_column_generation_integrated_from_paths(
                         ;
                         neighborhoods = neighborhoods,
                         ngroute = ngroute,
-                        ngroute_alt = ngroute_alt,
                         elementary = elementary,
                         time_limit = time_limit - (time() - start_time),
                     )
@@ -596,7 +592,6 @@ function subpath_formulation_column_generation_integrated_from_paths(
                         ;
                         neighborhoods = neighborhoods, 
                         ngroute = ngroute,
-                        ngroute_alt = ngroute_alt,
                         time_windows = time_windows,
                         elementary = elementary,
                         time_limit = time_limit - (time() - start_time),

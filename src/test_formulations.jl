@@ -41,14 +41,14 @@ p_b_s_LP_results, p_b_s_IP_results, p_b_s_params, p_b_s_printlist, p_b_s_some_pa
 p_b_sc_LP_results, p_b_sc_IP_results, p_b_sc_params, p_b_sc_printlist, p_b_sc_some_paths = path_formulation_column_generation(data; method = "benchmark", path_single_service = true, path_check_customers = true, verbose = true)
 p_b_ngs_LP_results, p_b_ngs_IP_results, p_b_ngs_params, p_b_ngs_printlist, p_b_ngs_some_paths = path_formulation_column_generation(data; method = "benchmark", ngroute = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true)
 p_b_ngl_LP_results, p_b_ngl_IP_results, p_b_ngl_params, p_b_ngl_printlist, p_b_ngl_some_paths = path_formulation_column_generation(data; method = "benchmark", ngroute = true, ngroute_neighborhood_charging_depots_size = "large", verbose = true)
-p_b_ngsa_LP_results, p_b_ngsa_IP_results, p_b_ngsa_params, p_b_ngsa_printlist, p_b_ngsa_some_paths = path_formulation_column_generation(data; method = "benchmark", ngroute = true, ngroute_alt = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true)
-p_b_ngla_LP_results, p_b_ngla_IP_results, p_b_ngla_params, p_b_ngla_printlist, p_b_ngla_some_paths = path_formulation_column_generation(data; method = "benchmark", ngroute = true, ngroute_alt = true, ngroute_neighborhood_charging_depots_size = "large", verbose = true)
+p_b_ngsa_LP_results, p_b_ngsa_IP_results, p_b_ngsa_params, p_b_ngsa_printlist, p_b_ngsa_some_paths = path_formulation_column_generation(data; method = "benchmark", ngroute = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true)
+p_b_ngla_LP_results, p_b_ngla_IP_results, p_b_ngla_params, p_b_ngla_printlist, p_b_ngla_some_paths = path_formulation_column_generation(data; method = "benchmark", ngroute = true, ngroute_neighborhood_charging_depots_size = "large", verbose = true)
 
 p_b_ch_LP_results, p_b_ch_IP_results, p_b_ch_params, p_b_ch_printlist, p_b_ch_some_paths = path_formulation_column_generation(data; method = "benchmark", verbose = true, christofides = true)
 p_b_ngs_ch_LP_results, p_b_ngs_ch_IP_results, p_b_ngs_ch_params, p_b_ngs_ch_printlist, p_b_ngs_ch_some_paths = path_formulation_column_generation(data; method = "benchmark", ngroute = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true, christofides = true)
 p_b_ngl_ch_LP_results, p_b_ngl_ch_IP_results, p_b_ngl_ch_params, p_b_ngl_ch_printlist, p_b_ngl_ch_some_paths = path_formulation_column_generation(data; method = "benchmark", ngroute = true, ngroute_neighborhood_charging_depots_size = "large", verbose = true, christofides = true)
-p_b_ngsa_ch_LP_results, p_b_ngsa_ch_IP_results, p_b_ngsa_ch_params, p_b_ngsa_ch_printlist, p_b_ngsa_ch_some_paths = path_formulation_column_generation(data; method = "benchmark", ngroute = true, ngroute_alt = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true, christofides = true)
-p_b_ngla_ch_LP_results, p_b_ngla_ch_IP_results, p_b_ngla_ch_params, p_b_ngla_ch_printlist, p_b_ngla_ch_some_paths = path_formulation_column_generation(data; method = "benchmark", ngroute = true, ngroute_alt = true, ngroute_neighborhood_charging_depots_size = "large", verbose = true, christofides = true)
+p_b_ngsa_ch_LP_results, p_b_ngsa_ch_IP_results, p_b_ngsa_ch_params, p_b_ngsa_ch_printlist, p_b_ngsa_ch_some_paths = path_formulation_column_generation(data; method = "benchmark", ngroute = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true, christofides = true)
+p_b_ngla_ch_LP_results, p_b_ngla_ch_IP_results, p_b_ngla_ch_params, p_b_ngla_ch_printlist, p_b_ngla_ch_some_paths = path_formulation_column_generation(data; method = "benchmark", ngroute = true, ngroute_neighborhood_charging_depots_size = "large", verbose = true, christofides = true)
 
 p_o_LP_results, p_o_IP_results, p_o_params, p_o_printlist, p_o_some_paths = path_formulation_column_generation(data; method = "ours", verbose = true)
 p_o_s_LP_results, p_o_s_IP_results, p_o_s_params, p_o_s_printlist, p_o_s_some_paths = path_formulation_column_generation(data; method = "ours", subpath_single_service = true, verbose = true)
@@ -57,8 +57,8 @@ p_o_ss_LP_results, p_o_ss_IP_results, p_o_ss_params, p_o_ss_printlist, p_o_ss_so
 p_o_scsc_LP_results, p_o_scsc_IP_results, p_o_scsc_params, p_o_scsc_printlist, p_o_scsc_some_paths = path_formulation_column_generation(data; method = "ours", subpath_single_service = true, subpath_check_customers = true, path_single_service = true, path_check_customers = true, verbose = true)
 p_o_ngs_LP_results, p_o_ngs_IP_results, p_o_ngs_params, p_o_ngs_printlist, p_o_ngs_some_paths = path_formulation_column_generation(data; method = "ours", ngroute = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true)
 p_o_ngl_LP_results, p_o_ngl_IP_results, p_o_ngl_params, p_o_ngl_printlist, p_o_ngl_some_paths = path_formulation_column_generation(data; method = "ours", ngroute = true, ngroute_neighborhood_charging_depots_size = "large", verbose = true)
-p_o_ngsa_LP_results, p_o_ngsa_IP_results, p_o_ngsa_params, p_o_ngsa_printlist, p_o_ngsa_some_paths = path_formulation_column_generation(data; method = "ours", ngroute = true, ngroute_alt = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true)
-p_o_ngla_LP_results, p_o_ngla_IP_results, p_o_ngla_params, p_o_ngla_printlist, p_o_ngla_some_paths = path_formulation_column_generation(data; method = "ours", ngroute = true, ngroute_alt = true, ngroute_neighborhood_charging_depots_size = "large", verbose = true)
+p_o_ngsa_LP_results, p_o_ngsa_IP_results, p_o_ngsa_params, p_o_ngsa_printlist, p_o_ngsa_some_paths = path_formulation_column_generation(data; method = "ours", ngroute = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true)
+p_o_ngla_LP_results, p_o_ngla_IP_results, p_o_ngla_params, p_o_ngla_printlist, p_o_ngla_some_paths = path_formulation_column_generation(data; method = "ours", ngroute = true, ngroute_neighborhood_charging_depots_size = "large", verbose = true)
 
 
 p_o_ch_LP_results, p_o_ch_IP_results, p_o_ch_params, p_o_ch_printlist, p_o_ch_some_paths = path_formulation_column_generation(data; method = "ours", verbose = true, christofides = true)
@@ -68,8 +68,8 @@ p_o_ss_ch_LP_results, p_o_ss_ch_IP_results, p_o_ss_ch_params, p_o_ss_ch_printlis
 p_o_scsc_ch_LP_results, p_o_scsc_ch_IP_results, p_o_scsc_ch_params, p_o_scsc_ch_printlist, p_o_scsc_ch_some_paths = path_formulation_column_generation(data; method = "ours", subpath_single_service = true, subpath_check_customers = true, path_single_service = true, path_check_customers = true, verbose = true, christofides = true)
 p_o_ngs_ch_LP_results, p_o_ngs_ch_IP_results, p_o_ngs_ch_params, p_o_ngs_ch_printlist, p_o_ngs_ch_some_paths = path_formulation_column_generation(data; method = "ours", ngroute = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true, christofides = true)
 p_o_ngl_ch_LP_results, p_o_ngl_ch_IP_results, p_o_ngl_ch_params, p_o_ngl_ch_printlist, p_o_ngl_ch_some_paths = path_formulation_column_generation(data; method = "ours", ngroute = true, ngroute_neighborhood_charging_depots_size = "large", verbose = true, christofides = true)
-p_o_ngsa_ch_LP_results, p_o_ngsa_ch_IP_results, p_o_ngsa_ch_params, p_o_ngsa_ch_printlist, p_o_ngsa_ch_some_paths = path_formulation_column_generation(data; method = "ours", ngroute = true, ngroute_alt = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true, christofides = true)
-p_o_ngla_ch_LP_results, p_o_ngla_ch_IP_results, p_o_ngla_ch_params, p_o_ngla_ch_printlist, p_o_ngla_ch_some_paths = path_formulation_column_generation(data; method = "ours", ngroute = true, ngroute_alt = true, ngroute_neighborhood_charging_depots_size = "large", verbose = true, christofides = true)
+p_o_ngsa_ch_LP_results, p_o_ngsa_ch_IP_results, p_o_ngsa_ch_params, p_o_ngsa_ch_printlist, p_o_ngsa_ch_some_paths = path_formulation_column_generation(data; method = "ours", ngroute = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true, christofides = true)
+p_o_ngla_ch_LP_results, p_o_ngla_ch_IP_results, p_o_ngla_ch_params, p_o_ngla_ch_printlist, p_o_ngla_ch_some_paths = path_formulation_column_generation(data; method = "ours", ngroute = true, ngroute_neighborhood_charging_depots_size = "large", verbose = true, christofides = true)
 
 sp_b_LP_results, sp_b_IP_results, sp_b_params, sp_b_printlist, sp_b_some_subpaths, sp_b_some_charging_arcs = @time subpath_formulation_column_generation_integrated_from_paths(data, G; method = "benchmark", verbose = true);
 sp_b_s_LP_results, sp_b_s_IP_results, sp_b_s_params, sp_b_s_printlist, sp_b_s_some_subpaths, sp_b_s_some_charging_arcs = @time subpath_formulation_column_generation_integrated_from_paths(data, G; method = "benchmark", path_single_service = true, verbose = true);
@@ -77,14 +77,14 @@ sp_b_sc_LP_results, sp_b_sc_IP_results, sp_b_sc_params, sp_b_sc_printlist, sp_b_
 sp_b_sca_LP_results, sp_b_sca_IP_results, sp_b_sca_params, sp_b_sca_printlist, sp_b_sca_some_subpaths, sp_b_sca_some_charging_arcs = @time subpath_formulation_column_generation_integrated_from_paths(data, G; method = "benchmark", path_single_service = true, path_check_customers = true, check_customers_accelerated = true, verbose = true);
 sp_b_ngs_LP_results, sp_b_ngs_IP_results, sp_b_ngs_params, sp_b_ngs_printlist, sp_b_ngs_some_subpaths, sp_b_ngs_some_charging_arcs = @time subpath_formulation_column_generation_integrated_from_paths(data, G; method = "benchmark", ngroute = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true);
 sp_b_ngl_LP_results, sp_b_ngl_IP_results, sp_b_ngl_params, sp_b_ngl_printlist, sp_b_ngl_some_subpaths, sp_b_ngl_some_charging_arcs = @time subpath_formulation_column_generation_integrated_from_paths(data, G; method = "benchmark", ngroute = true, ngroute_neighborhood_charging_depots_size = "large", verbose = true);
-sp_b_ngsa_LP_results, sp_b_ngsa_IP_results, sp_b_ngsa_params, sp_b_ngsa_printlist, sp_b_ngsa_some_subpaths, sp_b_ngsa_some_charging_arcs = @time subpath_formulation_column_generation_integrated_from_paths(data, G; method = "benchmark", ngroute = true, ngroute_alt = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true);
-sp_b_ngla_LP_results, sp_b_ngla_IP_results, sp_b_ngla_params, sp_b_ngla_printlist, sp_b_ngla_some_subpaths, sp_b_ngla_some_charging_arcs = @time subpath_formulation_column_generation_integrated_from_paths(data, G; method = "benchmark", ngroute = true, ngroute_alt = true, ngroute_neighborhood_charging_depots_size = "large", verbose = true);
+sp_b_ngsa_LP_results, sp_b_ngsa_IP_results, sp_b_ngsa_params, sp_b_ngsa_printlist, sp_b_ngsa_some_subpaths, sp_b_ngsa_some_charging_arcs = @time subpath_formulation_column_generation_integrated_from_paths(data, G; method = "benchmark", ngroute = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true);
+sp_b_ngla_LP_results, sp_b_ngla_IP_results, sp_b_ngla_params, sp_b_ngla_printlist, sp_b_ngla_some_subpaths, sp_b_ngla_some_charging_arcs = @time subpath_formulation_column_generation_integrated_from_paths(data, G; method = "benchmark", ngroute = true, ngroute_neighborhood_charging_depots_size = "large", verbose = true);
 
 sp_b_ch_LP_results, sp_b_ch_IP_results, sp_b_ch_params, sp_b_ch_printlist, sp_b_ch_some_subpaths, sp_b_ch_some_charging_arcs = @time subpath_formulation_column_generation_integrated_from_paths(data, G; method = "benchmark", verbose = true, christofides = true);
 sp_b_ngs_ch_LP_results, sp_b_ngs_ch_IP_results, sp_b_ngs_ch_params, sp_b_ngs_ch_printlist, sp_b_ngs_ch_some_subpaths, sp_b_ngs_ch_some_charging_arcs = @time subpath_formulation_column_generation_integrated_from_paths(data, G; method = "benchmark", ngroute = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true, christofides = true);
 sp_b_ngl_ch_LP_results, sp_b_ngl_ch_IP_results, sp_b_ngl_ch_params, sp_b_ngl_ch_printlist, sp_b_ngl_ch_some_subpaths, sp_b_ngl_ch_some_charging_arcs = @time subpath_formulation_column_generation_integrated_from_paths(data, G; method = "benchmark", ngroute = true, ngroute_neighborhood_charging_depots_size = "large", verbose = true, christofides = true);
-sp_b_ngsa_ch_LP_results, sp_b_ngsa_ch_IP_results, sp_b_ngsa_ch_params, sp_b_ngsa_ch_printlist, sp_b_ngsa_ch_some_subpaths, sp_b_ngsa_ch_some_charging_arcs = @time subpath_formulation_column_generation_integrated_from_paths(data, G; method = "benchmark", ngroute = true, ngroute_alt = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true, christofides = true);
-sp_b_ngla_ch_LP_results, sp_b_ngla_ch_IP_results, sp_b_ngla_ch_params, sp_b_ngla_ch_printlist, sp_b_ngla_ch_some_subpaths, sp_b_ngla_ch_some_charging_arcs = @time subpath_formulation_column_generation_integrated_from_paths(data, G; method = "benchmark", ngroute = true, ngroute_alt = true, ngroute_neighborhood_charging_depots_size = "large", verbose = true, christofides = true);
+sp_b_ngsa_ch_LP_results, sp_b_ngsa_ch_IP_results, sp_b_ngsa_ch_params, sp_b_ngsa_ch_printlist, sp_b_ngsa_ch_some_subpaths, sp_b_ngsa_ch_some_charging_arcs = @time subpath_formulation_column_generation_integrated_from_paths(data, G; method = "benchmark", ngroute = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true, christofides = true);
+sp_b_ngla_ch_LP_results, sp_b_ngla_ch_IP_results, sp_b_ngla_ch_params, sp_b_ngla_ch_printlist, sp_b_ngla_ch_some_subpaths, sp_b_ngla_ch_some_charging_arcs = @time subpath_formulation_column_generation_integrated_from_paths(data, G; method = "benchmark", ngroute = true, ngroute_neighborhood_charging_depots_size = "large", verbose = true, christofides = true);
 
 
 sp_o_LP_results, sp_o_IP_results, sp_o_params, sp_o_printlist, sp_o_some_subpaths, sp_o_some_charging_arcs = @time subpath_formulation_column_generation_integrated_from_paths(data, G; method = "ours", verbose = true);
@@ -96,8 +96,8 @@ sp_o_scsc_LP_results, sp_o_scsc_IP_results, sp_o_scsc_params, sp_o_scsc_printlis
 sp_o_scsca_LP_results, sp_o_scsca_IP_results, sp_o_scsca_params, sp_o_scsca_printlist, sp_o_scsca_some_subpaths, sp_o_scsca_some_charging_arcs = @time subpath_formulation_column_generation_integrated_from_paths(data, G; method = "ours", subpath_single_service = true, subpath_check_customers = true, path_single_service = true, path_check_customers = true, check_customers_accelerated = true, verbose = true);
 sp_o_ngs_LP_results, sp_o_ngs_IP_results, sp_o_ngs_params, sp_o_ngs_printlist, sp_o_ngs_some_subpaths, sp_o_ngs_some_charging_arcs = @time subpath_formulation_column_generation_integrated_from_paths(data, G; method = "ours", ngroute = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true);
 sp_o_ngl_LP_results, sp_o_ngl_IP_results, sp_o_ngl_params, sp_o_ngl_printlist, sp_o_ngl_some_subpaths, sp_o_ngl_some_charging_arcs = @time subpath_formulation_column_generation_integrated_from_paths(data, G; method = "ours", ngroute = true, ngroute_neighborhood_charging_depots_size = "large", verbose = true);
-sp_o_ngsa_LP_results, sp_o_ngsa_IP_results, sp_o_ngsa_params, sp_o_ngsa_printlist, sp_o_ngsa_some_subpaths, sp_o_ngsa_some_charging_arcs = @time subpath_formulation_column_generation_integrated_from_paths(data, G; method = "ours", ngroute = true, ngroute_alt = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true);
-sp_o_ngla_LP_results, sp_o_ngla_IP_results, sp_o_ngla_params, sp_o_ngla_printlist, sp_o_ngla_some_subpaths, sp_o_ngla_some_charging_arcs = @time subpath_formulation_column_generation_integrated_from_paths(data, G; method = "ours", ngroute = true, ngroute_alt = true, ngroute_neighborhood_charging_depots_size = "large", verbose = true);
+sp_o_ngsa_LP_results, sp_o_ngsa_IP_results, sp_o_ngsa_params, sp_o_ngsa_printlist, sp_o_ngsa_some_subpaths, sp_o_ngsa_some_charging_arcs = @time subpath_formulation_column_generation_integrated_from_paths(data, G; method = "ours", ngroute = true, ngroute_neighborhood_charging_depots_size = "small", verbose = true);
+sp_o_ngla_LP_results, sp_o_ngla_IP_results, sp_o_ngla_params, sp_o_ngla_printlist, sp_o_ngla_some_subpaths, sp_o_ngla_some_charging_arcs = @time subpath_formulation_column_generation_integrated_from_paths(data, G; method = "ours", ngroute = true, ngroute_neighborhood_charging_depots_size = "large", verbose = true);
 
 sp_o_ch_LP_results, sp_o_ch_IP_results, sp_o_ch_params, sp_o_ch_printlist, sp_o_ch_some_subpaths, sp_o_ch_some_charging_arcs = @time subpath_formulation_column_generation_integrated_from_paths(data, G; method = "ours", verbose = true, christofides = true);
 sp_o_s_ch_LP_results, sp_o_s_ch_IP_results, sp_o_s_ch_params, sp_o_s_ch_printlist, sp_o_s_ch_some_subpaths, sp_o_s_ch_some_charging_arcs = @time subpath_formulation_column_generation_integrated_from_paths(data, G; method = "ours", subpath_single_service = true, verbose = true, christofides = true);
@@ -108,8 +108,8 @@ sp_o_scsc_ch_LP_results, sp_o_scsc_ch_IP_results, sp_o_scsc_ch_params, sp_o_scsc
 sp_o_scsca_ch_LP_results, sp_o_scsca_ch_IP_results, sp_o_scsca_ch_params, sp_o_scsca_ch_printlist, sp_o_scsca_ch_some_subpaths, sp_o_scsca_ch_some_charging_arcs = @time subpath_formulation_column_generation_integrated_from_paths(data, G; method = "ours", subpath_single_service = true, subpath_check_customers = true, path_single_service = true, path_check_customers = true, check_customers_accelerated = true, verbose = true, christofides = true);
 sp_o_ngs_ch_LP_results, sp_o_ngs_ch_IP_results, sp_o_ngs_ch_params, sp_o_ngs_ch_printlist, sp_o_ngs_ch_some_subpaths, sp_o_ngs_ch_some_charging_arcs = @time subpath_formulation_column_generation_integrated_from_paths(data, G; method = "ours", ngroute = true, ngroute_neighborhood_charging_depots_size = "small", christofides = true, verbose = true);
 sp_o_ngl_ch_LP_results, sp_o_ngl_ch_IP_results, sp_o_ngl_ch_params, sp_o_ngl_ch_printlist, sp_o_ngl_ch_some_subpaths, sp_o_ngl_ch_some_charging_arcs = @time subpath_formulation_column_generation_integrated_from_paths(data, G; method = "ours", ngroute = true, ngroute_neighborhood_charging_depots_size = "large", christofides = true, verbose = true);
-sp_o_ngsa_ch_LP_results, sp_o_ngsa_ch_IP_results, sp_o_ngsa_ch_params, sp_o_ngsa_ch_printlist, sp_o_ngsa_ch_some_subpaths, sp_o_ngsa_ch_some_charging_arcs = @time subpath_formulation_column_generation_integrated_from_paths(data, G; method = "ours", ngroute = true, ngroute_alt = true, ngroute_neighborhood_charging_depots_size = "small", christofides = true, verbose = true);
-sp_o_ngla_ch_LP_results, sp_o_ngla_ch_IP_results, sp_o_ngla_ch_params, sp_o_ngla_ch_printlist, sp_o_ngla_ch_some_subpaths, sp_o_ngla_ch_some_charging_arcs = @time subpath_formulation_column_generation_integrated_from_paths(data, G; method = "ours", ngroute = true, ngroute_alt = true, ngroute_neighborhood_charging_depots_size = "large", christofides = true, verbose = true);
+sp_o_ngsa_ch_LP_results, sp_o_ngsa_ch_IP_results, sp_o_ngsa_ch_params, sp_o_ngsa_ch_printlist, sp_o_ngsa_ch_some_subpaths, sp_o_ngsa_ch_some_charging_arcs = @time subpath_formulation_column_generation_integrated_from_paths(data, G; method = "ours", ngroute = true, ngroute_neighborhood_charging_depots_size = "small", christofides = true, verbose = true);
+sp_o_ngla_ch_LP_results, sp_o_ngla_ch_IP_results, sp_o_ngla_ch_params, sp_o_ngla_ch_printlist, sp_o_ngla_ch_some_subpaths, sp_o_ngla_ch_some_charging_arcs = @time subpath_formulation_column_generation_integrated_from_paths(data, G; method = "ours", ngroute = true, ngroute_neighborhood_charging_depots_size = "large", christofides = true, verbose = true);
 
 
 collect_path_solution_metrics!(p_b_LP_results, data, graph, p_b_some_paths)
@@ -915,37 +915,28 @@ TIME_LIMIT_SEC = 3.0
         # check_customers_accelerated
         # christofides
         # ngroute
-        # ngroute_alt
         # ngroute_neighborhood_charging_depots_size
-        ("path", "benchmark", false, false, false, false, false,  true, false, false, "none"),
-        ("path", "benchmark", false, false,  true,  true, false, false, false, false, "none"),
-        ("path", "benchmark", false, false, false, false, false,  true,  true, false, "small"),
-        ("path", "benchmark", false, false, false, false, false,  true,  true, false, "large"),
-        ("path", "benchmark", false, false, false, false, false,  true,  true,  true, "small"),
-        ("path", "benchmark", false, false, false, false, false,  true,  true,  true, "large"),
-        ("path", "ours", false, false, false, false, false,  true, false, false, "none"),
-        ("path", "ours",  true,  true, false, false, false,  true, false, false, "none"),
-        ("path", "ours",  true,  true,  true,  true, false,  true, false, false, "none"),
-        ("path", "ours", false, false, false, false, false,  true,  true, false, "small"),
-        ("path", "ours", false, false, false, false, false,  true,  true, false, "large"),
-        ("path", "ours", false, false, false, false, false,  true,  true,  true, "small"),
-        ("path", "ours", false, false, false, false, false,  true,  true,  true, "large"),
-        ("subpath", "benchmark", false, false, false, false, false,  true, false, false, "none"),
-        ("subpath", "benchmark", false, false,  true,  true, false, false, false, false, "none"),
-        ("subpath", "benchmark", false, false,  true,  true,  true, false, false, false, "none"),
-        ("subpath", "benchmark", false, false, false, false, false,  true,  true, false, "small"),
-        ("subpath", "benchmark", false, false, false, false, false,  true,  true, false, "large"),
-        ("subpath", "benchmark", false, false, false, false, false,  true,  true,  true, "small"),
-        ("subpath", "benchmark", false, false, false, false, false,  true,  true,  true, "large"),
-        ("subpath", "ours", false, false, false, false, false,  true, false, false, "none"),
-        ("subpath", "ours",  true,  true, false, false, false,  true, false, false, "none"),
-        ("subpath", "ours",  true,  true, false, false,  true,  true, false, false, "none"),
-        ("subpath", "ours",  true,  true,  true,  true, false,  true, false, false, "none"),
-        ("subpath", "ours",  true,  true,  true,  true,  true,  true, false, false, "none"),
-        ("subpath", "ours", false, false, false, false, false,  true,  true, false, "small"),
-        ("subpath", "ours", false, false, false, false, false,  true,  true, false, "large"),
-        ("subpath", "ours", false, false, false, false, false,  true,  true,  true, "small"),
-        ("subpath", "ours", false, false, false, false, false,  true,  true,  true, "large"),
+        ("path", "benchmark", false, false, false, false, false,  true, false, "none"),
+        ("path", "benchmark", false, false,  true,  true, false, false, false, "none"),
+        ("path", "benchmark", false, false, false, false, false,  true,  true, "small"),
+        ("path", "benchmark", false, false, false, false, false,  true,  true, "large"),
+        ("path", "ours", false, false, false, false, false,  true, false, "none"),
+        ("path", "ours",  true,  true, false, false, false,  true, false, "none"),
+        ("path", "ours",  true,  true,  true,  true, false,  true, false, "none"),
+        ("path", "ours", false, false, false, false, false,  true,  true,  "small"),
+        ("path", "ours", false, false, false, false, false,  true,  true,  "large"),
+        ("subpath", "benchmark", false, false, false, false, false,  true, false, "none"),
+        ("subpath", "benchmark", false, false,  true,  true, false, false, false, "none"),
+        ("subpath", "benchmark", false, false,  true,  true,  true, false, false, "none"),
+        ("subpath", "benchmark", false, false, false, false, false,  true,  true, "small"),
+        ("subpath", "benchmark", false, false, false, false, false,  true,  true, "large"),
+        ("subpath", "ours", false, false, false, false, false,  true, false, "none"),
+        ("subpath", "ours",  true,  true, false, false, false,  true, false, "none"),
+        ("subpath", "ours",  true,  true, false, false,  true,  true, false, "none"),
+        ("subpath", "ours",  true,  true,  true,  true, false,  true, false, "none"),
+        ("subpath", "ours",  true,  true,  true,  true,  true,  true, false, "none"),
+        ("subpath", "ours", false, false, false, false, false,  true,  true, "small"),
+        ("subpath", "ours", false, false, false, false, false,  true,  true, "large"),
     ]
     for method_param in method_params
         if method_param[1] == "path"
@@ -961,7 +952,6 @@ TIME_LIMIT_SEC = 3.0
                 path_check_customers = method_param[6],
                 christofides = method_param[8],
                 ngroute = method_param[9],
-                ngroute_alt = method_param[10],
                 ngroute_neighborhood_charging_depots_size = method_param[11],
                 time_limit = TIME_LIMIT_SEC,
             )
@@ -978,7 +968,6 @@ TIME_LIMIT_SEC = 3.0
                 path_check_customers = method_param[6],
                 christofides = method_param[8],
                 ngroute = method_param[9],
-                ngroute_alt = method_param[10],
                 ngroute_neighborhood_charging_depots_size = method_param[11],
                 time_limit = TIME_LIMIT_SEC,
             )
@@ -1024,25 +1013,21 @@ data, G = generate_instance(
 )
 plot_instance(data)
 
-for (time_windows, path_single_service, path_check_customers, christofides, ngroute, ngroute_alt) in [
-    (false, false, false, false, false, false),
-    (false,  true,  true, false, false, false),
-    (false, false, false,  true, false, false),
-    (false,  true,  true,  true, false, false),
-    (false, false, false, false,  true, false),
-    (false, false, false,  true,  true, false),
-    (false, false, false, false,  true,  true),
-    (false, false, false,  true,  true,  true),
-    ( true, false, false, false, false, false),
-    ( true,  true,  true, false, false, false),
-    ( true, false, false,  true, false, false),
-    ( true,  true,  true,  true, false, false),
-    ( true, false, false, false,  true, false),
-    ( true, false, false,  true,  true, false),
-    ( true, false, false, false,  true,  true),
-    ( true, false, false,  true,  true,  true),
+for (time_windows, path_single_service, path_check_customers, christofides, ngroute) in [
+    (false, false, false, false, false),
+    (false,  true,  true, false, false),
+    (false, false, false,  true, false),
+    (false,  true,  true,  true, false),
+    (false, false, false, false,  true),
+    (false, false, false,  true,  true),
+    ( true, false, false, false, false),
+    ( true,  true,  true, false, false),
+    ( true, false, false,  true, false),
+    ( true,  true,  true,  true, false),
+    ( true, false, false, false,  true),
+    ( true, false, false,  true,  true),
 ]
-    println("$time_windows, $path_single_service, $path_check_customers, $christofides, $ngroute, $ngroute_alt")
+    println("$time_windows, $path_single_service, $path_check_customers, $christofides, $ngroute")
     @suppress path_formulation_column_generation_nocharge(
         data, G,
         ;
@@ -1051,7 +1036,6 @@ for (time_windows, path_single_service, path_check_customers, christofides, ngro
         path_check_customers = path_check_customers,
         christofides = christofides,
         ngroute = ngroute,
-        ngroute_alt = ngroute_alt,
     )
 end
 
@@ -1062,7 +1046,6 @@ CGLP_results, CGIP_results, CG_params, CG_printlist, CG_some_paths = path_formul
     path_check_customers = false,
     christofides = true,
     ngroute = true,
-    ngroute_alt = false,
 )
 CGLP_results["objective"]
 DH_results_paths = path_formulation_decomposition_heuristic(
@@ -1072,7 +1055,6 @@ DH_results_paths = path_formulation_decomposition_heuristic(
     path_check_customers = false,
     christofides = true,
     ngroute = true,
-    ngroute_alt = false,
     use_integer_paths = true,
 )
 compute_objective_from_path_solution(DH_results_paths, data, graph)
@@ -1083,7 +1065,6 @@ path_single_service = false
 path_check_customers = false
 christofides = false
 ngroute = false
-ngroute_alt = false
 ngroute_neighborhood_size = Int(ceil(sqrt(graph.n_customers))) 
 verbose = true
 time_limit = Inf
@@ -1100,7 +1081,6 @@ CGLP_results, CGIP_results, CG_params, printlist, some_paths = path_formulation_
     path_check_customers = path_check_customers,
     christofides = christofides,
     ngroute = ngroute,
-    ngroute_alt = ngroute_alt,
     ngroute_neighborhood_size = ngroute_neighborhood_size,
     verbose = verbose,
     time_limit = time_limit,
@@ -1150,7 +1130,6 @@ CGLP_results, CGIP_results, CG_params, printlist, some_paths = path_formulation_
     path_check_customers = false,
     christofides = false,
     ngroute = false,
-    ngroute_alt = false,
     # max_iters = 1.0,
 )
 results_paths = collect_path_solution_support(CGLP_results, some_paths, data, graph)
@@ -1537,15 +1516,14 @@ method_params = [
     # path_single_service
     # path_check_customers
     # christofides
-    # ngroute
-    # ngroute_alt
-    ("ours", false, false, false, false, false),
-    ("ours", false, false,  true, false, false),
-    ("ours", false, false, false,  true, false),
-    ("ours", false, false,  true,  true, false),
-    ("ours", false, false, false,  true,  true),
-    ("ours", false, false,  true,  true,  true),
-    ("ours",  true,  true, false, false, false),
+    # ngroute_check_create_fset
+    ("ours", false, false, false, false),
+    ("ours", false, false,  true, false),
+    ("ours", false, false, false,  true),
+    ("ours", false, false,  true,  true),
+    ("ours", false, false, false,  true),
+    ("ours", false, false,  true,  true),
+    ("ours",  true,  true, false, false),
 ]
 
 data, G = generate_instance(
@@ -1573,7 +1551,7 @@ data, G = generate_instance(
 )
 for method_param in method_params
     use_time_windows = false
-    method, path_single_service, path_check_customers, christofides, ngroute, ngroute_alt = method_param
+    method, path_single_service, path_check_customers, christofides, ngroute = method_param
     a = @allocated @suppress begin 
         CGLP_results, CGIP_results, CG_params, CG_printlist, CG_some_paths = path_formulation_column_generation(
             data,
@@ -1584,7 +1562,6 @@ for method_param in method_params
             path_check_customers = path_check_customers,
             christofides = christofides,
             ngroute = ngroute,
-            ngroute_alt = ngroute_alt,
         )
         DHL_results_paths = path_formulation_decomposition_heuristic(
             data, G,
@@ -1594,7 +1571,6 @@ for method_param in method_params
             path_check_customers = path_check_customers,
             christofides = christofides,
             ngroute = ngroute,
-            ngroute_alt = ngroute_alt,
             use_integer_paths = false,
         )
         DHI_results_paths = path_formulation_decomposition_heuristic(
@@ -1605,7 +1581,6 @@ for method_param in method_params
             path_check_customers = path_check_customers,
             christofides = christofides,
             ngroute = ngroute,
-            ngroute_alt = ngroute_alt,
             use_integer_paths = true,
         )
         DHL_objective = compute_objective_from_path_solution(DHL_results_paths, data, graph)
@@ -1615,7 +1590,7 @@ for method_param in method_params
 end
 
 data
-(method, path_single_service, path_check_customers, christofides, ngroute, ngroute_alt) = ("ours", false, false, false, false, false)
+(method, path_single_service, path_check_customers, christofides, ngroute) = ("ours", false, false, false, false)
 use_time_windows = false
 
 @profile path_formulation_column_generation(
@@ -1627,7 +1602,6 @@ use_time_windows = false
     path_check_customers = path_check_customers,
     christofides = christofides,
     ngroute = ngroute,
-    ngroute_alt = ngroute_alt,
 )
 
 Profile.print(format = :flat)
@@ -1641,7 +1615,6 @@ Profile.print(format = :flat)
     path_check_customers = path_check_customers,
     christofides = christofides,
     ngroute = ngroute,
-    ngroute_alt = ngroute_alt,
 )
 
 

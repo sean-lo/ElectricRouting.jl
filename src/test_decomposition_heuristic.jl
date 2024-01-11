@@ -44,7 +44,6 @@ graph = generate_graph_from_data(data)
     data, graph;
     elementary = false,
     ngroute = true,
-    ngroute_alt = true,
     use_adaptive_ngroute = true,
     use_SR3_cuts = false,
     use_lmSR3_cuts = false,
@@ -66,7 +65,6 @@ plot_solution(heuristic_results, data)
     method = "ours",
     elementary = false,
     ngroute = true,
-    ngroute_alt = true,    
     use_adaptive_ngroute = true,
     use_SR3_cuts = true,
     use_lmSR3_cuts = true,
@@ -92,7 +90,6 @@ include("utils.jl")
     data, graph;
     elementary = false,
     ngroute = true,
-    ngroute_alt = true,
     use_adaptive_ngroute = true,
     use_SR3_cuts = false,
     use_lmSR3_cuts = false,
@@ -154,7 +151,6 @@ CGLP_results = Dict(
     ;
     neighborhoods = neighborhoods,
     ngroute = true,
-    ngroute_alt = true,
     elementary = false,
     # time_limit = (time_limit - (time() - start_time)),
 )
@@ -187,7 +183,6 @@ CGLP_results, CG_params = path_formulation_column_generation_nocharge!(
     elementary = false,
     neighborhoods = neighborhoods,
     ngroute = true,
-    ngroute_alt = true,
     verbose = true,
     # time_limit = time_limit - (time() - start_time),
     # max_iters = max_iters,

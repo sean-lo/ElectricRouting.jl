@@ -83,13 +83,13 @@ CGLP_all_results = nothing
 CGIP_all_results = nothing
 some_paths = nothing
 CG_all_params = nothing
-for (method, elementary, ngroute, ngroute_alt) in [
-    # ("ours", true, false, false)
-    # ("ours", false, true, true)
-    # ("ours", false, false, false)
-    # ("benchmark", true, false, false)
-    # ("benchmark", false, true, true)
-    ("benchmark", false, false, false)
+for (method, elementary, ngroute) in [
+    # ("ours", true, false)
+    # ("ours", false, true)
+    # ("ours", false, false)
+    # ("benchmark", true, false)
+    # ("benchmark", false, true)
+    ("benchmark", false, false)
 ]
     (
         CGLP_all_results, CGIP_all_results, CG_all_params, CG_all_neighborhoods, all_params, printlist, 
@@ -102,8 +102,7 @@ for (method, elementary, ngroute, ngroute_alt) in [
         ngroute = ngroute,
         ngroute_neighborhood_size = Int(ceil(sqrt(graph.n_customers))),
         ngroute_neighborhood_depots_size = "small", 
-        ngroute_neighborhood_charging_size = "small", 
-        ngroute_alt = ngroute_alt,
+        ngroute_neighborhood_charging_size = "small",
         verbose = true,
         use_smaller_graph = false,
         use_adaptive_ngroute = false,

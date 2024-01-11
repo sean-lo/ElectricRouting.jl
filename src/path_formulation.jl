@@ -522,7 +522,6 @@ function path_formulation_column_generation!(
     elementary::Bool = true,
     neighborhoods::Union{Nothing, BitMatrix} = nothing,
     ngroute::Bool = false,
-    ngroute_alt::Bool = false,
     use_smaller_graph::Bool = false,
     verbose::Bool = true,
     time_limit::Float64 = Inf,
@@ -601,7 +600,6 @@ function path_formulation_column_generation!(
                     ;
                     neighborhoods = neighborhoods,
                     ngroute = ngroute,
-                    ngroute_alt = ngroute_alt,
                     elementary = elementary,
                     time_limit = time_limit - (time() - start_time),
                 )
@@ -640,7 +638,6 @@ function path_formulation_column_generation!(
                     ;
                     neighborhoods = neighborhoods, 
                     ngroute = ngroute, 
-                    ngroute_alt = ngroute_alt,
                     time_windows = time_windows,
                     elementary = elementary,
                     time_limit = time_limit - (time() - start_time),
@@ -1086,7 +1083,6 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
     time_windows::Bool = false,
     elementary::Bool = false,
     ngroute::Bool = true,
-    ngroute_alt::Bool = false,
     neighborhoods::Union{Nothing, BitMatrix} = nothing,
     ngroute_neighborhood_size::Int = Int(ceil(sqrt(graph.n_customers))),
     ngroute_neighborhood_depots_size::String = "small",
@@ -1151,14 +1147,12 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
             @sprintf(
                 """
                 ngroute:                        %s
-                ngroute_alt:                    %s
                 ngroute neighborhood size:
                     customers                   %3d
                     depots                      %s
                     charging                    %s
                 """,
                 ngroute,
-                ngroute_alt,
                 ngroute_neighborhood_size,
                 ngroute_neighborhood_depots_size,
                 ngroute_neighborhood_charging_size,
@@ -1267,7 +1261,6 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
             elementary = elementary,
             neighborhoods = neighborhoods,
             ngroute = ngroute,
-            ngroute_alt = ngroute_alt,
             use_smaller_graph = use_smaller_graph,
             verbose = verbose,
             time_limit = time_limit - (time() - start_time),

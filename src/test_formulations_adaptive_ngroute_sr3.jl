@@ -17,7 +17,6 @@ all_results = DataFrame(
     ngroute_neighborhood_depots_size = String[],
     ngroute_neighborhood_charging_size = String[],
     method = String[],
-    ngroute_alt = Bool[],
     time_taken_first = Float64[],
     time_taken_total = Float64[],
     time_taken_total_SR3 = Float64[],
@@ -39,11 +38,9 @@ all_results = DataFrame(
 
 # compilation
 for n_customers in [16, 20, 24, 28, 32],
-    (method, ngroute_alt) in [
-        ("benchmark", false),
-        ("benchmark", true),
-        ("ours", false),
-        ("ours", true),
+    (method,) in [
+        ("benchmark",),
+        ("ours",),
     ],
     seed in [1]
     data = generate_instance(
@@ -77,14 +74,13 @@ for n_customers in [16, 20, 24, 28, 32],
         ngroute_neighborhood_size = Int(ceil(sqrt(graph.n_customers))),
         ngroute_neighborhood_depots_size = "small", 
         ngroute_neighborhood_charging_size = "small", 
-        ngroute_alt = ngroute_alt,
         verbose = true,
         use_adaptive_ngroute = true,
         use_SR3_cuts = true,
     );
 end
 
-(n_customers, seed, ngroute_alt, ngroute_neighborhood_charging_size, method) = (32, 3, true, "small", "ours")
+(n_customers, seed, ngroute_neighborhood_charging_size, method) = (32, 3, "small", "ours")
 data = generate_instance(
     ;
     n_depots = 4,
@@ -119,7 +115,6 @@ r = path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
     ngroute_neighborhood_size = Int(ceil(sqrt(graph.n_customers))),
     ngroute_neighborhood_depots_size = "small", 
     ngroute_neighborhood_charging_size = "small", 
-    ngroute_alt = ngroute_alt,
     verbose = true,
     use_adaptive_ngroute = true,
     use_SR3_cuts = true,
@@ -134,7 +129,6 @@ best_neighborhood = r[4][end]
     ;
     method = method,
     neighborhoods = best_neighborhood,
-    ngroute_alt = ngroute_alt,
     verbose = true,
     use_adaptive_ngroute = true,
     use_SR3_cuts = false,
@@ -147,7 +141,6 @@ path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
     ngroute_neighborhood_size = Int(ceil(sqrt(graph.n_customers))),
     ngroute_neighborhood_depots_size = "small", 
     ngroute_neighborhood_charging_size = "small", 
-    ngroute_alt = ngroute_alt,
     verbose = true,
     use_adaptive_ngroute = true,
     use_SR3_cuts = false,
@@ -157,14 +150,12 @@ r[4][1]
 DataFrame(r[5])
 
 for (
-    ngroute_alt,
     ngroute_neighborhood_depots_size, 
     ngroute_neighborhood_charging_size,
     seed, 
     n_customers, 
     method, 
 ) in Iterators.product(
-    [true, false],
     ["small",],
     # ["small",],
     ["small", "medium"],
@@ -203,7 +194,6 @@ for (
         data, graph,
         ;
         method = method,
-        ngroute_alt = ngroute_alt,
         ngroute_neighborhood_size = Int(ceil(sqrt(graph.n_customers))),
         ngroute_neighborhood_depots_size = ngroute_neighborhood_depots_size,
         ngroute_neighborhood_charging_size = ngroute_neighborhood_charging_size,
@@ -231,7 +221,6 @@ for (
             ngroute_neighborhood_depots_size,
             ngroute_neighborhood_charging_size,
             method,
-            ngroute_alt,
             CG_all_params[1]["time_taken"],
             sum(all_params_df.CG_time_taken[1:ind]),
             sum(all_params_df.CG_time_taken),
@@ -252,7 +241,7 @@ for (
         )
     )
     # println("""
-    # $method\t$ngroute_alt\t$(n_customers)
+    # $method\t$(n_customers)
     # $(ngroute_neighborhood_depots_size)\t$(ngroute_neighborhood_charging_size)\t$(seed)
     # Completed in $(run.time) s.
     # $(CGLP_all_results[1]["objective"]),\t$(CGLP_all_results[end]["objective"])
@@ -265,7 +254,7 @@ for (
     %9.2f\t%9.2f\t%9.2f
 
     """,
-        method, ngroute_alt, n_customers, 
+        method, n_customers, 
         ngroute_neighborhood_depots_size, ngroute_neighborhood_charging_size, seed,
         run.time,
         all_params_df.CGLP_objective[1], all_params_df.CGLP_objective[ind], all_params_df.CGLP_objective[end],
@@ -303,7 +292,6 @@ summary_SR3 = (
     |> x -> groupby(x, [
         :method, 
         :n_customers,
-        :ngroute_alt,
         :ngroute_neighborhood_charging_size,
     ])
     |> x -> combine(
@@ -328,7 +316,7 @@ summary_SR3 = (
     summary_SR3
     |> x -> unstack(
         x, 
-        [:method, :ngroute_alt, :ngroute_neighborhood_charging_size,],
+        [:method, :ngroute_neighborhood_charging_size,],
         :n_customers,
         :time_taken_total_geomean,
     )
@@ -337,7 +325,7 @@ summary_SR3 = (
     summary_SR3
     |> x -> unstack(
         x, 
-        [:method, :ngroute_alt, :ngroute_neighborhood_charging_size,],
+        [:method, :ngroute_neighborhood_charging_size,],
         :n_customers,
         :time_taken_total_SR3_geomean,
     )
@@ -348,7 +336,7 @@ summary_SR3 = (
     summary_SR3
     |> x -> unstack(
         x, 
-        [:method, :ngroute_alt, :ngroute_neighborhood_charging_size,],
+        [:method, :ngroute_neighborhood_charging_size,],
         :n_customers,
         :converged_first_mean,
     )
@@ -357,7 +345,7 @@ summary_SR3 = (
     summary_SR3
     |> x -> unstack(
         x, 
-        [:method, :ngroute_alt, :ngroute_neighborhood_charging_size,],
+        [:method, :ngroute_neighborhood_charging_size,],
         :n_customers,
         :converged_last_mean,
     )
@@ -366,7 +354,7 @@ summary_SR3 = (
     summary_SR3
     |> x -> unstack(
         x, 
-        [:method, :ngroute_alt, :ngroute_neighborhood_charging_size,],
+        [:method, :ngroute_neighborhood_charging_size,],
         :n_customers,
         :converged_last_SR3_mean,
     )
@@ -409,15 +397,11 @@ data = generate_instance(
 )
 graph = generate_graph_from_data(data)
 
-for (method, ngroute_alt, use_lmSR3_cuts) in [
-    ("benchmark", false, false),
-    ("benchmark", false, true),
-    ("benchmark", true, false),
-    ("benchmark", true, true),
-    ("ours", false, false),
-    ("ours", false, true),
-    ("ours", true, false), 
-    ("ours", true, true),
+for (method, use_lmSR3_cuts) in [
+    ("benchmark", false),
+    ("benchmark", true),
+    ("ours", false), 
+    ("ours", true),
 ]
     @btime @suppress path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
         data, graph,
@@ -426,7 +410,6 @@ for (method, ngroute_alt, use_lmSR3_cuts) in [
         ngroute_neighborhood_size = Int(ceil(sqrt(graph.n_customers))),
         ngroute_neighborhood_depots_size = "small", 
         ngroute_neighborhood_charging_size = "small", 
-        ngroute_alt = $ngroute_alt,
         verbose = true,
         use_smaller_graph = false,
         use_adaptive_ngroute = true,
@@ -464,7 +447,6 @@ ours_result = @timed path_formulation_column_generation_with_adaptve_ngroute_SR3
     data, graph,
     ;
     method = "ours",
-    ngroute_alt = false,
     ngroute_neighborhood_size = Int(ceil(sqrt(graph.n_customers))),
     ngroute_neighborhood_depots_size = "small", 
     ngroute_neighborhood_charging_size = "small", 
@@ -488,7 +470,6 @@ ours_alt_result = @timed path_formulation_column_generation_with_adaptve_ngroute
     data, graph,
     ;
     method = "ours",
-    ngroute_alt = true,
     ngroute_neighborhood_size = Int(ceil(sqrt(graph.n_customers))),
     ngroute_neighborhood_depots_size = "small", 
     ngroute_neighborhood_charging_size = "small", 
@@ -530,11 +511,9 @@ enumerate_violated_path_SRnk_inequalities(
     3, 2
 )
 
-for (method, ngroute_alt) in [
-    ("benchmark", false),
-    ("benchmark", true),
-    ("ours", false),
-    ("ours", true),
+for (method,) in [
+    ("benchmark",),
+    ("ours",),
 ]
     @time @suppress path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
         data, graph,
@@ -543,7 +522,6 @@ for (method, ngroute_alt) in [
         ngroute_neighborhood_size = Int(ceil(sqrt(graph.n_customers))),
         ngroute_neighborhood_depots_size = "small", 
         ngroute_neighborhood_charging_size = "small", 
-        ngroute_alt = ngroute_alt,
         verbose = true,
         use_adaptive_ngroute = true,
         use_SR3_cuts = false,
@@ -558,7 +536,6 @@ ours_alt_results = @timed path_formulation_column_generation_with_adaptve_ngrout
     ngroute_neighborhood_size = Int(ceil(sqrt(graph.n_customers))),
     ngroute_neighborhood_depots_size = "small", 
     ngroute_neighborhood_charging_size = "small", 
-    ngroute_alt = true,
     verbose = true,
     use_adaptive_ngroute = true,
     use_SR3_cuts = false,
@@ -576,7 +553,6 @@ ours_results = @timed path_formulation_column_generation_with_adaptve_ngroute_SR
     ngroute_neighborhood_size = Int(ceil(sqrt(graph.n_customers))),
     ngroute_neighborhood_depots_size = "small", 
     ngroute_neighborhood_charging_size = "small", 
-    ngroute_alt = false,
     verbose = true,
     use_adaptive_ngroute = true,
     use_SR3_cuts = false,
@@ -665,29 +641,6 @@ base_labels_ngroute = @btime generate_base_labels_ngroute(
     ours_CG_all_params[2]["ν"][end],
 )
 
-base_labels_ngroute_alt = @btime generate_base_labels_ngroute_alt(
-    data, graph, ours_alt_CG_all_neighborhoods[2], 
-    ours_alt_CG_all_params[2]["κ"][end],
-    ours_alt_CG_all_params[2]["μ"][end],
-    ours_alt_CG_all_params[2]["ν"][end],
-)
-
-base_labels_alt_ngroute_alt = @btime generate_base_labels_alt_ngroute_alt(
-    data, graph, ours_alt_CG_all_neighborhoods[2], 
-    ours_alt_CG_all_params[2]["κ"][end],
-    ours_alt_CG_all_params[2]["μ"][end],
-    ours_alt_CG_all_params[2]["ν"][end],
-)
-
-sum(length(v) for v in values(base_labels_alt_ngroute_alt))
-
-@descend generate_base_labels_ngroute_alt(
-    data, graph, ours_alt_CG_all_neighborhoods[2], 
-    ours_alt_CG_all_params[2]["κ"][end],
-    ours_alt_CG_all_params[2]["μ"][end],
-    ours_alt_CG_all_params[2]["ν"][end],
-)
-
 full_labels_ngroute = @btime find_nondominated_paths_notimewindows_ngroute(
     data, graph, ours_CG_all_neighborhoods[2], 
     base_labels_ngroute,
@@ -702,42 +655,11 @@ full_labels_ngroute = @btime find_nondominated_paths_notimewindows_ngroute(
     ours_CG_all_params[2]["μ"][end],
 )
 
-full_labels_ngroute_alt = @btime find_nondominated_paths_notimewindows_ngroute_alt(
-    data, graph, ours_CG_all_neighborhoods[2], 
-    base_labels_ngroute_alt,
-    ours_CG_all_params[2]["κ"][end],
-    ours_CG_all_params[2]["μ"][end],
-)
-
-@descend find_nondominated_paths_notimewindows_ngroute_alt(
-    data, graph, ours_CG_all_neighborhoods[2], 
-    base_labels_ngroute_alt,
-    ours_CG_all_params[2]["κ"][end],
-    ours_CG_all_params[2]["μ"][end],
-)
-
-
 include("desaulniers_benchmark.jl")
 
 α = zeros(Int, graph.n_nodes)
 β = fill(graph.T, graph.n_nodes)
 @btime find_nondominated_paths_ngroute(
-    data, graph, ours_CG_all_neighborhoods[2], 
-    ours_CG_all_params[2]["κ"][end],
-    ours_CG_all_params[2]["μ"][end],
-    ours_CG_all_params[2]["ν"][end],
-    α, β,
-)
-
-@descend find_nondominated_paths_ngroute(
-    data, graph, ours_CG_all_neighborhoods[2], 
-    ours_CG_all_params[2]["κ"][end],
-    ours_CG_all_params[2]["μ"][end],
-    ours_CG_all_params[2]["ν"][end],
-    α, β,
-)
-
-@btime find_nondominated_paths_ngroute_alt(
     data, graph, ours_CG_all_neighborhoods[2], 
     ours_CG_all_params[2]["κ"][end],
     ours_CG_all_params[2]["μ"][end],
