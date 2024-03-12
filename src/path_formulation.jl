@@ -1,7 +1,6 @@
 using JuMP
 using Gurobi
 using Suppressor
-using Printf
 
 include("utils.jl")
 include("desaulniers_benchmark.jl")
