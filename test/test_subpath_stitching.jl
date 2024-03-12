@@ -112,7 +112,6 @@ include("../src/path_formulation.jl")
                 ngroute_neighborhood_depots_size = "small",
                 ngroute_neighborhood_charging_size = "small",
                 verbose = true,
-                use_smaller_graph = false,
                 use_adaptive_ngroute = false,
                 use_SR3_cuts = false,
                 use_lmSR3_cuts = false,
