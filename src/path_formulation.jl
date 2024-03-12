@@ -528,7 +528,6 @@ function path_formulation_column_generation!(
     elementary::Bool = true,
     neighborhoods::Union{Nothing, BitMatrix} = nothing,
     ngroute::Bool = false,
-    use_smaller_graph::Bool = false,
     verbose::Bool = true,
     time_limit::Float64 = Inf,
     max_iters::Float64 = Inf,
@@ -554,14 +553,6 @@ function path_formulation_column_generation!(
     CG_params["number_of_new_paths"] = Int[]
     CG_params["converged"] = false
 
-    if use_smaller_graph
-        use_graph = prune_graph(graph, Int(ceil(sqrt(graph.n_customers))))
-        use_full_graph_flag = false
-    else
-        use_graph = graph
-        use_full_graph_flag = true
-    end
-
     while (
         !converged
         && time_limit ≥ (time() - start_time)
@@ -577,8 +568,8 @@ function path_formulation_column_generation!(
                 (key, p) => value.(z[(key, p)])
                 for (key, p) in keys(z)
             ),
-            "κ" => Dict(zip(use_graph.N_depots, dual.(model[:κ]).data)),
-            "μ" => Dict(zip(use_graph.N_depots, dual.(model[:μ]).data)),
+            "κ" => Dict(zip(graph.N_depots, dual.(model[:κ]).data)),
+            "μ" => Dict(zip(graph.N_depots, dual.(model[:μ]).data)),
             "ν" => dual.(model[:ν]).data,
             "λ" => Dict{keytype(SR3_constraints), Float64}(
                 S => dual(SR3_constraints[S])
@@ -598,7 +589,7 @@ function path_formulation_column_generation!(
             local full_labels_time
             try
                 (negative_full_labels, _, base_labels_time, full_labels_time) = subproblem_iteration_ours(
-                    data, use_graph, 
+                    data, graph, 
                     CGLP_results["κ"], 
                     CGLP_results["μ"], 
                     CGLP_results["ν"], 
@@ -617,7 +608,7 @@ function path_formulation_column_generation!(
                 end
             end
             generated_paths = get_paths_from_negative_path_labels(
-                use_graph, negative_full_labels,
+                data, graph, negative_full_labels,
             )
             push!(
                 CG_params["sp_base_time_taken"],
@@ -636,7 +627,7 @@ function path_formulation_column_generation!(
             local pure_path_labels_time
             try
                 (negative_pure_path_labels, _, pure_path_labels_time) = subproblem_iteration_benchmark(
-                    data, use_graph, 
+                    data, graph, 
                     CGLP_results["κ"], 
                     CGLP_results["μ"], 
                     CGLP_results["ν"], 
@@ -656,7 +647,7 @@ function path_formulation_column_generation!(
                 end
             end
             generated_paths = get_paths_from_negative_pure_path_labels(
-                use_graph, negative_pure_path_labels,
+                data, graph, negative_pure_path_labels,
             )
             push!(
                 CG_params["sp_base_time_taken"],
@@ -674,12 +665,7 @@ function path_formulation_column_generation!(
         
         if length(generated_paths) == 0
             push!(CG_params["number_of_new_paths"], 0)
-            if use_full_graph_flag
-                converged = true
-            else
-                use_graph = graph
-                use_full_graph_flag = true
-            end
+            converged = true
         else
             push!(
                 CG_params["number_of_new_paths"],
@@ -695,7 +681,7 @@ function path_formulation_column_generation!(
             path_service,
             generated_paths,
             SR3_constraints,
-            data, use_graph,
+            data, graph,
         )
 
         push!(
@@ -1096,7 +1082,6 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
     verbose::Bool = true,
     time_limit::Float64 = Inf,
     max_iters::Float64 = Inf,
-    use_smaller_graph::Bool = false,
     use_adaptive_ngroute::Bool = true,
     use_SR3_cuts::Bool = true,
     use_lmSR3_cuts::Bool = true,
@@ -1137,7 +1122,6 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
             time windows?:                  %s
 
             method:                         %s
-            use_smaller_graph:              %s
             """,
             graph.n_customers,
             graph.n_depots,
@@ -1145,7 +1129,6 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
             data.n_vehicles,
             time_windows,
             method,
-            use_smaller_graph,
         )
     )
     if ngroute
@@ -1267,7 +1250,6 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
             elementary = elementary,
             neighborhoods = neighborhoods,
             ngroute = ngroute,
-            use_smaller_graph = use_smaller_graph,
             verbose = verbose,
             time_limit = time_limit - (time() - start_time),
             max_iters = max_iters,
