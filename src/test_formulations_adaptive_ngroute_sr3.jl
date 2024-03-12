@@ -411,7 +411,6 @@ for (method, use_lmSR3_cuts) in [
         ngroute_neighborhood_depots_size = "small", 
         ngroute_neighborhood_charging_size = "small", 
         verbose = true,
-        use_smaller_graph = false,
         use_adaptive_ngroute = true,
         use_SR3_cuts = true,
         use_lmSR3_cuts = $use_lmSR3_cuts,

@@ -56,7 +56,6 @@ for (method, elementary, ngroute) in [
         ngroute_neighborhood_depots_size = "small", 
         ngroute_neighborhood_charging_size = "small", 
         verbose = true,
-        use_smaller_graph = false,
         use_adaptive_ngroute = false,
         use_SR3_cuts = false,
         use_lmSR3_cuts = false,
@@ -70,7 +69,6 @@ time_windows = false
 ngroute_neighborhood_size = Int(ceil(sqrt(graph.n_customers)))
 ngroute_neighborhood_depots_size = "small"
 ngroute_neighborhood_charging_size = "small"
-use_smaller_graph = false
 
 SR3_constraints = Dict{
     Tuple{NTuple{3, Int}, Tuple{Vararg{Int}}},
@@ -117,7 +115,6 @@ CGLP_results, CG_params = path_formulation_column_generation!(
     path_check_customers = false,
     neighborhoods = neighborhoods,
     ngroute = true,
-    use_smaller_graph = use_smaller_graph,
 )
 
 CGIP_results = path_formulation_solve_integer_model!(
@@ -133,7 +130,6 @@ path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
     ngroute_neighborhood_depots_size = "small", 
     ngroute_neighborhood_charging_size = "small",
     verbose = true,
-    use_smaller_graph = false,
     use_adaptive_ngroute = true,
     use_SR3_cuts = true,
     use_lmSR3_cuts = use_lmSR3_cuts,
@@ -153,7 +149,6 @@ for (method, use_lmSR3_cuts) in [
         ngroute_neighborhood_depots_size = "small", 
         ngroute_neighborhood_charging_size = "small", 
         verbose = true,
-        use_smaller_graph = false,
         use_adaptive_ngroute = true,
         use_SR3_cuts = true,
         use_lmSR3_cuts = use_lmSR3_cuts,
@@ -171,7 +166,6 @@ path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
     ngroute_neighborhood_depots_size = "small", 
     ngroute_neighborhood_charging_size = "small", 
     verbose = true,
-    use_smaller_graph = false,
     use_adaptive_ngroute = true,
     use_SR3_cuts = true,
     use_lmSR3_cuts = use_lmSR3_cuts,
