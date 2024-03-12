@@ -524,6 +524,7 @@ function path_formulation_column_generation!(
     printlist::Vector{String},
     ;
     method::String = "ours",
+    charge_cost_heterogenous::Bool = false,
     time_windows::Bool = false,
     elementary::Bool = true,
     neighborhoods::Union{Nothing, BitMatrix} = nothing,
@@ -595,6 +596,7 @@ function path_formulation_column_generation!(
                     CGLP_results["ν"], 
                     CGLP_results["λ"], 
                     ;
+                    charge_cost_heterogenous = charge_cost_heterogenous,
                     neighborhoods = neighborhoods,
                     ngroute = ngroute,
                     elementary = elementary,
@@ -1072,6 +1074,7 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
     ;
     Env = nothing,
     method::String = "ours",
+    charge_cost_heterogenous::Bool = false,
     time_windows::Bool = false,
     elementary::Bool = false,
     ngroute::Bool = true,
@@ -1246,6 +1249,7 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
             printlist,
             ;
             method = method,
+            charge_cost_heterogenous = charge_cost_heterogenous,
             time_windows = time_windows,
             elementary = elementary,
             neighborhoods = neighborhoods,

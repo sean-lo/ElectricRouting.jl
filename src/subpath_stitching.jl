@@ -20,6 +20,7 @@ mutable struct PathLabel <: Label
     cost::Float64
     subpath_labels::Vector{BaseSubpathLabel}
     charging_actions::Vector{Int}
+    charge_rebalance_indexes::Vector{Int} # ωₖ
     served::Vector{Int}
 end
 
@@ -27,6 +28,7 @@ Base.copy(p::PathLabel) = PathLabel(
     p.cost,
     [s for s in p.subpath_labels],
     [t for t in p.charging_actions],
+    [i for i in p.charge_rebalance_indexes],
     copy(p.served),
 )
 
@@ -835,6 +837,79 @@ function compute_new_path(
 end
 
 
+function compute_new_path_heterogenous_charging(
+    current_path::PathLabel,
+    s::BaseSubpathLabel,
+    current_node::Int,
+    current_time::Int,
+    current_charge::Int,
+    rebalancing_slacks::Vector{Int},
+    next_node::Int,
+    data::EVRPData,
+    graph::EVRPGraph,
+)
+
+    # don't count initial subpath again
+    if (
+        next_node in graph.N_depots
+        && s.time_taken == 0
+    )
+        return (false, current_path, 0, 0, rebalancing_slacks)
+    end
+
+    # time horizon and charge feasibility
+    (original_charge_amount, end_time, end_charge) = charge_to_specified_level(
+        current_charge,
+        s.charge_taken, # desired charge  
+        current_time,
+    )
+    end_time += s.time_taken
+    end_charge -= s.charge_taken
+    if end_time + graph.min_t[next_node] > graph.T
+        return (false, current_path, 0, 0, rebalancing_slacks)
+    end
+
+    new_path = copy(current_path)
+    new_path.cost += s.cost
+    push!(new_path.subpath_labels, s)
+    new_path.served += s.served
+
+    # charge rebalancing
+    if length(current_path.subpath_labels) == 0    
+        return (true, new_path, end_time, end_charge, rebalancing_slacks)
+    end
+
+    charge_amount = original_charge_amount
+    rho = data.charge_cost_levels[current_node]
+    rebalancing_slacks_diffs = rebalancing_slacks .- vcat([0], rebalancing_slacks[1:end-1])
+    for k in 1:rho-1
+        ω_k = new_path.charge_rebalance_indexes[k]
+        if ω_k == 0
+            continue
+        end
+        charge_amount_k = min(charge_amount, rebalancing_slacks_diffs[k])
+        charge_amount -= charge_amount_k
+        new_path.charging_actions[ω_k] += charge_amount_k
+        new_path.cost += data.charge_cost_levelslist[k] * charge_amount_k
+        if charge_amount == 0
+            break
+        end
+    end
+    push!(new_path.charging_actions, charge_amount)
+    new_path.cost += data.charge_cost_coeffs[current_node] * charge_amount
+
+    new_path.charge_rebalance_indexes[rho] = length(current_path.subpath_labels)
+    new_path.charge_rebalance_indexes[rho+1:end] .= 0
+
+    new_rebalancing_slacks = copy(rebalancing_slacks)
+    new_rebalancing_slacks[1:rho-1] .- original_charge_amount
+    new_rebalancing_slacks[1:rho-1] .= max.(0, new_rebalancing_slacks[1:rho-1])
+    new_rebalancing_slacks[rho:end] .= min.(data.B - s.charge_taken, data.B - current_charge)
+
+    return (true, new_path, end_time, end_charge, new_rebalancing_slacks)
+end
+
+
 function compute_new_path_lambda!(
     new_path::PathLabel,
     current_path_λ_labels::BitVector,
@@ -922,6 +997,7 @@ function find_nondominated_paths_notimewindows(
             0.0,
             BaseSubpathLabel[],
             Int[],
+            zeros(Int, data.charge_cost_nlevels),
             zeros(Int, graph.n_customers),
         )
         push!(
@@ -1021,8 +1097,7 @@ function find_nondominated_paths_notimewindows(
                 ),
             ],
             Int[],
-            Int[],
-            zeros(Int, data.charge_cost_nlevels - 1),
+            zeros(Int, data.charge_cost_nlevels),
             zeros(Int, graph.n_customers),
         )
     end
@@ -1082,6 +1157,7 @@ function find_nondominated_paths_notimewindows_ngroute(
             0.0,
             BaseSubpathLabel[],
             Int[],
+            zeros(Int, data.charge_cost_nlevels),
             zeros(Int, graph.n_customers),
         )
         push!(
@@ -1167,6 +1243,7 @@ function find_nondominated_paths_notimewindows_ngroute(
                 )
             ],
             Int[],
+            zeros(Int, data.charge_cost_nlevels),
             zeros(Int, graph.n_customers),
         )
     end
@@ -1230,6 +1307,7 @@ function find_nondominated_paths_notimewindows_ngroute_lambda(
             0.0,
             BaseSubpathLabel[],
             Int[],
+            zeros(Int, data.charge_cost_nlevels),
             zeros(Int, graph.n_customers),
         )
         push!(
@@ -1322,6 +1400,7 @@ function find_nondominated_paths_notimewindows_ngroute_lambda(
                 )
             ],
             Int[],
+            zeros(Int, data.charge_cost_nlevels),
             zeros(Int, graph.n_customers),
         )
     end
@@ -1386,6 +1465,7 @@ function find_nondominated_paths_notimewindows_ngroute_lambda_lmSR3(
             0.0,
             BaseSubpathLabel[],
             Int[],
+            zeros(Int, data.charge_cost_nlevels),
             zeros(Int, graph.n_customers),
         )
         push!(
@@ -1424,6 +1504,7 @@ function find_nondominated_paths_notimewindows_ngroute_lambda_lmSR3(
                 (feasible, new_path, end_time, end_charge) = compute_new_path(
                     current_path, 
                     s, 
+                    current_node,
                     current_time,
                     - negative_current_charge,
                     next_node, 
@@ -1478,6 +1559,7 @@ function find_nondominated_paths_notimewindows_ngroute_lambda_lmSR3(
                 )
             ],
             Int[],
+            zeros(Int, data.charge_cost_nlevels),
             zeros(Int, graph.n_customers),
         )
     end
@@ -1492,6 +1574,666 @@ function find_nondominated_paths_notimewindows_ngroute_lambda_lmSR3(
 
 end
 
+
+
+function find_nondominated_paths_notimewindows_heterogenous_charging(
+    data::EVRPData,
+    graph::EVRPGraph,
+    base_labels::Dict{
+        NTuple{2, Int},
+        SortedDict{
+            T,
+            BaseSubpathLabel,
+            Base.Order.ForwardOrdering,
+        },
+    },
+    κ::Dict{Int, Float64},
+    μ::Dict{Int, Float64},
+    ;
+    elementary::Bool = true,
+    time_limit::Float64 = Inf,
+) where {T <: Union{Tuple{Float64, Int, Int, BitVector}, Tuple{Float64, Int, Int}}}
+
+    start_time = time()
+
+    if elementary
+        full_labels = Dict(
+            (starting_node, current_node) => SortedDict{
+                Tuple{Float64, Int, Int, Vector{Int}, BitVector}, 
+                PathLabel,
+                Base.Order.ForwardOrdering,
+            }(Base.Order.ForwardOrdering())
+            for starting_node in graph.N_depots,
+                current_node in graph.N_depots_charging
+        )
+        # label key here has the following fields:
+        # 0) reduced cost
+        # 1) time
+        # 2) - charge
+        # 3) - rebalancing slacks
+        # 4) if applicable, whether i-th customer served
+        key = (
+            0.0, 0, -graph.B, 
+            zeros(Int, data.charge_cost_nlevels - 1), 
+            falses(graph.n_customers),
+        )
+        unexplored_states = SortedSet{Tuple{Float64, Int, Int, Vector{Int}, BitVector, Int, Int}}()
+    else
+        full_labels = Dict(
+            (starting_node, current_node) => SortedDict{
+                Tuple{Float64, Int, Int, Vector{Int}}, 
+                PathLabel,
+                Base.Order.ForwardOrdering,
+            }(Base.Order.ForwardOrdering())
+            for starting_node in graph.N_depots,
+                current_node in graph.N_depots_charging
+        )
+        key = (
+            0.0, 0, -graph.B, 
+            zeros(Int, data.charge_cost_nlevels - 1), 
+        )
+        unexplored_states = SortedSet{Tuple{Float64, Int, Int, Vector{Int}, Int, Int}}()
+    end
+
+    for depot in graph.N_depots
+        full_labels[(depot, depot)][key] = PathLabel(
+            0.0,
+            BaseSubpathLabel[],
+            Int[],
+            zeros(Int, data.charge_cost_nlevels),
+            zeros(Int, graph.n_customers),
+        )
+        push!(
+            unexplored_states, 
+            (
+                key..., 
+                depot, # starting_node
+                depot, # current_node
+            ),
+        )
+    end
+
+    while length(unexplored_states) > 0
+        if time_limit < time() - start_time
+            throw(TimeLimitException())
+        end
+        state = pop!(unexplored_states)
+        (current_key..., starting_node, current_node) = state
+        if !(current_key in keys(full_labels[(starting_node, current_node)]))
+            continue
+        end
+        (
+            _, current_time, 
+            negative_current_charge, 
+            negative_rebalancing_slacks,
+        ) = current_key[1:4]
+        current_path = full_labels[(starting_node, current_node)][current_key]
+        for next_node in graph.N_depots_charging
+            for s in values(base_labels[(current_node, next_node)])
+                # single-service requirement
+                if (
+                    elementary
+                    && any(s.served + current_path.served .> 1)
+                )
+                    continue
+                end
+
+                (feasible, new_path, end_time, end_charge, new_rebalancing_slacks) = compute_new_path_heterogenous_charging(
+                    current_path, 
+                    s, 
+                    current_node,
+                    current_time,
+                    - negative_current_charge,
+                    - negative_rebalancing_slacks, 
+                    next_node, 
+                    data, 
+                    graph,
+                )
+                !feasible && continue
+
+                if elementary
+                    new_key = (
+                        new_path.cost,
+                        end_time, 
+                        - end_charge,
+                        - new_rebalancing_slacks,
+                        BitVector(new_path.served),
+                    )
+                else
+                    new_key = (
+                        new_path.cost,
+                        end_time, 
+                        - end_charge,
+                        - new_rebalancing_slacks,
+                    )
+                end
+                added = add_label_to_collection!(
+                    full_labels[(starting_node, next_node)],
+                    new_key, new_path,
+                    ;
+                )
+
+                if added && next_node in graph.N_charging
+                    new_state = (new_key..., starting_node, next_node)
+                    push!(unexplored_states, new_state)
+                end
+            end
+        end
+    end
+
+    if elementary
+        # label key here has the following fields:
+        # 0) reduced cost
+        # 1) time
+        # 2) - charge
+        # 3) - rebalancing slacks
+        # 4) if applicable, whether i-th customer served
+        key = (0.0, 0, -graph.B, zeros(Int, data.charge_cost_nlevels - 1), falses(graph.n_customers),)
+    else
+        key = (0.0, 0, -graph.B, zeros(Int, data.charge_cost_nlevels - 1),)
+    end
+    for depot in graph.N_depots
+        full_labels[(depot, depot)][key] = PathLabel(
+            - κ[depot] - μ[depot],
+            [
+                BaseSubpathLabel(
+                    0,
+                    0,
+                    - κ[depot] - μ[depot],
+                    [depot, depot],
+                    zeros(Int, graph.n_customers),
+                ),
+            ],
+            Int[],
+            zeros(Int, data.charge_cost_nlevels),
+            zeros(Int, graph.n_customers),
+        )
+    end
+
+    for starting_node in graph.N_depots
+        for end_node in graph.N_charging
+            pop!(full_labels, (starting_node, end_node))
+        end
+    end
+
+    return full_labels
+
+end
+
+
+function find_nondominated_paths_notimewindows_heterogenous_charging_ngroute(
+    data::EVRPData,
+    graph::EVRPGraph,
+    neighborhoods::BitMatrix,
+    base_labels::Dict{
+        NTuple{2, Int}, 
+        SortedDict{
+            Tuple{Float64, Int, Int, BitVector},
+            BaseSubpathLabel,
+            Base.Order.ForwardOrdering,
+        },
+    },
+    κ::Dict{Int, Float64},
+    μ::Dict{Int, Float64},
+    ;
+    time_limit::Float64 = Inf,
+)
+
+    start_time = time()
+
+    full_labels = Dict(
+        (starting_node, current_node) => SortedDict{
+            Tuple{Float64, Int, Int, Vector{Int}, BitVector}, 
+            PathLabel,
+            Base.Order.ForwardOrdering,
+        }(Base.Order.ForwardOrdering())
+        for starting_node in graph.N_depots,
+            current_node in graph.N_depots_charging
+    )
+
+    unexplored_states = SortedSet{Tuple{Float64, Int, Int, Vector{Int}, BitVector, Int, Int}}()
+    for depot in graph.N_depots
+        node_labels = falses(graph.n_nodes)
+        node_labels[depot] = true
+        # label key here has the following fields:
+        # 0) reduced cost
+        # 1) time
+        # 2) - charge
+        # 3) - rebalancing slacks
+        # 4) whether i-th node is in forward ng-set
+        key = (0.0, 0, -graph.B, zeros(Int, data.charge_cost_nlevels - 1), node_labels,)
+        full_labels[(depot, depot)][key] = PathLabel(
+            0.0,
+            BaseSubpathLabel[],
+            Int[],
+            zeros(Int, data.charge_cost_nlevels),
+            zeros(Int, graph.n_customers),
+        )
+        push!(
+            unexplored_states, 
+            (
+                key..., 
+                depot, # starting_node
+                depot, # current_node
+            )
+        )
+    end
+
+    while length(unexplored_states) > 0
+        if time_limit < time() - start_time
+            throw(TimeLimitException())
+        end
+        state = pop!(unexplored_states)
+        starting_node = state[end-1]
+        current_node = state[end]
+        current_set = state[end-2]
+        current_key = state[1:end-2]
+        if !(current_key in keys(full_labels[(starting_node, current_node)]))
+            continue
+        end
+        (
+            _, current_time, 
+            negative_current_charge, 
+            negative_rebalancing_slacks, 
+            current_set,
+        ) = current_key
+        current_path = full_labels[(starting_node, current_node)][current_key]
+        for next_node in graph.N_depots_charging
+            for s in values(base_labels[(current_node, next_node)])
+                # ngroute stitching subpaths check
+                (feasible, new_set) = ngroute_extend_partial_path_check(
+                    neighborhoods, current_set, s.nodes,
+                )
+                !feasible && continue
+                (feasible, new_path, end_time, end_charge, new_rebalancing_slacks) = compute_new_path_heterogenous_charging(
+                    current_path, 
+                    s, 
+                    current_node,
+                    current_time,
+                    - negative_current_charge,
+                    - negative_rebalancing_slacks,
+                    next_node, 
+                    data, 
+                    graph,
+                )
+                !feasible && continue
+
+                new_key = (
+                    new_path.cost,
+                    end_time, 
+                    - end_charge,
+                    - new_rebalancing_slacks,
+                    new_set,
+                )
+                added = add_label_to_collection!(
+                    full_labels[(starting_node, next_node)],
+                    new_key, new_path,
+                    ;
+                )
+                if added && next_node in graph.N_charging
+                    new_state = (new_key..., starting_node, next_node)
+                    push!(unexplored_states, new_state)
+                end
+            end
+        end
+    end
+
+    # label key here has the following fields:
+    # 0) reduced cost
+    # 1) time
+    # 2) - charge
+    # 3) - rebalancing slacks
+    # 4) whether i-th node is in forward ng-set
+    for depot in graph.N_depots
+        node_labels = falses(graph.n_nodes)
+        node_labels[depot] = true
+        key = (0.0, 0, -graph.B, zeros(Int, data.charge_cost_nlevels - 1), node_labels,)
+        full_labels[(depot, depot)][key] = PathLabel(
+            - κ[depot] - μ[depot],
+            [
+                BaseSubpathLabel(
+                    0,
+                    0,
+                    - κ[depot] - μ[depot],
+                    [depot, depot],
+                    zeros(Int, graph.n_customers),
+                )
+            ],
+            Int[],
+            zeros(Int, data.charge_cost_nlevels),
+            zeros(Int, graph.n_customers),
+        )
+    end
+
+    for starting_node in graph.N_depots
+        for end_node in graph.N_charging
+            pop!(full_labels, (starting_node, end_node))
+        end
+    end
+
+    return full_labels
+
+end
+
+
+function find_nondominated_paths_notimewindows_heterogenous_charging_ngroute_lambda(
+    data::EVRPData,
+    graph::EVRPGraph,
+    neighborhoods::BitMatrix,
+    base_labels::Dict{
+        NTuple{2, Int}, 
+        SortedDict{
+            Tuple{Float64, BitVector, Int, Int, BitVector},
+            BaseSubpathLabel,
+            Base.Order.ForwardOrdering,
+        },
+    },
+    κ::Dict{Int, Float64},
+    μ::Dict{Int, Float64},
+    λ::Dict{NTuple{3, Int}, Float64},
+    ;
+    time_limit::Float64 = Inf,
+)
+
+    start_time = time()
+    λvals, _ = prepare_lambda(λ, graph.n_nodes)
+
+    full_labels = Dict(
+        (starting_node, current_node) => SortedDict{
+            Tuple{Float64, BitVector, Int, Int, Vector{Int}, BitVector}, 
+            PathLabel,
+            Base.Order.ForwardOrdering,
+        }(Base.Order.ForwardOrdering())
+        for starting_node in graph.N_depots,
+            current_node in graph.N_depots_charging
+    )
+
+    unexplored_states = SortedSet{Tuple{Float64, BitVector, Int, Int, Vector{Int}, BitVector, Int, Int}}()
+    for depot in graph.N_depots
+        λ_labels = falses(length(λ))
+        node_labels = falses(graph.n_nodes)
+        node_labels[depot] = true
+        # label key here has the following fields:
+        # 0) reduced cost
+        # 1) binary cut labels
+        # 2) time
+        # 3) - charge
+        # 4) - rebalancing slacks
+        # 4) whether i-th node is in forward ng-set
+        key = (0.0, λ_labels, 0, -graph.B, zeros(Int, data.charge_cost_nlevels - 1), node_labels,)
+        full_labels[(depot, depot)][key] = PathLabel(
+            0.0,
+            BaseSubpathLabel[],
+            Int[],
+            zeros(Int, data.charge_cost_nlevels),
+            zeros(Int, graph.n_customers),
+        )
+        push!(
+            unexplored_states, 
+            (
+                key..., 
+                depot, # starting_node
+                depot, # current_node
+            )
+        )
+    end
+
+    while length(unexplored_states) > 0
+        if time_limit < time() - start_time
+            throw(TimeLimitException())
+        end
+        state = pop!(unexplored_states)
+        (current_key..., starting_node, current_node) = state
+        if !(current_key in keys(full_labels[(starting_node, current_node)]))
+            continue
+        end
+        (
+            _, current_path_λ_labels, 
+            current_time, 
+            negative_current_charge, 
+            negative_rebalancing_slacks, 
+            current_set,
+        ) = current_key
+        current_path = full_labels[(starting_node, current_node)][current_key]
+        for next_node in graph.N_depots_charging
+            for ((_, subpath_λ_labels, _, _, _), s) in pairs(base_labels[(current_node, next_node)])
+                # ngroute stitching subpaths check
+                (feasible, new_set) = ngroute_extend_partial_path_check(
+                    neighborhoods, current_set, s.nodes,
+                )
+                !feasible && continue
+                (feasible, new_path, end_time, end_charge, new_rebalancing_slacks) = compute_new_path_heterogenous_charging(
+                    current_path, 
+                    s, 
+                    current_node,
+                    current_time,
+                    - negative_current_charge,
+                    - negative_rebalancing_slacks,
+                    next_node, 
+                    data, 
+                    graph,
+                )
+                !feasible && continue
+                new_path_λ_labels = compute_new_path_lambda!(
+                    new_path, current_path_λ_labels, subpath_λ_labels, λvals,
+                )
+
+                new_key = (
+                    new_path.cost,
+                    new_path_λ_labels,
+                    end_time, 
+                    - end_charge,
+                    - new_rebalancing_slacks,
+                    new_set,
+                )
+                added = add_label_to_collection_cuts!(
+                    full_labels[(starting_node, next_node)],
+                    new_key, new_path, λvals,
+                    ;
+                )
+                if added && next_node in graph.N_charging
+                    new_state = (new_key..., starting_node, next_node)
+                    push!(unexplored_states, new_state)
+                end
+            end
+        end
+    end
+
+    # label key here has the following fields:
+    # 0) reduced cost
+    # 1) binary cut labels
+    # 2) time
+    # 3) - charge
+    # 4) - rebalancing slacks
+    # 4) whether i-th node is in forward ng-set
+    for depot in graph.N_depots
+        node_labels = falses(graph.n_nodes)
+        node_labels[depot] = true
+        key = (0.0, falses(length(λ)), 0, -graph.B, zeros(Int, data.charge_cost_nlevels - 1), node_labels,)
+        full_labels[(depot, depot)][key] = PathLabel(
+            - κ[depot] - μ[depot],
+            [
+                BaseSubpathLabel(
+                    0,
+                    0,
+                    - κ[depot] - μ[depot],
+                    [depot, depot],
+                    zeros(Int, graph.n_customers),
+                )
+            ],
+            Int[],
+            zeros(Int, data.charge_cost_nlevels),
+            zeros(Int, graph.n_customers),
+        )
+    end
+
+    for starting_node in graph.N_depots
+        for end_node in graph.N_charging
+            pop!(full_labels, (starting_node, end_node))
+        end
+    end
+
+    return full_labels
+
+end
+
+
+
+function find_nondominated_paths_notimewindows_heterogenous_charging_ngroute_lambda_lmSR3(
+    data::EVRPData,
+    graph::EVRPGraph,
+    neighborhoods::BitMatrix,
+    base_labels::Dict{
+        NTuple{2, Int}, 
+        SortedDict{
+            Tuple{Float64, BitVector, BitVector, Int, Int, BitVector},
+            BaseSubpathLabel,
+            Base.Order.ForwardOrdering,
+        },
+    },
+    κ::Dict{Int, Float64},
+    μ::Dict{Int, Float64},
+    λ::Dict{Tuple{NTuple{3, Int}, Tuple{Vararg{Int}}}, Float64},
+    ;
+    time_limit::Float64 = Inf,
+)
+
+    start_time = time()
+    λvals, λcust, λmemory = prepare_lambda(λ, graph.n_nodes)
+
+    full_labels = Dict(
+        (starting_node, current_node) => SortedDict{
+            Tuple{Float64, BitVector, Int, Int, Vector{Int}, BitVector}, 
+            PathLabel,
+            Base.Order.ForwardOrdering,
+        }(Base.Order.ForwardOrdering())
+        for starting_node in graph.N_depots,
+            current_node in graph.N_depots_charging
+    )
+
+    unexplored_states = SortedSet{Tuple{Float64, BitVector, Int, Int, Vector{Int}, BitVector, Int, Int}}()
+    for depot in graph.N_depots
+        λ_labels = falses(length(λ))
+        node_labels = falses(graph.n_nodes)
+        node_labels[depot] = true
+        # label key here has the following fields:
+        # 0) reduced cost
+        # 1) binary cut labels
+        # 2) time
+        # 3) - charge
+        # 4) - rebalancing slacks
+        # 5) whether i-th node is in forward ng-set
+        key = (0.0, λ_labels, 0, -graph.B, zeros(Int, data.charge_cost_nlevels - 1), node_labels,)
+        full_labels[(depot, depot)][key] = PathLabel(
+            0.0,
+            BaseSubpathLabel[],
+            Int[],
+            zeros(Int, data.charge_cost_nlevels),
+            zeros(Int, graph.n_customers),
+        )
+        push!(
+            unexplored_states, 
+            (
+                key..., 
+                depot, # starting_node
+                depot, # current_node
+            )
+        )
+    end
+
+    while length(unexplored_states) > 0
+        if time_limit < time() - start_time
+            throw(TimeLimitException())
+        end
+        state = pop!(unexplored_states)
+        (current_key..., starting_node, current_node) = state
+        if !(current_key in keys(full_labels[(starting_node, current_node)]))
+            continue
+        end
+        (current_path_reduced_cost, current_path_λ_labels, current_time, negative_current_charge, negative_rebalancing_slacks, current_set) = current_key
+        current_path = full_labels[(starting_node, current_node)][current_key]
+        for next_node in graph.N_depots_charging
+            for s in values(base_labels[(current_node, next_node)])
+                # ngroute stitching subpaths check
+                (feasible, new_set) = ngroute_extend_partial_path_check(
+                    neighborhoods, current_set, s.nodes,
+                )
+                !feasible && continue
+                (feasible, new_path, end_time, end_charge, new_rebalancing_slacks) = compute_new_path_heterogenous_charging(
+                    current_path, 
+                    s, 
+                    current_node,
+                    current_time,
+                    - negative_current_charge,
+                    - negative_rebalancing_slacks,
+                    next_node, 
+                    data, 
+                    graph,
+                )
+                !feasible && continue
+                new_path_λ_labels = compute_new_path_lambda_lmSR3!(
+                    new_path, current_path_λ_labels, s.nodes,
+                    λvals, λcust, λmemory,
+                )
+
+                new_key = (
+                    new_path.cost,
+                    new_path_λ_labels, 
+                    end_time, 
+                    - end_charge,
+                    - new_rebalancing_slacks,
+                    new_set,
+                )
+                added = add_label_to_collection_cuts!(
+                    full_labels[(starting_node, next_node)],
+                    new_key, new_path, λvals,
+                    ;
+                )
+                if added && next_node in graph.N_charging
+                    new_state = (new_key..., starting_node, next_node)
+                    push!(unexplored_states, new_state)
+                end
+            end
+        end
+    end
+
+    # label key here has the following fields:
+    # 0) reduced cost
+    # 1) binary cut labels
+    # 2) time
+    # 3) - charge
+    # 4) - rebalancing slacks
+    # 5) whether i-th node is in forward ng-set
+    for depot in graph.N_depots
+        node_labels = falses(graph.n_nodes)
+        node_labels[depot] = true
+        key = (0.0, falses(length(λ)), 0, -graph.B, zeros(Int, data.charge_cost_nlevels - 1), node_labels,)
+        full_labels[(depot, depot)][key] = PathLabel(
+            - κ[depot] - μ[depot],
+            [
+                BaseSubpathLabel(
+                    0,
+                    0,
+                    - κ[depot] - μ[depot],
+                    [depot, depot],
+                    zeros(Int, graph.n_customers),
+                )
+            ],
+            Int[],
+            zeros(Int, data.charge_cost_nlevels),
+            zeros(Int, graph.n_customers),
+        )
+    end
+
+    for starting_node in graph.N_depots
+        for end_node in graph.N_charging
+            pop!(full_labels, (starting_node, end_node))
+        end
+    end
+
+    return full_labels
+
+end
 
 unwrap_path_labels(p::PathLabel) = PathLabel[p]
 
@@ -1528,6 +2270,7 @@ function subproblem_iteration_ours(
         Float64,
     },
     ;
+    charge_cost_heterogenous::Bool = false,
     neighborhoods::Union{Nothing, BitMatrix} = nothing,
     ngroute::Bool = false,
     elementary::Bool = true,
@@ -1543,38 +2286,33 @@ function subproblem_iteration_ours(
                 time_limit = time_limit - (time() - start_time),
             )
             base_labels_time = base_labels_result.time
-            full_labels_result = @timed find_nondominated_paths_notimewindows_ngroute(
-                data, graph, neighborhoods, 
-                base_labels_result.value, κ, μ,
-                ;
-                time_limit = time_limit - (time() - start_time),
-            )
-            full_labels_time = full_labels_result.time
-        else
-            if keytype(λ) == NTuple{3, Int}
-                base_labels_result = @timed generate_base_labels_ngroute_lambda(
+            if charge_cost_heterogenous
+                full_labels_result = @timed find_nondominated_paths_notimewindows_heterogenous_charging_ngroute(
                     data, graph, neighborhoods, 
-                    κ, μ, ν, λ,
-                    ;
-                    time_limit = time_limit - (time() - start_time),
-                )
-                base_labels_time = base_labels_result.time
-                full_labels_result = @timed find_nondominated_paths_notimewindows_ngroute_lambda(
-                    data, graph, neighborhoods, 
-                    base_labels_result.value, κ, μ, λ,
+                    base_labels_result.value, κ, μ,
                     ;
                     time_limit = time_limit - (time() - start_time),
                 )
                 full_labels_time = full_labels_result.time
-            elseif keytype(λ) == Tuple{NTuple{3, Int}, Tuple{Vararg{Int}}}
-                base_labels_result = @timed generate_base_labels_ngroute_lambda_lmSR3(
+            else
+                full_labels_result = @timed find_nondominated_paths_notimewindows_ngroute(
                     data, graph, neighborhoods, 
-                    κ, μ, ν, λ,
+                    base_labels_result.value, κ, μ,
                     ;
                     time_limit = time_limit - (time() - start_time),
                 )
-                base_labels_time = base_labels_result.time
-                full_labels_result = @timed find_nondominated_paths_notimewindows_ngroute_lambda_lmSR3(
+                full_labels_time = full_labels_result.time
+            end
+        elseif keytype(λ) == NTuple{3, Int}
+            base_labels_result = @timed generate_base_labels_ngroute_lambda(
+                data, graph, neighborhoods, 
+                κ, μ, ν, λ,
+                ;
+                time_limit = time_limit - (time() - start_time),
+            )
+            base_labels_time = base_labels_result.time
+            if charge_cost_heterogenous
+                full_labels_result = @timed find_nondominated_paths_notimewindows_heterogenous_charging_ngroute_lambda(
                     data, graph, neighborhoods, 
                     base_labels_result.value, κ, μ, λ,
                     ;
@@ -1582,8 +2320,41 @@ function subproblem_iteration_ours(
                 )
                 full_labels_time = full_labels_result.time
             else
-                error("Unrecognized key type for λ: $(keytype(λ))")
+                full_labels_result = @timed find_nondominated_paths_notimewindows_ngroute_lambda(
+                    data, graph, neighborhoods, 
+                    base_labels_result.value, κ, μ, λ,
+                    ;
+                    time_limit = time_limit - (time() - start_time),
+                )
+                full_labels_time = full_labels_result.time
             end
+        elseif keytype(λ) == Tuple{NTuple{3, Int}, Tuple{Vararg{Int}}}
+            base_labels_result = @timed generate_base_labels_ngroute_lambda_lmSR3(
+                data, graph, neighborhoods, 
+                κ, μ, ν, λ,
+                ;
+                time_limit = time_limit - (time() - start_time),
+            )
+            base_labels_time = base_labels_result.time
+            if charge_cost_heterogenous
+                full_labels_result = @timed find_nondominated_paths_notimewindows_heterogenous_charging_ngroute_lambda_lmSR3(
+                    data, graph, neighborhoods, 
+                    base_labels_result.value, κ, μ, λ,
+                    ;
+                    time_limit = time_limit - (time() - start_time),
+                )
+                full_labels_time = full_labels_result.time
+            else
+                full_labels_result = @timed find_nondominated_paths_notimewindows_ngroute_lambda_lmSR3(
+                    data, graph, neighborhoods, 
+                    base_labels_result.value, κ, μ, λ,
+                    ;
+                    time_limit = time_limit - (time() - start_time),
+                )
+                full_labels_time = full_labels_result.time
+            end
+        else
+            error("Unrecognized key type for λ: $(keytype(λ))")
         end
     else 
         base_labels_result = @timed generate_base_labels(
@@ -1593,13 +2364,23 @@ function subproblem_iteration_ours(
             time_limit = time_limit - (time() - start_time),
         )
         base_labels_time = base_labels_result.time
-        full_labels_result = @timed find_nondominated_paths_notimewindows(
-            data, graph, base_labels_result.value, κ, μ,
-            ;
-            elementary = elementary,
-            time_limit = time_limit - (time() - start_time),
-        )
-        full_labels_time = full_labels_result.time
+        if charge_cost_heterogenous
+            full_labels_result = @timed find_nondominated_paths_notimewindows_heterogenous_charging(
+                data, graph, base_labels_result.value, κ, μ,
+                ;
+                elementary = elementary,
+                time_limit = time_limit - (time() - start_time),
+            )
+            full_labels_time = full_labels_result.time
+        else
+            full_labels_result = @timed find_nondominated_paths_notimewindows(
+                data, graph, base_labels_result.value, κ, μ,
+                ;
+                elementary = elementary,
+                time_limit = time_limit - (time() - start_time),
+            )
+            full_labels_time = full_labels_result.time
+        end
     end
 
     negative_full_labels = get_negative_path_labels_from_path_labels(full_labels_result.value)
