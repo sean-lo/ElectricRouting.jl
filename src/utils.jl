@@ -1129,12 +1129,12 @@ end
 function plot_instance(
     data::EVRPData,
 )
-    p = plot(
+    p = Plots.plot(
         # xlim = (0, 1), ylim = (0, 1),
         aspect_ratio = :equal, 
         fmt = :png, 
     )
-    plot!(
+    Plots.plot!(
         data.customer_coords[1,:], data.customer_coords[2,:],
         seriestype = :scatter, 
         label = "Customer",
@@ -1142,39 +1142,39 @@ function plot_instance(
     )
     annotate!.(
         data.customer_coords[1,:] .+ 0.1, data.customer_coords[2,:], 
-        text.(
+        Plots.text.(
             collect(string(i) for i in 1:data.n_customers), 
             :green, :left, 11
         )
     )
-    plot!(
+    Plots.plot!(
         data.depot_coords[1,:], data.depot_coords[2,:],
         seriestype = :scatter, 
         label = "Depots",
         color = :black
     )
-    annotate!.(
+    Plots.annotate!.(
         data.depot_coords[1,:] .+ 0.1, data.depot_coords[2,:], 
-        text.(
+        Plots.text.(
             collect("M" * string(i) for i in 1:data.n_depots), 
             :black, :left, 11
         )
     )
-    plot!(
+    Plots.plot!(
         data.charging_coords[1,:], data.charging_coords[2,:],
         seriestype = :scatter, 
         label = "Charging stations",
         color = :grey
     )
-    annotate!.(
+    Plots.annotate!.(
         data.charging_coords[1,:] .+ 0.1, data.charging_coords[2,:], 
-        text.(
+        Plots.text.(
             collect("R" * string(i) for i in 1:data.n_charging), 
             :grey, :left, 11
         )
     )
 
-    plot!(legend = :outerright)
+    Plots.plot!(legend = :outerright)
     return p
 end
 
