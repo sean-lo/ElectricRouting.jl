@@ -69,11 +69,12 @@ Base.isequal(s1::Subpath, s2::Subpath) = begin
     )
 end
 
-Base.@kwdef mutable struct ChargingArc
+Base.@kwdef struct ChargingArc
     starting_node::Int
     starting_time::Int
     starting_charge::Int
     delta::Int = 0
+    charge_cost_coeff::Int
     current_time::Int = starting_time
     current_charge::Int = starting_charge
 end
@@ -83,6 +84,7 @@ Base.isequal(a1::ChargingArc, a2::ChargingArc) = (
     && a1.starting_time == a2.starting_time
     && a1.starting_charge == a2.starting_charge
     && a1.delta == a2.delta
+    && a1.charge_cost_coeff == a2.charge_cost_coeff
     && a1.current_time == a2.current_time
     && a1.current_charge == a2.current_charge
 )
@@ -92,6 +94,7 @@ Base.copy(a::ChargingArc) = ChargingArc(
     starting_time = a.starting_time,
     starting_charge = a.starting_charge,
     delta = a.delta,
+    charge_cost_coeff = a.charge_cost_coeff,
     current_time = a.current_time,
     current_charge = a.current_charge,
 )
@@ -303,10 +306,9 @@ function compute_subpath_service(
 end
 
 function compute_charging_arc_cost(
-    data::EVRPData,
     a::ChargingArc,
 )
-    return data.charge_cost_coeff * a.delta
+    return a.charge_cost_coeff * a.delta
 end
 
 function compute_path_cost(
@@ -320,7 +322,7 @@ function compute_path_cost(
     subpath_costs = length(p.subpaths) > 0 ? sum(compute_subpath_cost(data, graph, s, M) for s in p.subpaths) : 0
     verbose && @printf("Subpath costs: \t\t%11.3f\n", subpath_costs)
 
-    charging_arc_costs = length(p.charging_arcs) > 0 ? sum(compute_charging_arc_cost(data, a) for a in p.charging_arcs) : 0
+    charging_arc_costs = length(p.charging_arcs) > 0 ? sum(compute_charging_arc_cost(a) for a in p.charging_arcs) : 0
     verbose && @printf("Charging arc costs: \t\t%11d\n", charging_arc_costs)
     
     return subpath_costs + charging_arc_costs
@@ -340,7 +342,7 @@ function compute_path_modified_cost(
     for s in p.subpaths
         reduced_cost += compute_subpath_modified_cost(data, graph, s, κ, μ, ν, verbose = verbose)
     end
-    charging_costs = length(p.charging_arcs) > 0 ? sum(compute_charging_arc_cost(data, a) for a in p.charging_arcs) : 0
+    charging_costs = length(p.charging_arcs) > 0 ? sum(compute_charging_arc_cost(a) for a in p.charging_arcs) : 0
     verbose && @printf("Charging arc costs: \t%11d\n", charging_costs)
 
     reduced_cost += charging_costs

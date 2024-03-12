@@ -233,20 +233,21 @@ function arc_formulation(
         total_vehicle_time, # Total journey time of vehicles
         sum(τ_reach[i,k] for i in N_depots, k in N_vehicles)
     )
+
     if with_charging
         @expression(
             model,
             total_charge_cost, 
-            sum(δ[i,k] for i in N_charging, k in N_vehicles)
+            sum(
+                data.charge_cost_coeffs[i] * δ[i,k] 
+                for i in N_charging, k in N_vehicles
+            )
         )
-    end
-
-    if with_charging
         @objective(
             model,
             Min,
             data.travel_cost_coeff * total_travel_cost 
-            + data.charge_cost_coeff * total_charge_cost
+            + total_charge_cost
         ); # (1a): objective
     else
         @objective(

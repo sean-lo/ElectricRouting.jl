@@ -96,6 +96,7 @@ end
 
 function convert_path_label_to_path(
     path_label::PathLabel,
+    data::EVRPData,
     graph::EVRPGraph,
 )
     current_time, current_charge = (0.0, graph.B)
@@ -113,6 +114,7 @@ function convert_path_label_to_path(
         s_label = popfirst!(s_labels)
         prev_time = current_time
         prev_charge = current_charge
+        current_node = s_label.nodes[end]
         current_time = current_time + s_label.time_taken
         current_charge = current_charge - s_label.charge_taken
         s = Subpath(
@@ -120,7 +122,7 @@ function convert_path_label_to_path(
             starting_node = s_label.nodes[1],
             starting_time = prev_time,
             starting_charge = prev_charge,
-            current_node = s_label.nodes[end],
+            current_node = current_node,
             arcs = collect(zip(s_label.nodes[1:end-1], s_label.nodes[2:end])),
             current_time = current_time,
             current_charge = current_charge,
@@ -136,10 +138,11 @@ function convert_path_label_to_path(
         current_time = current_time + delta
         current_charge = current_charge + delta
         a = ChargingArc(
-            starting_node = s_label.nodes[end], 
+            starting_node = current_node, 
             starting_time = prev_time, 
             starting_charge = prev_charge, 
             delta = delta,
+            charge_cost_coeff = data.charge_cost_coeffs[current_node],
             current_time = current_time, 
             current_charge = current_charge,
         )
@@ -154,6 +157,7 @@ end
 
 function convert_pure_path_label_to_path(
     pure_path_label::PurePathLabel,
+    data::EVRPData,
     graph::EVRPGraph,
 )
     p = Path(
@@ -216,6 +220,7 @@ function convert_pure_path_label_to_path(
                 states[2*i][2],
                 states[2*i][3],
                 states[2*i+1][2] - states[2*i][2],
+                data.charge_cost_coeffs[states[2*i][1]],
                 states[2*i+1][2],
                 states[2*i+1][3],
             )
@@ -229,6 +234,7 @@ function convert_pure_path_label_to_path(
 end
 
 function get_paths_from_negative_path_labels(
+    data::EVRPData,
     graph::EVRPGraph,
     path_labels::Vector{PathLabel},
 )
@@ -237,13 +243,14 @@ function get_paths_from_negative_path_labels(
         Vector{Path},
     }()
     for path_label in path_labels
-        p = convert_path_label_to_path(path_label, graph)
+        p = convert_path_label_to_path(path_label, data, graph)
         add_path_to_generated_paths!(generated_paths, p)
     end
     return generated_paths
 end
 
 function get_paths_from_negative_pure_path_labels(
+    data::EVRPData,
     graph::EVRPGraph,
     pure_path_labels::Vector{PurePathLabel},
 )
@@ -252,7 +259,7 @@ function get_paths_from_negative_pure_path_labels(
         Vector{Path},
     }()
     for pure_path_label in pure_path_labels
-        p = convert_pure_path_label_to_path(pure_path_label, graph)
+        p = convert_pure_path_label_to_path(pure_path_label, data, graph)
         add_path_to_generated_paths!(generated_paths, p)
     end
     return generated_paths

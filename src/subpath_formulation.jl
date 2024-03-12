@@ -111,6 +111,7 @@ function add_charging_arc_to_generated_charging_arcs!(
 end
 
 function get_subpaths_charging_arcs_from_negative_path_labels(
+    data::EVRPData,
     graph::EVRPGraph, 
     full_labels = Vector{PathLabel},
 )
@@ -131,6 +132,7 @@ function get_subpaths_charging_arcs_from_negative_path_labels(
             s_label = popfirst!(s_labels)
             prev_time = current_time
             prev_charge = current_charge
+            current_node = s_label.nodes[end]
             current_time = current_time + s_label.time_taken
             current_charge = current_charge - s_label.charge_taken
             s = Subpath(
@@ -138,7 +140,7 @@ function get_subpaths_charging_arcs_from_negative_path_labels(
                 starting_node = s_label.nodes[1],
                 starting_time = prev_time,
                 starting_charge = prev_charge,
-                current_node = s_label.nodes[end],
+                current_node = current_node,
                 arcs = collect(zip(s_label.nodes[1:end-1], s_label.nodes[2:end])),
                 current_time = current_time,
                 current_charge = current_charge,
@@ -154,10 +156,11 @@ function get_subpaths_charging_arcs_from_negative_path_labels(
             current_time = current_time + delta
             current_charge = current_charge + delta
             a = ChargingArc(
-                starting_node = s_label.nodes[end], 
+                starting_node = current_node, 
                 starting_time = prev_time, 
                 starting_charge = prev_charge, 
                 delta = delta,
+                charge_cost_coeff = data.charge_cost_coeffs[current_node],
                 current_time = current_time, 
                 current_charge = current_charge,
             )
@@ -168,6 +171,7 @@ function get_subpaths_charging_arcs_from_negative_path_labels(
 end
 
 function get_subpaths_charging_arcs_from_negative_pure_path_labels(
+    data::EVRPData,
     graph::EVRPGraph,
     pure_labels = Vector{PurePathLabel},
 )
@@ -227,6 +231,7 @@ function get_subpaths_charging_arcs_from_negative_pure_path_labels(
                     states[2*i][2],
                     states[2*i][3],
                     states[2*i+1][2] - states[2*i][2],
+                    data.charge_cost_coeffs[states[2*i][1]],
                     states[2*i+1][2],
                     states[2*i+1][3],
                 )
@@ -560,7 +565,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
                 end
             end
             (generated_subpaths, generated_charging_arcs) = get_subpaths_charging_arcs_from_negative_path_labels(
-                graph, negative_full_labels,
+                data, graph, negative_full_labels,
             )
             push!(
                 CG_params["sp_base_time_taken"],
@@ -652,7 +657,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
                 end
             end
             (generated_subpaths, generated_charging_arcs) = get_subpaths_charging_arcs_from_negative_pure_path_labels(
-                graph, negative_pure_path_labels,
+                data, graph, negative_pure_path_labels,
             )
             push!(
                 CG_params["sp_base_time_taken"],
@@ -772,7 +777,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
                     # 2: add charging arc cost
                     push!(
                         charging_arc_costs[state_pair], 
-                        compute_charging_arc_cost(data, a_new)
+                        compute_charging_arc_cost(a_new)
                     )
                     # 4: create variable
                     count += 1
@@ -1000,7 +1005,7 @@ function compute_objective_from_subpath_solution(
         for (val, s) in results_subpaths],
         init = 0.0,
     ) + sum(
-        [val * compute_charging_arc_cost(data, a)
+        [val * compute_charging_arc_cost(a)
         for (val, a) in results_charging_arcs],
         init = 0.0,
     )
