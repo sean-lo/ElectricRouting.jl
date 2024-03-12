@@ -795,6 +795,7 @@ end
 function compute_new_path(
     current_path::PathLabel,
     s::BaseSubpathLabel,
+    current_node::Int,
     current_time::Int,
     current_charge::Int,
     next_node::Int,
@@ -810,7 +811,7 @@ function compute_new_path(
     end
 
     # time horizon and charge feasibility
-    (delta, end_time, end_charge) = charge_to_specified_level(
+    (original_charge_amount, end_time, end_charge) = charge_to_specified_level(
         current_charge,
         s.charge_taken, # desired charge  
         current_time,
@@ -826,8 +827,8 @@ function compute_new_path(
     push!(new_path.subpath_labels, s)
     new_path.served += s.served
     if length(current_path.subpath_labels) > 0
-        push!(new_path.charging_actions, delta)
-        new_path.cost += data.charge_cost_coeff * delta
+        push!(new_path.charging_actions, original_charge_amount)
+        new_path.cost += data.charge_cost_coeffs[current_node] * original_charge_amount
     end
 
     return (true, new_path, end_time, end_charge)
@@ -960,6 +961,7 @@ function find_nondominated_paths_notimewindows(
                 (feasible, new_path, end_time, end_charge) = compute_new_path(
                     current_path, 
                     s, 
+                    current_node,
                     current_time,
                     - negative_current_charge,
                     next_node, 
@@ -1116,6 +1118,7 @@ function find_nondominated_paths_notimewindows_ngroute(
                 (feasible, new_path, end_time, end_charge) = compute_new_path(
                     current_path, 
                     s, 
+                    current_node,
                     current_time,
                     - negative_current_charge,
                     next_node, 
@@ -1265,6 +1268,7 @@ function find_nondominated_paths_notimewindows_ngroute_lambda(
                 (feasible, new_path, end_time, end_charge) = compute_new_path(
                     current_path, 
                     s, 
+                    current_node,
                     current_time,
                     - negative_current_charge,
                     next_node, 
