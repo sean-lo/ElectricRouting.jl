@@ -1,3 +1,4 @@
+using DataStructures
 using Random
 using Combinatorics
 using StatsBase
@@ -7,6 +8,9 @@ using Printf
 using Graphs
 using LinearAlgebra
 using Plots
+using ColorSchemes
+
+abstract type Label end
 
 Base.@kwdef mutable struct Subpath
     n_customers::Int
@@ -1009,6 +1013,83 @@ function prepare_lambda(
         λmemory[i, collect(M)] .= true
     end
     return λvals, λcust, λmemory
+end
+
+
+dominates(v1::T, v2::T) where {T <: Real} = v1 ≤ v2
+dominates(v1::BitVector, v2::BitVector) = all(v1 .≤ v2)
+dominates(v1::T, v2::T) where {T <: Vector{Int}} = all(v1 .≤ v2)
+dominates(k1::T, k2::T) where {T <: Tuple} = all(dominates(v1, v2) for (v1, v2) in zip(k1, k2))
+function dominates(
+    k1::T, 
+    k2::T, 
+    λvals::Vector{Float64}, 
+) where {T <: Tuple{Float64, BitVector, Vararg{Any}}}
+    return (
+        k1[1] - sum(λvals[k1[2] .& .~k2[2]]) ≤ k2[1]
+        && all(dominates(v1, v2) for (v1, v2) in zip(k1[3:end], k2[3:end]))
+    )
+end
+
+
+function add_label_to_collection!(
+    collection::SortedDict{
+        T,
+        L,
+        Base.Order.ForwardOrdering,
+    },
+    k1::T,
+    v1::L,
+    ;
+) where {
+    T <: Tuple, 
+    L <: Label,
+}
+    added = true
+    for (k2, v2) in pairs(collection)
+        if dominates(k2, k1)
+            added = false
+            break
+        end
+        if dominates(k1, k2)
+            pop!(collection, k2)
+        end
+    end
+    if added
+        insert!(collection, k1, v1)
+    end
+    return added
+end
+
+
+function add_label_to_collection_cuts!(
+    collection::SortedDict{
+        T,
+        L,
+        Base.Order.ForwardOrdering,
+    },
+    k1::T,
+    v1::L,
+    λvals::Vector{Float64},
+    ;
+) where {
+    T <: Tuple{Float64, BitVector, Vararg{Any}}, 
+    L <: Label,
+}
+    added = true
+    for (k2, v2) in pairs(collection)
+        if dominates(k2, k1, λvals)
+            added = false
+            break
+        end
+        if dominates(k1, k2, λvals)
+            pop!(collection, k2)
+        end
+    end
+    if added
+        insert!(collection, k1, v1)
+    end
+    return added
 end
 
 

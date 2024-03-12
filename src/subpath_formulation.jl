@@ -1,10 +1,6 @@
 using JuMP
 using Gurobi
 using Suppressor
-using Printf
-
-using Plots
-using ColorSchemes
 
 include("utils.jl")
 include("desaulniers_benchmark.jl")
