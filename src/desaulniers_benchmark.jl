@@ -178,35 +178,6 @@ function compute_new_pure_path(
     return (true, new_path)
 end
 
-function compute_new_pure_path_lambda!(
-    new_path::PurePathLabel,
-    current_λ_labels::BitVector,
-    λvals::Vector{Float64},
-    λcust::BitMatrix,
-)
-    next_node = new_path.nodes[end]
-    # 1: create new λ_labels 
-    new_λ_labels = current_λ_labels .⊻ λcust[:, next_node]
-    # 2: modify cost of new_path
-    new_path.cost -= sum(λvals[current_λ_labels .& λcust[:, next_node]])
-    return new_λ_labels
-end
-
-function compute_new_pure_path_lambda_lmSR3!(
-    new_path::PurePathLabel,
-    current_λ_labels::BitVector,
-    λvals::Vector{Float64},
-    λcust::BitMatrix,
-    λmemory::BitMatrix,
-)
-    next_node = new_path.nodes[end]
-    # 1: create new λ_labels 
-    λ_labels = current_λ_labels .& λmemory[:, next_node]
-    new_λ_labels = λ_labels .⊻ λcust[:, next_node]
-    # 2: modify cost of new_path
-    new_path.cost -= sum(λvals[λ_labels .& λcust[:, next_node]])
-    return new_λ_labels
-end
 
 function find_nondominated_paths(
     data::EVRPData, 
@@ -582,9 +553,10 @@ function find_nondominated_paths_ngroute_lambda(
             )
             !feasible && continue
 
-            new_λ_labels = compute_new_pure_path_lambda!(
-                new_path, current_λ_labels, λvals, λcust,
+            (new_λ_labels, λ_cost) = compute_new_lambda_labels_cost(
+                next_node, current_λ_labels, λvals, λcust,
             )
+            new_path.cost += λ_cost
 
             new_key = (
                 new_path.cost,
@@ -724,9 +696,10 @@ function find_nondominated_paths_ngroute_lambda_lmSR3(
             )
             !feasible && continue
 
-            new_λ_labels = compute_new_pure_path_lambda_lmSR3!(
-                new_path, current_λ_labels, λvals, λcust, λmemory,
+            (new_λ_labels, λ_cost) = compute_lambda_flabels_cost_lmSR3(
+                next_node, current_λ_labels, λvals, λcust, λmemory,
             )
+            new_path.cost += λ_cost
 
             new_key = (
                 new_path.cost,

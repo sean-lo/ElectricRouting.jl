@@ -756,9 +756,10 @@ function generate_base_labels_ngroute_lambda(
             )
             !feasible && continue
 
-            new_λ_labels = compute_new_lambda_labels!(
-                new_subpath, current_λ_labels, λvals, λcust,
+            (new_λ_labels, λ_cost) = compute_new_lambda_labels_cost(
+                next_node, current_λ_labels, λvals, λcust,
             )
+            new_subpath.cost += λ_cost
 
             if starting_node in graph.N_depots
                 new_set = new_fset
@@ -945,9 +946,10 @@ function generate_base_labels_ngroute_lambda_lmSR3(
             )
             !feasible && continue
 
-            new_λ_flabels = compute_new_subpath_lambda_flabels_lmSR3!(
-                new_subpath, current_λ_flabels, λvals, λcust, λmemory,
+            (new_λ_flabels, λ_cost) = compute_lambda_flabels_cost_lmSR3(
+                next_node, current_λ_flabels, λvals, λcust, λmemory,
             )
+            new_subpath.cost += λ_cost
 
             if starting_node in graph.N_depots
                 new_set = new_fset
@@ -959,7 +961,7 @@ function generate_base_labels_ngroute_lambda_lmSR3(
                 )
                 new_set = [new_fset; new_bset]
                 new_λ_blabels = compute_new_subpath_lambda_blabels_lmSR3(
-                    next_node, current_λ_blabels, λcust, λmemory,
+                    next_node, current_subpath.nodes, current_λ_blabels, λcust, λmemory,
                 )
             end
             
