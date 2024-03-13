@@ -5,8 +5,8 @@ using ColorSchemes
 using Plots
 
 results = CSV.read("$(@__DIR__)/combined.csv", DataFrame)
-# results.density .= results.n_customers ./ (results.xmax .* 2)
-# CSV.write("$(@__DIR__)/combined.csv", results)
+results.density .= results.n_customers ./ (results.xmax .* 2)
+CSV.write("$(@__DIR__)/combined.csv", results)
 
 data_fields = [
     :n_customers,
@@ -18,7 +18,6 @@ method_fields = [
     :method,
     :elementary,
     :ngroute,
-    :ngroute_alt,
 ]
 
 (
@@ -49,12 +48,16 @@ summary = (
         :counter => mean => :counter,
         :converged => mean => :converged,
         :time_limit_reached => mean => :time_limit_reached,
+        :LP_objective => mean,
+        :IP_objective => mean,
         :LP_IP_gap => mean => :LP_IP_gap,
         :mean_subpath_length => mean => :mean_subpath_length,
         :mean_path_length => mean => :mean_path_length,
         :mean_ps_length => mean => :mean_ps_length,
     )
 )
+
+summary |> x -> filter(r -> (r.LP_objective_mean > 1e8), x)
 
 (
     results
@@ -107,6 +110,14 @@ filtered_summary.method_combined = [
     for i in 1:nrow(filtered_summary)
 ]
 
+filtered_summary |> x -> filter(r -> r.LP_objective_mean > 1e8, x)
+filtered_summary |> x -> filter(r -> r.LP_IP_gap < 0, x)
+
+filtered_summary |> x -> filter(r -> r.IP_objective_mean > 1e8, x)
+
+
+filtered_summary[!, :density]
+
 (
     filtered_summary
     |> x -> sort(
@@ -124,12 +135,12 @@ filtered_summary.method_combined = [
         :n_customers,
         :xmax => (x -> x .* 2.0) => :area,
         :T => (x -> x ./ 15000) => :TB,
-        :benchmark_false_false_false, :ours_false_false_false,
-        [:benchmark_false_false_false, :ours_false_false_false] => ((x, y) -> (1.0 .- y ./ x) .* 100) => :gap_false_false_false,
-        :benchmark_false_true_true, :ours_false_true_true,
-        [:benchmark_false_true_true, :ours_false_true_true] => ((x, y) -> (1.0 .- y ./ x) .* 100) => :gap_false_true_true,
-        :benchmark_true_false_false, :ours_true_false_false,
-        [:benchmark_true_false_false, :ours_true_false_false] => ((x, y) -> (1.0 .- y ./ x) .* 100) => :gap_true_false_false,
+        :benchmark_false_false, :ours_false_false,
+        [:benchmark_false_false, :ours_false_false] => ((x, y) -> (1.0 .- y ./ x) .* 100) => :gap_false_false_false,
+        :benchmark_false_true, :ours_false_true,
+        [:benchmark_false_true, :ours_false_true] => ((x, y) -> (1.0 .- y ./ x) .* 100) => :gap_false_true_true,
+        :benchmark_true_false, :ours_true_false,
+        [:benchmark_true_false, :ours_true_false] => ((x, y) -> (1.0 .- y ./ x) .* 100) => :gap_true_false_false,
     )
     |> x -> select(
         x, 
@@ -146,7 +157,7 @@ density_range = collect(1.5:0.5:4.0)
 TB_range = collect(2.5:0.5:4.0)
 
 begin
-    (elementary, ngroute, ngroute_alt) = (true, false, false)
+    (elementary, ngroute) = (true, false)
     xmax = 3.0
     data = (
         filtered_summary 
@@ -154,7 +165,6 @@ begin
             r -> (
                 r.elementary == elementary
                 && r.ngroute == ngroute
-                && r.ngroute_alt == ngroute_alt
                 # && r.method == "benchmark"
                 && r.xmax == xmax
                 #  && r.density == density
@@ -196,7 +206,6 @@ begin
                     r -> (
                         r.elementary == elementary
                         && r.ngroute == ngroute
-                        && r.ngroute_alt == ngroute_alt
                         && r.method == "benchmark"
                         && r.xmax == xmax
                         && r.density == density
@@ -210,7 +219,6 @@ begin
                     r -> (
                         r.elementary == elementary
                         && r.ngroute == ngroute
-                        && r.ngroute_alt == ngroute_alt
                         && r.method == "benchmark"
                         && r.xmax == xmax
                         && r.density == density
@@ -229,7 +237,6 @@ begin
                     r -> (
                         r.elementary == elementary
                         && r.ngroute == ngroute
-                        && r.ngroute_alt == ngroute_alt
                         && r.method == "ours"
                         && r.xmax == xmax
                         && r.density == density
@@ -243,7 +250,6 @@ begin
                     r -> (
                         r.elementary == elementary
                         && r.ngroute == ngroute
-                        && r.ngroute_alt == ngroute_alt
                         && r.method == "ours"
                         && r.xmax == xmax
                         && r.density == density
@@ -263,14 +269,13 @@ function make_pivottable(
     df::DataFrame,
     elementary::Bool,
     ngroute::Bool,
-    ngroute_alt::Bool,
     var::Symbol, # one of :time_taken, :LP_IP_gap_mean
     val::Symbol, # one of :benchmark, :ours, :ratio, :percent_gap
 )
-    if !((elementary, ngroute, ngroute_alt) in [
-        (true, false, false),
-        (false, false, false), 
-        (false, true, true),
+    if !((elementary, ngroute) in [
+        (true, false),
+        (false, false), 
+        (false, true),
     ])
         error()
     end
@@ -280,7 +285,6 @@ function make_pivottable(
             r -> (
                 r.elementary == elementary
                 && r.ngroute == ngroute
-                && r.ngroute_alt == ngroute_alt
             ),
             x
         )
@@ -317,115 +321,173 @@ function make_pivottable(
     return result
 end
 
+
+(
+    filtered_summary 
+    |> x -> filter(
+        r -> (
+            r.elementary == false
+            && r.ngroute == true
+        ),
+        x
+    )
+    |> x -> unstack(
+        x, 
+        [:n_customers, :xmax, :T],
+        :method,
+        :time_taken,
+    )
+    |> x -> transform(
+        x,
+        [:benchmark, :ours] => ((x, y) -> x ./ y) => :ratio,
+        [:n_customers, :xmax] => ((x, y) -> x ./ (2 * y)) => :customer_density,
+    )
+    |> x -> sort(
+        x, 
+        [:customer_density, :T],
+    )
+    |> x -> unstack(
+        x, 
+        :T,
+        :customer_density,
+        :ratio,
+        combine = geomean,
+    )
+    # |> x -> sort(
+    #     x, 
+    #     order(:T, rev = true),
+    # )
+)
+
+
 time_taken_ratio_none_df = make_pivottable(
     filtered_summary,
-    false, false, false, 
+    false, false,
     :time_taken, :ratio
 )
 time_taken_percent_gap_none_df = make_pivottable(
     filtered_summary,
-    false, false, false, 
+    false, false,
     :time_taken, :percent_gap
 )
 time_taken_benchmark_none_df = make_pivottable(
     filtered_summary,
-    false, false, false, 
+    false, false,
     :time_taken, :benchmark
 )
 time_taken_ours_none_df = make_pivottable(
     filtered_summary,
-    false, false, false, 
+    false, false,
     :time_taken, :ours
 )
 time_taken_ratio_ngroute_df = make_pivottable(
     filtered_summary,
-    false, true, true, 
+    false, true,
     :time_taken, :ratio
 )
 time_taken_percent_gap_ngroute_df = make_pivottable(
     filtered_summary,
-    false, true, true, 
+    false, true,
     :time_taken, :percent_gap
 )
 time_taken_benchmark_ngroute_df = make_pivottable(
     filtered_summary,
-    false, true, true, 
+    false, true,
     :time_taken, :benchmark
 )
 time_taken_ours_ngroute_df = make_pivottable(
     filtered_summary,
-    false, true, true, 
+    false, true,
     :time_taken, :ours
 )
 time_taken_ratio_elementary_df = make_pivottable(
     filtered_summary,
-    true, false, false,
+    true, false,
     :time_taken, :ratio
 )
 time_taken_percent_gap_elementary_df = make_pivottable(
     filtered_summary,
-    true, false, false,
+    true, false,
     :time_taken, :percent_gap
 )
 time_taken_benchmark_elementary_df = make_pivottable(
     filtered_summary,
-    true, false, false,
+    true, false,
     :time_taken, :benchmark
 )
 time_taken_ours_elementary_df = make_pivottable(
     filtered_summary,
-    true, false, false,
+    true, false,
     :time_taken, :ours
 )
 
 LP_IP_gap_ratio_none_df = make_pivottable(
     filtered_summary,
-    false, false, false, 
+    false, false,
     :LP_IP_gap, :ratio
 )
 LP_IP_gap_benchmark_none_df = make_pivottable(
     filtered_summary,
-    false, false, false, 
+    false, false,
     :LP_IP_gap, :benchmark
 )
 LP_IP_gap_ours_none_df = make_pivottable(
     filtered_summary,
-    false, false, false, 
+    false, false,
     :LP_IP_gap, :ours
 )
 LP_IP_gap_ratio_ngroute_df = make_pivottable(
     filtered_summary,
-    false, true, true, 
+    false, true,
     :LP_IP_gap, :ratio
 )
 LP_IP_gap_benchmark_ngroute_df = make_pivottable(
     filtered_summary,
-    false, true, true, 
+    false, true,
     :LP_IP_gap, :benchmark
 )
 LP_IP_gap_ours_ngroute_df = make_pivottable(
     filtered_summary,
-    false, true, true, 
+    false, true,
     :LP_IP_gap, :ours
 )
 LP_IP_gap_ratio_elementary_df = make_pivottable(
     filtered_summary,
-    true, false, false,
+    true, false,
     :LP_IP_gap, :ratio
 )
 LP_IP_gap_benchmark_elementary_df = make_pivottable(
     filtered_summary,
-    true, false, false,
+    true, false,
     :LP_IP_gap, :benchmark
 )
 LP_IP_gap_ours_elementary_df = make_pivottable(
     filtered_summary,
-    true, false, false,
+    true, false,
     :LP_IP_gap, :ours
 )
 
 using ColorSchemes
 using CairoMakie
+
+density_range = collect(1.5:0.5:4.0)
+TB_range = collect(2.5:0.5:4.0)
+
+time_taken_none_ratio = Matrix(make_pivottable(
+    filtered_summary,
+    false, false,
+    :time_taken_filtered, :ratio
+)[end:-1:1,2:end])
+time_taken_elementary_ratio = Matrix(make_pivottable(
+    filtered_summary,
+    true, false,
+    :time_taken_filtered, :ratio
+)[end:-1:1,2:end])
+time_taken_ngroute_ratio = Matrix(make_pivottable(
+    filtered_summary,
+    false, true,
+    :time_taken_filtered, :ratio
+)[end:-1:1,2:end])
 
 begin # masked time taken ratio
 
@@ -434,17 +496,17 @@ begin # masked time taken ratio
 
     time_taken_none_ratio = Matrix(make_pivottable(
         filtered_summary,
-        false, false, false, 
+        false, false,
         :time_taken_filtered, :ratio
     )[end:-1:1,2:end])
     time_taken_elementary_ratio = Matrix(make_pivottable(
         filtered_summary,
-        true, false, false, 
+        true, false,
         :time_taken_filtered, :ratio
     )[end:-1:1,2:end])
     time_taken_ngroute_ratio = Matrix(make_pivottable(
         filtered_summary,
-        false, true, true, 
+        false, true,
         :time_taken_filtered, :ratio
     )[end:-1:1,2:end])
 
@@ -522,17 +584,17 @@ begin # time taken ratio
 
     time_taken_none_ratio = Matrix(make_pivottable(
         filtered_summary,
-        false, false, false, 
+        false, false,
         :time_taken, :ratio
     )[end:-1:1,2:end])
     time_taken_elementary_ratio = Matrix(make_pivottable(
         filtered_summary,
-        true, false, false, 
+        true, false,
         :time_taken, :ratio
     )[end:-1:1,2:end])
     time_taken_ngroute_ratio = Matrix(make_pivottable(
         filtered_summary,
-        false, true, true, 
+        false, true,
         :time_taken, :ratio
     )[end:-1:1,2:end])
 
@@ -601,7 +663,7 @@ begin # single masked time taken percent gap
 
     time_taken_none_percent_gap = -Matrix(make_pivottable(
         filtered_summary,
-        false, false, false, 
+        false, false,
         :time_taken_filtered, :percent_gap
     )[end:-1:1,2:end])
     data = time_taken_none_percent_gap
@@ -667,17 +729,17 @@ begin # masked time taken percent gap
 
     time_taken_none_percent_gap = -Matrix(make_pivottable(
         filtered_summary,
-        false, false, false, 
+        false, false,
         :time_taken_filtered, :percent_gap
     )[end:-1:1,2:end])
     time_taken_elementary_percent_gap = -Matrix(make_pivottable(
         filtered_summary,
-        true, false, false, 
+        true, false,
         :time_taken_filtered, :percent_gap
     )[end:-1:1,2:end])
     time_taken_ngroute_percent_gap = -Matrix(make_pivottable(
         filtered_summary,
-        false, true, true, 
+        false, true,
         :time_taken_filtered, :percent_gap
     )[end:-1:1,2:end])
 
@@ -757,17 +819,17 @@ begin # time taken percent gap
 
     time_taken_none_percent_gap = -Matrix(make_pivottable(
         filtered_summary,
-        false, false, false, 
+        false, false,
         :time_taken, :percent_gap
     )[end:-1:1,2:end])
     time_taken_elementary_percent_gap = -Matrix(make_pivottable(
         filtered_summary,
-        true, false, false, 
+        true, false,
         :time_taken, :percent_gap
     )[end:-1:1,2:end])
     time_taken_ngroute_percent_gap = -Matrix(make_pivottable(
         filtered_summary,
-        false, true, true, 
+        false, true,
         :time_taken, :percent_gap
     )[end:-1:1,2:end])
 

@@ -64,6 +64,7 @@ function generate_artificial_paths(
             served = served,
             arcs = [(starting_node, current_node)],
             customer_arcs = NTuple{2, Int}[],
+            artificial = true,
         )
         if !(key in keys(artificial_paths))
             artificial_paths[key] = []
@@ -506,6 +507,10 @@ function path_formulation_column_generation!(
     },
     data::EVRPData,
     graph::EVRPGraph,
+    artificial_paths::Dict{
+        Tuple{NTuple{3, Int}, NTuple{3, Int}},
+        Vector{Path},
+    },
     some_paths::Dict{
         Tuple{NTuple{3, Int}, NTuple{3, Int}},
         Vector{Path},
@@ -576,6 +581,11 @@ function path_formulation_column_generation!(
                 S => dual(SR3_constraints[S])
                 for S in keys(SR3_constraints)
             ),
+        )
+        CGLP_results["infeasible"] = any(
+            value.(z[(key, p)]) > 1e-3
+            for key in keys(artificial_paths)
+                for p in 1:length(artificial_paths[key])
         )
         push!(CG_params["objective"], CGLP_results["objective"])
         push!(CG_params["κ"], CGLP_results["κ"])
@@ -717,6 +727,7 @@ function path_formulation_column_generation!(
     time_taken = round(end_time - start_time, digits = 3)
     CG_params["time_taken"] = time_taken
     CG_params["time_limit_reached"] = (time_taken > time_limit)
+    CG_params["infeasible"] = CGLP_results["infeasible"]
     CG_params["lp_relaxation_time_taken"] = sum.(zip(CG_params["lp_relaxation_constraint_time_taken"], CG_params["lp_relaxation_solution_time_taken"]))
     CG_params["lp_relaxation_time_taken_total"] = sum(CG_params["lp_relaxation_time_taken"])
     CG_params["sp_base_time_taken_total"] = sum(CG_params["sp_base_time_taken"])
@@ -752,6 +763,10 @@ function path_formulation_solve_integer_model!(
         },
         VariableRef,
     },
+    artificial_paths::Dict{
+        Tuple{NTuple{3, Int}, NTuple{3, Int}},
+        Vector{Path},
+    },
 )
     for (key, p) in keys(z)
         JuMP.set_integer(z[key, p])
@@ -768,6 +783,11 @@ function path_formulation_solve_integer_model!(
             for (key, p) in keys(z)
         ),
         "time_taken" => round(CGIP_solution_end_time - CGIP_solution_start_time, digits = 3),
+    )
+    CGIP_results["infeasible"] = any(
+        value.(z[(key, p)]) > 1e-3
+        for key in keys(artificial_paths)
+            for p in 1:length(artificial_paths[key])
     )
 
     for (key, p) in keys(z)
@@ -1101,7 +1121,8 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
         )
     end
 
-    some_paths = generate_artificial_paths(data, graph)
+    artificial_paths = generate_artificial_paths(data, graph)
+    some_paths = copy(artificial_paths)
     path_costs = compute_path_costs(
         data, graph, 
         some_paths,
@@ -1228,10 +1249,10 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
         SR3_constraints = Dict{NTuple{3, Int}, ConstraintRef}()
         SR3_list = Tuple{Float64, NTuple{3, Int}}[]
     end
-    CGLP_all_results = []
-    CGIP_all_results = []
-    all_params = []
-    CG_all_params = []
+    CGLP_all_results = Dict[]
+    CGIP_all_results = Dict[]
+    all_params = Dict[]
+    CG_all_params = Dict[]
     if ngroute
         CG_all_neighborhoods = BitMatrix[]
     else
@@ -1245,6 +1266,7 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
         CGLP_results, CG_params = path_formulation_column_generation!(
             model, z, SR3_constraints,
             data, graph,
+            artificial_paths,
             some_paths, path_costs, path_service,
             printlist,
             ;
@@ -1261,6 +1283,7 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
         CGIP_results = path_formulation_solve_integer_model!(
             model,
             z,
+            artificial_paths,
         )
         push!(CGLP_all_results, CGLP_results)
         push!(CGIP_all_results, CGIP_results)
@@ -1294,6 +1317,8 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
         
         iteration_params["CGLP_objective"] = CG_params["CGLP_objective"]
         iteration_params["CGIP_objective"] = CG_params["CGIP_objective"]
+        iteration_params["CGLP_infeasible"] = CGLP_results["infeasible"]
+        iteration_params["CGIP_infeasible"] = CGIP_results["infeasible"]
         iteration_params["CG_LP_IP_gap"] = CG_params["LP_IP_gap"]
         iteration_params["CG_time_taken"] = CG_params["time_taken"]
         iteration_params["CG_sp_time_taken_mean"] = CG_params["sp_time_taken_mean"]
