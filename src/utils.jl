@@ -105,6 +105,7 @@ Base.@kwdef mutable struct Path
     served::Vector{Int} = sum(s.served for s in subpaths)
     arcs::Vector{NTuple{2, Int}} = vcat([s.arcs for s in subpaths]...)
     customer_arcs::Vector{NTuple{2, Int}} = NTuple{2, Int}[]
+    artificial::Bool = false
 end
 
 Base.isequal(p1::Path, p2::Path) = (
@@ -113,6 +114,7 @@ Base.isequal(p1::Path, p2::Path) = (
     && p1.served == p2.served
     && p1.arcs == p2.arcs
     && p1.customer_arcs == p2.customer_arcs
+    && p1.artificial == p2.artificial
 )
 
 Base.copy(p::Path) = Path(
@@ -121,6 +123,7 @@ Base.copy(p::Path) = Path(
     served = copy(p.served),
     arcs = copy(p.arcs),
     customer_arcs = copy(p.customer_arcs),
+    artificial = p.artificial,
 )
 
 function get_nodes(

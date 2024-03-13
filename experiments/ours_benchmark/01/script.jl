@@ -1,5 +1,9 @@
-include("../../../src/path_formulation.jl")
-include("../../../src/utils.jl")
+using Pkg
+Pkg.activate("$(@__DIR__)/../../..")
+println(Pkg.status())
+
+include("$(@__DIR__)/../../../src/utils.jl")
+include("$(@__DIR__)/../../../src/path_formulation.jl")
 
 using StatsBase
 using Suppressor
@@ -49,7 +53,6 @@ function run_instance(
     method = String(args_df[row_index, :method])
     elementary = args_df[row_index, :elementary]
     ngroute = args_df[row_index, :ngroute]
-    ngroute_alt = args_df[row_index, :ngroute_alt]
 
     data = generate_instance(
         n_depots = n_depots,
@@ -75,24 +78,24 @@ function run_instance(
         load_tolerance = load_tolerance,
         batch = batch,
         permissiveness = permissiveness,
+        charge_cost_heterogenous = false,
         ;
         data_dir = "../../../data/",
     )
     graph = generate_graph_from_data(data)
 
-    run = @timed @suppress path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
+    run = @timed path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
         data, graph,
         ;
         Env = GRB_ENV,
         method = method,
+        charge_cost_heterogenous = false,
         elementary = elementary,
         ngroute = ngroute,
-        ngroute_alt = ngroute_alt,
         ngroute_neighborhood_size = Int(ceil(sqrt(graph.n_customers))),
         ngroute_neighborhood_depots_size = "small",
         ngroute_neighborhood_charging_size = "small",
         verbose = true,
-        use_smaller_graph = false,
         use_adaptive_ngroute = false,
         use_SR3_cuts = false,
         use_lmSR3_cuts = false,
@@ -135,7 +138,6 @@ function run_instance(
             method = method,
             elementary = elementary,
             ngroute = ngroute,
-            ngroute_alt = ngroute_alt,
             ngroute_neighborhood_size = Int(ceil(sqrt(graph.n_customers))),
             ngroute_neighborhood_depots_size = "small",
             ngroute_neighborhood_charging_size = "small",
@@ -158,7 +160,9 @@ function run_instance(
             converged = CG_all_params[1]["converged"],
             time_limit_reached = CG_all_params[1]["time_limit_reached"],
             # Objective values and gaps
+            LP_infeasible = all_params[1]["CGLP_infeasible"],
             LP_objective = all_params[1]["CGLP_objective"],
+            IP_infeasible = all_params[1]["CGIP_infeasible"],
             IP_objective = all_params[1]["CGIP_objective"],
             LP_IP_gap = all_params[1]["CG_LP_IP_gap"],
             # Length metrics 
@@ -185,8 +189,9 @@ end
 
 begin
     test_args_df = DataFrame(CSV.File("$(@__DIR__)/test_args.csv"))
+    # run_instance(test_args_df, 2, 3600.0, write_log = false)
     for i in 1:nrow(test_args_df)
-        run_instance(test_args_df, i, 3600.0, write_log = false)
+        run_instance(test_args_df, i, 50.0, write_log = false)
     end
 end
 
@@ -203,4 +208,11 @@ println("Processing rows: $(collect(task_index:n_tasks:size(args_df, 1)))")
 
 for row_index in task_index:n_tasks:size(args_df, 1)
     run_instance(args_df, row_index, 3600.0, write_log = true)
+end
+
+begin
+    tune_args_df = DataFrame(CSV.File("$(@__DIR__)/tune_args.csv"))
+    for i in 1:nrow(tune_args_df)
+        run_instance(tune_args_df, i, 100.0, write_log = true)
+    end
 end

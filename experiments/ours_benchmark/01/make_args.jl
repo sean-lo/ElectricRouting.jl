@@ -27,16 +27,12 @@ seed_range = collect(1:20)
     4, "grid", "random_box", "grid_clipped", 
     0.1, 0.0, 0.0, 2.0,
     15000, 5,
-    7, 3, 
+    7, 0, 
     5.0, 20.0, 1.3,
     1, 0.2,
 )
 
 n_customers_range = [12, 15, 18, 21]
-# k_range = [
-    # 2.5, 3.0, 3.5, 4.0,
-# ]
-# xmax_range = [2.0, 3.0, 4.0,]
 xmax_k_range = [
     (2.0, 2.0),
     (2.0, 2.5),
@@ -58,15 +54,12 @@ method_params = [
     # method
     # elementary
     # ngroute
-    # ngroute_alt
-    ("benchmark",  true, false, false,),
-    ("benchmark", false, false, false,),
-    # ("benchmark", false,  true, false,),
-    ("benchmark", false,  true,  true,),
-    ("ours",  true, false, false,),
-    ("ours", false, false, false,),
-    # ("ours", false,  true, false,),
-    ("ours", false,  true,  true,),
+    ("benchmark", false, false,),
+    ("benchmark", false,  true,),
+    ("benchmark",  true, false,),
+    ("ours", false, false,),
+    ("ours", false,  true,),
+    ("ours",  true, false,),
 ]
 
 args_df = DataFrame(
@@ -101,7 +94,6 @@ args_df = DataFrame(
     method = String[],
     elementary = Bool[],
     ngroute = Bool[],
-    ngroute_alt = Bool[],
 )
 for density in density_range,
     (xmax, k) in xmax_k_range,
