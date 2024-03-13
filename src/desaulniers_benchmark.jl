@@ -280,7 +280,7 @@ function find_nondominated_paths(
                     new_path.time_mincharge, 
                     - new_path.charge_maxcharge, 
                     new_path.time_mincharge - new_path.charge_mincharge, 
-                    new_path.served,
+                    BitVector(new_path.served),
                 )
             else
                 new_key = (
