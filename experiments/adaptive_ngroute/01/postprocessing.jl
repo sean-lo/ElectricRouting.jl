@@ -12,21 +12,21 @@ names(results)
 args = CSV.read("$(@__DIR__)/args.csv", DataFrame)
 args.index = collect(1:nrow(args))
 
-# # merge individual CSVs in results folder
-# begin
-#     all_dfs = DataFrame[]
-#     for ind in 1:nrow(args)
-#         fp = "$(@__DIR__)/results/$ind.csv"
-#         !isfile(fp) && continue
-#         data = CSV.read(fp, DataFrame)
-#         data.instance .= ind
-#         data.iteration .= collect(1:nrow(data))
-#         push!(all_dfs, data)
-#     end
-#     all_data = vcat(all_dfs...)
-#     select!(all_data, [:instance, :iteration], Not([:instance, :iteration]))
-#     CSV.write("$(@__DIR__)/all_results.csv", all_data)
-# end
+# merge individual CSVs in results folder
+begin
+    all_dfs = DataFrame[]
+    for ind in 1:nrow(args)
+        fp = "$(@__DIR__)/results/$ind.csv"
+        !isfile(fp) && continue
+        data = CSV.read(fp, DataFrame)
+        data.instance .= ind
+        data.iteration .= collect(1:nrow(data))
+        push!(all_dfs, data)
+    end
+    all_data = vcat(all_dfs...)
+    select!(all_data, [:instance, :iteration], Not([:instance, :iteration]))
+    CSV.write("$(@__DIR__)/all_results.csv", all_data)
+end
 
 data_fields = [
     :n_customers,
@@ -97,21 +97,19 @@ all_summary = (
 )
 
 
-(
-    all_summary
-    |> x -> filter!(
-        r -> (
-            r.ngroute_neighborhood_charging_size == "small"
-            # r.ngroute_neighborhood_charging_size == "medium"
-            || 
-            r.ngroute_neighborhood_size_string == "all"
-            # r.ngroute_neighborhood_size_string == "1"
-        ),
-        x
-    )
-)
-
-
+# (
+#     all_summary
+#     |> x -> filter!(
+#         r -> (
+#             r.ngroute_neighborhood_charging_size == "small"
+#             # r.ngroute_neighborhood_charging_size == "medium"
+#             || 
+#             r.ngroute_neighborhood_size_string == "all"
+#             # r.ngroute_neighborhood_size_string == "1"
+#         ),
+#         x
+#     )
+# )
 
 n_customers_range = unique(all_summary.n_customers)
 colors = Dict(
@@ -124,9 +122,19 @@ colors = Dict(
 
 for ngroute_neighborhood_charging_size in ["small", "medium"]
     for varname in ["LP_IP_gap", "LP_objective"]
+        if varname == "LP_IP_gap"
+            ylims = (-5, 95)
+            ylabel = "% gap"
+        else
+            ylims = (0.84, 1.01)
+            ylabel = "LP objective"
+        end
         p = Plots.plot(
             figsize = (500, 400),
             xscale = :log10,
+            xlabel = "Time (s)",
+            ylim = ylims,
+            ylabel = ylabel,
             format = :png,
         )
         Plots.hline!(
@@ -151,7 +159,9 @@ for ngroute_neighborhood_charging_size in ["small", "medium"]
                 Plots.plot!(
                     [data1[1,:CG_time_taken_first], data1[1,:CG_time_taken_last]],
                     [data1[1, varname * "_first"], data1[1, varname * "_last"]],
-                    label = false,
+                    label = false, 
+                    linewidth = 1.6,
+                    alpha = 0.8,
                     shape = [:none, :dtriangle],
                     color = colors[n_customers],
                 )
@@ -159,12 +169,26 @@ for ngroute_neighborhood_charging_size in ["small", "medium"]
             Plots.plot!(
                 data.CG_time_taken_first,
                 data[:, varname * "_first"],
+                linewidth = 1.6,
+                alpha = 0.8,
                 shape = :circ,
                 style = :dash,
                 color = colors[n_customers],
-                label = "$n_customers customers"
+                label = "$n_customers customers",
             )
         end
+        Plots.plot!(
+            [1],
+            [-100],
+            shape = :dtriangle,
+            color = :gray,
+            label = "Adaptive ng-route"
+        )
+        Plots.plot!(
+            labelfontsize = 12,
+            legendfontsize = 11,
+            tickfontsize = 11,
+        )
         savefig(p, "$(@__DIR__)/plots/$(varname)_time_$(ngroute_neighborhood_charging_size)_pareto.png")
         savefig(p, "$(@__DIR__)/plots/$(varname)_time_$(ngroute_neighborhood_charging_size)_pareto.pdf")
     end
