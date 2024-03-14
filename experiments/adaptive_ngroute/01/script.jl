@@ -1,5 +1,9 @@
-include("../../../src/path_formulation.jl")
-include("../../../src/utils.jl")
+using Pkg
+Pkg.activate("$(@__DIR__)/../../..")
+println(Pkg.status())
+
+include("$(@__DIR__)/../../../src/utils.jl")
+include("$(@__DIR__)/../../../src/path_formulation.jl")
 
 using StatsBase
 using Suppressor
@@ -85,24 +89,24 @@ function run_instance(
         load_tolerance = load_tolerance,
         batch = batch,
         permissiveness = permissiveness,
+        charge_cost_heterogenous = false,
         ;
         data_dir = "../../../data/",
     )
     graph = generate_graph_from_data(data)
 
-    run = @timed @suppress path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
+    run = @timed path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
         data, graph,
         ;
         Env = GRB_ENV,
         method = method,
+        charge_cost_heterogenous = false,
         elementary = false,
         ngroute = true,
-        ngroute_alt = true,
         ngroute_neighborhood_size = ngroute_neighborhood_size,
         ngroute_neighborhood_depots_size = "small",
         ngroute_neighborhood_charging_size = ngroute_neighborhood_charging_size,
         verbose = true,
-        use_smaller_graph = false,
         use_adaptive_ngroute = true,
         use_SR3_cuts = false,
         use_lmSR3_cuts = false,
@@ -113,82 +117,92 @@ function run_instance(
         some_paths, model, z, SR3_constraints
     ) = run.value;
 
-    some_paths_metrics = compute_path_metrics(some_paths)
-    
-    all_params_df = DataFrame(all_params)
-
-    records = [
-        (
-            n_depots = n_depots,
-            n_customers = n_customers,
-            n_charging = n_charging,
-            n_vehicles = n_vehicles,
-            depot_pattern = depot_pattern,    
-            customer_pattern = customer_pattern,
-            charging_pattern = charging_pattern,
-            customer_spread = customer_spread,
-            xmin = xmin,
-            xmax = xmax,
-            ymin = ymin,
-            ymax = ymax,
-            T = T,
-            seed = seed,
-            B = B,
-            μ = μ,
-            travel_cost_coeff = travel_cost_coeff,
-            charge_cost_coeff = charge_cost_coeff,
-            load_scale = load_scale,
-            load_shape = load_shape,
-            load_tolerance = load_tolerance,
-            batch = batch,
-            permissiveness = permissiveness,
-            use_load = use_load,
-            use_time_windows = use_time_windows,
-            method = method,
-            elementary = false,
-            ngroute = true,
-            ngroute_alt = true,
-            ngroute_neighborhood_size = ngroute_neighborhood_size,
-            ngroute_neighborhood_depots_size = "small",
-            ngroute_neighborhood_charging_size = ngroute_neighborhood_charging_size,
-            use_smaller_graph = false,
-            use_adaptive_ngroute = true,
-            use_SR3_cuts = false,
-            use_lmSR3_cuts = false,
-            # Time taken
-            time_taken_first = all_params_df[1, :CG_time_taken],
-            time_taken_total = sum(all_params_df[1:end, :CG_time_taken]),
-            sp_time_taken_mean_first = CG_all_params[1]["sp_time_taken_mean"],
-            sp_time_taken_mean_last = CG_all_params[end]["sp_time_taken_mean"],
-            # n_iterations
-            converged = all_params_df[end, :converged],
-            time_limit = time_limit,
-            time_limit_reached = all_params_df[end, :time_limit_reached],
-            n_iterations = length(CG_all_params),
-            n_CG_iterations = sum(CG_params["counter"] for CG_params in CG_all_params),
-            # Objective values and gaps
-            LP_objective_first = all_params[1]["CGLP_objective"],
-            LP_objective_last = all_params[end]["CGLP_objective"],
-            IP_objective_first = all_params[1]["CGIP_objective"],
-            IP_objective_last = all_params[end]["CGIP_objective"],
-            LP_IP_gap_first = all_params[1]["CG_LP_IP_gap"],
-            LP_IP_gap_last = all_params[end]["CG_LP_IP_gap"],
-            # neighborhood size
-            neighborhood_size_mean_first = all_params[1]["ngroute_neighborhood_size"],
-            neighborhood_size_mean_last = all_params[end]["ngroute_neighborhood_size"],
-            # Length metrics 
-            mean_subpath_length = get(some_paths_metrics, "mean_subpath_length", missing),
-            mean_path_length = get(some_paths_metrics, "mean_path_length", missing),
-            mean_ps_length = get(some_paths_metrics, "mean_ps_length", missing),
-        )
-    ]
+    local records
     if write_log
+        if length(all_params) == 0
+            return
+        end
+        if all_params[end]["errored"]
+            println("Row index $(row_index) encountered errored model.")
+            return
+        end
+        some_paths_metrics = compute_path_metrics(some_paths)
+        all_params_df = DataFrame(all_params)
+        records = [
+            (
+                n_depots = n_depots,
+                n_customers = n_customers,
+                n_charging = n_charging,
+                n_vehicles = n_vehicles,
+                depot_pattern = depot_pattern,    
+                customer_pattern = customer_pattern,
+                charging_pattern = charging_pattern,
+                customer_spread = customer_spread,
+                xmin = xmin,
+                xmax = xmax,
+                ymin = ymin,
+                ymax = ymax,
+                T = T,
+                seed = seed,
+                B = B,
+                μ = μ,
+                travel_cost_coeff = travel_cost_coeff,
+                charge_cost_coeff = charge_cost_coeff,
+                load_scale = load_scale,
+                load_shape = load_shape,
+                load_tolerance = load_tolerance,
+                batch = batch,
+                permissiveness = permissiveness,
+                use_load = use_load,
+                use_time_windows = use_time_windows,
+                method = method,
+                elementary = false,
+                ngroute = true,
+                ngroute_neighborhood_size = ngroute_neighborhood_size,
+                ngroute_neighborhood_depots_size = "small",
+                ngroute_neighborhood_charging_size = ngroute_neighborhood_charging_size,
+                use_adaptive_ngroute = true,
+                use_SR3_cuts = false,
+                use_lmSR3_cuts = false,
+                # Time taken
+                time_taken_first = all_params_df[1, :CG_time_taken],
+                time_taken_total = sum(all_params_df[1:end, :CG_time_taken]),
+                sp_time_taken_mean_first = CG_all_params[1]["sp_time_taken_mean"],
+                sp_time_taken_mean_last = CG_all_params[end]["sp_time_taken_mean"],
+                # n_iterations
+                converged = all_params_df[end, :converged],
+                time_limit = time_limit,
+                time_limit_reached = all_params_df[end, :time_limit_reached],
+                n_iterations = length(CG_all_params),
+                n_CG_iterations = sum(CG_params["counter"] for CG_params in CG_all_params),
+                # Objective values and gaps
+                LP_artificial_first = all_params[1]["CGLP_artificial"],
+                LP_artificial_last = all_params[end]["CGLP_artificial"],
+                LP_objective_first = all_params[1]["CGLP_objective"],
+                LP_objective_last = all_params[end]["CGLP_objective"],
+                IP_artificial_first = all_params[1]["CGIP_artificial"],
+                IP_artificial_last = all_params[end]["CGIP_artificial"],
+                IP_objective_first = all_params[1]["CGIP_objective"],
+                IP_objective_last = all_params[end]["CGIP_objective"],
+                LP_IP_gap_first = all_params[1]["CG_LP_IP_gap"],
+                LP_IP_gap_last = all_params[end]["CG_LP_IP_gap"],
+                # neighborhood size
+                neighborhood_size_mean_first = all_params[1]["ngroute_neighborhood_size"],
+                neighborhood_size_mean_last = all_params[end]["ngroute_neighborhood_size"],
+                # Length metrics 
+                mean_subpath_length = get(some_paths_metrics, "mean_subpath_length", missing),
+                mean_path_length = get(some_paths_metrics, "mean_path_length", missing),
+                mean_ps_length = get(some_paths_metrics, "mean_ps_length", missing),
+            )
+        ]
         CSV.write("$(@__DIR__)/records/$(row_index).csv", DataFrame(records))
+        println("$records")
     end
     if write_results
         CSV.write("$(@__DIR__)/results/$(row_index).csv", all_params_df)    
     end
-    println("Row $row_index processed: $(args_df[row_index, :])")
+    println("Row $row_index processed. ")
+    println()
 end
 
 
@@ -199,7 +213,7 @@ begin
     test_args_df = DataFrame(CSV.File("$(@__DIR__)/test_args.csv"))
     for i in 1:nrow(test_args_df)
         run_instance(
-            test_args_df, i, 100.0,
+            test_args_df, i, 50.0,
             ;
             write_log = false,
             write_results = false,
@@ -209,8 +223,6 @@ end
 
 println("Compilation complete.")
 
-
-
 args_df = DataFrame(CSV.File("$(@__DIR__)/args.csv"))
 
 task_index = parse(Int, ARGS[1]) + 1
@@ -219,11 +231,13 @@ n_tasks = parse(Int, ARGS[2])
 println("Processing rows: $(collect(task_index:n_tasks:size(args_df, 1)))")
 
 for row_index in task_index:n_tasks:size(args_df, 1)
-    sleep(rand() * 30)
-    run_instance(
-        args_df, row_index, 3600.0,           
-        ;
-        write_log = true,
-        write_results = true,
-    )
+    if !isfile("$(@__DIR__)/records/$row_index.csv")
+        sleep(rand() * 30)
+        run_instance(
+            args_df, row_index, 3600.0,           
+            ;
+            write_log = true,
+            write_results = true,
+        )
+    end
 end

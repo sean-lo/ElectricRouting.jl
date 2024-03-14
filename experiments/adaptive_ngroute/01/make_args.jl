@@ -2,7 +2,7 @@ using CSV
 using DataFrames
 using Glob
 
-seed_range = collect(1:20)
+seed_range = collect(1:50)
 
 # data_params
 (
@@ -26,9 +26,9 @@ seed_range = collect(1:20)
     permissiveness,
 ) = (
     6, 4, "grid", "random_box", "grid_clipped", 
-    0.2, 0.0, 0.0, 2.0,
+    0.1, 0.0, 0.0, 2.0,
     15000, 5,
-    7, 3, 
+    7, 0, 
     5.0, 20.0, 1.3,
     1, 0.2,
 )
