@@ -149,7 +149,6 @@ function run_instance(
                 ngroute_neighborhood_size = Int(ceil(sqrt(graph.n_customers))),
                 ngroute_neighborhood_depots_size = "small",
                 ngroute_neighborhood_charging_size = "small",
-                use_smaller_graph = false,
                 use_adaptive_ngroute = false,
                 use_SR3_cuts = false,
                 use_lmSR3_cuts = false,
@@ -205,8 +204,6 @@ begin
 end
 
 println("Compilation complete.")
-
-
 
 args_df = DataFrame(CSV.File("$(@__DIR__)/args.csv"))
 
