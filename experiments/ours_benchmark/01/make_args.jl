@@ -168,31 +168,5 @@ test_args_df = vcat(
             ),
             x
         ),
-    args_df |> 
-        x -> filter(
-            r -> (
-                r.seed == 1
-                && r.elementary == true
-                && r.method == "benchmark"
-            ),
-            x
-        ) |> 
-        x -> unique(
-            x,
-            [:n_customers]
-        ),
-    args_df |> 
-        x -> filter(
-            r -> (
-                r.seed == 1
-                && r.elementary == true
-                && r.method == "ours"
-            ),
-            x
-        ) |> 
-        x -> unique(
-            x,
-            [:n_customers]
-        ),
 )
 CSV.write("$(@__DIR__)/test_args.csv", test_args_df)
