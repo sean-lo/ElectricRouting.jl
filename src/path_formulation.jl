@@ -558,6 +558,7 @@ function path_formulation_column_generation!(
     CG_params["lp_relaxation_constraint_time_taken"] = Float64[]
     CG_params["number_of_new_paths"] = Int[]
     CG_params["converged"] = false
+    CG_params["cycled"] = false
 
     while (
         !converged
@@ -568,7 +569,21 @@ function path_formulation_column_generation!(
         mp_solution_start_time = time()
         @suppress optimize!(model)
         mp_solution_end_time = time()
+        if JuMP.termination_status(model) in [
+            JuMP.INFEASIBLE,
+            JuMP.INFEASIBLE_OR_UNBOUNDED,
+            JuMP.TIME_LIMIT,
+            JuMP.MEMORY_LIMIT,
+        ]
+            CGLP_results = Dict(
+                "errored" => true,
+                "artificial" => false,
+            )
+            add_message!(printlist, "CGLP model errored.", verbose)
+            break
+        end
         CGLP_results = Dict(
+            "errored" => false,
             "objective" => objective_value(model),
             "z" => Dict(
                 (key, p) => value.(z[(key, p)])
@@ -582,7 +597,7 @@ function path_formulation_column_generation!(
                 for S in keys(SR3_constraints)
             ),
         )
-        CGLP_results["infeasible"] = any(
+        CGLP_results["artificial"] = any(
             value.(z[(key, p)]) > 1e-3
             for key in keys(artificial_paths)
                 for p in 1:length(artificial_paths[key])
@@ -719,6 +734,17 @@ function path_formulation_column_generation!(
             ),
             verbose,
         )
+
+        # cycling detection
+        if (
+            length(CG_params["number_of_paths"]) >= 2
+            && CG_params["number_of_paths"][end] == CG_params["number_of_paths"][end-1]
+            && !converged
+        )
+            CG_params["cycled"] = true
+            add_message!(printlist, "CG cycling error.", verbose)
+            break
+        end
     end
 
     CG_params["converged"] = converged
@@ -727,7 +753,8 @@ function path_formulation_column_generation!(
     time_taken = round(end_time - start_time, digits = 3)
     CG_params["time_taken"] = time_taken
     CG_params["time_limit_reached"] = (time_taken > time_limit)
-    CG_params["infeasible"] = CGLP_results["infeasible"]
+    CG_params["errored"] = CGLP_results["errored"]
+    CG_params["artificial"] = CGLP_results["artificial"]
     CG_params["lp_relaxation_time_taken"] = sum.(zip(CG_params["lp_relaxation_constraint_time_taken"], CG_params["lp_relaxation_solution_time_taken"]))
     CG_params["lp_relaxation_time_taken_total"] = sum(CG_params["lp_relaxation_time_taken"])
     CG_params["sp_base_time_taken_total"] = sum(CG_params["sp_base_time_taken"])
@@ -775,20 +802,33 @@ function path_formulation_solve_integer_model!(
     CGIP_solution_start_time = time()
     @suppress optimize!(model)
     CGIP_solution_end_time = time()
-
-    CGIP_results = Dict(
-        "objective" => objective_value(model),
-        "z" => Dict(
-            (key, p) => value.(z[key, p])
-            for (key, p) in keys(z)
-        ),
-        "time_taken" => round(CGIP_solution_end_time - CGIP_solution_start_time, digits = 3),
-    )
-    CGIP_results["infeasible"] = any(
-        value.(z[(key, p)]) > 1e-3
-        for key in keys(artificial_paths)
-            for p in 1:length(artificial_paths[key])
-    )
+    if JuMP.termination_status(model) in [
+        JuMP.INFEASIBLE,
+        JuMP.INFEASIBLE_OR_UNBOUNDED,
+        JuMP.TIME_LIMIT,
+        JuMP.MEMORY_LIMIT,
+    ]
+        CGIP_results = Dict(
+            "errored" => true,
+            "artificial" => false,
+        )
+        add_message!(printlist, "CGIP model errored.", verbose)
+    else
+        CGIP_results = Dict(
+            "errored" => false,
+            "objective" => objective_value(model),
+            "z" => Dict(
+                (key, p) => value.(z[key, p])
+                for (key, p) in keys(z)
+            ),
+            "time_taken" => round(CGIP_solution_end_time - CGIP_solution_start_time, digits = 3),
+        )
+        CGIP_results["artificial"] = any(
+            value.(z[(key, p)]) > 1e-3
+            for key in keys(artificial_paths)
+                for p in 1:length(artificial_paths[key])
+        )
+    end
 
     for (key, p) in keys(z)
         JuMP.unset_integer(z[key, p])
@@ -1122,7 +1162,7 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
     end
 
     artificial_paths = generate_artificial_paths(data, graph)
-    some_paths = copy(artificial_paths)
+    some_paths = deepcopy(artificial_paths)
     path_costs = compute_path_costs(
         data, graph, 
         some_paths,
@@ -1292,6 +1332,14 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
             push!(CG_all_neighborhoods, copy(neighborhoods))
         end
 
+        if CGLP_results["errored"] || CGIP_results["errored"] || CG_params["cycled"]
+            add_message!(printlist, "Terminating column generation...", verbose)
+            iteration_params["errored"] = true
+            break
+        else
+            iteration_params["errored"] = false
+        end
+
         # Termination criteria
         CG_params["CGLP_objective"] = CGLP_results["objective"]
         CG_params["CGIP_objective"] = CGIP_results["objective"]
@@ -1317,8 +1365,8 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
         
         iteration_params["CGLP_objective"] = CG_params["CGLP_objective"]
         iteration_params["CGIP_objective"] = CG_params["CGIP_objective"]
-        iteration_params["CGLP_infeasible"] = CGLP_results["infeasible"]
-        iteration_params["CGIP_infeasible"] = CGIP_results["infeasible"]
+        iteration_params["CGLP_artificial"] = CGLP_results["artificial"]
+        iteration_params["CGIP_artificial"] = CGIP_results["artificial"]
         iteration_params["CG_LP_IP_gap"] = CG_params["LP_IP_gap"]
         iteration_params["CG_time_taken"] = CG_params["time_taken"]
         iteration_params["CG_sp_time_taken_mean"] = CG_params["sp_time_taken_mean"]
