@@ -7,13 +7,13 @@ using ColorSchemes
 using CairoMakie
 
 results = CSV.read("$(@__DIR__)/combined.csv", DataFrame)
-names(results)
-
-args = CSV.read("$(@__DIR__)/args.csv", DataFrame)
-args.index = collect(1:nrow(args))
+results.density .= results.n_customers ./ (results.xmax .* 2)
+CSV.write("$(@__DIR__)/combined.csv", results)
 
 # merge individual CSVs in results folder
 begin
+    args = CSV.read("$(@__DIR__)/args.csv", DataFrame)
+    args.index = collect(1:nrow(args))
     all_dfs = DataFrame[]
     for ind in 1:nrow(args)
         fp = "$(@__DIR__)/results/$ind.csv"
@@ -32,7 +32,7 @@ data_fields = [
     :n_customers,
     :xmax,
     :T,
-    # :density,
+    :density,
 ]
 method_fields = [
     :method,
@@ -43,17 +43,22 @@ method_fields = [
 
 (
     results 
+    |> x -> select!(
+        x, 
+        :density, 
+        Not(:density),
+    )
     |> x -> sort!(
         x, 
         vcat(data_fields, [:seed], method_fields),
     )
 )
 
+# Note: here, these LP_IP_gaps are at least zero up to a small floating point tolerance
 results.LP_IP_gap_first .*= 100
 results.LP_IP_gap_last .*= 100
-
-results.LP_IP_gap_first .= max.(results.LP_IP_gap_first, 0)
-results.LP_IP_gap_last .= max.(results.LP_IP_gap_last, 0)
+results.LP_IP_gap_first .= ifelse.(results.LP_IP_gap_first .≤ 1e-10, 0.0, results.LP_IP_gap_first)
+results.LP_IP_gap_last .= ifelse.(results.LP_IP_gap_last .≤ 1e-10, 0.0, results.LP_IP_gap_last)
 
 all_results = CSV.read("$(@__DIR__)/all_results.csv", DataFrame)
 all_results.CG_LP_IP_gap .*= 100
@@ -97,20 +102,6 @@ all_summary = (
 )
 
 
-# (
-#     all_summary
-#     |> x -> filter!(
-#         r -> (
-#             r.ngroute_neighborhood_charging_size == "small"
-#             # r.ngroute_neighborhood_charging_size == "medium"
-#             || 
-#             r.ngroute_neighborhood_size_string == "all"
-#             # r.ngroute_neighborhood_size_string == "1"
-#         ),
-#         x
-#     )
-# )
-
 n_customers_range = unique(all_summary.n_customers)
 colors = Dict(
     n_customers => c
@@ -120,10 +111,12 @@ colors = Dict(
     )
 )
 
+extrema(all_summary[!, :LP_IP_gap_first])
+
 for ngroute_neighborhood_charging_size in ["small", "medium"]
     for varname in ["LP_IP_gap", "LP_objective"]
         if varname == "LP_IP_gap"
-            ylims = (-5, 95)
+            ylims = (-5, 100)
             ylabel = "% gap"
         else
             ylims = (0.84, 1.01)
@@ -133,6 +126,7 @@ for ngroute_neighborhood_charging_size in ["small", "medium"]
             figsize = (500, 400),
             xscale = :log10,
             xlabel = "Time (s)",
+            xticks = 10.0.^(0:4),
             ylim = ylims,
             ylabel = ylabel,
             format = :png,
