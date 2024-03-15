@@ -1,9 +1,9 @@
 using Pkg
-Pkg.activate("../..")
+Pkg.activate("$(@__DIR__)/../../..")
 println(Pkg.status())
 
-include("../../../src/path_formulation.jl")
-include("../../../src/utils.jl")
+include("$(@__DIR__)/../../../src/utils.jl")
+include("$(@__DIR__)/../../../src/path_formulation.jl")
 
 using StatsBase
 using Suppressor
