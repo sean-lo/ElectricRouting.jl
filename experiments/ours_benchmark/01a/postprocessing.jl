@@ -6,6 +6,7 @@ using Plots
 
 results = CSV.read("$(@__DIR__)/combined.csv", DataFrame)
 results.density .= results.n_customers ./ (results.xmax .* 2)
+results.LP_IP_gap .*= 100
 CSV.write("$(@__DIR__)/combined.csv", results)
 
 data_fields = [
@@ -31,9 +32,16 @@ method_fields = [
         x, 
         vcat(data_fields, [:seed], method_fields),
     )
+    |> x -> filter!(
+        r -> (
+            # Note: LP_IP_gap only ends up being negative for certain large instances,
+            # where the time limit is reached and one still has artificial paths in the LP solution
+            r.LP_IP_gap ≥ 0 
+            || !r.time_limit_reached
+        ),
+        x, 
+    )
 )
-
-results.LP_IP_gap .*= 100
 
 summary = (
     results 
@@ -43,6 +51,7 @@ summary = (
     )
     |> x -> combine(
         x, 
+        nrow,
         :time_taken => geomean => :time_taken,
         :sp_time_taken_mean => geomean => :sp_time_taken_mean,
         :counter => mean => :counter,
@@ -56,8 +65,6 @@ summary = (
         :mean_ps_length => mean => :mean_ps_length,
     )
 )
-
-summary |> x -> filter(r -> (r.LP_objective_mean > 1e8), x)
 
 (
     results
@@ -109,14 +116,6 @@ filtered_summary.method_combined = [
     join(filtered_summary[i, method_fields], "_")
     for i in 1:nrow(filtered_summary)
 ]
-
-filtered_summary |> x -> filter(r -> r.LP_objective_mean > 1e8, x)
-filtered_summary |> x -> filter(r -> r.LP_IP_gap < 0, x)
-
-filtered_summary |> x -> filter(r -> r.IP_objective_mean > 1e8, x)
-
-
-filtered_summary[!, :density]
 
 (
     filtered_summary
@@ -543,6 +542,8 @@ begin # masked time taken ratio
                 title = titles[ind],
             )
         end
+        hidedecorations!(ax, label = false, ticklabels = false, ticks = false, minorticks = false)
+
         density_range_unfolded = repeat(density_range, inner = length(TB_range))
         TB_range_unfolded = repeat(TB_range, outer = length(density_range))
         mask = findall(!isnan, vec(data))
@@ -577,85 +578,6 @@ begin # masked time taken ratio
     save("$(@__DIR__)/plots/time_taken_ratio_heatmap_masked.pdf", fig)
 end
 
-begin # time taken ratio
-
-    density_range = collect(1.5:0.5:4.0)
-    TB_range = collect(2.5:0.5:4.0)
-
-    time_taken_none_ratio = Matrix(make_pivottable(
-        filtered_summary,
-        false, false,
-        :time_taken, :ratio
-    )[end:-1:1,2:end])
-    time_taken_elementary_ratio = Matrix(make_pivottable(
-        filtered_summary,
-        true, false,
-        :time_taken, :ratio
-    )[end:-1:1,2:end])
-    time_taken_ngroute_ratio = Matrix(make_pivottable(
-        filtered_summary,
-        false, true,
-        :time_taken, :ratio
-    )[end:-1:1,2:end])
-
-    datas = [
-        time_taken_none_ratio,
-        time_taken_ngroute_ratio,
-        time_taken_elementary_ratio,
-    ]
-    titles = ["No elementarity", "ng-route", "Elementary"]
-
-    cmin, cmax = extrema(vcat(datas...))
-
-
-    fig = CairoMakie.Figure(resolution = (500, 900), fontsize = 18)
-    grid = fig[1,1] = GridLayout()
-    fig[0,:] = Label(fig, "Ratio of time taken: our method against benchmark", font = :bold, fontsize = 18)
-    for (ind, data) in enumerate(datas)
-        if ind == length(datas)
-            ax = Axis(
-                grid[ind,1],
-                xlabel = "Customer density",
-                xticks = density_range,
-                ylabel = "T / B",
-                yticks = TB_range,
-                title = titles[ind],
-            )
-        else
-            ax = Axis(
-                grid[ind,1],
-                xticks = density_range,
-                ylabel = "T / B",
-                yticks = TB_range,
-                title = titles[ind],
-            )
-        end
-        CairoMakie.heatmap!(
-            ax,
-            density_range,
-            TB_range,
-            data',
-            colorrange = (cmin, cmax),
-        )
-        for i in 1:length(density_range), j in 1:length(TB_range)
-            textcolor = data'[i,j] < 6 ? :white : :black
-            text!(
-                ax, 
-                string(round(data'[i,j], digits = 2)),
-                position = (density_range[i], TB_range[j]),
-                color = textcolor,
-                align = (:center, :center),
-            )
-        end
-    end
-    Colorbar(grid[:,end+1], colorrange = (cmin, cmax))
-    colgap!(grid, 20)
-    rowgap!(grid, 10)
-
-    save("$(@__DIR__)/plots/time_taken_ratio_heatmap.pdf", fig)
-    save("$(@__DIR__)/plots/time_taken_ratio_heatmap.png", fig)
-end
-
 begin # single masked time taken percent gap
 
     density_range = collect(1.5:0.5:4.0)
@@ -686,6 +608,7 @@ begin # single masked time taken percent gap
         yticks = TB_range,
         # title = titles[ind],
     )
+    hidedecorations!(ax, label = false, ticklabels = false, ticks = false, minorticks = false)
 
     density_range_unfolded = repeat(density_range, inner = length(TB_range))
     TB_range_unfolded = repeat(TB_range, outer = length(density_range))
@@ -776,6 +699,8 @@ begin # masked time taken percent gap
                 title = titles[ind],
             )
         end
+        hidedecorations!(ax, label = false, ticklabels = false, ticks = false, minorticks = false)
+
         density_range_unfolded = repeat(density_range, inner = length(TB_range))
         TB_range_unfolded = repeat(TB_range, outer = length(density_range))
         mask = findall(!isnan, vec(data))
@@ -810,84 +735,4 @@ begin # masked time taken percent gap
 
     save("$(@__DIR__)/plots/time_taken_percent_gap_heatmap_masked.pdf", fig)
     save("$(@__DIR__)/plots/time_taken_percent_gap_heatmap_masked.png", fig)
-end
-
-begin # time taken percent gap
-
-    density_range = collect(1.5:0.5:4.0)
-    TB_range = collect(2.5:0.5:4.0)
-
-    time_taken_none_percent_gap = -Matrix(make_pivottable(
-        filtered_summary,
-        false, false,
-        :time_taken, :percent_gap
-    )[end:-1:1,2:end])
-    time_taken_elementary_percent_gap = -Matrix(make_pivottable(
-        filtered_summary,
-        true, false,
-        :time_taken, :percent_gap
-    )[end:-1:1,2:end])
-    time_taken_ngroute_percent_gap = -Matrix(make_pivottable(
-        filtered_summary,
-        false, true,
-        :time_taken, :percent_gap
-    )[end:-1:1,2:end])
-
-    datas = [
-        time_taken_none_percent_gap,
-        time_taken_ngroute_percent_gap,
-        time_taken_elementary_percent_gap,
-    ]
-    titles = ["No elementarity", "ng-route", "Elementary"]
-
-    cmin, cmax = (-100, 0)
-
-    fig = CairoMakie.Figure(resolution = (600, 900), fontsize = 18)
-    mygrid = fig[1,1] = GridLayout()
-    fig[0,:] = Label(fig, "% reduction in time taken: our method against benchmark", font = :bold, fontsize = 18)
-    for (ind, data) in enumerate(datas)
-        if ind == length(datas)
-            ax = Axis(
-                mygrid[ind,1],
-                xlabel = "Customer density",
-                xticks = density_range,
-                ylabel = "Time horizon",
-                yticks = TB_range,
-                title = titles[ind],
-            )
-        else
-            ax = Axis(
-                mygrid[ind,1],
-                xticks = density_range,
-                ylabel = "Time horizon",
-                yticks = TB_range,
-                title = titles[ind],
-            )
-        end
-        CairoMakie.heatmap!(
-            ax,
-            density_range,
-            TB_range,
-            data',
-            colorrange = (cmin, cmax),
-            colormap = Makie.Reverse(:viridis),
-        )
-        for i in 1:length(density_range), j in 1:length(TB_range)
-            textcolor = data'[i,j] > -50 ? :white : :black
-            text!(
-                ax, 
-                string(round(data'[i,j], digits = 2)),
-                position = (density_range[i], TB_range[j]),
-                color = textcolor,
-                align = (:center, :center),
-                fontsize = 18,
-            )
-        end
-    end
-    Colorbar(mygrid[:,end+1], colorrange = (cmin, cmax), colormap = Makie.Reverse(:viridis))
-    colgap!(mygrid, 20)
-    rowgap!(mygrid, 10)
-
-    save("$(@__DIR__)/plots/time_taken_percent_gap_heatmap.pdf", fig)
-    save("$(@__DIR__)/plots/time_taken_percent_gap_heatmap.png", fig)
 end
