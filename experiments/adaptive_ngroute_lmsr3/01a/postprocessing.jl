@@ -5,8 +5,26 @@ using StatsPlots
 using ColorSchemes
 
 results = CSV.read("$(@__DIR__)/combined.csv", DataFrame)
-names(results)
-
+results.density .= results.n_customers ./ (results.xmax .* 2)
+data_fields = [
+    :n_customers,
+    :xmax,
+    :T,
+    :density,
+]
+method_fields = [
+    :method,
+    :ngroute_neighborhood_charging_size,
+    :use_lmSR3_cuts,
+]
+(
+    results 
+    |> x -> sort!(
+        x, 
+        vcat(data_fields,  [:seed], method_fields),
+    )
+)
+CSV.write("$(@__DIR__)/combined.csv", results)
 
 # merge individual CSVs in results folder
 begin
@@ -24,68 +42,52 @@ begin
     CSV.write("$(@__DIR__)/all_results.csv", all_data)
 end
 
-# # results matching
-# all_data = CSV.read("$(@__DIR__)/all_results.csv", DataFrame)
-# args = CSV.read("$(@__DIR__)/args.csv", DataFrame)
-# args.index = 1:nrow(args)
+# results matching
+all_data = CSV.read("$(@__DIR__)/all_results.csv", DataFrame)
+args = CSV.read("$(@__DIR__)/args.csv", DataFrame)
 
-# for i in 2:2:nrow(args)
-#     density = args[i, :density]
-#     n_customers = args[i, :n_customers]
-#     n_charging = args[i, :n_charging]
-#     T = args[i, :T]
-#     ngroute_neighborhood_charging_size = String(args[i, :ngroute_neighborhood_charging_size])
-#     use_lmSR3_cuts = Bool(args[i, :use_lmSR3_cuts])
-#     seed = args[i, :seed]
-#     # println("$density, $n_customers, $n_charging, $T, $ngroute_neighborhood_charging_size, $use_lmSR3_cuts")
-#     cond = (
-#         (results.seed .== seed)
-#         .& (results.n_customers .== n_customers)
-#         .& (results.n_charging .== n_charging)
-#         .& (results.T .== T)
-#         .& (results.ngroute_neighborhood_charging_size .== ngroute_neighborhood_charging_size)
-#         .& (results.use_lmSR3_cuts .== use_lmSR3_cuts)
-#     )
-#     ind_df = filter(r -> r.instance == i, all_data)
-#     ind = findfirst(x -> x in ["use_SR3_cuts", "use_lmSR3_cuts"], filter(r -> r.instance == i, all_data).method)
-#     if isnothing(ind)
-#         ind = nrow(ind_df)
-#     end
-#     results[cond, :time_taken_total] .= sum(ind_df[1:ind, :CG_time_taken])
-#     results[cond, :sp_time_taken_mean_last] .= ind_df[ind, :CG_sp_time_taken_mean]
-#     results[cond, :LP_objective_last] .= ind_df[ind, :CGLP_objective]
-#     results[cond, :IP_objective_last] .= ind_df[ind, :CGIP_objective]
-#     results[cond, :LP_IP_gap_last] .= ind_df[ind, :CG_LP_IP_gap]
-#     results[cond, :neighborhood_size_mean_last] .= sum(ind_df[1:ind, :ngroute_neighborhood_size])
-#     # println(ind)
-#     println(i)
-# end
-
-# CSV.write("$(@__DIR__)/combined.csv", results)
-
-data_fields = [
-    :n_customers,
-    :xmax,
-    :T,
-    # :density,
-]
-method_fields = [
-    :method,
-    :ngroute_neighborhood_charging_size,
-    :use_lmSR3_cuts,
-]
-
-(
-    results 
-    |> x -> sort!(
-        x, 
-        vcat(data_fields,  [:seed], method_fields),
+for i in 1:nrow(args)
+    if Bool(args[i, :use_lmSR3_cuts])
+        continue
+    end
+    density = args[i, :density]
+    n_customers = args[i, :n_customers]
+    n_charging = args[i, :n_charging]
+    T = args[i, :T]
+    ngroute_neighborhood_charging_size = String(args[i, :ngroute_neighborhood_charging_size])
+    # use_lmSR3_cuts = Bool(args[i, :use_lmSR3_cuts])
+    seed = args[i, :seed]
+    # println("$density, $n_customers, $n_charging, $T, $ngroute_neighborhood_charging_size, $use_lmSR3_cuts")
+    cond = (
+        (results.seed .== seed)
+        .& (results.n_customers .== n_customers)
+        .& (results.n_charging .== n_charging)
+        .& (results.T .== T)
+        .& (results.ngroute_neighborhood_charging_size .== ngroute_neighborhood_charging_size)
+        # .& (results.use_lmSR3_cuts .== use_lmSR3_cuts)
     )
-)
+    ind_df = filter(r -> r.instance == i, all_data)
+    ind = findfirst(x -> x in ["use_SR3_cuts", "use_lmSR3_cuts"], filter(r -> r.instance == i, all_data).method)
+    if isnothing(ind)
+        ind = nrow(ind_df)
+    end
+    sum(ind_df[1:ind, :CG_time_taken])
+
+    results[cond, :time_taken_total] .= sum(ind_df[1:ind, :CG_time_taken])
+    results[cond, :sp_time_taken_mean_last] .= ind_df[ind, :CG_sp_time_taken_mean]
+    results[cond, :LP_objective_last] .= ind_df[ind, :CGLP_objective]
+    results[cond, :IP_objective_last] .= ind_df[ind, :CGIP_objective]
+    results[cond, :LP_IP_gap_last] .= ind_df[ind, :CG_LP_IP_gap]
+    results[cond, :neighborhood_size_mean_last] .= ind_df[ind, :ngroute_neighborhood_size]
+    println("$i, $(findall(cond))")
+end
 
 results.LP_IP_gap_first .*= 100
 results.LP_IP_gap_last .*= 100
 results.LP_IP_gap_last_SR3 .*= 100
+results.LP_IP_gap_first .= ifelse.(results.LP_IP_gap_first .≤ 1e-10, 0.0, results.LP_IP_gap_first)
+results.LP_IP_gap_last .= ifelse.(results.LP_IP_gap_last .≤ 1e-10, 0.0, results.LP_IP_gap_last)
+results.LP_IP_gap_last_SR3 .= ifelse.(results.LP_IP_gap_last_SR3 .≤ 1e-10, 0.0, results.LP_IP_gap_last_SR3)
 
 summary = (
     results 
@@ -149,6 +151,7 @@ begin
             |> x -> select(x, :n_customers, :LP_IP_gap_first, :LP_IP_gap_last, :LP_IP_gap_last_SR3)
         )
 
+        p1_ytickvalues = [1, 10, 100, 1000, 3600]
         p1 = groupedbar(
             repeat(sizenames, outer = length(groupnames)),
             Matrix(time_taken_df[!, 2:end]),
@@ -158,13 +161,15 @@ begin
             xlabel = "# customers",
             yscale = :log10,
             ylabel = "Time taken (s)",
-            ylim = 10.0.^(-0.5, 4.0),
-            yticks = 10.0.^(0:1:4),
-            legend = :topleft,
+            ylim = 10.0.^(-0.5, 4.0), 
+            grid = :y,
+            legend = :bottomright,
         )
+        yticks!(p1, p1_ytickvalues, string.(p1_ytickvalues))
         hline!([3600], linestyle = :dash, label = false, color = :black)
         savefig(p1, "$(@__DIR__)/plots/time_taken_groupedbar_simple_$(T)_$ngroute_neighborhood_charging_size.pdf")
         savefig(p1, "$(@__DIR__)/plots/time_taken_groupedbar_simple_$(T)_$ngroute_neighborhood_charging_size.png")
+        p2_ytickvalues = [0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 50.0, 100.0]
         p2 = groupedbar(
             repeat(sizenames, outer = length(groupnames)),
             Matrix(LP_IP_gap_df[!, 2:end]),
@@ -174,10 +179,11 @@ begin
             xlabel = "# customers",
             yscale = :log10,
             ylabel = "Optimality gap (%)",
-            ylim = 10.0.^(-2.5, 2),
-            yticks = 10.0.^(-3:1:2),
-            legend = :left,
-        )        
+            ylim = 10.0.^(-0.5, 2),
+            grid = :y,
+            legend = :bottomright,
+        )
+        yticks!(p2, p2_ytickvalues, string.(p2_ytickvalues))
         savefig(p2, "$(@__DIR__)/plots/LP_IP_gap_groupedbar_simple_$(T)_$ngroute_neighborhood_charging_size.pdf")
         savefig(p2, "$(@__DIR__)/plots/LP_IP_gap_groupedbar_simple_$(T)_$ngroute_neighborhood_charging_size.png")
     end
@@ -237,6 +243,7 @@ begin
             on = :n_customers,
         )
 
+        p1_ytickvalues = [1, 10, 100, 1000, 3600]
         p1 = groupedbar(
             repeat(sizenames, outer = length(groupnames)),
             Matrix(time_taken_df[!, 2:end]),
@@ -246,13 +253,15 @@ begin
             xlabel = "# customers",
             yscale = :log10,
             ylabel = "Time taken (s)",
-            ylim = 10.0.^(-0.5, 4.0),
-            yticks = 10.0.^(0:1:4),
-            legend = :topleft,
+            ylim = 10.0.^(-0.5, 4.0), 
+            grid = :y,
+            legend = :bottomright,
         )
+        yticks!(p1, p1_ytickvalues, string.(p1_ytickvalues))
         hline!([3600], linestyle = :dash, label = false, color = :black)
         savefig(p1, "$(@__DIR__)/plots/time_taken_groupedbar_$(T)_$ngroute_neighborhood_charging_size.pdf")
         savefig(p1, "$(@__DIR__)/plots/time_taken_groupedbar_$(T)_$ngroute_neighborhood_charging_size.png")
+        p2_ytickvalues = [0.1, 0.2, 0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 50.0, 100.0]
         p2 = groupedbar(
             repeat(sizenames, outer = length(groupnames)),
             Matrix(LP_IP_gap_df[!, 2:end]),
@@ -262,27 +271,15 @@ begin
             xlabel = "# customers",
             yscale = :log10,
             ylabel = "Optimality gap (%)",
-            ylim = 10.0.^(-2.5, 2),
-            yticks = 10.0.^(-3:1:2),
-            legend = :left,
-        )        
+            ylim = 10.0.^(-1, 2),
+            grid = :y,
+            legend = :bottomright,
+        )
+        yticks!(p2, p2_ytickvalues, string.(p2_ytickvalues))
         savefig(p2, "$(@__DIR__)/plots/LP_IP_gap_groupedbar_$(T)_$ngroute_neighborhood_charging_size.pdf")
         savefig(p2, "$(@__DIR__)/plots/LP_IP_gap_groupedbar_$(T)_$ngroute_neighborhood_charging_size.png")
     end
 end
-
-
-data = (
-    summary 
-    |> x -> filter(
-        r -> (
-            r.ngroute_neighborhood_charging_size == "small"
-            && r.n_customers == 20
-            && r.T == Int(5 * 15000 * (μ + 1)/μ)
-        ),
-        x
-    )
-)
 
 # Plotting: aggregate 
 begin
@@ -305,16 +302,19 @@ begin
 
     for T in T_range, 
         ngroute_neighborhood_charging_size in ngroute_neighborhood_charging_size_range
+        xtickvalues = [1, 10, 100, 1000, 3600]
+        ytickvalues = [0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 50.0, 100.0]
         p = plot(
             xlabel = "Time taken (s)", 
             ylabel = "Optimality gap (%)",
             xscale = :log10,
             yscale = :log10,
-            ylim = (0.001, 100.0),
-            xlim = (0.3, 3600.0),
-            xticks = 10.0.^(-2:1:4),
+            ylim = 10.0.^(-0.5, 2),
+            xlim = 10.0.^(-0.5, 4.0),
         )
-        
+        vline!([3600], linestyle = :dash, label = false, color = :black)
+        xticks!(p, xtickvalues, string.(xtickvalues))
+        yticks!(p, ytickvalues, string.(ytickvalues))
         for n_customers in n_customers_range
             println("$n_customers, $T")
             data = (
@@ -375,7 +375,7 @@ begin
                 color = colors[n_customers],
             )
         end
-        plot!(legend = :topright, legendfontsize = 7)        
+        plot!(legend = :topright)        
         savefig(p, "$(@__DIR__)/plots/time_taken_LP_IP_gap_scatter_$(T)_$ngroute_neighborhood_charging_size.pdf")
         savefig(p, "$(@__DIR__)/plots/time_taken_LP_IP_gap_scatter_$(T)_$ngroute_neighborhood_charging_size.png")
     end

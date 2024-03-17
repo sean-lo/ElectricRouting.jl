@@ -149,7 +149,22 @@ end
 #     results_df, 
 #     on = names(results_df)
 # )
-new_args_df = args_df
+new_args_df = vcat(
+    (
+        args_df
+        |> x -> filter(
+            r -> r.ngroute_neighborhood_charging_size == "small",
+            x,
+        )
+    ),
+    (
+        args_df
+        |> x -> filter(
+            r -> r.ngroute_neighborhood_charging_size == "medium",
+            x,
+        )
+    ),
+)
 CSV.write("$(@__DIR__)/args.csv", new_args_df)
 
 test_args_df = args_df |> 
