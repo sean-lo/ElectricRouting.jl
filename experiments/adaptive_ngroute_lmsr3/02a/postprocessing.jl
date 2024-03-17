@@ -7,13 +7,31 @@ using ColorSchemes
 using CairoMakie
 
 results = CSV.read("$(@__DIR__)/combined.csv", DataFrame)
-names(results)
-
-args = CSV.read("$(@__DIR__)/args.csv", DataFrame)
-args.index = collect(1:nrow(args))
+results.density .= results.n_customers ./ (results.xmax .* 2)
+data_fields = [
+    :n_customers,
+    :xmax,
+    :T,
+    :density,
+]
+method_fields = [
+    :method,
+    :ngroute_neighborhood_charging_size,
+    :use_lmSR3_cuts,
+]
+(
+    results 
+    |> x -> sort!(
+        x, 
+        vcat(data_fields, [:seed], method_fields),
+    )
+)
+CSV.write("$(@__DIR__)/combined.csv", results)
 
 # merge individual CSVs in results folder
 begin
+    args = CSV.read("$(@__DIR__)/args.csv", DataFrame)
+    args.index = collect(1:nrow(args))
     all_dfs = DataFrame[]
     for ind in 1:nrow(args)
         fp = "$(@__DIR__)/results/$ind.csv"
@@ -28,59 +46,39 @@ begin
     CSV.write("$(@__DIR__)/all_results.csv", all_data)
 end
 
-data_fields = [
-    :n_customers,
-    :xmax,
-    :T,
-    # :density,
-]
-method_fields = [
-    :method,
-    :ngroute_neighborhood_charging_size,
-    :use_lmSR3_cuts,
-]
-
-
-(
-    results 
-    |> x -> sort!(
-        x, 
-        vcat(data_fields, [:seed], method_fields),
-    )
-)
-
 results.LP_IP_gap_first .*= 100
 results.LP_IP_gap_last .*= 100
 results.LP_IP_gap_last_SR3 .*= 100
-
-results.LP_IP_gap_first .= max.(results.LP_IP_gap_first, 0)
-results.LP_IP_gap_last .= max.(results.LP_IP_gap_last, 0)
-results.LP_IP_gap_last_SR3 .= max.(results.LP_IP_gap_last_SR3, 0)
+results.LP_IP_gap_first .= ifelse.(results.LP_IP_gap_first .≤ 1e-10, 0.0, results.LP_IP_gap_first)
+results.LP_IP_gap_last .= ifelse.(results.LP_IP_gap_last .≤ 1e-10, 0.0, results.LP_IP_gap_last)
+results.LP_IP_gap_last_SR3 .= ifelse.(results.LP_IP_gap_last_SR3 .≤ 1e-10, 0.0, results.LP_IP_gap_last_SR3)
 
 all_results = CSV.read("$(@__DIR__)/all_results.csv", DataFrame)
+args = CSV.read("$(@__DIR__)/args.csv", DataFrame)
+args.index = 1:nrow(args)
 all_results.CG_LP_IP_gap .*= 100
 all_results.CG_LP_IP_gap .= ifelse.(all_results.CG_LP_IP_gap .≤ 1e-10, 0.0, all_results.CG_LP_IP_gap)
 
 all_results = outerjoin(all_results, args, on = :instance => :index, makeunique = true)
 select!(all_results, Not(:method_1))
 
-
 ecdf_data = Dict(
-    tolerance => (
+    (tolerance, n_customers) => (
         all_results
+        |> x -> filter(r -> r.n_customers == n_customers, x)
         |> x -> groupby(
             x, 
-            [:seed, :n_customers],
+            :seed,
         )
         |> x -> select(
             x, 
             :seed,
-            :n_customers,
             :CG_LP_IP_gap => :LP_IP_gap,
             :CG_time_taken => cumsum => :time_taken,
         )
         |> x -> groupby(
-            x, [:seed, :n_customers]
+            x, 
+            :seed,
         )
         |> x -> combine(
             x, 
@@ -93,7 +91,6 @@ ecdf_data = Dict(
         )
         |> x -> select(
             x, 
-            :n_customers,
             :seed,
             :time_taken,
             :LP_IP_gap 
@@ -105,36 +102,42 @@ ecdf_data = Dict(
             [:LP_IP_gap, :time_taken]
         )
     )
-    for tolerance in [0.1, 1.0, 2.0, 5.0]
+    for tolerance in [0.1, 1.0, 2.0, 5.0],
+        n_customers in 20:4:48
 )
 
 
 function draw_ecdf(
-    ecdf_data::Dict{Float64, DataFrame},
+    ecdf_data::Dict{Tuple{Float64, Int}, DataFrame},
     n_customers_range::Vector{Int},
     tolerance::Float64 = 0.0,
     filename::String = "ecdf",
 )
 
-    f = Figure()
+    f = Figure(fontsize = 24)
+    xtickvalues = [1, 10, 100, 1000]
     ax1 = Axis(
         f[1,1],
         xscale = log10,
+        yticks = 0.0:0.2:1.0,
         limits = ((1, 3600), (0, 1)),
-        xlabel = "Time taken (s)"
+        xlabel = "Time taken (s)",
+        xticks = (xtickvalues, string.(xtickvalues)),
     )
     ax2 = Axis(
         f[1,2],
+        yticks = 0.0:0.2:1.0,
         yaxisposition = :right,
         limits = (0, nothing, 0, 1),
         xlabel = "Optimality gap (%)"
     )
+    hideydecorations!(ax2, grid = false)
     linkyaxes!(ax1, ax2)
     colgap!(f.layout, 1, Relative(0.0))
     time_ecdfs = Combined{Makie.stairs, Tuple{Vector{Point{2, Float32}}}}[]
     gap_ecdfs = Combined{Makie.stairs, Tuple{Vector{Point{2, Float32}}}}[]
     for n_customers in n_customers_range
-        data = filter(r -> r.n_customers == n_customers, ecdf_data[tolerance]) 
+        data = copy(ecdf_data[(tolerance, n_customers)])
         data.time_taken[data.LP_IP_gap .> 0.0] .= 4000
         ind = nrow(data[data.LP_IP_gap .== 0.0, :]) + 1
         println(ind)
@@ -156,67 +159,14 @@ for tolerance in [0.1, 1.0, 2.0, 5.0]
     )
 end
 
-(
-    ecdf_data[0.1]
-    |> x -> filter(
-        r -> r.n_customers == 24, 
-        x, 
+p = Plots.plot(
+    xscale = :log10,
+)
+for n_customers in [24, 32, 40]
+    Plots.scatter!(
+        ecdf_data[(0.1, n_customers)][!, :time_taken],
+        ecdf_data[(0.1, n_customers)][!, :LP_IP_gap],
+        label = "$n_customers customers",
     )
-    |> x -> show(x, allrows = true)
-)
-
-
-
-tolerance = 0.1
-
-f = Figure()
-ax1 = Axis(
-    f[1,1],
-    xscale = log10,
-    limits = ((1, 3600), (0, 1)),
-    xlabel = "Time taken (s)"
-)
-ax2 = Axis(
-    f[1,2],
-    yaxisposition = :right,
-    limits = (0, nothing, 0, 1),
-    xlabel = "Optimality gap (%)"
-)
-linkyaxes!(ax1, ax2)
-colgap!(f.layout, 1, Relative(0.0))
-f
-time_ecdfs = Combined{Makie.stairs, Tuple{Vector{Point{2, Float32}}}}[]
-gap_ecdfs = Combined{Makie.stairs, Tuple{Vector{Point{2, Float32}}}}[]
-for n_customers in n_customers_range
-    data = filter(r -> r.n_customers == n_customers, ecdf_data[tolerance]) 
-    data.time_taken[data.LP_IP_gap .> 0.0] .= 4000
-    ind = nrow(data[data.LP_IP_gap .== 0.0, :]) + 1
-    println(ind)
-    data.time_taken[ind] = 3600
-    push!(time_ecdfs, CairoMakie.ecdfplot!(ax1, data.time_taken, xscale = log10, overdraw = true,))
-    push!(gap_ecdfs, CairoMakie.ecdfplot!(ax2, data.LP_IP_gap))
 end
-f
-
-
-
-d1 = data[data.LP_IP_gap .== 0.0, :time_taken]
-d2 = data[data.LP_IP_gap .> 0.0, :LP_IP_gap]
-
-data.time_taken[data.LP_IP_gap .> 0.0] .= 4000
-
-data.time_taken[28]
-# data.time_taken[29] = 3600
-# data.time_taken[30:50] .= 4000
-
-data.time_taken[29:50] .= 3600
-
-CairoMakie.ecdfplot!(ax1, data.time_taken, xscale = log10)
-
-f
-
-f
-
-StatsBase.ecdf(data.time_taken)
-
-axislegend(ax2, gap_ecdfs, ["$n_customers customers" for n_customers in n_customers_range], position = :rb)
+savefig(p, "$(@__DIR__)/plots/scatter.pdf")
