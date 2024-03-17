@@ -8,6 +8,29 @@ using CairoMakie
 
 results = CSV.read("$(@__DIR__)/combined.csv", DataFrame)
 results.density .= results.n_customers ./ (results.xmax .* 2)
+data_fields = [
+    :n_customers,
+    :xmax,
+    :T,
+    :density,
+]
+method_fields = [
+    :method,
+    :ngroute_neighborhood_size,
+    :ngroute_neighborhood_charging_size,
+]
+(
+    results 
+    |> x -> select!(
+        x, 
+        :density, 
+        Not(:density),
+    )
+    |> x -> sort!(
+        x, 
+        vcat(data_fields, [:seed], method_fields),
+    )
+)
 CSV.write("$(@__DIR__)/combined.csv", results)
 
 # merge individual CSVs in results folder
@@ -28,32 +51,6 @@ begin
     CSV.write("$(@__DIR__)/all_results.csv", all_data)
 end
 
-data_fields = [
-    :n_customers,
-    :xmax,
-    :T,
-    :density,
-]
-method_fields = [
-    :method,
-    :ngroute_neighborhood_size,
-    :ngroute_neighborhood_charging_size,
-]
-
-
-(
-    results 
-    |> x -> select!(
-        x, 
-        :density, 
-        Not(:density),
-    )
-    |> x -> sort!(
-        x, 
-        vcat(data_fields, [:seed], method_fields),
-    )
-)
-
 # Note: here, these LP_IP_gaps are at least zero up to a small floating point tolerance
 results.LP_IP_gap_first .*= 100
 results.LP_IP_gap_last .*= 100
@@ -64,6 +61,8 @@ all_results = CSV.read("$(@__DIR__)/all_results.csv", DataFrame)
 all_results.CG_LP_IP_gap .*= 100
 all_results.CG_LP_IP_gap .= ifelse.(all_results.CG_LP_IP_gap .≤ 1e-10, 0.0, all_results.CG_LP_IP_gap)
 
+args = CSV.read("$(@__DIR__)/args.csv", DataFrame)
+args.index = collect(1:nrow(args))
 all_results = outerjoin(all_results, args, on = :instance => :index, makeunique = true)
 select!(all_results, Not(:method_1))
 
@@ -122,6 +121,7 @@ for ngroute_neighborhood_charging_size in ["small", "medium"]
             ylims = (0.84, 1.01)
             ylabel = "LP objective"
         end
+        xtickvalues = [1, 10, 100, 1000, 3600]
         p = Plots.plot(
             figsize = (500, 400),
             xscale = :log10,
@@ -131,6 +131,8 @@ for ngroute_neighborhood_charging_size in ["small", "medium"]
             ylabel = ylabel,
             format = :png,
         )
+        vline!([3600], linestyle = :dash, label = false, color = :black)
+        xticks!(p, xtickvalues, string.(xtickvalues))
         Plots.hline!(
             [varname == "LP_IP_gap" ? 0.0 : 1.0],
             color = :black,
