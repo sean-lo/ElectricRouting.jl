@@ -926,18 +926,20 @@ end
 function compute_new_path_lambda_lmSR3!(
     new_path::PathLabel,
     current_path_λ_labels::BitVector,
-    nodes::Vector{Int},
+    subpath_λ_flabels::BitVector,
+    subpath_λ_blabels::BitVector,
+    subpath_nodes::Vector{Int},
     λvals::Vector{Float64},
     λcust::BitMatrix,
     λmemory::BitMatrix,
 )
+    new_path.cost -= sum(λvals[current_path_λ_labels .& subpath_λ_blabels])
     new_path_λ_labels = copy(current_path_λ_labels)
-    for next_node in nodes[2:end]
-        (new_path_λ_labels, new_cost) = compute_lambda_flabels_cost_lmSR3(
+    for next_node in subpath_nodes[2:end]
+        (new_path_λ_labels, _) = compute_lambda_flabels_cost_lmSR3(
             next_node, new_path_λ_labels,
             λvals, λcust, λmemory,
         )
-        new_path.cost += new_cost
     end
     return new_path_λ_labels
 end
@@ -1536,7 +1538,9 @@ function find_nondominated_paths_notimewindows_ngroute_lambda_lmSR3(
                 )
                 !feasible && continue
                 new_path_λ_labels = compute_new_path_lambda_lmSR3!(
-                    new_path, current_path_λ_labels, s.nodes,
+                    new_path, current_path_λ_labels, 
+                    subpath_λ_flabels, subpath_λ_blabels, 
+                    s.nodes,
                     λvals, λcust, λmemory,
                 )
 
@@ -2243,7 +2247,9 @@ function find_nondominated_paths_notimewindows_heterogenous_charging_ngroute_lam
                 )
                 !feasible && continue
                 new_path_λ_labels = compute_new_path_lambda_lmSR3!(
-                    new_path, current_path_λ_labels, s.nodes,
+                    new_path, current_path_λ_labels, 
+                    subpath_λ_flabels, subpath_λ_blabels, 
+                    s.nodes,
                     λvals, λcust, λmemory,
                 )
 
