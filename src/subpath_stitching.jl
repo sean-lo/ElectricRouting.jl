@@ -35,24 +35,18 @@ Base.copy(p::PathLabel) = PathLabel(
 
 function ngroute_extend_partial_path_check(
     neighborhoods::BitMatrix,
-    set::BitVector,
+    fset::BitVector,
     nodes::Vector{Int},
 )
-    new_set = copy(set)
+    new_fset = copy(fset)
     for next_node in nodes[2:end]
-        if new_set[next_node]
-            return (false, set)
+        if new_fset[next_node]
+            return (false, fset)
         end
-        for node in eachindex(new_set)
-            if new_set[node] && !(neighborhoods[node, next_node])
-                new_set[node] = 0
-            end
-        end
-        # new_set .&= neighborhoods[:, next_node]
-        new_set[next_node] = 1
-        # println("$next_node, $new_set")
+        new_fset .&= neighborhoods[:, next_node]
+        new_fset[next_node] = 1
     end
-    return (true, new_set)
+    return (true, new_fset)
 end
 
 function compute_new_subpath(
@@ -87,13 +81,13 @@ end
 
 function compute_new_subpath_lambda_blabels_lmSR3(
     next_node::Int,
-    nodes::Vector{Int},
+    subpath_nodes::Vector{Int},
     current_λ_blabels::BitVector,
     λcust::BitMatrix,
     λmemory::BitMatrix,
 )
     λincluded = trues(length(current_λ_blabels))
-    for node in nodes
+    for node in subpath_nodes
         λincluded = λincluded .& λmemory[:, node]
     end
     return current_λ_blabels .⊻ (λincluded .& λcust[:, next_node])
@@ -272,14 +266,15 @@ function generate_base_labels_ngroute(
     unexplored_states = SortedSet{Tuple{Float64, Int, Int, BitVector, Int, Int}}()
     for node in graph.N_depots
         # Forward NG-set
-        node_labels = falses(graph.n_nodes)
-        node_labels[node] = true
+        forward_ngset = falses(graph.n_nodes)
+        forward_ngset[node] = true
+        ng_resources = forward_ngset
         # label key here has the following fields:
         # 0) reduced cost
         # 1) time taken
         # 2) charge taken
         # 3) whether i-th node is in forward ng-set
-        key = (0.0, 0, 0, node_labels,)
+        key = (0.0, 0, 0, ng_resources,)
         base_labels[(node, node)][key] = BaseSubpathLabel(
             0, 0, 0.0, [node,], zeros(Int, graph.n_customers),
         )
@@ -293,18 +288,19 @@ function generate_base_labels_ngroute(
         )
     end
     for node in graph.N_charging
-        node_labels = falses(2 * graph.n_nodes)
         # Forward NG-set
-        node_labels[node] = true
-        # Backward NG-set
-        node_labels[node + graph.n_nodes] = true
+        forward_ngset = falses(graph.n_nodes)
+        forward_ngset[node] = true
+        # Forward NG-set residue
+        forward_ngset_residue = copy(neighborhoods[:, node])
+        ng_resources = [forward_ngset; forward_ngset_residue]
         # label key here has the following fields:
         # 0) reduced cost
         # 1) time taken
         # 2) charge taken
         # 3a) whether i-th node is in forward ng-set
-        # 3b) whether i-th node is in backward ng-set
-        key = (0.0, 0, 0, node_labels,)
+        # 3b) whether i-th node is in forward ng-set residue
+        key = (0.0, 0, 0, ng_resources,)
         base_labels[(node, node)][key] = BaseSubpathLabel(
             0, 0, 0.0, [node,], zeros(Int, graph.n_customers),
         )
@@ -328,10 +324,10 @@ function generate_base_labels_ngroute(
             continue
         end
         current_subpath = base_labels[(starting_node, current_node)][current_key]
-        (_, _, _, current_set) = current_key
-        current_fset = current_set[1:graph.n_nodes]
+        (_, _, _, current_ng_resources) = current_key
+        current_fset = current_ng_resources[1:graph.n_nodes]
         if starting_node in graph.N_charging
-            current_bset = current_set[graph.n_nodes+1:end]
+            current_fset_residue = current_ng_resources[graph.n_nodes+1:end]
         end
         for next_node in setdiff(outneighbors(graph.G, current_node), current_node)
             (feasible, new_fset) = ngroute_check_create_fset(
@@ -344,19 +340,19 @@ function generate_base_labels_ngroute(
             )
             !feasible && continue
             if starting_node in graph.N_depots
-                new_set = new_fset
+                new_ng_resources = new_fset
             else
-                new_bset = ngroute_create_bset(
-                    neighborhoods, new_subpath.nodes, current_bset,
+                new_fset_residue = ngroute_create_fset_residue(
+                    neighborhoods, next_node, current_fset_residue,
                 )
-                new_set = [new_fset; new_bset]
+                new_ng_resources = [new_fset; new_fset_residue]
             end
             
             new_key = (
                 new_subpath.cost,
                 new_subpath.time_taken,
                 new_subpath.charge_taken,
-                new_set,
+                new_ng_resources,
             )
             added = add_label_to_collection!(
                 base_labels[(starting_node, next_node)],
@@ -378,18 +374,19 @@ function generate_base_labels_ngroute(
 
     for node in graph.N_depots
         # Forward NG-set
-        node_labels = falses(graph.n_nodes)
-        node_labels[node] = true
-        key = (0.0, 0, 0, node_labels,)
+        forward_ngset = falses(graph.n_nodes)
+        forward_ngset[node] = true
+        key = (0.0, 0, 0, forward_ngset,)
         pop!(base_labels[(node, node)], key)
     end
     for node in graph.N_charging
-        node_labels = falses(2 * graph.n_nodes)
         # Forward NG-set
-        node_labels[node] = true
-        # Backward NG-set
-        node_labels[node + graph.n_nodes] = true
-        key = (0.0, 0, 0, node_labels,)
+        forward_ngset = falses(graph.n_nodes)
+        forward_ngset[node] = true
+        # Forward NG-set residue
+        forward_ngset_residue = copy(neighborhoods[:, node])
+        ng_resources = [forward_ngset; forward_ngset_residue]
+        key = (0.0, 0, 0, ng_resources,)
         pop!(base_labels[(node, node)], key)
     end
 
@@ -440,17 +437,17 @@ function generate_base_labels_ngroute_lambda(
 
     unexplored_states = SortedSet{Tuple{Float64, BitVector, Int, Int, BitVector, Int, Int}}()
     for node in graph.N_depots
-        λ_labels = falses(length(λ))
         # Forward NG-set
-        node_labels = falses(graph.n_nodes)
-        node_labels[node] = true
+        forward_ngset = falses(graph.n_nodes)
+        forward_ngset[node] = true
+        ng_resources = forward_ngset
         # label key here has the following fields:
         # 0) reduced cost
         # 1) binary cut labels
         # 2) time taken
         # 3) charge taken
         # 4) whether i-th node is in forward ng-set
-        key = (0.0, λ_labels, 0, 0, node_labels,)
+        key = (0.0, falses(length(λ)), 0, 0, ng_resources,)
         base_labels[(node, node)][key] = BaseSubpathLabel(
             0, 0, 0.0, [node,], zeros(Int, graph.n_customers),
         )
@@ -464,20 +461,20 @@ function generate_base_labels_ngroute_lambda(
         )
     end
     for node in graph.N_charging
-        λ_labels = falses(length(λ))
-        node_labels = falses(2 * graph.n_nodes)
         # Forward NG-set
-        node_labels[node] = true
-        # Backward NG-set
-        node_labels[node + graph.n_nodes] = true
+        forward_ngset = falses(graph.n_nodes)
+        forward_ngset[node] = true
+        # Forward NG-set residue
+        forward_ngset_residue = copy(neighborhoods[:, node])
+        ng_resources = [forward_ngset; forward_ngset_residue]
         # label key here has the following fields:
         # 0) reduced cost
         # 1) binary cut labels
         # 2) time taken
         # 3) charge taken
         # 4a) whether i-th node is in forward ng-set
-        # 4b) whether i-th node is in backward ng-set
-        key = (0.0, λ_labels, 0, 0, node_labels,)
+        # 4b) whether i-th node is in forward ng-set residue
+        key = (0.0, falses(length(λ)), 0, 0, ng_resources,)
         base_labels[(node, node)][key] = BaseSubpathLabel(
             0, 0, 0.0, [node,], zeros(Int, graph.n_customers),
         )
@@ -503,11 +500,11 @@ function generate_base_labels_ngroute_lambda(
         current_subpath = base_labels[(starting_node, current_node)][current_key]
         (
             _, current_λ_labels, 
-            _, _, current_set,
+            _, _, current_ng_resources,
         ) = current_key
-        current_fset = current_set[1:graph.n_nodes]
+        current_fset = current_ng_resources[1:graph.n_nodes]
         if starting_node in graph.N_charging
-            current_bset = current_set[graph.n_nodes+1:end]
+            current_fset_residue = current_ng_resources[graph.n_nodes+1:end]
         end
         for next_node in setdiff(outneighbors(graph.G, current_node), current_node)
             (feasible, new_fset) = ngroute_check_create_fset(
@@ -526,12 +523,12 @@ function generate_base_labels_ngroute_lambda(
             new_subpath.cost += λ_cost
 
             if starting_node in graph.N_depots
-                new_set = new_fset
+                new_ng_resources = new_fset
             else
-                new_bset = ngroute_create_bset(
-                    neighborhoods, new_subpath.nodes, current_bset,
+                new_fset_residue = ngroute_create_fset_residue(
+                    neighborhoods, next_node, current_fset_residue,
                 )
-                new_set = [new_fset; new_bset]
+                new_ng_resources = [new_fset; new_fset_residue]
             end
             
             new_key = (
@@ -539,7 +536,7 @@ function generate_base_labels_ngroute_lambda(
                 new_λ_labels,
                 new_subpath.time_taken, 
                 new_subpath.charge_taken, 
-                new_set,
+                new_ng_resources,
             )
             added = add_label_to_collection_cuts!(
                 base_labels[(starting_node, next_node)],
@@ -560,21 +557,21 @@ function generate_base_labels_ngroute_lambda(
     end
 
     for node in graph.N_depots
-        λ_labels = falses(length(λ))
         # Forward NG-set
-        node_labels = falses(graph.n_nodes)
-        node_labels[node] = true
-        key = (0.0, λ_labels, 0, 0, node_labels,)
+        forward_ngset = falses(graph.n_nodes)
+        forward_ngset[node] = true
+        ng_resources = forward_ngset
+        key = (0.0, falses(length(λ)), 0, 0, ng_resources,)
         pop!(base_labels[(node, node)], key)
     end
     for node in graph.N_charging
-        λ_labels = falses(length(λ))
-        node_labels = falses(2 * graph.n_nodes)
         # Forward NG-set
-        node_labels[node] = true
-        # Backward NG-set
-        node_labels[node + graph.n_nodes] = true
-        key = (0.0, λ_labels, 0, 0, node_labels,)
+        forward_ngset = falses(graph.n_nodes)
+        forward_ngset[node] = true
+        # Forward NG-set residue
+        forward_ngset_residue = copy(neighborhoods[:, node])
+        ng_resources = [forward_ngset; forward_ngset_residue]
+        key = (0.0, falses(length(λ)), 0, 0, ng_resources,)
         pop!(base_labels[(node, node)], key)
     end
 
@@ -628,8 +625,9 @@ function generate_base_labels_ngroute_lambda_lmSR3(
         λ_flabels = falses(length(λ))
         λ_blabels = falses(length(λ))
         # Forward NG-set
-        node_labels = falses(graph.n_nodes)
-        node_labels[node] = true
+        forward_ngset = falses(graph.n_nodes)
+        forward_ngset[node] = true
+        ng_resources = forward_ngset
         # label key here has the following fields:
         # 0) reduced cost
         # 1a) binary cut labels (forward)
@@ -637,7 +635,7 @@ function generate_base_labels_ngroute_lambda_lmSR3(
         # 2) time taken
         # 3) charge taken
         # 4) whether i-th node is in forward ng-set
-        key = (0.0, λ_flabels, λ_blabels, 0, 0, node_labels,)
+        key = (0.0, λ_flabels, λ_blabels, 0, 0, ng_resources,)
         base_labels[(node, node)][key] = BaseSubpathLabel(
             0, 0, 0.0, [node,], zeros(Int, graph.n_customers),
         )
@@ -653,11 +651,12 @@ function generate_base_labels_ngroute_lambda_lmSR3(
     for node in graph.N_charging
         λ_flabels = falses(length(λ))
         λ_blabels = falses(length(λ))
-        node_labels = falses(2 * graph.n_nodes)
         # Forward NG-set
-        node_labels[node] = true
-        # Backward NG-set
-        node_labels[node + graph.n_nodes] = true
+        forward_ngset = falses(graph.n_nodes)
+        forward_ngset[node] = true
+        # Forward NG-set residue
+        forward_ngset_residue = copy(neighborhoods[:, node])
+        ng_resources = [forward_ngset; forward_ngset_residue]
         # label key here has the following fields:
         # 0) reduced cost
         # 1a) binary cut labels (forward)
@@ -665,8 +664,8 @@ function generate_base_labels_ngroute_lambda_lmSR3(
         # 2) time taken
         # 3) charge taken
         # 4a) whether i-th node is in forward ng-set
-        # 4b) whether i-th node is in backward ng-set
-        key = (0.0, λ_flabels, λ_blabels, 0, 0, node_labels,)
+        # 4b) whether i-th node is in forward ng-set residue
+        key = (0.0, λ_flabels, λ_blabels, 0, 0, ng_resources,)
         base_labels[(node, node)][key] = BaseSubpathLabel(
             0, 0, 0.0, [node,], zeros(Int, graph.n_customers),
         )
@@ -693,11 +692,11 @@ function generate_base_labels_ngroute_lambda_lmSR3(
         (
             _, current_λ_flabels, 
             current_λ_blabels, 
-            _, _, current_set,
+            _, _, current_ng_resources,
         ) = current_key
-        current_fset = current_set[1:graph.n_nodes]
+        current_fset = current_ng_resources[1:graph.n_nodes]
         if starting_node in graph.N_charging
-            current_bset = current_set[graph.n_nodes+1:end]
+            current_fset_residue = current_ng_resources[graph.n_nodes+1:end]
         end
         for next_node in setdiff(outneighbors(graph.G, current_node), current_node)
             (feasible, new_fset) = ngroute_check_create_fset(
@@ -716,14 +715,14 @@ function generate_base_labels_ngroute_lambda_lmSR3(
             new_subpath.cost += λ_cost
 
             if starting_node in graph.N_depots
-                new_set = new_fset
+                new_ng_resources = new_fset
                 # don't update cut backward labels if subpath starts at depot
                 new_λ_blabels = current_λ_blabels
             else
-                new_bset = ngroute_create_bset(
-                    neighborhoods, new_subpath.nodes, current_bset,
+                new_fset_residue = ngroute_create_fset_residue(
+                    neighborhoods, next_node, current_fset_residue,
                 )
-                new_set = [new_fset; new_bset]
+                new_ng_resources = [new_fset; new_fset_residue]
                 new_λ_blabels = compute_new_subpath_lambda_blabels_lmSR3(
                     next_node, current_subpath.nodes, current_λ_blabels, λcust, λmemory,
                 )
@@ -735,7 +734,7 @@ function generate_base_labels_ngroute_lambda_lmSR3(
                 new_λ_blabels,
                 new_subpath.time_taken, 
                 new_subpath.charge_taken, 
-                new_set,
+                new_ng_resources,
             )
             added = add_label_to_collection_cuts!(
                 base_labels[(starting_node, next_node)],
@@ -759,20 +758,22 @@ function generate_base_labels_ngroute_lambda_lmSR3(
         λ_flabels = falses(length(λ))
         λ_blabels = falses(length(λ))
         # Forward NG-set
-        node_labels = falses(graph.n_nodes)
-        node_labels[node] = true
-        key = (0.0, λ_flabels, λ_blabels, 0, 0, node_labels,)
+        forward_ngset = falses(graph.n_nodes)
+        forward_ngset[node] = true
+        ng_resources = forward_ngset
+        key = (0.0, λ_flabels, λ_blabels, 0, 0, ng_resources,)
         pop!(base_labels[(node, node)], key)
     end
     for node in graph.N_charging
         λ_flabels = falses(length(λ))
         λ_blabels = falses(length(λ))
-        node_labels = falses(2 * graph.n_nodes)
         # Forward NG-set
-        node_labels[node] = true
-        # Backward NG-set
-        node_labels[node + graph.n_nodes] = true
-        key = (0.0, λ_flabels, λ_blabels, 0, 0, node_labels,)
+        forward_ngset = falses(graph.n_nodes)
+        forward_ngset[node] = true
+        # Forward NG-set residue
+        forward_ngset_residue = copy(neighborhoods[:, node])
+        ng_resources = [forward_ngset; forward_ngset_residue]
+        key = (0.0, λ_flabels, λ_blabels, 0, 0, ng_resources,)
         pop!(base_labels[(node, node)], key)
     end
 
@@ -921,6 +922,7 @@ function compute_new_path_lambda!(
     return new_path_λ_labels
 end
 
+
 function compute_new_path_lambda_lmSR3!(
     new_path::PathLabel,
     current_path_λ_labels::BitVector,
@@ -1034,7 +1036,12 @@ function find_nondominated_paths_notimewindows(
                     continue
                 end
 
-                (feasible, new_path, end_time, end_charge) = compute_new_path(
+                (
+                    feasible, 
+                    new_path, 
+                    end_time, 
+                    end_charge, 
+                ) = compute_new_path(
                     current_path, 
                     s, 
                     current_node,
@@ -1145,14 +1152,14 @@ function find_nondominated_paths_notimewindows_ngroute(
 
     unexplored_states = SortedSet{Tuple{Float64, Int, Int, BitVector, Int, Int}}()
     for depot in graph.N_depots
-        node_labels = falses(graph.n_nodes)
-        node_labels[depot] = true
+        ng_resources = falses(graph.n_nodes)
+        ng_resources[depot] = true
         # label key here has the following fields:
         # 0) reduced cost
         # 1) time
         # 2) - charge
         # 3) whether i-th node is in forward ng-set
-        key = (0.0, 0, -graph.B, node_labels,)
+        key = (0.0, 0, -graph.B, ng_resources,)
         full_labels[(depot, depot)][key] = PathLabel(
             0.0,
             BaseSubpathLabel[],
@@ -1177,21 +1184,29 @@ function find_nondominated_paths_notimewindows_ngroute(
         state = pop!(unexplored_states)
         starting_node = state[end-1]
         current_node = state[end]
-        current_set = state[end-2]
         current_key = state[1:end-2]
         if !(current_key in keys(full_labels[(starting_node, current_node)]))
             continue
         end
-        (current_path_reduced_cost, current_time, negative_current_charge, current_set) = current_key
+        (
+            _, current_time, 
+            negative_current_charge, 
+            current_ng_resources,
+        ) = current_key
         current_path = full_labels[(starting_node, current_node)][current_key]
         for next_node in graph.N_depots_charging
             for s in values(base_labels[(current_node, next_node)])
                 # ngroute stitching subpaths check
-                (feasible, new_set) = ngroute_extend_partial_path_check(
-                    neighborhoods, current_set, s.nodes,
+                (feasible, new_ng_resources) = ngroute_extend_partial_path_check(
+                    neighborhoods, current_ng_resources, s.nodes,
                 )
                 !feasible && continue
-                (feasible, new_path, end_time, end_charge) = compute_new_path(
+                (
+                    feasible, 
+                    new_path, 
+                    end_time, 
+                    end_charge, 
+                ) = compute_new_path(
                     current_path, 
                     s, 
                     current_node,
@@ -1207,7 +1222,7 @@ function find_nondominated_paths_notimewindows_ngroute(
                     new_path.cost,
                     end_time, 
                     - end_charge,
-                    new_set,
+                    new_ng_resources,
                 )
                 added = add_label_to_collection!(
                     full_labels[(starting_node, next_node)],
@@ -1228,9 +1243,9 @@ function find_nondominated_paths_notimewindows_ngroute(
     # 2) - charge
     # 3) whether i-th node is in forward ng-set
     for depot in graph.N_depots
-        node_labels = falses(graph.n_nodes)
-        node_labels[depot] = true
-        key = (0.0, 0, -graph.B, node_labels,)
+        ng_resources = falses(graph.n_nodes)
+        ng_resources[depot] = true
+        key = (0.0, 0, -graph.B, ng_resources,)
         full_labels[(depot, depot)][key] = PathLabel(
             - κ[depot] - μ[depot],
             [
@@ -1293,16 +1308,15 @@ function find_nondominated_paths_notimewindows_ngroute_lambda(
 
     unexplored_states = SortedSet{Tuple{Float64, BitVector, Int, Int, BitVector, Int, Int}}()
     for depot in graph.N_depots
-        λ_labels = falses(length(λ))
-        node_labels = falses(graph.n_nodes)
-        node_labels[depot] = true
+        ng_resources = falses(graph.n_nodes)
+        ng_resources[depot] = true
         # label key here has the following fields:
         # 0) reduced cost
         # 1) binary cut labels
         # 2) time
         # 3) - charge
         # 4) whether i-th node is in forward ng-set
-        key = (0.0, λ_labels, 0, -graph.B, node_labels,)
+        key = (0.0, falses(length(λ)), 0, -graph.B, ng_resources,)
         full_labels[(depot, depot)][key] = PathLabel(
             0.0,
             BaseSubpathLabel[],
@@ -1333,17 +1347,22 @@ function find_nondominated_paths_notimewindows_ngroute_lambda(
             _, current_path_λ_labels, 
             current_time, 
             negative_current_charge, 
-            current_set,
+            current_ng_resources,
         ) = current_key
         current_path = full_labels[(starting_node, current_node)][current_key]
         for next_node in graph.N_depots_charging
             for ((_, subpath_λ_labels, _, _, _), s) in pairs(base_labels[(current_node, next_node)])
                 # ngroute stitching subpaths check
-                (feasible, new_set) = ngroute_extend_partial_path_check(
-                    neighborhoods, current_set, s.nodes,
+                (feasible, new_ng_resources) = ngroute_extend_partial_path_check(
+                    neighborhoods, current_ng_resources, s.nodes,
                 )
                 !feasible && continue
-                (feasible, new_path, end_time, end_charge) = compute_new_path(
+                (
+                    feasible, 
+                    new_path, 
+                    end_time, 
+                    end_charge, 
+                ) = compute_new_path(
                     current_path, 
                     s, 
                     current_node,
@@ -1363,7 +1382,7 @@ function find_nondominated_paths_notimewindows_ngroute_lambda(
                     new_path_λ_labels,
                     end_time, 
                     - end_charge,
-                    new_set,
+                    new_ng_resources,
                 )
                 added = add_label_to_collection_cuts!(
                     full_labels[(starting_node, next_node)],
@@ -1385,9 +1404,9 @@ function find_nondominated_paths_notimewindows_ngroute_lambda(
     # 3) - charge
     # 4) whether i-th node is in forward ng-set
     for depot in graph.N_depots
-        node_labels = falses(graph.n_nodes)
-        node_labels[depot] = true
-        key = (0.0, falses(length(λ)), 0, -graph.B, node_labels,)
+        ng_resources = falses(graph.n_nodes)
+        ng_resources[depot] = true
+        key = (0.0, falses(length(λ)), 0, -graph.B, ng_resources,)
         full_labels[(depot, depot)][key] = PathLabel(
             - κ[depot] - μ[depot],
             [
@@ -1451,16 +1470,15 @@ function find_nondominated_paths_notimewindows_ngroute_lambda_lmSR3(
 
     unexplored_states = SortedSet{Tuple{Float64, BitVector, Int, Int, BitVector, Int, Int}}()
     for depot in graph.N_depots
-        λ_labels = falses(length(λ))
-        node_labels = falses(graph.n_nodes)
-        node_labels[depot] = true
+        ng_resources = falses(graph.n_nodes)
+        ng_resources[depot] = true
         # label key here has the following fields:
         # 0) reduced cost
         # 1) binary cut labels
         # 2) time
         # 3) - charge
         # 4) whether i-th node is in forward ng-set
-        key = (0.0, λ_labels, 0, -graph.B, node_labels,)
+        key = (0.0, falses(length(λ)), 0, -graph.B, ng_resources,)
         full_labels[(depot, depot)][key] = PathLabel(
             0.0,
             BaseSubpathLabel[],
@@ -1491,17 +1509,22 @@ function find_nondominated_paths_notimewindows_ngroute_lambda_lmSR3(
             _, current_path_λ_labels, 
             current_time, 
             negative_current_charge, 
-            current_set,
+            current_ng_resources,
         ) = current_key
         current_path = full_labels[(starting_node, current_node)][current_key]
         for next_node in graph.N_depots_charging
-            for s in values(base_labels[(current_node, next_node)])
+            for ((_, subpath_λ_flabels, subpath_λ_blabels, _, _, _), s) in pairs(base_labels[(current_node, next_node)])
                 # ngroute stitching subpaths check
-                (feasible, new_set) = ngroute_extend_partial_path_check(
-                    neighborhoods, current_set, s.nodes,
+                (feasible, new_ng_resources) = ngroute_extend_partial_path_check(
+                    neighborhoods, current_ng_resources, s.nodes,
                 )
                 !feasible && continue
-                (feasible, new_path, end_time, end_charge) = compute_new_path(
+                (
+                    feasible, 
+                    new_path, 
+                    end_time, 
+                    end_charge, 
+                ) = compute_new_path(
                     current_path, 
                     s, 
                     current_node,
@@ -1522,7 +1545,7 @@ function find_nondominated_paths_notimewindows_ngroute_lambda_lmSR3(
                     new_path_λ_labels, 
                     end_time, 
                     - end_charge,
-                    new_set,
+                    new_ng_resources,
                 )
                 added = add_label_to_collection_cuts!(
                     full_labels[(starting_node, next_node)],
@@ -1544,9 +1567,9 @@ function find_nondominated_paths_notimewindows_ngroute_lambda_lmSR3(
     # 3) - charge
     # 4) whether i-th node is in forward ng-set
     for depot in graph.N_depots
-        node_labels = falses(graph.n_nodes)
-        node_labels[depot] = true
-        key = (0.0, falses(length(λ)), 0, -graph.B, node_labels,)
+        ng_resources = falses(graph.n_nodes)
+        ng_resources[depot] = true
+        key = (0.0, falses(length(λ)), 0, -graph.B, ng_resources,)
         full_labels[(depot, depot)][key] = PathLabel(
             - κ[depot] - μ[depot],
             [
@@ -1678,7 +1701,13 @@ function find_nondominated_paths_notimewindows_heterogenous_charging(
                     continue
                 end
 
-                (feasible, new_path, end_time, end_charge, new_rebalancing_slacks) = compute_new_path_heterogenous_charging(
+                (
+                    feasible, 
+                    new_path, 
+                    end_time, 
+                    end_charge, 
+                    new_rebalancing_slacks,
+                ) = compute_new_path_heterogenous_charging(
                     current_path, 
                     s, 
                     current_node,
@@ -1728,9 +1757,16 @@ function find_nondominated_paths_notimewindows_heterogenous_charging(
         # 2) - charge
         # 3) - rebalancing slacks
         # 4) if applicable, whether i-th customer served
-        key = (0.0, 0, -graph.B, zeros(Int, data.charge_cost_nlevels - 1), falses(graph.n_customers),)
+        key = (
+            0.0, 0, -graph.B, 
+            zeros(Int, data.charge_cost_nlevels - 1), 
+            falses(graph.n_customers),
+        )
     else
-        key = (0.0, 0, -graph.B, zeros(Int, data.charge_cost_nlevels - 1),)
+        key = (
+            0.0, 0, -graph.B, 
+            zeros(Int, data.charge_cost_nlevels - 1),
+        )
     end
     for depot in graph.N_depots
         full_labels[(depot, depot)][key] = PathLabel(
@@ -1793,15 +1829,19 @@ function find_nondominated_paths_notimewindows_heterogenous_charging_ngroute(
 
     unexplored_states = SortedSet{Tuple{Float64, Int, Int, Vector{Int}, BitVector, Int, Int}}()
     for depot in graph.N_depots
-        node_labels = falses(graph.n_nodes)
-        node_labels[depot] = true
+        ng_resources = falses(graph.n_nodes)
+        ng_resources[depot] = true
         # label key here has the following fields:
         # 0) reduced cost
         # 1) time
         # 2) - charge
         # 3) - rebalancing slacks
         # 4) whether i-th node is in forward ng-set
-        key = (0.0, 0, -graph.B, zeros(Int, data.charge_cost_nlevels - 1), node_labels,)
+        key = (
+            0.0, 0, -graph.B, 
+            zeros(Int, data.charge_cost_nlevels - 1), 
+            ng_resources,
+        )
         full_labels[(depot, depot)][key] = PathLabel(
             0.0,
             BaseSubpathLabel[],
@@ -1826,7 +1866,6 @@ function find_nondominated_paths_notimewindows_heterogenous_charging_ngroute(
         state = pop!(unexplored_states)
         starting_node = state[end-1]
         current_node = state[end]
-        current_set = state[end-2]
         current_key = state[1:end-2]
         if !(current_key in keys(full_labels[(starting_node, current_node)]))
             continue
@@ -1835,17 +1874,23 @@ function find_nondominated_paths_notimewindows_heterogenous_charging_ngroute(
             _, current_time, 
             negative_current_charge, 
             negative_rebalancing_slacks, 
-            current_set,
+            current_ng_resources,
         ) = current_key
         current_path = full_labels[(starting_node, current_node)][current_key]
         for next_node in graph.N_depots_charging
             for s in values(base_labels[(current_node, next_node)])
                 # ngroute stitching subpaths check
-                (feasible, new_set) = ngroute_extend_partial_path_check(
-                    neighborhoods, current_set, s.nodes,
+                (feasible, new_ng_resources) = ngroute_extend_partial_path_check(
+                    neighborhoods, current_ng_resources, s.nodes,
                 )
                 !feasible && continue
-                (feasible, new_path, end_time, end_charge, new_rebalancing_slacks) = compute_new_path_heterogenous_charging(
+                (
+                    feasible, 
+                    new_path, 
+                    end_time, 
+                    end_charge, 
+                    new_rebalancing_slacks,
+                ) = compute_new_path_heterogenous_charging(
                     current_path, 
                     s, 
                     current_node,
@@ -1863,7 +1908,7 @@ function find_nondominated_paths_notimewindows_heterogenous_charging_ngroute(
                     end_time, 
                     - end_charge,
                     - new_rebalancing_slacks,
-                    new_set,
+                    new_ng_resources,
                 )
                 added = add_label_to_collection!(
                     full_labels[(starting_node, next_node)],
@@ -1885,9 +1930,13 @@ function find_nondominated_paths_notimewindows_heterogenous_charging_ngroute(
     # 3) - rebalancing slacks
     # 4) whether i-th node is in forward ng-set
     for depot in graph.N_depots
-        node_labels = falses(graph.n_nodes)
-        node_labels[depot] = true
-        key = (0.0, 0, -graph.B, zeros(Int, data.charge_cost_nlevels - 1), node_labels,)
+        ng_resources = falses(graph.n_nodes)
+        ng_resources[depot] = true
+        key = (
+            0.0, 0, -graph.B, 
+            zeros(Int, data.charge_cost_nlevels - 1), 
+            ng_resources,
+        )
         full_labels[(depot, depot)][key] = PathLabel(
             - κ[depot] - μ[depot],
             [
@@ -1950,9 +1999,8 @@ function find_nondominated_paths_notimewindows_heterogenous_charging_ngroute_lam
 
     unexplored_states = SortedSet{Tuple{Float64, BitVector, Int, Int, Vector{Int}, BitVector, Int, Int}}()
     for depot in graph.N_depots
-        λ_labels = falses(length(λ))
-        node_labels = falses(graph.n_nodes)
-        node_labels[depot] = true
+        ng_resources = falses(graph.n_nodes)
+        ng_resources[depot] = true
         # label key here has the following fields:
         # 0) reduced cost
         # 1) binary cut labels
@@ -1960,7 +2008,11 @@ function find_nondominated_paths_notimewindows_heterogenous_charging_ngroute_lam
         # 3) - charge
         # 4) - rebalancing slacks
         # 4) whether i-th node is in forward ng-set
-        key = (0.0, λ_labels, 0, -graph.B, zeros(Int, data.charge_cost_nlevels - 1), node_labels,)
+        key = (
+            0.0, falses(length(λ)), 0, -graph.B, 
+            zeros(Int, data.charge_cost_nlevels - 1), 
+            ng_resources,
+        )
         full_labels[(depot, depot)][key] = PathLabel(
             0.0,
             BaseSubpathLabel[],
@@ -1992,17 +2044,23 @@ function find_nondominated_paths_notimewindows_heterogenous_charging_ngroute_lam
             current_time, 
             negative_current_charge, 
             negative_rebalancing_slacks, 
-            current_set,
+            current_ng_resources,
         ) = current_key
         current_path = full_labels[(starting_node, current_node)][current_key]
         for next_node in graph.N_depots_charging
             for ((_, subpath_λ_labels, _, _, _), s) in pairs(base_labels[(current_node, next_node)])
                 # ngroute stitching subpaths check
-                (feasible, new_set) = ngroute_extend_partial_path_check(
-                    neighborhoods, current_set, s.nodes,
+                (feasible, new_ng_resources) = ngroute_extend_partial_path_check(
+                    neighborhoods, current_ng_resources, s.nodes,
                 )
                 !feasible && continue
-                (feasible, new_path, end_time, end_charge, new_rebalancing_slacks) = compute_new_path_heterogenous_charging(
+                (
+                    feasible, 
+                    new_path, 
+                    end_time, 
+                    end_charge, 
+                    new_rebalancing_slacks,
+                ) = compute_new_path_heterogenous_charging(
                     current_path, 
                     s, 
                     current_node,
@@ -2024,7 +2082,7 @@ function find_nondominated_paths_notimewindows_heterogenous_charging_ngroute_lam
                     end_time, 
                     - end_charge,
                     - new_rebalancing_slacks,
-                    new_set,
+                    new_ng_resources,
                 )
                 added = add_label_to_collection_cuts!(
                     full_labels[(starting_node, next_node)],
@@ -2047,9 +2105,13 @@ function find_nondominated_paths_notimewindows_heterogenous_charging_ngroute_lam
     # 4) - rebalancing slacks
     # 4) whether i-th node is in forward ng-set
     for depot in graph.N_depots
-        node_labels = falses(graph.n_nodes)
-        node_labels[depot] = true
-        key = (0.0, falses(length(λ)), 0, -graph.B, zeros(Int, data.charge_cost_nlevels - 1), node_labels,)
+        ng_resources = falses(graph.n_nodes)
+        ng_resources[depot] = true
+        key = (
+            0.0, falses(length(λ)), 0, -graph.B, 
+            zeros(Int, data.charge_cost_nlevels - 1), 
+            ng_resources,
+        )
         full_labels[(depot, depot)][key] = PathLabel(
             - κ[depot] - μ[depot],
             [
@@ -2113,9 +2175,8 @@ function find_nondominated_paths_notimewindows_heterogenous_charging_ngroute_lam
 
     unexplored_states = SortedSet{Tuple{Float64, BitVector, Int, Int, Vector{Int}, BitVector, Int, Int}}()
     for depot in graph.N_depots
-        λ_labels = falses(length(λ))
-        node_labels = falses(graph.n_nodes)
-        node_labels[depot] = true
+        ng_resources = falses(graph.n_nodes)
+        ng_resources[depot] = true
         # label key here has the following fields:
         # 0) reduced cost
         # 1) binary cut labels
@@ -2123,7 +2184,11 @@ function find_nondominated_paths_notimewindows_heterogenous_charging_ngroute_lam
         # 3) - charge
         # 4) - rebalancing slacks
         # 5) whether i-th node is in forward ng-set
-        key = (0.0, λ_labels, 0, -graph.B, zeros(Int, data.charge_cost_nlevels - 1), node_labels,)
+        key = (
+            0.0, falses(length(λ)), 0, -graph.B, 
+            zeros(Int, data.charge_cost_nlevels - 1), 
+            ng_resources,
+        )
         full_labels[(depot, depot)][key] = PathLabel(
             0.0,
             BaseSubpathLabel[],
@@ -2150,13 +2215,19 @@ function find_nondominated_paths_notimewindows_heterogenous_charging_ngroute_lam
         if !(current_key in keys(full_labels[(starting_node, current_node)]))
             continue
         end
-        (current_path_reduced_cost, current_path_λ_labels, current_time, negative_current_charge, negative_rebalancing_slacks, current_set) = current_key
+        (
+            _, current_path_λ_labels, 
+            current_time, 
+            negative_current_charge, 
+            negative_rebalancing_slacks, 
+            current_ng_resources,
+        ) = current_key
         current_path = full_labels[(starting_node, current_node)][current_key]
         for next_node in graph.N_depots_charging
-            for s in values(base_labels[(current_node, next_node)])
+            for ((_, subpath_λ_flabels, subpath_λ_blabels, _, _, _), s) in pairs(base_labels[(current_node, next_node)])
                 # ngroute stitching subpaths check
-                (feasible, new_set) = ngroute_extend_partial_path_check(
-                    neighborhoods, current_set, s.nodes,
+                (feasible, new_ng_resources) = ngroute_extend_partial_path_check(
+                    neighborhoods, current_ng_resources, s.nodes,
                 )
                 !feasible && continue
                 (feasible, new_path, end_time, end_charge, new_rebalancing_slacks) = compute_new_path_heterogenous_charging(
@@ -2182,7 +2253,7 @@ function find_nondominated_paths_notimewindows_heterogenous_charging_ngroute_lam
                     end_time, 
                     - end_charge,
                     - new_rebalancing_slacks,
-                    new_set,
+                    new_ng_resources,
                 )
                 added = add_label_to_collection_cuts!(
                     full_labels[(starting_node, next_node)],
@@ -2205,9 +2276,13 @@ function find_nondominated_paths_notimewindows_heterogenous_charging_ngroute_lam
     # 4) - rebalancing slacks
     # 5) whether i-th node is in forward ng-set
     for depot in graph.N_depots
-        node_labels = falses(graph.n_nodes)
-        node_labels[depot] = true
-        key = (0.0, falses(length(λ)), 0, -graph.B, zeros(Int, data.charge_cost_nlevels - 1), node_labels,)
+        ng_resources = falses(graph.n_nodes)
+        ng_resources[depot] = true
+        key = (
+            0.0, falses(length(λ)), 0, -graph.B, 
+            zeros(Int, data.charge_cost_nlevels - 1), 
+            ng_resources,
+        )
         full_labels[(depot, depot)][key] = PathLabel(
             - κ[depot] - μ[depot],
             [
