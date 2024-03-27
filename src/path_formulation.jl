@@ -1184,6 +1184,8 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
             # charging stations:            %3d
             # vehicles:                     %3d
             time windows?:                  %s
+            heterogenous charging costs?:   %s
+            charge_cost_nlevels:            %3d
 
             method:                         %s
             """,
@@ -1192,6 +1194,8 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
             graph.n_charging,
             data.n_vehicles,
             time_windows,
+            charge_cost_heterogenous,
+            data.charge_cost_nlevels,
             method,
         )
     )
