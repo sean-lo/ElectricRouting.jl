@@ -954,6 +954,9 @@ function compute_ngroute_neighborhoods(
     depots_size::String = "small",
     charging_size::String = "small",
 )
+    """
+    neighborhoods[i,j] == 1 iff node i is in the ng-neighborhood of node j 
+    """
     if !(1 ≤ k ≤ graph.n_customers)
         error()
     end
@@ -1002,32 +1005,38 @@ end
 
 function ngroute_check_create_fset(
     neighborhoods::BitMatrix,
-    set::BitVector,
+    fset::BitVector,
     next_node::Int,
 )
-    if set[next_node]
+    if fset[next_node]
         # if next_node is a customer not yet visited, proceed
         # only if one can extend current_subpath along next_node according to ng-route rules
-        return (false, set)
+        return (false, fset)
     end
-    new_set = copy(set)
-    new_set .&= neighborhoods[:, next_node]
-    new_set[next_node] = true
-    return (true, new_set)
+    new_fset = copy(fset)
+    new_fset .&= neighborhoods[:, next_node]
+    new_fset[next_node] = true
+    return (true, new_fset)
 end
 
 function ngroute_create_bset(
-    neighborhoods::BitMatrix,
-    nodes::Vector{Int},
-    set::BitVector,
+    next_node::Int,
+    bset::BitVector,
+    fset_residue::BitVector,
 )
-    new_set = copy(set)
-    val = neighborhoods[nodes[end], nodes[1]]
-    for i in nodes[2:end-1]
-        val &= neighborhoods[nodes[end], i]
+    new_bset = copy(bset)
+    if fset_residue[next_node]
+        new_bset[next_node] = true
     end
-    new_set[nodes[end]] |= val
-    return new_set 
+    return new_bset
+end
+
+function ngroute_create_fset_residue(
+    neighborhoods::BitMatrix,
+    next_node::Int,
+    fset_residue::BitVector,
+)
+    return fset_residue .& neighborhoods[:, next_node]
 end
 
 function compute_arc_modified_costs(
