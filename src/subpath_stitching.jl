@@ -79,18 +79,16 @@ end
 
 
 
-function compute_new_subpath_lambda_blabels_lmSR3(
+function compute_new_subpath_lambda_memory_blabels_lmSR3(
     next_node::Int,
-    subpath_nodes::Vector{Int},
     current_λ_blabels::BitVector,
+    current_λmemory_labels::BitVector,
     λcust::BitMatrix,
     λmemory::BitMatrix,
 )
-    λincluded = trues(length(current_λ_blabels))
-    for node in subpath_nodes
-        λincluded = λincluded .& λmemory[:, node]
-    end
-    return current_λ_blabels .⊻ (λincluded .& λcust[:, next_node])
+    new_λ_blabels = current_λ_blabels .⊻ (current_λmemory_labels .& λcust[:, next_node])
+    new_λmemory_labels = current_λmemory_labels .& λmemory[:, next_node]
+    return (new_λ_blabels, new_λmemory_labels)
 end
 
 function generate_base_labels(
@@ -612,7 +610,7 @@ function generate_base_labels_ngroute_lambda_lmSR3(
 
     base_labels = Dict(
         (starting_node, current_node) => SortedDict{
-            Tuple{Float64, BitVector, BitVector, Int, Int, BitVector},
+            Tuple{Float64, BitVector, BitVector, BitVector, Int, Int, BitVector},
             BaseSubpathLabel,
             Base.Order.ForwardOrdering,
         }(Base.Order.ForwardOrdering())
@@ -620,10 +618,11 @@ function generate_base_labels_ngroute_lambda_lmSR3(
             current_node in graph.N_nodes
     )
 
-    unexplored_states = SortedSet{Tuple{Float64, BitVector, BitVector, Int, Int, BitVector, Int, Int}}()
+    unexplored_states = SortedSet{Tuple{Float64, BitVector, BitVector, BitVector, Int, Int, BitVector, Int, Int}}()
     for node in graph.N_depots
         λ_flabels = falses(length(λ))
         λ_blabels = falses(length(λ))
+        λmemory_labels = copy(λmemory[:, node])
         # Forward NG-set
         forward_ngset = falses(graph.n_nodes)
         forward_ngset[node] = true
@@ -632,10 +631,11 @@ function generate_base_labels_ngroute_lambda_lmSR3(
         # 0) reduced cost
         # 1a) binary cut labels (forward)
         # 1b) binary cut labels (backward)
+        # 1c) binary cut memory labels 
         # 2) time taken
         # 3) charge taken
         # 4) whether i-th node is in forward ng-set
-        key = (0.0, λ_flabels, λ_blabels, 0, 0, ng_resources,)
+        key = (0.0, λ_flabels, λ_blabels, λmemory_labels, 0, 0, ng_resources,)
         base_labels[(node, node)][key] = BaseSubpathLabel(
             0, 0, 0.0, [node,], zeros(Int, graph.n_customers),
         )
@@ -651,6 +651,7 @@ function generate_base_labels_ngroute_lambda_lmSR3(
     for node in graph.N_charging
         λ_flabels = falses(length(λ))
         λ_blabels = falses(length(λ))
+        λmemory_labels = copy(λmemory[:, node])
         # Forward NG-set
         forward_ngset = falses(graph.n_nodes)
         forward_ngset[node] = true
@@ -665,7 +666,7 @@ function generate_base_labels_ngroute_lambda_lmSR3(
         # 3) charge taken
         # 4a) whether i-th node is in forward ng-set
         # 4b) whether i-th node is in forward ng-set residue
-        key = (0.0, λ_flabels, λ_blabels, 0, 0, ng_resources,)
+        key = (0.0, λ_flabels, λ_blabels, λmemory_labels, 0, 0, ng_resources,)
         base_labels[(node, node)][key] = BaseSubpathLabel(
             0, 0, 0.0, [node,], zeros(Int, graph.n_customers),
         )
@@ -690,8 +691,7 @@ function generate_base_labels_ngroute_lambda_lmSR3(
         end
         current_subpath = base_labels[(starting_node, current_node)][current_key]
         (
-            _, current_λ_flabels, 
-            current_λ_blabels, 
+            _, current_λ_flabels, current_λ_blabels, current_λmemory_labels, 
             _, _, current_ng_resources,
         ) = current_key
         current_fset = current_ng_resources[1:graph.n_nodes]
@@ -718,13 +718,14 @@ function generate_base_labels_ngroute_lambda_lmSR3(
                 new_ng_resources = new_fset
                 # don't update cut backward labels if subpath starts at depot
                 new_λ_blabels = current_λ_blabels
+                new_λmemory_labels = current_λmemory_labels
             else
                 new_fset_residue = ngroute_create_fset_residue(
                     neighborhoods, next_node, current_fset_residue,
                 )
                 new_ng_resources = [new_fset; new_fset_residue]
-                new_λ_blabels = compute_new_subpath_lambda_blabels_lmSR3(
-                    next_node, current_subpath.nodes, current_λ_blabels, λcust, λmemory,
+                new_λ_blabels, new_λmemory_labels = compute_new_subpath_lambda_memory_blabels_lmSR3(
+                    next_node, current_λ_blabels, current_λmemory_labels, λcust, λmemory,
                 )
             end
             
@@ -732,6 +733,7 @@ function generate_base_labels_ngroute_lambda_lmSR3(
                 new_subpath.cost,
                 new_λ_flabels,
                 new_λ_blabels,
+                new_λmemory_labels,
                 new_subpath.time_taken, 
                 new_subpath.charge_taken, 
                 new_ng_resources,
@@ -757,23 +759,25 @@ function generate_base_labels_ngroute_lambda_lmSR3(
     for node in graph.N_depots
         λ_flabels = falses(length(λ))
         λ_blabels = falses(length(λ))
+        λmemory_labels = copy(λmemory[:, node])
         # Forward NG-set
         forward_ngset = falses(graph.n_nodes)
         forward_ngset[node] = true
         ng_resources = forward_ngset
-        key = (0.0, λ_flabels, λ_blabels, 0, 0, ng_resources,)
+        key = (0.0, λ_flabels, λ_blabels, λmemory_labels, 0, 0, ng_resources,)
         pop!(base_labels[(node, node)], key)
     end
     for node in graph.N_charging
         λ_flabels = falses(length(λ))
         λ_blabels = falses(length(λ))
+        λmemory_labels = copy(λmemory[:, node])
         # Forward NG-set
         forward_ngset = falses(graph.n_nodes)
         forward_ngset[node] = true
         # Forward NG-set residue
         forward_ngset_residue = copy(neighborhoods[:, node])
         ng_resources = [forward_ngset; forward_ngset_residue]
-        key = (0.0, λ_flabels, λ_blabels, 0, 0, ng_resources,)
+        key = (0.0, λ_flabels, λ_blabels, λmemory_labels, 0, 0, ng_resources,)
         pop!(base_labels[(node, node)], key)
     end
 
@@ -928,20 +932,11 @@ function compute_new_path_lambda_lmSR3!(
     current_path_λ_labels::BitVector,
     subpath_λ_flabels::BitVector,
     subpath_λ_blabels::BitVector,
-    subpath_nodes::Vector{Int},
+    subpath_λmemory_labels::BitVector,
     λvals::Vector{Float64},
-    λcust::BitMatrix,
-    λmemory::BitMatrix,
 )
     new_path.cost -= sum(λvals[current_path_λ_labels .& subpath_λ_blabels])
-    new_path_λ_labels = copy(current_path_λ_labels)
-    for next_node in subpath_nodes[2:end]
-        (new_path_λ_labels, _) = compute_lambda_flabels_cost_lmSR3(
-            next_node, new_path_λ_labels,
-            λvals, λcust, λmemory,
-        )
-    end
-    return new_path_λ_labels
+    return subpath_λ_flabels .⊻ (current_path_λ_labels .& subpath_λmemory_labels)
 end
 
 
@@ -1445,7 +1440,7 @@ function find_nondominated_paths_notimewindows_ngroute_lambda_lmSR3(
     base_labels::Dict{
         NTuple{2, Int}, 
         SortedDict{
-            Tuple{Float64, BitVector, BitVector, Int, Int, BitVector},
+            Tuple{Float64, BitVector, BitVector, BitVector, Int, Int, BitVector},
             BaseSubpathLabel,
             Base.Order.ForwardOrdering,
         },
@@ -1515,7 +1510,10 @@ function find_nondominated_paths_notimewindows_ngroute_lambda_lmSR3(
         ) = current_key
         current_path = full_labels[(starting_node, current_node)][current_key]
         for next_node in graph.N_depots_charging
-            for ((_, subpath_λ_flabels, subpath_λ_blabels, _, _, _), s) in pairs(base_labels[(current_node, next_node)])
+            for (
+                (_, subpath_λ_flabels, subpath_λ_blabels, subpath_λmemory_labels, 
+                _, _, _), s
+            ) in pairs(base_labels[(current_node, next_node)])
                 # ngroute stitching subpaths check
                 (feasible, new_ng_resources) = ngroute_extend_partial_path_check(
                     neighborhoods, current_ng_resources, s.nodes,
@@ -1539,9 +1537,8 @@ function find_nondominated_paths_notimewindows_ngroute_lambda_lmSR3(
                 !feasible && continue
                 new_path_λ_labels = compute_new_path_lambda_lmSR3!(
                     new_path, current_path_λ_labels, 
-                    subpath_λ_flabels, subpath_λ_blabels, 
-                    s.nodes,
-                    λvals, λcust, λmemory,
+                    subpath_λ_flabels, subpath_λ_blabels, subpath_λmemory_labels, 
+                    λvals,
                 )
 
                 new_key = (
@@ -2228,8 +2225,10 @@ function find_nondominated_paths_notimewindows_heterogenous_charging_ngroute_lam
         ) = current_key
         current_path = full_labels[(starting_node, current_node)][current_key]
         for next_node in graph.N_depots_charging
-            for ((_, subpath_λ_flabels, subpath_λ_blabels, _, _, _), s) in pairs(base_labels[(current_node, next_node)])
-                # ngroute stitching subpaths check
+            for (
+                (_, subpath_λ_flabels, subpath_λ_blabels, subpath_λmemory_labels, 
+                _, _, _), s
+            ) in pairs(base_labels[(current_node, next_node)])                # ngroute stitching subpaths check
                 (feasible, new_ng_resources) = ngroute_extend_partial_path_check(
                     neighborhoods, current_ng_resources, s.nodes,
                 )
@@ -2248,9 +2247,8 @@ function find_nondominated_paths_notimewindows_heterogenous_charging_ngroute_lam
                 !feasible && continue
                 new_path_λ_labels = compute_new_path_lambda_lmSR3!(
                     new_path, current_path_λ_labels, 
-                    subpath_λ_flabels, subpath_λ_blabels, 
-                    s.nodes,
-                    λvals, λcust, λmemory,
+                    subpath_λ_flabels, subpath_λ_blabels, subpath_λmemory_labels, 
+                    λvals,
                 )
 
                 new_key = (
