@@ -383,7 +383,7 @@ function compute_path_coefficient_in_lmSRnk_constraint(
             state += 1
             if state ≥ k
                 coeff += 1
-                state = 0
+                state -= k
             end
         end
     end
@@ -742,7 +742,7 @@ function path_formulation_column_generation!(
             && !converged
         )
             CG_params["cycled"] = true
-            add_message!(printlist, "CG cycling error.", verbose)
+            add_message!(printlist, "CG cycling error.\n", verbose)
             break
         end
     end
@@ -1045,7 +1045,7 @@ function compute_memory_set_of_lmSRnk_inequality(
                 if state ≥ k
                     union!(M, M_add)
                     M_add = Set{Int}()
-                    state = 0
+                    state -= k
                 end
             elseif state > 0
                 union!(M_add, node)
@@ -1337,7 +1337,7 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
         end
 
         if CGLP_results["errored"] || CGIP_results["errored"] || CG_params["cycled"]
-            add_message!(printlist, "Terminating column generation...", verbose)
+            add_message!(printlist, "Terminating column generation...\n", verbose)
             iteration_params["errored"] = true
             break
         else
