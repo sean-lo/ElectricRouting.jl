@@ -1022,21 +1022,21 @@ end
 function ngroute_create_bset(
     next_node::Int,
     bset::BitVector,
-    fset_residue::BitVector,
+    residue::BitVector,
 )
     new_bset = copy(bset)
-    if fset_residue[next_node]
+    if residue[next_node]
         new_bset[next_node] = true
     end
     return new_bset
 end
 
-function ngroute_create_fset_residue(
+function ngroute_create_residue(
     neighborhoods::BitMatrix,
     next_node::Int,
-    fset_residue::BitVector,
+    residue::BitVector,
 )
-    return fset_residue .& neighborhoods[:, next_node]
+    return residue .& neighborhoods[:, next_node]
 end
 
 function compute_arc_modified_costs(
