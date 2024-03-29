@@ -37,7 +37,7 @@ function ngroute_extend_partial_path_check(
     path_fset::BitVector,
     node::Int,
     subpath_fset::BitVector,
-    subpath_fset_residue::BitVector,
+    subpath_residue::BitVector,
     subpath_bset::BitVector,
 )
     new_path_inf = path_fset .& subpath_bset
@@ -45,7 +45,7 @@ function ngroute_extend_partial_path_check(
     if any(new_path_inf)
         return (false, path_fset)
     else
-        return (true, subpath_fset .| (path_fset .& subpath_fset_residue))
+        return (true, subpath_fset .| (path_fset .& subpath_residue))
     end
 end
 
@@ -267,11 +267,11 @@ function generate_base_labels_ngroute(
         fset = falses(graph.n_nodes)
         fset[node] = true
         # Ω: Nodes that if in the previous forward NG-set, stay in the next forward NG-set
-        fset_residue = copy(neighborhoods[:, node])
+        residue = copy(neighborhoods[:, node])
         # Φ: Backward NG-set
         bset = falses(graph.n_nodes)
         bset[node] = true
-        ng_resources = [fset; fset_residue; bset]
+        ng_resources = [fset; residue; bset]
         # label key here has the following fields:
         # 0) reduced cost
         # 1) time taken
@@ -303,7 +303,7 @@ function generate_base_labels_ngroute(
         current_subpath = base_labels[(starting_node, current_node)][current_key]
         (_, _, _, current_ng_resources) = current_key
         current_fset = current_ng_resources[1:graph.n_nodes]
-        current_fset_residue = current_ng_resources[graph.n_nodes+1:2*graph.n_nodes]
+        current_residue = current_ng_resources[graph.n_nodes+1:2*graph.n_nodes]
         current_bset = current_ng_resources[2*graph.n_nodes+1:end]
         for next_node in setdiff(outneighbors(graph.G, current_node), current_node)
             (feasible, new_fset) = ngroute_check_create_fset(
@@ -316,15 +316,15 @@ function generate_base_labels_ngroute(
             )
             !feasible && continue
             if starting_node in graph.N_depots
-                new_ng_resources = [new_fset; current_fset_residue; current_bset]
+                new_ng_resources = [new_fset; current_residue; current_bset]
             else
-                new_fset_residue = ngroute_create_fset_residue(
-                    neighborhoods, next_node, current_fset_residue,
+                new_residue = ngroute_create_residue(
+                    neighborhoods, next_node, current_residue,
                 )
                 new_bset = ngroute_create_bset(
-                    next_node, current_bset, current_fset_residue,
+                    next_node, current_bset, current_residue,
                 )
-                new_ng_resources = [new_fset; new_fset_residue; new_bset]
+                new_ng_resources = [new_fset; new_residue; new_bset]
             end
             
             new_key = (
@@ -356,11 +356,11 @@ function generate_base_labels_ngroute(
         fset = falses(graph.n_nodes)
         fset[node] = true
         # Ω: Nodes that if in the previous forward NG-set, stay in the next forward NG-set
-        fset_residue = copy(neighborhoods[:, node])
+        residue = copy(neighborhoods[:, node])
         # Φ: Backward NG-set
         bset = falses(graph.n_nodes)
         bset[node] = true
-        ng_resources = [fset; fset_residue; bset]
+        ng_resources = [fset; residue; bset]
         key = (0.0, 0, 0, ng_resources,)
         pop!(base_labels[(node, node)], key)
     end
@@ -416,11 +416,11 @@ function generate_base_labels_ngroute_lambda(
         fset = falses(graph.n_nodes)
         fset[node] = true
         # Ω: Nodes that if in the previous forward NG-set, stay in the next forward NG-set
-        fset_residue = copy(neighborhoods[:, node])
+        residue = copy(neighborhoods[:, node])
         # Φ: Backward NG-set
         bset = falses(graph.n_nodes)
         bset[node] = true
-        ng_resources = [fset; fset_residue; bset]
+        ng_resources = [fset; residue; bset]
         # label key here has the following fields:
         # 0) reduced cost
         # 1) binary cut labels
@@ -457,7 +457,7 @@ function generate_base_labels_ngroute_lambda(
             _, _, current_ng_resources,
         ) = current_key
         current_fset = current_ng_resources[1:graph.n_nodes]
-        current_fset_residue = current_ng_resources[graph.n_nodes+1:2*graph.n_nodes]
+        current_residue = current_ng_resources[graph.n_nodes+1:2*graph.n_nodes]
         current_bset = current_ng_resources[2*graph.n_nodes+1:end]
         for next_node in setdiff(outneighbors(graph.G, current_node), current_node)
             (feasible, new_fset) = ngroute_check_create_fset(
@@ -476,15 +476,15 @@ function generate_base_labels_ngroute_lambda(
             new_subpath.cost += λ_cost
 
             if starting_node in graph.N_depots
-                new_ng_resources = [new_fset; current_fset_residue; current_bset]
+                new_ng_resources = [new_fset; current_residue; current_bset]
             else
-                new_fset_residue = ngroute_create_fset_residue(
-                    neighborhoods, next_node, current_fset_residue,
+                new_residue = ngroute_create_residue(
+                    neighborhoods, next_node, current_residue,
                 )
                 new_bset = ngroute_create_bset(
-                    next_node, current_bset, current_fset_residue,
+                    next_node, current_bset, current_residue,
                 )
-                new_ng_resources = [new_fset; new_fset_residue; new_bset]
+                new_ng_resources = [new_fset; new_residue; new_bset]
             end
             
             new_key = (
@@ -517,11 +517,11 @@ function generate_base_labels_ngroute_lambda(
         fset = falses(graph.n_nodes)
         fset[node] = true
         # Ω: Nodes that if in the previous forward NG-set, stay in the next forward NG-set
-        fset_residue = copy(neighborhoods[:, node])
+        residue = copy(neighborhoods[:, node])
         # Φ: Backward NG-set
         bset = falses(graph.n_nodes)
         bset[node] = true
-        ng_resources = [fset; fset_residue; bset]
+        ng_resources = [fset; residue; bset]
         key = (0.0, falses(length(λ)), 0, 0, ng_resources,)
         pop!(base_labels[(node, node)], key)
     end
@@ -580,11 +580,11 @@ function generate_base_labels_ngroute_lambda_lmSR3(
         fset = falses(graph.n_nodes)
         fset[node] = true
         # Ω: Nodes that if in the previous forward NG-set, stay in the next forward NG-set
-        fset_residue = copy(neighborhoods[:, node])
+        residue = copy(neighborhoods[:, node])
         # Φ: Backward NG-set
         bset = falses(graph.n_nodes)
         bset[node] = true
-        ng_resources = [fset; fset_residue; bset]
+        ng_resources = [fset; residue; bset]
         # label key here has the following fields:
         # 0) reduced cost
         # 1a) binary cut labels (forward)
@@ -622,7 +622,7 @@ function generate_base_labels_ngroute_lambda_lmSR3(
             _, _, current_ng_resources,
         ) = current_key
         current_fset = current_ng_resources[1:graph.n_nodes]
-        current_fset_residue = current_ng_resources[graph.n_nodes+1:2*graph.n_nodes]
+        current_residue = current_ng_resources[graph.n_nodes+1:2*graph.n_nodes]
         current_bset = current_ng_resources[2*graph.n_nodes+1:end]
         for next_node in setdiff(outneighbors(graph.G, current_node), current_node)
             (feasible, new_fset) = ngroute_check_create_fset(
@@ -641,18 +641,18 @@ function generate_base_labels_ngroute_lambda_lmSR3(
             new_subpath.cost += λ_cost
 
             if starting_node in graph.N_depots
-                new_ng_resources = [new_fset; current_fset_residue; current_bset]
+                new_ng_resources = [new_fset; current_residue; current_bset]
                 # don't update cut backward labels if subpath starts at depot
                 new_λ_blabels = current_λ_blabels
                 new_λmemory_labels = current_λmemory_labels
             else
-                new_fset_residue = ngroute_create_fset_residue(
-                    neighborhoods, next_node, current_fset_residue,
+                new_residue = ngroute_create_residue(
+                    neighborhoods, next_node, current_residue,
                 )
                 new_bset = ngroute_create_bset(
-                    next_node, current_bset, current_fset_residue,
+                    next_node, current_bset, current_residue,
                 )
-                new_ng_resources = [new_fset; new_fset_residue; new_bset]
+                new_ng_resources = [new_fset; new_residue; new_bset]
                 new_λ_blabels, new_λmemory_labels = compute_new_subpath_lambda_memory_blabels_lmSR3(
                     next_node, current_λ_blabels, current_λmemory_labels, λcust, λmemory,
                 )
@@ -693,11 +693,11 @@ function generate_base_labels_ngroute_lambda_lmSR3(
         fset = falses(graph.n_nodes)
         fset[node] = true
         # Ω: Nodes that if in the previous forward NG-set, stay in the next forward NG-set
-        fset_residue = copy(neighborhoods[:, node])
+        residue = copy(neighborhoods[:, node])
         # Φ: Backward NG-set
         bset = falses(graph.n_nodes)
         bset[node] = true
-        ng_resources = [fset; fset_residue; bset]
+        ng_resources = [fset; residue; bset]
         key = (0.0, λ_flabels, λ_blabels, λmemory_labels, 0, 0, ng_resources,)
         pop!(base_labels[(node, node)], key)
     end
@@ -1118,14 +1118,14 @@ function find_nondominated_paths_notimewindows_ngroute(
                 s,
             ) in pairs(base_labels[(current_node, next_node)])
                 subpath_fset = subpath_ng_resources[1:graph.n_nodes]
-                subpath_fset_residue = subpath_ng_resources[graph.n_nodes+1:2*graph.n_nodes]
+                subpath_residue = subpath_ng_resources[graph.n_nodes+1:2*graph.n_nodes]
                 subpath_bset = subpath_ng_resources[2*graph.n_nodes+1:end]
                 # ngroute stitching subpaths check
                 (feasible, new_ng_resources) = ngroute_extend_partial_path_check(
                     current_ng_resources, 
                     current_node,
                     subpath_fset,
-                    subpath_fset_residue,
+                    subpath_residue,
                     subpath_bset,
                 )
                 !feasible && continue
@@ -1284,14 +1284,14 @@ function find_nondominated_paths_notimewindows_ngroute_lambda(
                 s,
             ) in pairs(base_labels[(current_node, next_node)])
                 subpath_fset = subpath_ng_resources[1:graph.n_nodes]
-                subpath_fset_residue = subpath_ng_resources[graph.n_nodes+1:2*graph.n_nodes]
+                subpath_residue = subpath_ng_resources[graph.n_nodes+1:2*graph.n_nodes]
                 subpath_bset = subpath_ng_resources[2*graph.n_nodes+1:end]
                 # ngroute stitching subpaths check
                 (feasible, new_ng_resources) = ngroute_extend_partial_path_check(
                     current_ng_resources, 
                     current_node,
                     subpath_fset,
-                    subpath_fset_residue,
+                    subpath_residue,
                     subpath_bset,
                 )
                 !feasible && continue
@@ -1457,14 +1457,14 @@ function find_nondominated_paths_notimewindows_ngroute_lambda_lmSR3(
                 s,
             ) in pairs(base_labels[(current_node, next_node)])
                 subpath_fset = subpath_ng_resources[1:graph.n_nodes]
-                subpath_fset_residue = subpath_ng_resources[graph.n_nodes+1:2*graph.n_nodes]
+                subpath_residue = subpath_ng_resources[graph.n_nodes+1:2*graph.n_nodes]
                 subpath_bset = subpath_ng_resources[2*graph.n_nodes+1:end]
                 # ngroute stitching subpaths check
                 (feasible, new_ng_resources) = ngroute_extend_partial_path_check(
                     current_ng_resources, 
                     current_node,
                     subpath_fset,
-                    subpath_fset_residue,
+                    subpath_residue,
                     subpath_bset,
                 )
                 !feasible && continue
@@ -1833,14 +1833,14 @@ function find_nondominated_paths_notimewindows_heterogenous_charging_ngroute(
                 s,
             ) in pairs(base_labels[(current_node, next_node)])
                 subpath_fset = subpath_ng_resources[1:graph.n_nodes]
-                subpath_fset_residue = subpath_ng_resources[graph.n_nodes+1:2*graph.n_nodes]
+                subpath_residue = subpath_ng_resources[graph.n_nodes+1:2*graph.n_nodes]
                 subpath_bset = subpath_ng_resources[2*graph.n_nodes+1:end]
                 # ngroute stitching subpaths check
                 (feasible, new_ng_resources) = ngroute_extend_partial_path_check(
                     current_ng_resources, 
                     current_node,
                     subpath_fset,
-                    subpath_fset_residue,
+                    subpath_residue,
                     subpath_bset,
                 )
                 !feasible && continue
@@ -2013,14 +2013,14 @@ function find_nondominated_paths_notimewindows_heterogenous_charging_ngroute_lam
                 s,
             ) in pairs(base_labels[(current_node, next_node)])
                 subpath_fset = subpath_ng_resources[1:graph.n_nodes]
-                subpath_fset_residue = subpath_ng_resources[graph.n_nodes+1:2*graph.n_nodes]
+                subpath_residue = subpath_ng_resources[graph.n_nodes+1:2*graph.n_nodes]
                 subpath_bset = subpath_ng_resources[2*graph.n_nodes+1:end]
                 # ngroute stitching subpaths check
                 (feasible, new_ng_resources) = ngroute_extend_partial_path_check(
                     current_ng_resources, 
                     current_node,
                     subpath_fset,
-                    subpath_fset_residue,
+                    subpath_residue,
                     subpath_bset,
                 )
                 !feasible && continue
@@ -2200,14 +2200,14 @@ function find_nondominated_paths_notimewindows_heterogenous_charging_ngroute_lam
                 s,
             ) in pairs(base_labels[(current_node, next_node)])                
                 subpath_fset = subpath_ng_resources[1:graph.n_nodes]
-                subpath_fset_residue = subpath_ng_resources[graph.n_nodes+1:2*graph.n_nodes]
+                subpath_residue = subpath_ng_resources[graph.n_nodes+1:2*graph.n_nodes]
                 subpath_bset = subpath_ng_resources[2*graph.n_nodes+1:end]
                 # ngroute stitching subpaths check
                 (feasible, new_ng_resources) = ngroute_extend_partial_path_check(
                     current_ng_resources, 
                     current_node,
                     subpath_fset,
-                    subpath_fset_residue,
+                    subpath_residue,
                     subpath_bset,
                 )
                 !feasible && continue
