@@ -359,15 +359,15 @@ function find_nondominated_paths_ngroute(
 
     unexplored_states = SortedSet{Tuple{Float64, Int, Int, Int, BitVector, Int, Int}}()
     for depot in graph.N_depots
-        node_labels = falses(graph.n_nodes)
-        node_labels[depot] = true
+        ng_resources = falses(graph.n_nodes)
+        ng_resources[depot] = true
         # label key here has the following fields:
         # 0) reduced cost
         # 1) current minimum time T_i(min)
         # 2) negative of current max charge -B_i(max)
         # 3) difference between min time and min charge, T_i(min) - B_i(min)
         # 4) whether i-th node is in forward ng-set
-        key = (0.0, 0, -graph.B, -graph.B, node_labels)
+        key = (0.0, 0, -graph.B, -graph.B, ng_resources)
         pure_path_labels[(depot, depot)][key] = PurePathLabel(
             0.0,
             [depot],
@@ -400,11 +400,11 @@ function find_nondominated_paths_ngroute(
         if !(current_key in keys(pure_path_labels[(starting_node, current_node)]))
             continue
         end
-        (_, _, _, _, current_set) = current_key
+        (_, _, _, _, current_ng_resources) = current_key
         current_path = pure_path_labels[(starting_node, current_node)][current_key]
         for next_node in setdiff(outneighbors(graph.G, current_node), current_node)
-            (feasible, new_set) = ngroute_check_create_fset(
-                neighborhoods, current_set, next_node,
+            (feasible, new_ng_resources) = ngroute_check_create_fset(
+                neighborhoods, current_ng_resources, next_node,
             )
             !feasible && continue
             (feasible, new_path) = compute_new_pure_path(
@@ -420,7 +420,7 @@ function find_nondominated_paths_ngroute(
                 new_path.time_mincharge, 
                 - new_path.charge_maxcharge, 
                 new_path.time_mincharge - new_path.charge_mincharge,
-                new_set,
+                new_ng_resources,
             )
             added = add_label_to_collection!(
                 pure_path_labels[(starting_node, next_node)], 
@@ -493,8 +493,8 @@ function find_nondominated_paths_ngroute_lambda(
     unexplored_states = SortedSet{Tuple{Float64, BitVector, Int, Int, Int, BitVector, Int, Int}}()
     for depot in graph.N_depots
         λ_labels = falses(length(λ))
-        node_labels = falses(graph.n_nodes)
-        node_labels[depot] = true
+        ng_resources = falses(graph.n_nodes)
+        ng_resources[depot] = true
         # label key here has the following fields:
         # 0) reduced cost
         # 1) binary cut labels
@@ -502,7 +502,7 @@ function find_nondominated_paths_ngroute_lambda(
         # 3) negative of current max charge -B_i(max)
         # 4) difference between min time and min charge, T_i(min) - B_i(min)
         # 5) whether i-th node is in forward ng-set
-        key = (0.0, λ_labels, 0, -graph.B, -graph.B, node_labels,)
+        key = (0.0, λ_labels, 0, -graph.B, -graph.B, ng_resources,)
         pure_path_labels[(depot, depot)][key] = PurePathLabel(
             0.0,
             [depot],
@@ -537,12 +537,12 @@ function find_nondominated_paths_ngroute_lambda(
         end
         (
             _, current_λ_labels, 
-            _, _, _, current_set,
+            _, _, _, current_ng_resources,
         ) = current_key
         current_path = pure_path_labels[(starting_node, current_node)][current_key]
         for next_node in setdiff(outneighbors(graph.G, current_node), current_node)
-            (feasible, new_set) = ngroute_check_create_fset(
-                neighborhoods, current_set, next_node,
+            (feasible, new_ng_resources) = ngroute_check_create_fset(
+                neighborhoods, current_ng_resources, next_node,
             )
             !feasible && continue
             (feasible, new_path) = compute_new_pure_path(
@@ -564,7 +564,7 @@ function find_nondominated_paths_ngroute_lambda(
                 new_path.time_mincharge, 
                 - new_path.charge_maxcharge, 
                 new_path.time_mincharge - new_path.charge_mincharge,
-                new_set,
+                new_ng_resources,
             )
             added = add_label_to_collection_cuts!(
                 pure_path_labels[(starting_node, next_node)], 
@@ -636,8 +636,8 @@ function find_nondominated_paths_ngroute_lambda_lmSR3(
     unexplored_states = SortedSet{Tuple{Float64, BitVector, Int, Int, Int, BitVector, Int, Int}}()
     for depot in graph.N_depots
         λ_labels = falses(length(λ))
-        node_labels = falses(graph.n_nodes)
-        node_labels[depot] = true
+        ng_resources = falses(graph.n_nodes)
+        ng_resources[depot] = true
         # label key here has the following fields:
         # 0) reduced cost
         # 1) binary cut labels
@@ -645,7 +645,7 @@ function find_nondominated_paths_ngroute_lambda_lmSR3(
         # 3) negative of current max charge -B_i(max)
         # 4) difference between min time and min charge, T_i(min) - B_i(min)
         # 5) whether i-th node is in forward ng-set
-        key = (0.0,  λ_labels, 0, -graph.B, -graph.B, node_labels,)
+        key = (0.0,  λ_labels, 0, -graph.B, -graph.B, ng_resources,)
         pure_path_labels[(depot, depot)][key] = PurePathLabel(
             0.0,
             [depot],
@@ -680,12 +680,12 @@ function find_nondominated_paths_ngroute_lambda_lmSR3(
         end
         (
             _, current_λ_labels, 
-            _, _, _, current_set,
+            _, _, _, current_ng_resources,
         ) = current_key
         current_path = pure_path_labels[(starting_node, current_node)][current_key]
         for next_node in setdiff(outneighbors(graph.G, current_node), current_node)
-            (feasible, new_set) = ngroute_check_create_fset(
-                neighborhoods, current_set, next_node,
+            (feasible, new_ng_resources) = ngroute_check_create_fset(
+                neighborhoods, current_ng_resources, next_node,
             )
             !feasible && continue
             (feasible, new_path) = compute_new_pure_path(
@@ -707,7 +707,7 @@ function find_nondominated_paths_ngroute_lambda_lmSR3(
                 new_path.time_mincharge, 
                 - new_path.charge_maxcharge, 
                 new_path.time_mincharge - new_path.charge_mincharge,
-                new_set,
+                new_ng_resources,
             )
             added = add_label_to_collection_cuts!(
                 pure_path_labels[(starting_node, next_node)], 
