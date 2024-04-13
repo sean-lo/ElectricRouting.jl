@@ -579,7 +579,7 @@ function path_formulation_column_generation!(
                 "errored" => true,
                 "artificial" => false,
             )
-            add_message!(printlist, "CGLP model errored.", verbose)
+            add_message!(printlist, "CGLP model errored.\n", verbose)
             break
         end
         CGLP_results = Dict(
@@ -1644,7 +1644,7 @@ function plot_solution(
         p = plot_instance(data)
         arcs = vcat(collect(s.arcs for s in path.subpaths)...)
         for (j, arc) in enumerate(arcs)
-            plot!(
+            Plots.plot!(
                 data.coords[1,collect(arc)],
                 data.coords[2,collect(arc)],
                 color = colors[i],
@@ -1652,11 +1652,11 @@ function plot_solution(
                 lw = 1,
             )
         end
-        plot!(title = "Vehicle $i: $val")
+        Plots.plot!(title = "Vehicle $i: $val")
         push!(all_plots, p)
     end
 
-    P = plot(
+    P = Plots.plot(
         all_plots..., 
         layout = (n_paths, 1), 
         size = (500, 400 * n_paths), 
