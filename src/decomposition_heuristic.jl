@@ -51,7 +51,7 @@ function find_nondominated_paths_nocharge(
     keylen = elementary ? graph.n_customers + 1 : 1
     base_labels = Dict(
         (starting_node, current_node) => SortedDict{
-            Tuple{Float64, Vararg{Int, keylen}}, 
+            Tuple{Float64, Int, BitVector}, 
             BaseSubpathLabel,
             Base.Order.ForwardOrdering,
         }(Base.Order.ForwardOrdering())
@@ -63,13 +63,13 @@ function find_nondominated_paths_nocharge(
         # label key here has the following fields:
         # 0) reduced cost
         # 1) time taken
-        # 2) if applicable, number of times i-th customer served
-        key = (0.0, 0, zeros(Int, graph.n_customers))
+        # 2) if applicable, whether i-th customer served
+        key = (0.0, 0, falses(graph.n_customers))
     else
         key = (0.0, 0,)
     end
 
-    unexplored_states = SortedSet{Tuple{Float64, Vararg{Int, keylen + 2}}}()
+    unexplored_states = SortedSet{Tuple{Float64, Int, BitVector, Int, Int}}()
     for node in graph.N_depots
         base_labels[(node, node)][key] = BaseSubpathLabel(
             0, 0, 0.0, [node,], zeros(Int, graph.n_customers),
@@ -115,24 +115,18 @@ function find_nondominated_paths_nocharge(
                 new_key = (
                     new_subpath.cost,
                     new_subpath.time_taken,
-                    new_subpath.served...,
-                )            
-                added = add_subpath_longlabel_to_collection_nodelabels!(
-                    base_labels[(starting_node, next_node)], 
-                    new_key, new_subpath,
-                    ;
+                    BitVector(new_subpath.served),
                 )
             else
                 new_key = (
                     new_subpath.cost,
                     new_subpath.time_taken,
                 )
-                added = add_subpath_longlabel_to_collection!(
-                    base_labels[(starting_node, next_node)], 
-                    new_key, new_subpath,
-                    ;
-                )
             end
+            added = add_label_to_collection!(
+                base_labels[(starting_node, next_node)],
+                new_key, new_subpath,
+            )
 
             if added && next_node in graph.N_customers
                 new_state = (new_key..., starting_node, next_node)
@@ -158,14 +152,7 @@ function find_nondominated_paths_nocharge(
     for starting_node in graph.N_depots
         for end_node in graph.N_depots
             for v in values(base_labels[(starting_node, end_node)])
-                v.cost = v.cost - κ[starting_node]
-            end
-        end
-    end
-    for end_node in graph.N_depots
-        for starting_node in graph.N_depots
-            for v in values(base_labels[(starting_node, end_node)])
-                v.cost = v.cost - μ[end_node]
+                v.cost = v.cost - κ[starting_node] - μ[end_node]
             end
         end
     end
@@ -203,9 +190,9 @@ function find_nondominated_paths_nocharge_ngroute(
     unexplored_states = SortedSet{Tuple{Float64, Int, BitVector, Int, Int}}()
     for node in graph.N_depots
         # Forward NG-set
-        node_labels = falses(graph.n_nodes)
-        node_labels[node] = true
-        key = (0.0, 0, node_labels,)
+        ng_resources = falses(graph.n_nodes)
+        ng_resources[node] = true
+        key = (0.0, 0, ng_resources,)
         base_labels[(node, node)][key] = BaseSubpathLabel(
             0, 0, 0.0, [node,], zeros(Int, graph.n_customers),
         )
@@ -223,7 +210,7 @@ function find_nondominated_paths_nocharge_ngroute(
         state = pop!(unexplored_states)
         starting_node = state[end-1]
         current_node = state[end]
-        current_set = state[end-2]
+        current_ng_resources = state[end-2]
         current_key = state[1:end-2]
         if !(current_key in keys(base_labels[(starting_node, current_node)]))
             continue
@@ -234,8 +221,8 @@ function find_nondominated_paths_nocharge_ngroute(
             current_node, 
             graph.N_charging,
         )
-            (feasible, new_set) = ngroute_check_create_fset(
-                neighborhoods, current_set, next_node,
+            (feasible, new_ng_resources) = ngroute_check_create_fset(
+                neighborhoods, current_ng_resources, next_node,
             )
             !feasible && continue
 
@@ -249,9 +236,9 @@ function find_nondominated_paths_nocharge_ngroute(
             new_key = (
                 new_subpath.cost,
                 new_subpath.time_taken,
-                new_set,
+                new_ng_resources,
             )
-            added = add_subpath_longlabel_to_collection_ngroute!(
+            added = add_label_to_collection!(
                 base_labels[(starting_node, next_node)],
                 new_key, new_subpath,
                 ;
@@ -280,14 +267,7 @@ function find_nondominated_paths_nocharge_ngroute(
     for starting_node in graph.N_depots
         for end_node in graph.N_depots
             for v in values(base_labels[(starting_node, end_node)])
-                v.cost = v.cost - κ[starting_node]
-            end
-        end
-    end
-    for end_node in graph.N_depots
-        for starting_node in graph.N_depots
-            for v in values(base_labels[(starting_node, end_node)])
-                v.cost = v.cost - μ[end_node]
+                v.cost = v.cost - κ[starting_node] - μ[end_node]
             end
         end
     end
@@ -316,7 +296,7 @@ function find_nondominated_paths_nocharge_ngroute_lambda(
 
     base_labels = Dict(
         (starting_node, current_node) => SortedDict{
-            Tuple{Float64, Int, BitVector, BitVector}, 
+            Tuple{Float64, BitVector, Int, BitVector}, 
             BaseSubpathLabel,
             Base.Order.ForwardOrdering,
         }(Base.Order.ForwardOrdering())
@@ -324,13 +304,13 @@ function find_nondominated_paths_nocharge_ngroute_lambda(
             current_node in union(graph.N_depots, graph.N_customers)
     )
 
-    unexplored_states = SortedSet{Tuple{Float64, Int, BitVector, BitVector, Int, Int}}()
+    unexplored_states = SortedSet{Tuple{Float64, BitVector, Int, BitVector, Int, Int}}()
     for node in graph.N_depots
         λ_labels = falses(length(λ))
         # Forward NG-set
-        node_labels = falses(graph.n_nodes)
-        node_labels[node] = true
-        key = (0.0, 0, λ_labels, node_labels,)
+        ng_resources = falses(graph.n_nodes)
+        ng_resources[node] = true
+        key = (0.0, λ_labels, 0, ng_resources,)
         base_labels[(node, node)][key] = BaseSubpathLabel(
             0, 0, 0.0, [node,], zeros(Int, graph.n_customers),
         )
@@ -352,16 +332,18 @@ function find_nondominated_paths_nocharge_ngroute_lambda(
         if !(current_key in keys(base_labels[(starting_node, current_node)]))
             continue
         end
-        current_λ_labels = state[3]
-        current_set = state[4][1:graph.n_nodes]
+        (
+            _, current_λ_labels, 
+            _, current_ng_resources,
+        ) = current_key
         current_subpath = base_labels[(starting_node, current_node)][current_key]
         for next_node in setdiff(
             outneighbors(graph.G, current_node), 
             current_node, 
             graph.N_charging,
         )
-            (feasible, new_set) = ngroute_check_create_fset(
-                neighborhoods, current_set, next_node,
+            (feasible, new_ng_resources) = ngroute_check_create_fset(
+                neighborhoods, current_ng_resources, next_node,
             )
             !feasible && continue
 
@@ -372,17 +354,18 @@ function find_nondominated_paths_nocharge_ngroute_lambda(
             )
             !feasible && continue
 
-            new_λ_labels = compute_new_lambda_labels!(
-                new_subpath, current_λ_labels, λvals, λcust,
+            (new_λ_labels, λ_cost) = compute_new_lambda_labels_cost(
+                next_node, current_λ_labels, λvals, λcust,
             )
+            new_subpath.cost += λ_cost
 
             new_key = (
                 new_subpath.cost,
-                new_subpath.time_taken,
                 new_λ_labels,
-                new_set,
+                new_subpath.time_taken,
+                new_ng_resources,
             )
-            added = add_subpath_longlabel_to_collection_ngroute_lambda!(
+            added = add_label_to_collection_cuts!(
                 base_labels[(starting_node, next_node)],
                 new_key, new_subpath, λvals,
                 ;
@@ -411,14 +394,133 @@ function find_nondominated_paths_nocharge_ngroute_lambda(
     for starting_node in graph.N_depots
         for end_node in graph.N_depots
             for v in values(base_labels[(starting_node, end_node)])
-                v.cost = v.cost - κ[starting_node]
+                v.cost = v.cost - κ[starting_node] - μ[end_node]
             end
         end
     end
-    for end_node in graph.N_depots
-        for starting_node in graph.N_depots
+
+    return base_labels
+
+end
+
+function find_nondominated_paths_nocharge_ngroute_lambda_lmSR3(
+    data::EVRPData,
+    graph::EVRPGraph,
+    neighborhoods::BitMatrix,
+    κ::Dict{Int, Float64},
+    μ::Dict{Int, Float64},
+    ν::Vector{Float64}, 
+    λ::Dict{Tuple{NTuple{3, Int}, Tuple{Vararg{Int}}}, Float64},
+    T_heuristic::Int,
+    ;
+    time_limit::Float64 = Inf,
+)
+
+    start_time = time()
+    modified_costs = compute_arc_modified_costs(graph, data, ν)
+    λvals, λcust, λmemory = prepare_lambda(λ, graph.n_nodes)
+
+    base_labels = Dict(
+        (starting_node, current_node) => SortedDict{
+            Tuple{Float64, BitVector, Int, BitVector}, 
+            BaseSubpathLabel,
+            Base.Order.ForwardOrdering,
+        }(Base.Order.ForwardOrdering())
+        for starting_node in graph.N_depots,
+            current_node in union(graph.N_depots, graph.N_customers)
+    )
+
+    unexplored_states = SortedSet{Tuple{Float64, BitVector, Int, BitVector, Int, Int}}()
+    for node in graph.N_depots
+        λ_labels = falses(length(λ))
+        # Forward NG-set
+        ng_resources = falses(graph.n_nodes)
+        ng_resources[node] = true
+        key = (0.0, λ_labels, 0, ng_resources,)
+        base_labels[(node, node)][key] = BaseSubpathLabel(
+            0, 0, 0.0, [node,], zeros(Int, graph.n_customers),
+        )
+        push!(
+            unexplored_states, 
+            (
+                key..., 
+                node, # starting_node
+                node, # current_node
+            )
+        )
+    end
+
+    while length(unexplored_states) > 0
+        state = pop!(unexplored_states)
+        starting_node = state[end-1]
+        current_node = state[end]
+        current_key = state[1:end-2]
+        if !(current_key in keys(base_labels[(starting_node, current_node)]))
+            continue
+        end
+        (
+            _, current_λ_labels, 
+            _, current_ng_resources,
+        ) = current_key
+        current_subpath = base_labels[(starting_node, current_node)][current_key]
+        for next_node in setdiff(
+            outneighbors(graph.G, current_node), 
+            current_node, 
+            graph.N_charging,
+        )
+            (feasible, new_ng_resources) = ngroute_check_create_fset(
+                neighborhoods, current_ng_resources, next_node,
+            )
+            !feasible && continue
+
+            (feasible, new_subpath) = compute_new_subpath_nocharge(
+                current_subpath, graph,
+                current_node, next_node, 
+                modified_costs, T_heuristic,
+            )
+            !feasible && continue
+
+            (new_λ_labels, λ_cost) = compute_lambda_flabels_cost_lmSR3(
+                next_node, current_λ_labels, λvals, λcust, λ_memory,
+            )
+            new_subpath.cost += λ_cost
+
+            new_key = (
+                new_subpath.cost,
+                new_λ_labels,
+                new_subpath.time_taken,
+                new_ng_resources,
+            )
+            added = add_label_to_collection_cuts!(
+                base_labels[(starting_node, next_node)],
+                new_key, new_subpath, λvals,
+                ;
+            )
+            if added && next_node in graph.N_customers
+                new_state = (new_key..., starting_node, next_node)
+                push!(unexplored_states, new_state)
+            end
+        end
+    end
+
+    for starting_node in graph.N_depots
+        for end_node in graph.N_customers
+            delete!(base_labels, (starting_node, end_node))
+        end
+    end
+
+    for depot in graph.N_depots
+        for path in values(base_labels[(depot, depot)])
+            if length(path.nodes) == 1
+                path.nodes = [depot, depot]
+            end
+        end
+    end
+
+    for starting_node in graph.N_depots
+        for end_node in graph.N_depots
             for v in values(base_labels[(starting_node, end_node)])
-                v.cost = v.cost - μ[end_node]
+                v.cost = v.cost - κ[starting_node] - μ[end_node]
             end
         end
     end
@@ -476,8 +578,15 @@ function subproblem_iteration_nocharge(
                 ;
                 time_limit = time_limit - (time() - start_time),
             )
-        else
+        elseif keytype(λ) == NTuple{3, Int}
             base_labels_result = @timed find_nondominated_paths_nocharge_ngroute_lambda(
+                data, graph, neighborhoods, 
+                κ, μ, ν, λ, T_heuristic,
+                ;
+                time_limit = time_limit - (time() - start_time),
+            )
+        elseif keytype(λ) == Tuple{NTuple{3, Int}, Tuple{Vararg{Int}}}
+            base_labels_result = @timed find_nondominated_paths_nocharge_ngroute_lambda_lmSR3(
                 data, graph, neighborhoods, 
                 κ, μ, ν, λ, T_heuristic,
                 ;
@@ -545,6 +654,10 @@ function path_formulation_column_generation_nocharge!(
     },
     data::EVRPData, 
     graph::EVRPGraph,
+    artificial_paths::Dict{
+        Tuple{NTuple{3, Int}, NTuple{3, Int}},
+        Vector{Path},
+    },
     some_paths::Dict{
         Tuple{NTuple{3, Int}, NTuple{3, Int}},
         Vector{Path},
@@ -592,6 +705,7 @@ function path_formulation_column_generation_nocharge!(
     CG_params["lp_relaxation_constraint_time_taken"] = Float64[]
     CG_params["number_of_new_paths"] = Int[]
     CG_params["converged"] = false
+    CG_params["cycled"] = false
 
     while (
         !converged
@@ -602,7 +716,21 @@ function path_formulation_column_generation_nocharge!(
         mp_solution_start_time = time()
         @suppress optimize!(model)
         mp_solution_end_time = time()
+        if JuMP.termination_status(model) in [
+            JuMP.INFEASIBLE,
+            JuMP.INFEASIBLE_OR_UNBOUNDED,
+            JuMP.TIME_LIMIT,
+            JuMP.MEMORY_LIMIT,
+        ]
+            CGLP_results = Dict(
+                "errored" => true,
+                "artificial" => false,
+            )
+            add_message!(printlist, "CGLP model errored.\n", verbose)
+            break
+        end
         CGLP_results = Dict(
+            "errored" => false,
             "objective" => objective_value(model),
             "z" => Dict(
                 (key, p) => value.(z[(key, p)])
@@ -615,6 +743,11 @@ function path_formulation_column_generation_nocharge!(
                 S => dual(SR3_constraints[S])
                 for S in keys(SR3_constraints)
             ),
+        )
+        CGLP_results["artificial"] = any(
+            value.(z[(key, p)]) > 1e-3
+            for key in keys(artificial_paths)
+                for p in 1:length(artificial_paths[key])
         )
         push!(CG_params["objective"], CGLP_results["objective"])
         push!(CG_params["κ"], CGLP_results["κ"])
@@ -663,14 +796,15 @@ function path_formulation_column_generation_nocharge!(
         )
         
         if length(generated_paths) == 0
-            added_num_paths = 0
+            push!(CG_params["number_of_new_paths"], 0)
             converged = true
         else
-            added_num_paths = sum(length(v) for v in values(generated_paths))
+            push!(
+                CG_params["number_of_new_paths"], 
+                sum(length(v) for v in values(generated_paths))
+            )
         end
-        push!(CG_params["number_of_new_paths"], added_num_paths)
 
-        current_num_paths = sum(length(v) for v in values(some_paths))
         mp_constraint_time = add_paths_to_path_model!(
             model,
             z,
@@ -678,14 +812,13 @@ function path_formulation_column_generation_nocharge!(
             path_costs,
             path_service,
             generated_paths,
-            Dict{Tuple{Int, 3}, ConstraintRef}(),
+            SR3_constraints,
             data, graph,
         )
-        new_num_paths = sum(length(v) for v in values(some_paths))
 
         push!(
             CG_params["number_of_paths"], 
-            new_num_paths,
+            sum(length(v) for v in values(some_paths)),
         )
         push!(
             CG_params["lp_relaxation_constraint_time_taken"],
@@ -706,8 +839,15 @@ function path_formulation_column_generation_nocharge!(
             ),
             verbose,
         )
-        if current_num_paths + added_num_paths != new_num_paths
-            throw(CGException())
+        # cycling detection
+        if (
+            length(CG_params["number_of_paths"]) >= 2
+            && CG_params["number_of_paths"][end] == CG_params["number_of_paths"][end-1]
+            && !converged
+        )
+            CG_params["cycled"] = true
+            add_message!(printlist, "CG cycling error.\n", verbose)
+            break
         end
     end
 
@@ -717,6 +857,8 @@ function path_formulation_column_generation_nocharge!(
     time_taken = round(end_time - start_time, digits = 3)
     CG_params["time_taken"] = time_taken
     CG_params["time_limit_reached"] = (time_taken > time_limit)
+    CG_params["errored"] = CGLP_results["errored"]
+    CG_params["artificial"] = CGLP_results["artificial"]
     CG_params["lp_relaxation_time_taken"] = sum.(zip(CG_params["lp_relaxation_constraint_time_taken"], CG_params["lp_relaxation_solution_time_taken"]))
     CG_params["lp_relaxation_time_taken_total"] = sum(CG_params["lp_relaxation_time_taken"])
     CG_params["sp_base_time_taken_total"] = sum(CG_params["sp_base_time_taken"])
@@ -837,7 +979,7 @@ function get_postcharge_shortest_pure_path_label(
                 new_path.time_mincharge - new_path.charge_mincharge,
             )
             # println("$next_node, $new_nodeseq, $new_key")
-            added = add_pure_path_label_to_collection!(
+            added = add_label_to_collection!(
                 pure_path_labels[new_nodeseq][next_node], 
                 new_key, new_path, 
                 ;
@@ -918,7 +1060,6 @@ function path_formulation_decomposition_heuristic(
     time_heuristic_slack::Float64 = 0.9, 
     elementary::Bool = true,
     ngroute::Bool = false,
-    neighborhoods::Union{Nothing, BitMatrix} = nothing,
     ngroute_neighborhood_size::Int = Int(ceil(sqrt(graph.n_customers))),
     ngroute_neighborhood_depots_size::String = "small",
     ngroute_neighborhood_charging_size::String = "small",
@@ -936,16 +1077,8 @@ function path_formulation_decomposition_heuristic(
 
     start_time = time()
 
-    if ngroute && isnothing(neighborhoods)
-        neighborhoods = compute_ngroute_neighborhoods(
-            graph,
-            ngroute_neighborhood_size; 
-            depots_size = ngroute_neighborhood_depots_size,
-            charging_size = ngroute_neighborhood_charging_size,
-        )
-    end
-
-    some_paths = generate_artificial_paths(data, graph)
+    artificial_paths = generate_artificial_paths(data, graph)
+    some_paths = deepcopy(artificial_paths)
     path_costs = compute_path_costs(
         data, graph, 
         some_paths,
@@ -961,7 +1094,7 @@ function path_formulation_decomposition_heuristic(
     push!(start_printlist, 
         @sprintf(
             """
-            Starting column generation on the path formulation.
+            Starting column generation on the path formulation, using decomposition heuristic.
             # customers:                    %3d
             # depots:                       %3d
             # charging stations:            %3d
@@ -1057,20 +1190,10 @@ function path_formulation_decomposition_heuristic(
     local CGIP_results
     local converged = false
 
-    if use_lmSR3_cuts
-        SR3_constraints = Dict{
-            Tuple{NTuple{3, Int}, Tuple{Vararg{Int}}},
-            ConstraintRef,
-        }()
-        SR3_list = Tuple{Float64, NTuple{3, Int}, Tuple{Vararg{Int}}}[]
-    else
-        SR3_constraints = Dict{NTuple{3, Int}, ConstraintRef}()
-        SR3_list = Tuple{Float64, NTuple{3, Int}}[]
-    end
-    CGLP_all_results = []
-    CGIP_all_results = []
-    all_params = []
-    CG_all_params = []
+    CGLP_all_results = Dict[]
+    CGIP_all_results = Dict[]
+    all_params = Dict[]
+    CG_all_params = Dict[]
     if ngroute
         CG_all_neighborhoods = BitMatrix[]
     else
@@ -1080,6 +1203,25 @@ function path_formulation_decomposition_heuristic(
     local results_paths_withcharge = Tuple{Float64, Path}[]
     # outer loop for heuristic
     while true
+        if ngroute
+            neighborhoods = compute_ngroute_neighborhoods(
+                graph,
+                ngroute_neighborhood_size; 
+                depots_size = ngroute_neighborhood_depots_size,
+                charging_size = ngroute_neighborhood_charging_size,
+            )
+        end
+        if use_lmSR3_cuts
+            SR3_constraints = Dict{
+                Tuple{NTuple{3, Int}, Tuple{Vararg{Int}}},
+                ConstraintRef,
+            }()
+            SR3_list = Tuple{Float64, NTuple{3, Int}, Tuple{Vararg{Int}}}[]
+        else
+            SR3_constraints = Dict{NTuple{3, Int}, ConstraintRef}()
+            SR3_list = Tuple{Float64, NTuple{3, Int}}[]
+        end
+
         # loop for column generation w/ cuts
         while true
             continue_flag = false
@@ -1088,6 +1230,7 @@ function path_formulation_decomposition_heuristic(
             CGLP_results, CG_params = path_formulation_column_generation_nocharge!(
                 model, z, SR3_constraints, 
                 data, graph,
+                artificial_paths, 
                 some_paths, path_costs, path_service,
                 printlist,
                 ;
@@ -1102,12 +1245,21 @@ function path_formulation_decomposition_heuristic(
             CGIP_results = path_formulation_solve_integer_model!(
                 model,
                 z,
+                artificial_paths,
             )
             push!(CGLP_all_results, CGLP_results)
             push!(CGIP_all_results, CGIP_results)
             push!(CG_all_params, CG_params)
             if ngroute
                 push!(CG_all_neighborhoods, copy(neighborhoods))
+            end
+
+            if CGLP_results["errored"] || CGIP_results["errored"] || CG_params["cycled"]
+                add_message!(printlist, "Terminating column generation...\n", verbose)
+                iteration_params["errored"] = true
+                break
+            else
+                iteration_params["errored"] = false
             end
 
             # Termination criteria
@@ -1135,6 +1287,8 @@ function path_formulation_decomposition_heuristic(
 
             iteration_params["CGLP_objective"] = CG_params["CGLP_objective"]
             iteration_params["CGIP_objective"] = CG_params["CGIP_objective"]
+            iteration_params["CGLP_artificial"] = CGLP_results["artificial"]
+            iteration_params["CGIP_artificial"] = CGIP_results["artificial"]    
             iteration_params["CG_LP_IP_gap"] = CG_params["LP_IP_gap"]
             iteration_params["CG_time_taken"] = CG_params["time_taken"]
             iteration_params["CG_sp_time_taken_mean"] = CG_params["sp_time_taken_mean"]
@@ -1144,6 +1298,7 @@ function path_formulation_decomposition_heuristic(
             iteration_params["implemented_SR3_cuts_count"] = 0
             iteration_params["converged"] = false
             iteration_params["time_limit_reached"] = false
+
             # check if converged
             if CGIP_results["objective"] ≈ CGLP_results["objective"]
                 converged = true
@@ -1248,6 +1403,11 @@ function path_formulation_decomposition_heuristic(
         feasible = true
 
         results_paths_withcharge = Tuple{Float64, Path}[]
+        if !haskey(CGIP_all_results[end], "paths")
+            CGIP_all_results[end]["paths"] = collect_path_solution_support(
+                CGIP_all_results[end], some_paths, data, graph
+            )
+        end
         for (val, p) in CGIP_all_results[end]["paths"]
             if p.subpaths[1].artificial
                 p_feasible = false
@@ -1268,7 +1428,7 @@ function path_formulation_decomposition_heuristic(
             if !p_feasible
                 break
             end
-            p_ = convert_pure_path_label_to_path(pure_path_label, graph)
+            p_ = convert_pure_path_label_to_path(pure_path_label, data, graph)
             push!(results_paths_withcharge, (val, p_))
         end
 
@@ -1296,6 +1456,8 @@ function path_formulation_decomposition_heuristic(
             some_paths, path_costs, path_service,
             T_heuristic, graph,
         )
+        add_message!(printlist, "\n\nRestarting CG with time_heuristic_slack: $(time_heuristic_slack)\n\n", verbose)
+        
     end
 
     heuristic_results = Dict(
