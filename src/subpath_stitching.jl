@@ -2118,7 +2118,7 @@ function find_nondominated_paths_notimewindows_heterogenous_charging_ngroute_lam
     base_labels::Dict{
         NTuple{2, Int}, 
         SortedDict{
-            Tuple{Float64, BitVector, BitVector, Int, Int, BitVector},
+            Tuple{Float64, BitVector, BitVector, BitVector, Int, Int, BitVector},
             BaseSubpathLabel,
             Base.Order.ForwardOrdering,
         },
