@@ -5,72 +5,125 @@ include("utils.jl")
 
 using CSV, DataFrames
 using BenchmarkTools
-using Cthulhu
 using Test
 
-data = generate_instance(
-    ;
-    n_depots = 4,
-    n_customers = 20,
-    n_charging = 5,
-    n_vehicles = 6,
-    depot_pattern = "grid",
-    customer_pattern = "random_box",
-    charging_pattern = "grid_clipped",
-    customer_spread = 0.1,
-    xmin = 0.0,
-    xmax = 2.0,
-    ymin = 0.0,
-    ymax = 2.0,
-    T = 72000,
-    seed = 2,
-    B = 15000,
-    μ = 5,
-    travel_cost_coeff = 7,
-    charge_cost_coeff = 3,
-    load_scale = 5.0,
-    load_shape = 20.0,
-    load_tolerance = 1.3,
-    batch = 1,
-    permissiveness = 0.2,
-)
-graph = generate_graph_from_data(data)
+const GRB_ENV = Gurobi.Env()
 
+args_df = CSV.read("$(@__DIR__)/../experiments/heuristic_benchmark/01a/args.csv", DataFrame)
+row_index = 8
 
-(
-    CGIP_result, 
-    heuristic_results,
-) = path_formulation_decomposition_heuristic_new(
+begin
+    n_depots = args_df[row_index, :n_depots]
+    n_customers = args_df[row_index, :n_customers]
+    n_charging = args_df[row_index, :n_charging]
+    depot_pattern = String(args_df[row_index, :depot_pattern])
+    customer_pattern = String(args_df[row_index, :customer_pattern])
+    charging_pattern = String(args_df[row_index, :charging_pattern])
+    customer_spread = args_df[row_index, :customer_spread]
+    xmin = args_df[row_index, :xmin]
+    xmax = args_df[row_index, :xmax]
+    ymin = args_df[row_index, :ymin]
+    ymax = args_df[row_index, :ymax]
+    n_vehicles = args_df[row_index, :n_vehicles]
+    T = args_df[row_index, :T]
+    B = args_df[row_index, :B]
+    μ = args_df[row_index, :μ]
+    seed = args_df[row_index, :seed]
+    travel_cost_coeff = args_df[row_index, :travel_cost_coeff]
+    charge_cost_coeff = args_df[row_index, :charge_cost_coeff]
+    load_scale = args_df[row_index, :load_scale]
+    load_shape = args_df[row_index, :load_shape]
+    load_tolerance = args_df[row_index, :load_tolerance]
+    batch = args_df[row_index, :batch]
+    permissiveness = args_df[row_index, :permissiveness]
+
+    use_load = args_df[row_index, :use_load]
+    use_time_windows = args_df[row_index, :use_time_windows]
+
+    heuristic_use_adaptive_ngroute = args_df[row_index, :heuristic_use_adaptive_ngroute]
+    heuristic_use_SR3_cuts = args_df[row_index, :heuristic_use_SR3_cuts]
+    heuristic_use_lmSR3_cuts = args_df[row_index, :heuristic_use_lmSR3_cuts]
+    method = String(args_df[row_index, :method])
+    ngroute_neighborhood_charging_size = String(args_df[row_index, :ngroute_neighborhood_charging_size])
+    use_adaptive_ngroute = args_df[row_index, :use_adaptive_ngroute]
+    use_SR3_cuts = args_df[row_index, :use_SR3_cuts]
+    use_lmSR3_cuts = args_df[row_index, :use_lmSR3_cuts]    
+    max_SR3_cuts = args_df[row_index, :max_SR3_cuts]
+
+    data = generate_instance(
+        n_depots = n_depots,
+        n_customers = n_customers,
+        n_charging = n_charging,
+        n_vehicles = n_vehicles,
+        depot_pattern = depot_pattern,
+        customer_pattern = customer_pattern,
+        charging_pattern = charging_pattern,
+        customer_spread = customer_spread,
+        xmin = xmin,
+        xmax = xmax,
+        ymin = ymin,
+        ymax = ymax,
+        T = T,
+        seed = seed,
+        B = B,
+        μ = μ,
+        travel_cost_coeff = travel_cost_coeff,
+        charge_cost_coeff = charge_cost_coeff,
+        load_scale = load_scale,
+        load_shape = load_shape,
+        load_tolerance = load_tolerance,
+        batch = batch,
+        permissiveness = permissiveness,
+        ;
+        data_dir = "../../../data/",
+    )
+    graph = generate_graph_from_data(data)
+end
+
+heuristic_run = @timed path_formulation_decomposition_heuristic(
     data, graph;
     elementary = false,
     ngroute = true,
-    use_adaptive_ngroute = true,
-    use_SR3_cuts = false,
-    use_lmSR3_cuts = false,
+    use_adaptive_ngroute = heuristic_use_adaptive_ngroute,
+    use_SR3_cuts = heuristic_use_SR3_cuts,
+    use_lmSR3_cuts = heuristic_use_lmSR3_cuts,
+    max_SR3_cuts = max_SR3_cuts,
     time_heuristic_slack = 0.9,
 );
 
-CGIP_result
+(
+    hCGIP_result, 
+    heuristic_results,
+    time_heuristic_slack,
+) = heuristic_run.value;
 
-plot_solution(CGIP_result, data)
+
+plot_solution(hCGIP_result, data)
 plot_solution(heuristic_results, data)
 
-
+optimal_run = @timed path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
+    data, graph,
+    ;
+    Env = GRB_ENV,
+    method = method,
+    elementary = false,
+    ngroute = true,
+    ngroute_neighborhood_size = Int(ceil(sqrt(graph.n_customers))),
+    ngroute_neighborhood_depots_size = "small",
+    ngroute_neighborhood_charging_size = ngroute_neighborhood_charging_size,
+    verbose = true,
+    use_adaptive_ngroute = use_adaptive_ngroute,
+    use_SR3_cuts = use_SR3_cuts,
+    use_lmSR3_cuts = use_lmSR3_cuts,
+    max_SR3_cuts = max_SR3_cuts,
+    time_limit = 3600.0,
+);
 (
     CGLP_all_results, CGIP_all_results, CG_all_params, CG_all_neighborhoods, all_params, printlist, 
     some_paths, model, z, SR3_constraints
-) = path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
-    data, graph,
-    ;
-    method = "ours",
-    elementary = false,
-    ngroute = true,
-    use_adaptive_ngroute = true,
-    use_SR3_cuts = true,
-    use_lmSR3_cuts = true,
-);
+) = optimal_run.value;
 
-plot_solution(CGLP_all_results[end], data)
+plot_solution(CGIP_all_results[end], data)
 
 CGIP_all_results[end]["objective"]
 heuristic_results["objective"]
