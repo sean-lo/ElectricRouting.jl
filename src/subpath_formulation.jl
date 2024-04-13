@@ -777,7 +777,7 @@ function subpath_formulation_column_generation_integrated_from_paths(
                     # 2: add charging arc cost
                     push!(
                         charging_arc_costs[state_pair], 
-                        compute_charging_arc_cost(a_new)
+                        compute_charging_arc_cost(a_new, data)
                     )
                     # 4: create variable
                     count += 1
@@ -1005,7 +1005,7 @@ function compute_objective_from_subpath_solution(
         for (val, s) in results_subpaths],
         init = 0.0,
     ) + sum(
-        [val * compute_charging_arc_cost(a)
+        [val * compute_charging_arc_cost(a, data)
         for (val, a) in results_charging_arcs],
         init = 0.0,
     )

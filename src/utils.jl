@@ -313,8 +313,9 @@ end
 
 function compute_charging_arc_cost(
     a::ChargingArc,
+    data::EVRPData,
 )
-    return a.charge_cost_coeff * a.delta
+    return data.charge_cost_coeffs[a.starting_node] * a.delta
 end
 
 function compute_path_cost(
@@ -328,7 +329,7 @@ function compute_path_cost(
     subpath_costs = length(p.subpaths) > 0 ? sum(compute_subpath_cost(data, graph, s, M) for s in p.subpaths) : 0
     verbose && @printf("Subpath costs: \t\t%11.3f\n", subpath_costs)
 
-    charging_arc_costs = length(p.charging_arcs) > 0 ? sum(compute_charging_arc_cost(a) for a in p.charging_arcs) : 0
+    charging_arc_costs = length(p.charging_arcs) > 0 ? sum(compute_charging_arc_cost(a, data) for a in p.charging_arcs) : 0
     verbose && @printf("Charging arc costs: \t\t%11d\n", charging_arc_costs)
     
     return subpath_costs + charging_arc_costs
@@ -348,7 +349,7 @@ function compute_path_modified_cost(
     for s in p.subpaths
         reduced_cost += compute_subpath_modified_cost(data, graph, s, κ, μ, ν, verbose = verbose)
     end
-    charging_costs = length(p.charging_arcs) > 0 ? sum(compute_charging_arc_cost(a) for a in p.charging_arcs) : 0
+    charging_costs = length(p.charging_arcs) > 0 ? sum(compute_charging_arc_cost(a, data) for a in p.charging_arcs) : 0
     verbose && @printf("Charging arc costs: \t%11d\n", charging_costs)
 
     reduced_cost += charging_costs
