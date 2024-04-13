@@ -351,7 +351,68 @@ function compute_path_modified_cost(
     end
     charging_costs = length(p.charging_arcs) > 0 ? sum(compute_charging_arc_cost(a, data) for a in p.charging_arcs) : 0
     verbose && @printf("Charging arc costs: \t%11d\n", charging_costs)
+    reduced_cost += charging_costs
 
+    verbose && @printf("Total modified cost: \t%11.3f\n\n", reduced_cost)
+
+    return reduced_cost
+end
+
+function compute_path_modified_cost(
+    data::EVRPData,
+    graph::EVRPGraph,
+    p::Path,
+    κ::Dict{Int, Float64},
+    μ::Dict{Int, Float64},
+    ν::Vector{Float64}, 
+    λ::Dict{NTuple{3, Int}, Float64},
+    ;
+    verbose = false,
+)
+    reduced_cost = 0.0
+    for s in p.subpaths
+        reduced_cost += compute_subpath_modified_cost(data, graph, s, κ, μ, ν, verbose = verbose)
+    end
+    SR3_costs = sum(
+        val * check_path_in_SR3_constraint(p, S)
+        for (S, val) in pairs(λ)
+    )
+    verbose && @printf("lm-SR3 costs: \t%11.3f\n", SR3_costs)
+    reduced_cost += SR3_costs
+
+    charging_costs = length(p.charging_arcs) > 0 ? sum(compute_charging_arc_cost(a, data) for a in p.charging_arcs) : 0
+    verbose && @printf("Charging arc costs: \t%11d\n", charging_costs)
+    reduced_cost += charging_costs
+
+    verbose && @printf("Total modified cost: \t%11.3f\n\n", reduced_cost)
+
+    return reduced_cost
+end
+
+function compute_path_modified_cost(
+    data::EVRPData,
+    graph::EVRPGraph,
+    p::Path,
+    κ::Dict{Int, Float64},
+    μ::Dict{Int, Float64},
+    ν::Vector{Float64}, 
+    λ::Dict{Tuple{NTuple{3, Int}, Tuple{Vararg{Int}}}, Float64},
+    ;
+    verbose = false,
+)
+    reduced_cost = 0.0
+    for s in p.subpaths
+        reduced_cost += compute_subpath_modified_cost(data, graph, s, κ, μ, ν, verbose = verbose)
+    end
+    lmSR3_costs = sum(
+        val * compute_path_coefficient_in_lmSRnk_constraint(p, S, M, 2)
+        for ((S, M), val) in pairs(λ)
+    )
+    verbose && @printf("lm-SR3 costs: \t%11.3f\n", lmSR3_costs)
+    reduced_cost += lmSR3_costs
+
+    charging_costs = length(p.charging_arcs) > 0 ? sum(compute_charging_arc_cost(a, data) for a in p.charging_arcs) : 0
+    verbose && @printf("Charging arc costs: \t%11d\n", charging_costs)
     reduced_cost += charging_costs
 
     verbose && @printf("Total modified cost: \t%11.3f\n\n", reduced_cost)
