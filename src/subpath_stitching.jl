@@ -589,6 +589,7 @@ function generate_base_labels_ngroute_lambda_lmSR3(
         # 0) reduced cost
         # 1a) binary cut labels (forward)
         # 1b) binary cut labels (backward)
+        # 1c) binary cut labels (memory)
         # 2) time taken
         # 3) charge taken
         # 4a) whether i-th node is in forward ng-set
@@ -642,9 +643,6 @@ function generate_base_labels_ngroute_lambda_lmSR3(
 
             if starting_node in graph.N_depots
                 new_ng_resources = [new_fset; current_residue; current_bset]
-                # don't update cut backward labels if subpath starts at depot
-                new_λ_blabels = current_λ_blabels
-                new_λmemory_labels = current_λmemory_labels
             else
                 new_residue = ngroute_create_residue(
                     neighborhoods, next_node, current_residue,
@@ -653,10 +651,10 @@ function generate_base_labels_ngroute_lambda_lmSR3(
                     next_node, current_bset, current_residue,
                 )
                 new_ng_resources = [new_fset; new_residue; new_bset]
-                new_λ_blabels, new_λmemory_labels = compute_new_subpath_lambda_memory_blabels_lmSR3(
-                    next_node, current_λ_blabels, current_λmemory_labels, λcust, λmemory,
-                )
             end
+            new_λ_blabels, new_λmemory_labels = compute_new_subpath_lambda_memory_blabels_lmSR3(
+                next_node, current_λ_blabels, current_λmemory_labels, λcust, λmemory,
+            )
 
             new_key = (
                 new_subpath.cost,
@@ -667,7 +665,7 @@ function generate_base_labels_ngroute_lambda_lmSR3(
                 new_subpath.charge_taken, 
                 new_ng_resources,
             )
-            added = add_label_to_collection_cuts!(
+            added = add_label_to_collection_lmSR3_subpath!(
                 base_labels[(starting_node, next_node)],
                 new_key, new_subpath, λvals,
                 ;
