@@ -149,6 +149,9 @@ struct EVRPData
     N_depots_charging::UnitRange{Int}
     N_nodes::UnitRange{Int}
     node_labels::Dict{Int, String}
+    depot_pattern::String
+    customer_pattern::String
+    charging_pattern::String
     xmin::Float64
     xmax::Float64
     ymin::Float64
@@ -789,6 +792,9 @@ function generate_instance(
         N_depots_charging,
         N_nodes,
         node_labels,
+        depot_pattern,
+        customer_pattern,
+        charging_pattern,
         xmin, 
         xmax, 
         ymin,
@@ -822,23 +828,55 @@ end
 
 function generate_graph_from_data(
     data::EVRPData,
+    ;
+    sparse::Bool = false,
+    sparse_prob::String = "linear",
+    sparse_linear_max_q::Float64 = Float64(data.B),
+    sparse_linear_min_q::Float64 = Float64(minimum(data.q)),
 )
-    A = union(
-        Set{Tuple{Int, Int}}(
-            (i,i) for i in data.N_depots # allow self-loops at depots
-        ),
-        Set{Tuple{Int, Int}}(
-            (i,j) for (i,j) in permutations(data.N_nodes, 2)
-        ),
-    )
+
+    tc_depot = vec(minimum(data.t[:,data.N_depots], dims = 2))
+    cc_depot_charging = vec(minimum(data.q[:,data.N_depots_charging], dims = 2))
+
+    A = Set{Tuple{Int, Int}}()
+    Random.seed!(0)
+    for i in data.N_nodes, j in data.N_nodes
+        if i == j && !(i in data.N_depots)
+            continue
+        end
+        min_charge = data.q[i,j]
+        min_time = data.t[i,j]
+        if i in data.N_customers
+            min_charge += cc_depot_charging[i]
+            min_time += tc_depot[i]
+        elseif i in data.N_charging
+            min_time += tc_depot[i]
+        end
+        if j in data.N_customers
+            min_charge += cc_depot_charging[j]
+            min_time += tc_depot[j]
+        elseif j in data.N_charging
+            min_time += tc_depot[j]
+        end
+        if min_charge > data.B || min_time > data.T
+            continue
+        end
+        if sparse
+            threshold_prob = (sparse_linear_max_q - data.q[i,j]) / (sparse_linear_max_q - sparse_linear_min_q)
+            if rand() < threshold_prob
+                push!(A, (i, j))
+            elseif !(i in data.N_customers || j in data.N_customers)
+                push!(A, (i, j))
+            end
+        else
+            push!(A, (i, j))
+        end
+    end
 
     G = SimpleDiGraph{Int}(data.n_nodes)
     for (i, j) in A
         add_edge!(G, i, j)
     end
-
-    t_ds = dijkstra_shortest_paths(G, collect(data.N_depots), data.t)
-    q_ds = dijkstra_shortest_paths(G, collect(data.N_depots_charging), data.q)
 
     node_labels = merge(Dict(
         i => "Depot $ind" for (ind, i) in enumerate(data.N_depots)
@@ -870,8 +908,8 @@ function generate_graph_from_data(
         data.μ,
         copy(data.α), 
         copy(data.β),
-        t_ds.dists,
-        q_ds.dists,
+        tc_depot,
+        cc_depot_charging,
     )
 
 end
@@ -1328,6 +1366,9 @@ end
 
 function plot_instance(
     data::EVRPData,
+    ;
+    plot_edges::Bool = false,
+    graph::Union{EVRPGraph, Nothing} = nothing,
 )
     p = Plots.plot(
         # xlim = (0, 1), ylim = (0, 1),
@@ -1375,6 +1416,18 @@ function plot_instance(
     )
 
     Plots.plot!(legend = :outerright)
+
+    if plot_edges
+        for e in edges(graph.G)
+            Plots.plot!(
+                data.coords[1,[e.src,e.dst]],
+                data.coords[2,[e.src,e.dst]],
+                label = false,
+                color = :gray,
+                alpha = 0.3,
+            )
+        end
+    end
     return p
 end
 
