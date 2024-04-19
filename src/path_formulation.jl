@@ -1009,6 +1009,84 @@ function enumerate_violated_path_SR3_inequalities(
     return S_list
 end
 
+function select_representative_violated_path_SR3_inequalities(
+    SR3_list_in::Vector{Tuple{Float64, NTuple{3, Int}}},
+    data::EVRPData,
+)
+
+    function find_closest_triplet(
+        clique::Tuple{Float64, Tuple{Vararg{Int}}, Tuple{Vararg{Int}}, Tuple{Vararg{Int}}},
+        data::EVRPData,
+    )
+        @assert length(clique[2]) ≥ 1
+        @assert length(clique[3]) ≥ 1
+        @assert length(clique[4]) ≥ 1
+        (_, S) = minimum([
+            (
+                data.q[i,j] + data.q[j,k] + data.q[k,i],
+                Tuple(sort([i,j,k]))
+            )
+            for i in clique[2] for j in clique[3] for k in clique[4]
+        ])
+        return S
+    end
+
+    found_cliques = Tuple{Float64, Tuple{Vararg{Int}}, Tuple{Vararg{Int}}, Tuple{Vararg{Int}}}[]
+    SR3_list = copy(SR3_list_in)
+    while length(SR3_list) != 0
+        f_found = 0.0
+        local found_triples
+        local clique
+        for (i, (f, S)) in enumerate(SR3_list)
+            c1 = Tuple(vcat([S[3]],
+                [setdiff(S_, S)[1] for (f_, S_) in union(SR3_list[1:i-1], SR3_list[i+1:end])
+                if isapprox(f, f_, atol=1e-12) && S[1] in S_ && S[2] in S_],
+            ))
+            c2 = Tuple(vcat([S[2]],
+                [setdiff(S_, S)[1] for (f_, S_) in union(SR3_list[1:i-1], SR3_list[i+1:end])
+                if isapprox(f, f_, atol=1e-12) && S[1] in S_ && S[3] in S_],
+            ))
+            c3 = Tuple(vcat([S[1]],
+                [setdiff(S_, S)[1] for (f_, S_) in union(SR3_list[1:i-1], SR3_list[i+1:end])
+                if isapprox(f, f_, atol=1e-12) && S[2] in S_ && S[3] in S_],
+            ))
+            clique = (f, c1, c2, c3)
+            found_triples = [
+                Tuple(sort([i, j, k]))
+                for i in clique[2], j in clique[3], k in clique[4]
+            ]
+            matches_in_SR3_list = [
+                (f_, S_) for (f_, S_) in SR3_list
+                    if (S_ in found_triples && isapprox(f, f_, atol=1e-12))
+            ]
+            if length(found_triples) == length(matches_in_SR3_list)
+                f_found = f
+                break
+            end
+        end
+        if f_found == 0.0
+            break
+        end
+        SR3_list = [
+            (f_, S_) for (f_, S_) in SR3_list
+                if !(S_ in found_triples && f_found ≈ f_)
+        ]
+        push!(found_cliques, clique)
+    end
+    select_triples = [
+        find_closest_triplet(clique, data)
+        for clique in found_cliques
+    ]
+    SR3_list_final = vcat(
+        Tuple{Float64, NTuple{3, Int}}[
+            (f, S) for (f, S) in SR3_list_in
+                if S in select_triples
+        ],
+        SR3_list,
+    )
+    return sort(SR3_list_final, by = x -> x[1], rev = true)
+end
+
 function enumerate_violated_path_SRnk_inequalities(
     paths::Vector{Tuple{Float64, Path}},
     graph::EVRPGraph,
@@ -1219,7 +1297,7 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
     use_adaptive_ngroute::Bool = true,
     use_SR3_cuts::Bool = true,
     use_lmSR3_cuts::Bool = true,
-    max_SR3_cuts::Int = 10, 
+    max_SR3_cuts::Int = 5, 
     randomize_cuts::Bool = false,
 )
     start_time = time()
@@ -1480,23 +1558,29 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
                 CGLP_results["paths"],
                 graph,
             )
-            add_message!(printlist, "Found SR3 cuts:      $(length(generated_SR3_list))\n", verbose)
+            add_message!(printlist, "Found SR3 cuts:\t\t\t$(length(generated_SR3_list))\n", verbose)
+            if length(generated_SR3_list) != 0
+                generated_SR3_list = select_representative_violated_path_SR3_inequalities(
+                    generated_SR3_list, data,
+                )
+                add_message!(printlist, "Selected SR3 cuts:\t\t$(length(generated_SR3_list))\n", verbose)
+            end
+
             # sample cuts if too many
             if length(generated_SR3_list) ≤ max_SR3_cuts
                 implemented_SR3_list = generated_SR3_list
+            elseif randomize_cuts
+                implemented_SR3_list = sample(
+                    generated_SR3_list, 
+                    Weights([val for (val, _) in generated_SR3_list]),
+                    max_SR3_cuts, 
+                    replace = false,
+                )
             else
-                if randomize_cuts
-                    implemented_SR3_list = sample(
-                        generated_SR3_list, 
-                        Weights([val for (val, _) in generated_SR3_list]),
-                        max_SR3_cuts, 
-                        replace = false,
-                    )
-                else
-                    implemented_SR3_list = generated_SR3_list[1:max_SR3_cuts]
-                end
-                add_message!(printlist, "Sampled SR3 cuts:    $(length(implemented_SR3_list))\n", verbose)
+                implemented_SR3_list = generated_SR3_list[1:max_SR3_cuts]
             end
+            add_message!(printlist, "Sampled SR3 cuts:\t\t$(length(implemented_SR3_list))\n", verbose)
+            
             if length(implemented_SR3_list) != 0
                 if use_lmSR3_cuts
                     implemented_SR3_list = Tuple{Float64, Tuple{Int64, Int64, Int64}, Tuple{Vararg{Int64}}}[
@@ -1518,7 +1602,7 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
                     iteration_params["method"] = "use_lmSR3_cuts"
                     iteration_params["implemented_SR3_cuts_count"] = length(implemented_SR3_list)
                     continue_flag = true
-                    add_message!(printlist, "Imposed lm-SR3 cuts: $(length(implemented_SR3_list))\n", verbose)
+                    add_message!(printlist, "Imposed lm-SR3 cuts:\t\t$(length(implemented_SR3_list))\n", verbose)
                     for (val, S, M) in implemented_SR3_list
                         add_message!(printlist, "$S, $M: $val\n", verbose)
                     end
@@ -1533,7 +1617,7 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
                     iteration_params["method"] = "use_SR3_cuts"
                     iteration_params["implemented_SR3_cuts_count"] = length(implemented_SR3_list)
                     continue_flag = true
-                    add_message!(printlist, "Imposed SR3 cuts:    $(length(implemented_SR3_list))\n", verbose)
+                    add_message!(printlist, "Imposed SR3 cuts:\t\t$(length(implemented_SR3_list))\n", verbose)
                     for (val, S) in implemented_SR3_list
                         add_message!(printlist, "$S: $val\n", verbose)
                     end
@@ -1543,6 +1627,12 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
         end
 
         push!(all_params, iteration_params)
+
+        add_message!(
+            printlist,
+            @sprintf("Total time taken (s): %9.3f s\n\n", time() - start_time),
+            verbose,
+        )
 
         if !(time_limit > time() - start_time)
             iteration_params["time_limit_reached"] = true
