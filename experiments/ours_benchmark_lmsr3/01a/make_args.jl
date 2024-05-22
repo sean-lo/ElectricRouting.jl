@@ -61,6 +61,7 @@ method_params = [
 
 args_df = DataFrame(
     density = Float64[],
+    n_vehicles = Int[],
     n_depots = Int[],
     n_customers = Int[],
     n_charging = Int[],
@@ -72,7 +73,6 @@ args_df = DataFrame(
     xmax = Float64[],
     ymin = Float64[],
     ymax = Float64[],
-    n_vehicles = Int[],
     T = Int[],
     B = Int[],
     μ = Int[],
@@ -106,10 +106,10 @@ for density in density_range,
     n_customers = Int(density * (xmax - xmin) * (ymax - ymin))
     n_charging = Int((xmax - xmin + 1)*(ymax - ymin + 1) - 4)
     T = Int(B * k * (μ + 1) / μ)
-    n_vehicles = 6
     push!(args_df, 
         (
             density,
+            n_vehicles,
             n_depots,
             n_customers,
             n_charging,
@@ -121,7 +121,6 @@ for density in density_range,
             xmax,
             ymin,
             ymax,
-            n_vehicles,
             T,
             B,
             μ,
