@@ -831,7 +831,7 @@ function generate_graph_from_data(
     ;
     sparse::Bool = false,
     sparse_prob::String = "linear",
-    sparse_linear_max_q::Float64 = Float64(data.B),
+    sparse_linear_max_q::Float64 = 2.0 * Float64(data.B),
     sparse_linear_min_q::Float64 = Float64(minimum(data.q)),
 )
 
