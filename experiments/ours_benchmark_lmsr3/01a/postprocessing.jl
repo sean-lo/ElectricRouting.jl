@@ -170,7 +170,7 @@ begin
     savefig(p, "$(@__DIR__)/plots/LP_IP_gap_time_taken_trajectories.pdf")
 end
 
-summary = (
+summary_df = (
     results 
     |> x -> groupby(
         x, 
@@ -215,11 +215,11 @@ summary = (
 # Bar plots comparing benchmark to ours
 begin
 groupnames = ["Label-setting", "Two-level label-setting"]
-xmax_T_range = collect(zip(unique(summary[!, [:xmax, :T]]).xmax, unique(summary[!, [:xmax, :T]]).T))
+xmax_T_range = collect(zip(unique(summary_df[!, [:xmax, :T]]).xmax, unique(summary_df[!, [:xmax, :T]]).T))
     for (xmax, T) in xmax_T_range
         data_df = filter(
             r -> r.xmax == xmax && r.T == T,
-            summary
+            summary_df
         )
         sizes = sort(unique(data_df.n_customers))
         sizenames = string.(sizes, pad = 2)
@@ -255,10 +255,29 @@ xmax_T_range = collect(zip(unique(summary[!, [:xmax, :T]]).xmax, unique(summary[
             grid = :y,
             legend = :topleft,
         )
-        yticks!(p1, p1_ytickvalues, string.(p1_ytickvalues))
-        xticks!(p1, 0.5:1:(length(sizes)-0.5), string.(sizes))
+        Plots.yticks!(p1, p1_ytickvalues, string.(p1_ytickvalues))
+        Plots.xticks!(p1, 0.5:1:(length(sizes)-0.5), string.(sizes))
         hline!([3600], linestyle = :dash, label = false, color = :black)
         savefig(p1, "$(@__DIR__)/plots/time_taken_groupedbar_SRI_$(xmax)_$(T)_lmSRI.pdf")
         savefig(p1, "$(@__DIR__)/plots/time_taken_groupedbar_SRI_$(xmax)_$(T)_lmSRI.png")
+    
+        p2_ytickvalues = [0.1, 0.2, 0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 50.0, 100.0]
+        p2 = groupedbar(
+            repeat(sizenames, outer = length(groupnames)),
+            Matrix(LP_IP_gap_df[!, end-1:end]),
+            group = repeat(groupnames, inner = length(sizenames)),
+            barwidth = 0.75,
+            framestyle = :box,
+            xlabel = "# tasks",
+            yscale = :log10,
+            ylabel = "Optimality gap (%)",
+            ylim = 10.0.^(-1, 2),
+            grid = :y,
+            legend = :bottomright,
+        )
+        Plots.yticks!(p2, p2_ytickvalues, string.(p2_ytickvalues))
+        Plots.xticks!(p2, 0.5:1:(length(sizes)-0.5), string.(sizes))
+        savefig(p2, "$(@__DIR__)/plots/LP_IP_gap_groupedbar_SRI_$(xmax)_$(T)_lmSRI.pdf")
+        savefig(p2, "$(@__DIR__)/plots/LP_IP_gap_groupedbar_SRI_$(xmax)_$(T)_lmSRI.png")
     end
 end
