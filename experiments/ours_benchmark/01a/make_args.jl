@@ -6,6 +6,7 @@ seed_range = collect(1:20)
 
 # data_params
 (
+    n_vehicles,
     n_depots,
     depot_pattern,
     customer_pattern,
@@ -24,7 +25,7 @@ seed_range = collect(1:20)
     batch,
     permissiveness,
 ) = (
-    4, "grid", "random_box", "grid_clipped", 
+    6, 4, "grid", "random_box", "grid_clipped", 
     0.1, 0.0, 0.0, 2.0,
     15000, 5,
     7, 0, 
@@ -32,9 +33,7 @@ seed_range = collect(1:20)
     1, 0.2,
 )
 
-n_customers_range = [12, 15, 18, 21]
 xmax_k_range = [
-    (2.0, 2.0),
     (2.0, 2.5),
     (2.0, 3.0),
     (3.0, 3.0),
@@ -64,6 +63,7 @@ method_params = [
 
 args_df = DataFrame(
     density = Float64[],
+    n_vehicles = Int[],
     n_depots = Int[],
     n_customers = Int[],
     n_charging = Int[],
@@ -75,7 +75,6 @@ args_df = DataFrame(
     xmax = Float64[],
     ymin = Float64[],
     ymax = Float64[],
-    n_vehicles = Int[],
     T = Int[],
     B = Int[],
     μ = Int[],
@@ -107,10 +106,10 @@ for density in density_range,
     n_customers = Int(density * (xmax - xmin) * (ymax - ymin))
     n_charging = Int((xmax - xmin + 1)*(ymax - ymin + 1) - 4)
     T = Int(B * k * (μ + 1) / μ)
-    n_vehicles = 6
     push!(args_df, 
         (
             density,
+            n_vehicles,
             n_depots,
             n_customers,
             n_charging,
@@ -122,7 +121,6 @@ for density in density_range,
             xmax,
             ymin,
             ymax,
-            n_vehicles,
             T,
             B,
             μ,
@@ -164,7 +162,7 @@ test_args_df = vcat(
                 r.seed == 1
                 && r.density == 1.5
                 && r.xmax == 2.0
-                && r.T == 36000
+                && r.T == 45000
             ),
             x
         ),

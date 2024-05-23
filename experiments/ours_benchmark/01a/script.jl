@@ -23,6 +23,7 @@ function run_instance(
     write_results::Bool = false,
 )
     # Get paramters from args_df at row row_index
+    n_vehicles = args_df[row_index, :n_vehicles]
     n_depots = args_df[row_index, :n_depots]
     n_customers = args_df[row_index, :n_customers]
     n_charging = args_df[row_index, :n_charging]
@@ -34,7 +35,6 @@ function run_instance(
     xmax = args_df[row_index, :xmax]
     ymin = args_df[row_index, :ymin]
     ymax = args_df[row_index, :ymax]
-    n_vehicles = args_df[row_index, :n_vehicles]
     T = args_df[row_index, :T]
     B = args_df[row_index, :B]
     μ = args_df[row_index, :μ]
@@ -191,15 +191,17 @@ function run_instance(
     println()
 end
 
-
-
 # simple test case to quickly compile 
 
 begin
     test_args_df = DataFrame(CSV.File("$(@__DIR__)/test_args.csv"))
-    # run_instance(test_args_df, 2, 3600.0, write_log = false)
     for i in 1:nrow(test_args_df)
-        run_instance(test_args_df, i, 50.0, write_log = false)
+        run_instance(
+            test_args_df, i, 50.0, 
+            ;
+            write_log = false,
+            write_results = false,
+        )
     end
 end
 
@@ -214,6 +216,12 @@ println("Processing rows: $(collect(task_index:n_tasks:size(args_df, 1)))")
 
 for row_index in task_index:n_tasks:size(args_df, 1)
     if !isfile("$(@__DIR__)/records/$row_index.csv")
-        run_instance(args_df, row_index, 3600.0, write_log = true)
+        sleep(rand() * 30)
+        run_instance(
+            args_df, row_index, 3600.0, 
+            ;
+            write_log = true, 
+            write_results = false,
+        )
     end
 end
