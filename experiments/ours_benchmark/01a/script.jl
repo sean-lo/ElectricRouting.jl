@@ -217,11 +217,15 @@ println("Processing rows: $(collect(task_index:n_tasks:size(args_df, 1)))")
 for row_index in task_index:n_tasks:size(args_df, 1)
     if !isfile("$(@__DIR__)/records/$row_index.csv")
         sleep(rand() * 30)
-        run_instance(
-            args_df, row_index, 3600.0, 
-            ;
-            write_log = true, 
-            write_results = false,
-        )
+        try
+            run_instance(
+                args_df, row_index, 3600.0, 
+                ;
+                write_log = true, 
+                write_results = false,
+            )
+        catch e
+            println(e)
+        end
     end
 end

@@ -4,10 +4,8 @@ using StatsBase
 using ColorSchemes
 using Plots
 
-results = CSV.read("$(@__DIR__)/old_combined.csv", DataFrame)
+results = CSV.read("$(@__DIR__)/combined.csv", DataFrame)
 results.density .= results.n_customers ./ (results.xmax .* 2)
-results.LP_IP_gap .*= 100
-CSV.write("$(@__DIR__)/combined.csv", results)
 
 data_fields = [
     :n_customers,
@@ -32,6 +30,11 @@ method_fields = [
         x, 
         vcat(data_fields, [:seed], method_fields),
     )
+)
+CSV.write("$(@__DIR__)/combined.csv", results)
+
+(
+    results
     |> x -> filter!(
         r -> (
             # Note: LP_IP_gap only ends up being negative for certain large instances,
@@ -43,7 +46,10 @@ method_fields = [
     )
 )
 
-summary = (
+results.LP_IP_gap .*= 100
+results.LP_IP_gap .= ifelse.(results.LP_IP_gap .≤ 1e-10, 0.0, results.LP_IP_gap)
+
+summary_df = (
     results 
     |> x -> groupby(
         x, 
@@ -66,7 +72,7 @@ summary = (
     )
 )
 
-filtered_summary = summary |> 
+filtered_summary_df = summary_df |> 
     x -> filter(
         r -> (
             !(r.xmax == 2.0 && r.T == 36000)
@@ -76,15 +82,15 @@ filtered_summary = summary |>
     )
 
 
-filtered_summary.time_taken_filtered = copy(filtered_summary.time_taken)
-filtered_summary.time_taken_filtered[filtered_summary.converged .!= 1.0] .= NaN
-filtered_summary.method_combined = [
-    join(filtered_summary[i, method_fields], "_")
-    for i in 1:nrow(filtered_summary)
+filtered_summary_df.time_taken_filtered = copy(filtered_summary_df.time_taken)
+filtered_summary_df.time_taken_filtered[filtered_summary_df.converged .!= 1.0] .= NaN
+filtered_summary_df.method_combined = [
+    join(filtered_summary_df[i, method_fields], "_")
+    for i in 1:nrow(filtered_summary_df)
 ]
 
 (
-    filtered_summary
+    filtered_summary_df
     |> x -> sort(
         x, 
         vcat(data_fields, [:elementary, :ngroute, :method])
@@ -174,111 +180,109 @@ function make_pivottable(
     return result
 end
 
-
-
 time_taken_ratio_none_df = make_pivottable(
-    filtered_summary,
+    filtered_summary_df,
     false, false,
     :time_taken, :ratio
 )
 time_taken_percent_gap_none_df = make_pivottable(
-    filtered_summary,
+    filtered_summary_df,
     false, false,
     :time_taken, :percent_gap
 )
 time_taken_benchmark_none_df = make_pivottable(
-    filtered_summary,
+    filtered_summary_df,
     false, false,
     :time_taken, :benchmark
 )
 time_taken_ours_none_df = make_pivottable(
-    filtered_summary,
+    filtered_summary_df,
     false, false,
     :time_taken, :ours
 )
 time_taken_ratio_ngroute_df = make_pivottable(
-    filtered_summary,
+    filtered_summary_df,
     false, true,
     :time_taken, :ratio
 )
 time_taken_percent_gap_ngroute_df = make_pivottable(
-    filtered_summary,
+    filtered_summary_df,
     false, true,
     :time_taken, :percent_gap
 )
 time_taken_benchmark_ngroute_df = make_pivottable(
-    filtered_summary,
+    filtered_summary_df,
     false, true,
     :time_taken, :benchmark
 )
 time_taken_ours_ngroute_df = make_pivottable(
-    filtered_summary,
+    filtered_summary_df,
     false, true,
     :time_taken, :ours
 )
 time_taken_ratio_elementary_df = make_pivottable(
-    filtered_summary,
+    filtered_summary_df,
     true, false,
     :time_taken, :ratio
 )
 time_taken_percent_gap_elementary_df = make_pivottable(
-    filtered_summary,
+    filtered_summary_df,
     true, false,
     :time_taken, :percent_gap
 )
 time_taken_benchmark_elementary_df = make_pivottable(
-    filtered_summary,
+    filtered_summary_df,
     true, false,
     :time_taken, :benchmark
 )
 time_taken_ours_elementary_df = make_pivottable(
-    filtered_summary,
+    filtered_summary_df,
     true, false,
     :time_taken, :ours
 )
 
 LP_IP_gap_ratio_none_df = make_pivottable(
-    filtered_summary,
+    filtered_summary_df,
     false, false,
     :LP_IP_gap, :ratio
 )
 LP_IP_gap_benchmark_none_df = make_pivottable(
-    filtered_summary,
+    filtered_summary_df,
     false, false,
     :LP_IP_gap, :benchmark
 )
 LP_IP_gap_ours_none_df = make_pivottable(
-    filtered_summary,
+    filtered_summary_df,
     false, false,
     :LP_IP_gap, :ours
 )
 LP_IP_gap_ratio_ngroute_df = make_pivottable(
-    filtered_summary,
+    filtered_summary_df,
     false, true,
     :LP_IP_gap, :ratio
 )
 LP_IP_gap_benchmark_ngroute_df = make_pivottable(
-    filtered_summary,
+    filtered_summary_df,
     false, true,
     :LP_IP_gap, :benchmark
 )
 LP_IP_gap_ours_ngroute_df = make_pivottable(
-    filtered_summary,
+    filtered_summary_df,
     false, true,
     :LP_IP_gap, :ours
 )
 LP_IP_gap_ratio_elementary_df = make_pivottable(
-    filtered_summary,
+    filtered_summary_df,
     true, false,
     :LP_IP_gap, :ratio
 )
 LP_IP_gap_benchmark_elementary_df = make_pivottable(
-    filtered_summary,
+    filtered_summary_df,
     true, false,
     :LP_IP_gap, :benchmark
 )
 LP_IP_gap_ours_elementary_df = make_pivottable(
-    filtered_summary,
+    filtered_summary_df,
     true, false,
     :LP_IP_gap, :ours
 )
@@ -295,7 +299,7 @@ begin
         (true, false, "elementary"),
     ]
         data = -Matrix(make_pivottable(
-            filtered_summary,
+            filtered_summary_df,
             elementary, ngroute,
             :time_taken_filtered, :percent_gap
         )[end:-1:1,2:end])
