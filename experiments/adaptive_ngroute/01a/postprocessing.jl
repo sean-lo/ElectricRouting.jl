@@ -101,21 +101,42 @@ all_summary = (
         x
     )
     |> x -> innerjoin(x, args, on = :instance => :index)
-    |> x -> groupby(x, vcat(data_fields, method_args_fields))
+    |> x -> groupby(x, [
+        :n_customers, 
+        :ngroute_neighborhood_size_string,
+        :ngroute_neighborhood_charging_size,
+    ])
     |> x -> combine(
         x, 
         nrow,
-        :CG_time_taken_first => geomean => :CG_time_taken_first,
-        :CG_time_taken_last => geomean => :CG_time_taken_last,
-        :LP_objective_first => geomean => :LP_objective_first,
-        :LP_objective_last => geomean => :LP_objective_last,
-        :LP_IP_gap_first => (x -> geomean(x .+ 100) - 100) => :LP_IP_gap_first,
-        :LP_IP_gap_last => (x -> geomean(x .+ 100) - 100) => :LP_IP_gap_last,
+        :CG_time_taken_first => (x -> round(geomean(x), sigdigits = 4)) => :CG_time_taken_first,
+        :LP_objective_first => (x -> round(geomean(x), sigdigits = 4)) => :LP_objective_first,
+        :LP_IP_gap_first => (x -> round(geomean(x .+ 100) - 100, sigdigits = 4))  => :LP_IP_gap_first,
+        :CG_time_taken_last => (x -> round(geomean(x), sigdigits = 4)) => :CG_time_taken_last,
+        :LP_objective_last => (x -> round(geomean(x), sigdigits = 4)) => :LP_objective_last,
+        :LP_IP_gap_last => (x -> round(geomean(x .+ 100) - 100, sigdigits = 4)) => :LP_IP_gap_last,
     )
     |> x -> sort!(
         x, :n_customers,
     )
 )
+CSV.write("$(@__DIR__)/all_summary.csv", all_summary)
+for ngroute_neighborhood_charging_size in ["small", "medium"]
+    (
+        all_summary
+        |> x -> filter(
+            r -> (
+                r.ngroute_neighborhood_charging_size == ngroute_neighborhood_charging_size
+                || r.ngroute_neighborhood_size_string in ["1", "all"]
+            ),
+            x
+        )
+        |> x -> select(
+            x, Not(:ngroute_neighborhood_charging_size)
+        )
+        |> x -> CSV.write("$(@__DIR__)/all_summary_$(ngroute_neighborhood_charging_size).csv", x)
+    )
+end
 
 # Plotting of pareto frontier
 begin
