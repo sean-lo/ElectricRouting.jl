@@ -49,6 +49,7 @@ function run_instance(
 
     use_load = args_df[row_index, :use_load]
     use_time_windows = args_df[row_index, :use_time_windows]
+    sparse_graph = args_df[row_index, :sparse_graph]
     
     method = String(args_df[row_index, :method])
     ngroute = args_df[row_index, :ngroute]
@@ -84,7 +85,7 @@ function run_instance(
         ;
         data_dir = "../../../data/",
     )
-    graph = generate_graph_from_data(data)
+    graph = generate_graph_from_data(data, sparse = sparse_graph)
 
     run = @timed path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
         data, graph,
@@ -151,6 +152,7 @@ function run_instance(
                 permissiveness = permissiveness,
                 use_load = use_load,
                 use_time_windows = use_time_windows,
+                sparse_graph = sparse_graph,
                 method = method,
                 elementary = false,
                 ngroute = true,
@@ -205,7 +207,6 @@ function run_instance(
         println("$records")
     end
     if write_results
-        mkpath("$(@__DIR__)/results/$(row_index)")
         CSV.write("$(@__DIR__)/results/$(row_index).csv", all_params_df) 
         # savefig(plot_instance(data), "$(@__DIR__)/results/$(row_index)/plot.png")
         # savefig(plot_path_solution(CGLP_all_results[end], data, graph, some_paths), "$(@__DIR__)/results/$(row_index)/plot_path_solution_LP.png")
@@ -225,8 +226,8 @@ begin
         run_instance(
             test_args_df, i, 300.0, 
             ;
-            write_log = true,
-            write_results = true,
+            write_log = false,
+            write_results = false,
         )
     end
 end

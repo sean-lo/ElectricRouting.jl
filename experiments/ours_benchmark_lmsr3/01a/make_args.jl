@@ -25,30 +25,27 @@ seed_range = collect(1:20)
     batch,
     permissiveness,
 ) = (
-    6, 4, "grid", "random_box", "grid_clipped", 
-    0.2, 0.0, 0.0, 2.0,
-    15000, 5,
+    10, 4, "grid", "random_box", "grid_clipped", 
+    0.1, 0.0, 0.0, 2.0,
+    18000, 5,
     7, 0, 
     5.0, 20.0, 1.3,
     1, 0.2,
 )
 
 xmax_k_range = [
-    (2.0, 2.0),
-    (2.0, 2.5),
-    (2.0, 3.0),
-    (3.0, 3.0),
-    (2.0, 3.5),
-    (3.0, 3.5),
-    (3.0, 4.0),
     (4.0, 4.0),
 ]
-density_range = [1.5, 2.0, 2.5, 3.0, 3.5, 4.0]
+density_range = [
+    1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 6.25, 7.5
+]
 
 setting_params = [
     # load
     # time windows
-    (false, false),
+    # sparsify graph
+    (false, false, false),
+    (false, false, true),
 ]
 method_params = [
     # method_param
@@ -87,6 +84,7 @@ args_df = DataFrame(
 
     use_load = Bool[],
     use_time_windows = Bool[],
+    sparse_graph = Bool[],
 
     method = String[],
     ngroute = Bool[],
