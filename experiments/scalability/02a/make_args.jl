@@ -146,6 +146,13 @@ end
 #     on = names(results_df)
 # )
 new_args_df = args_df
+(
+    new_args_df 
+    |> x -> sort!(
+        x, 
+        [:use_SR3_cuts, :n_customers],
+    )
+)
 CSV.write("$(@__DIR__)/args.csv", new_args_df)
 
 test_args_df = new_args_df |> 
