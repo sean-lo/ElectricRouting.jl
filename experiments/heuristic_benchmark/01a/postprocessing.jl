@@ -123,19 +123,13 @@ begin
     (cmin, cmax) = round.(extrema(data), digits = 0)
 
     fig = CairoMakie.Figure(resolution = (600, 400), fontsize = 17)
-    mygrid = fig[1,1] = GridLayout()
-    fig[0,1] = CairoMakie.Label(
-        fig, 
-        "% reduction in cost: our method against business-as-usual", 
-        font = :bold, fontsize = 18
-    )
-
     ax = Axis(
-        mygrid[1,1],
+        fig[1,1],
         xlabel = "Customer density",
         xticks = density_range,
         ylabel = "Time horizon",
         yticks = TB_range,
+        aspect = 1.6,
     )
 
     CairoMakie.heatmap!(
@@ -158,9 +152,6 @@ begin
             fontsize = 22,
         )
     end
-    # Colorbar(mygrid[:,end+1], colorrange = (cmin, cmax), colormap = Makie.Reverse(:viridis))
-    # colgap!(mygrid, 20)
-    # rowgap!(mygrid, 10)
     display(fig)
 
     save("$(@__DIR__)/plots/optimal_heuristic_percent_gap_heatmap.pdf", fig)
@@ -175,19 +166,13 @@ begin
     (cmin, cmax) = round.(extrema(data), digits = 0)
 
     fig = CairoMakie.Figure(resolution = (600, 400), fontsize = 17)
-    mygrid = fig[1,1] = GridLayout()
-    fig[0,1] = CairoMakie.Label(
-        fig, 
-        "% reduction in cost: our method against business-as-usual", 
-        font = :bold, fontsize = 18
-    )
-
     ax = Axis(
-        mygrid[1,1],
+        fig[1,1],
         xlabel = "Customer density",
         xticks = density_range,
         ylabel = "Time horizon",
         yticks = TB_range,
+        aspect = 1.6,
     )
 
     CairoMakie.heatmap!(
@@ -210,9 +195,6 @@ begin
             fontsize = 22,
         )
     end
-    # Colorbar(mygrid[:,end+1], colorrange = (cmin, cmax), colormap = Makie.Reverse(:viridis))
-    # colgap!(mygrid, 20)
-    # rowgap!(mygrid, 10)
     display(fig)
 
     save("$(@__DIR__)/plots/optimal_IP_LP_percent_gap_heatmap.pdf", fig)
