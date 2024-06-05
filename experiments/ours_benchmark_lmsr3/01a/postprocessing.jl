@@ -115,6 +115,52 @@ leftjoin!(
     makeunique = true,
 )
 
+all_data = (
+    all_data
+    |> x -> rename(
+        x, 
+        :method => :algorithm_method,
+        :method_1 => :method,
+    )
+    |> x -> filter(
+        r -> r.sparse_graph,
+        x
+    )
+    |> x -> select(
+        x, 
+        :instance,
+        :iteration,
+        :n_customers,
+        :method,
+        :seed,
+        :CG_time_taken_cumsum => (x -> round.(x, digits = 3)) => :CG_time_taken_cumsum,
+        :CG_LP_IP_gap,
+        :CGLP_objective,
+        :CGIP_objective,
+    )
+    |> x -> sort(
+        x, 
+        [:instance, :iteration],
+    )
+)
+(
+    all_data 
+    |> x -> groupby(
+        x, 
+        [:n_customers, :seed]
+    )
+    |> x -> transform!(
+        x, 
+        :CGLP_objective => (x -> maximum(x)) => :best_LP_bound,
+    )
+    |> x -> transform!(
+        x,
+        [:CGLP_objective, :best_LP_bound] => ((x, y) -> x ./ y) => :CGLP_objective_scaled,
+        [:CGIP_objective, :best_LP_bound] => ((x, y) -> x ./ y) => :CGIP_objective_scaled,
+    )
+)
+CSV.write("$(@__DIR__)/all_results_filtered.csv", all_data)
+
 # Comparing benchmark IP solution vs our IP solution
 begin 
 f_results = (
@@ -248,6 +294,142 @@ for density in density_range, sparse_graph in [false, true]
     savefig(p, "$(@__DIR__)/plots/LP_IP_gap_time_taken_trajectories_$(density)_$(sparse_graph).png")
     savefig(p, "$(@__DIR__)/plots/LP_IP_gap_time_taken_trajectories_$(density)_$(sparse_graph).pdf")
 end
+end
+
+
+# Trajectory plots: normalized objective, averaged across each instance (with interpolation)
+begin
+    n_customers_range = sort(unique(all_data.n_customers))
+    for n_customers in n_customers_range
+        p = Plots.plot(
+            xlim = (0, 3600),
+            ylim = (0.8, 1.5),
+            xlabel = "Computational time (s)",
+            ylabel = "Objective (normalized)",
+        )
+        for seed in 1:20
+            d = (
+                all_data
+                |> x -> filter(
+                    r -> (r.n_customers == n_customers && r.seed == seed),
+                    x, 
+                )
+            )
+            d_b = filter(r -> r.method == "benchmark", d)
+            d_o = filter(r -> r.method == "ours", d)
+            Plots.plot!(
+                d_b.CG_time_taken_cumsum,
+                d_b.CGLP_objective_scaled,
+                color = "black", linestyle = :dash, alpha = 0.7,
+                label = false,
+            )
+            Plots.plot!(
+                d_b.CG_time_taken_cumsum,
+                d_b.CGIP_objective_scaled,
+                color = "black", alpha = 0.7,
+                label = (seed == 1 ? "Label-setting" : false), 
+            )
+            Plots.plot!(
+                d_o.CG_time_taken_cumsum,
+                d_o.CGLP_objective_scaled,
+                color = "royalblue3", linestyle = :dash, alpha = 0.7,
+                label = false,
+            )
+            Plots.plot!(
+                d_o.CG_time_taken_cumsum,
+                d_o.CGIP_objective_scaled,
+                color = "royalblue3", alpha = 0.7,
+                label = (seed == 1 ? "Two-level label-setting" : false),
+            )
+        end
+        savefig(p, "$(@__DIR__)/plots/trajectory_normalized_objective_time_taken_$n_customers.png")
+        savefig(p, "$(@__DIR__)/plots/trajectory_normalized_objective_time_taken_$n_customers.pdf")
+    end
+end
+
+using DataInterpolations
+# Trajectory plots: normalized objective, averaged across each instance (with interpolation)
+begin
+    n_customers_range = sort(unique(all_data.n_customers))
+    x_range = 0:0.1:3600
+    for n_customers in n_customers_range
+        b_lb_arrs = Vector{Float64}[]
+        b_ub_arrs = Vector{Float64}[]
+        o_lb_arrs = Vector{Float64}[]
+        o_ub_arrs = Vector{Float64}[]
+        b_d = (
+            all_data
+            |> x -> filter(
+                r -> (
+                    r.n_customers == n_customers
+                    && r.method == "benchmark"
+                ),
+                x
+            )
+        )
+        o_d = (
+            all_data
+            |> x -> filter(
+                r -> (
+                    r.n_customers == n_customers
+                    && r.method == "ours"
+                ),
+                x
+            )
+        )
+        for seed in 1:20
+            b_d_seed = filter(
+                r -> r.seed == seed,
+                b_d
+            )
+            b_x = vcat(b_d_seed.CG_time_taken_cumsum, [3600.0])
+            b_lb_y = vcat(b_d_seed.CGLP_objective_scaled, b_d_seed.CGLP_objective_scaled[end])
+            b_lb_interp = LinearInterpolation(b_lb_y, b_x)
+            b_ub_y = vcat(b_d_seed.CGIP_objective_scaled, b_d_seed.CGIP_objective_scaled[end])
+            b_ub_interp = LinearInterpolation(b_ub_y, b_x)
+            push!(b_lb_arrs, b_lb_interp(x_range))
+            push!(b_ub_arrs, b_ub_interp(x_range))
+            o_d_seed = filter(
+                r -> r.seed == seed,
+                o_d
+            )
+            o_x = vcat(o_d_seed.CG_time_taken_cumsum, [3600.0])
+            o_lb_y = vcat(o_d_seed.CGLP_objective_scaled, o_d_seed.CGLP_objective_scaled[end])
+            o_lb_interp = LinearInterpolation(o_lb_y, o_x)
+            o_ub_y = vcat(o_d_seed.CGIP_objective_scaled, o_d_seed.CGIP_objective_scaled[end])
+            o_ub_interp = LinearInterpolation(o_ub_y, o_x)
+            push!(o_lb_arrs, o_lb_interp(x_range))
+            push!(o_ub_arrs, o_ub_interp(x_range))
+        end
+        p = Plots.plot(
+            xlim = (0, 3600),
+            ylim = (0.8, 1.5),
+            xlabel = "Computational time (s)",
+            ylabel = "Objective (normalized)",
+        )
+        Plots.plot!(
+            x_range,
+            mean(b_lb_arrs),
+            color = "black", label = "Label-setting", linestyle = :dash,
+        )
+        Plots.plot!(
+            x_range,
+            mean(b_ub_arrs),
+            color = "black", label = false,
+        )
+        Plots.plot!(
+            x_range,
+            mean(o_lb_arrs),
+            color = "royalblue3", label = "Two-level label-setting", linestyle = :dash,
+        )
+        Plots.plot!(
+            x_range,
+            mean(o_ub_arrs),
+            color = "royalblue3", label = false,
+        )
+        savefig(p, "$(@__DIR__)/plots/trajectory_average_normalized_objective_time_taken_$n_customers.png")
+        savefig(p, "$(@__DIR__)/plots/trajectory_average_normalized_objective_time_taken_$n_customers.pdf")
+    end
 end
 
 summary_df = (
