@@ -125,7 +125,7 @@ summary_df = (
 (
     summary_df
     |> x -> filter!(
-        r -> !(r.n_customers in [70,80]),
+        r -> !(r.n_customers in [50, 60, 70, 80]),
         x
     )
 )
@@ -138,15 +138,16 @@ begin
     for sparse_graph in [false, true]
         time_taken_df = (
             summary_df
-            |> x -> filter(r -> r.sparse_graph, x)
+            |> x -> filter(r -> r.sparse_graph == sparse_graph, x)
             |> x -> select(x, :n_customers, :time_taken_first, :time_taken_total, :time_taken_total_SR3)
         )
         LP_IP_gap_df = (
             summary_df
-            |> x -> filter(r -> r.sparse_graph, x)
+            |> x -> filter(r -> r.sparse_graph == sparse_graph, x)
             |> x -> select(x, :n_customers, :LP_IP_gap_first, :LP_IP_gap_last, :LP_IP_gap_last_SR3)
         )
-        p1_ytickvalues = [1, 10, 100, 1000, 3600]
+        # p1_ytickvalues = [1, 10, 100, 1000, 3600]
+        p1_ytickvalues = [60, 300, 600, 1200, 1800, 3600]
         p1 = groupedbar(
             repeat(sizenames, outer = length(groupnames)),
             Matrix(time_taken_df[!, 2:end]),
@@ -154,17 +155,20 @@ begin
             barwidth = 0.75,
             framestyle = :box,
             xlabel = "# tasks",
-            yscale = :log10,
+            # yscale = :log10,
             ylabel = "Computational time (s)",
-            ylim = 10.0.^(-0.5, 4.0), 
+            # ylim = 10.0.^(-0.5, 4.0), 
+            ylim = (0, 4000),
             grid = :y,
-            legend = :bottomright,
+            # legend = :bottomright,
+            legend = :topleft,
         )
         Plots.yticks!(p1, p1_ytickvalues, string.(p1_ytickvalues))
         hline!([3600], linestyle = :dash, label = false, color = :black)
         savefig(p1, "$(@__DIR__)/plots/time_taken_groupedbar_$(sparse_graph).pdf")
         savefig(p1, "$(@__DIR__)/plots/time_taken_groupedbar_$(sparse_graph).png")
-        p2_ytickvalues = [0.1, 0.2, 0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 50.0, 100.0]
+        # p2_ytickvalues = [0.1, 0.2, 0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 50.0, 100.0]
+        p2_ytickvalues = [0.0, 1.0, 5.0, 10.0, 20.0, 30.0, 40.0]
         p2 = groupedbar(
             repeat(sizenames, outer = length(groupnames)),
             Matrix(LP_IP_gap_df[!, 2:end]),
@@ -172,11 +176,13 @@ begin
             barwidth = 0.75,
             framestyle = :box,
             xlabel = "# tasks",
-            yscale = :log10,
+            # yscale = :log10,
             ylabel = "Optimality gap (%)",
-            ylim = 10.0.^(-1.0, 2),
+            # ylim = 10.0.^(-1.0, 2),
+            ylim = (0, 40),
             grid = :y,
-            legend = :bottomright,
+            # legend = :bottomright,
+            legend = :topleft,
         )
         Plots.yticks!(p2, p2_ytickvalues, string.(p2_ytickvalues))
         savefig(p2, "$(@__DIR__)/plots/LP_IP_gap_groupedbar_$(sparse_graph).pdf")
