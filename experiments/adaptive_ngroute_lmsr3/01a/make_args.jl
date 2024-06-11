@@ -51,10 +51,10 @@ method_params = [
     # ngroute_neighborhood_charging_size
     # use_lmSR3_cuts
     # max_SR3_cuts
-    ("ours", "small", false, 10),
-    ("ours", "small", true, 10),
-    ("ours", "medium", false, 10),
-    ("ours", "medium", true, 10),
+    ("ours", "small", false, 5),
+    ("ours", "small", true, 5),
+    ("ours", "medium", false, 5),
+    ("ours", "medium", true, 5),
 ]
 
 args_df = DataFrame(
@@ -167,7 +167,7 @@ new_args_df = vcat(
 )
 CSV.write("$(@__DIR__)/args.csv", new_args_df)
 
-test_args_df = args_df |> 
+test_args_df = new_args_df |> 
     x -> filter(
         r -> (
             r.seed == 1

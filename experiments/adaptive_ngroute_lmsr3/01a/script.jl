@@ -84,7 +84,7 @@ function run_instance(
     )
     graph = generate_graph_from_data(data)
 
-    run = @timed @suppress path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
+    run = @timed path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
         data, graph,
         ;
         Env = GRB_ENV,
@@ -211,7 +211,7 @@ begin
     test_args_df = DataFrame(CSV.File("$(@__DIR__)/test_args.csv"))
     for i in 1:nrow(test_args_df)
         run_instance(
-            test_args_df, i, 3600.0,
+            test_args_df, i, 30.0,
             ;
             write_log = false,
             write_results = false,

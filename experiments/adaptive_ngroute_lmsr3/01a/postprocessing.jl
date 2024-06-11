@@ -32,6 +32,9 @@ begin
     args.index = collect(1:nrow(args))
     all_dfs = DataFrame[]
     for ind in 1:nrow(args)
+        if !isfile("$(@__DIR__)/results/$ind.csv")
+            continue
+        end
         data = CSV.read("$(@__DIR__)/results/$ind.csv", DataFrame)
         data.instance .= ind
         data.iteration .= collect(1:nrow(data))
@@ -123,11 +126,11 @@ summary = (
 )
 
 # Plotting: aggregate grouped bar plots with StatsPlots
-# For presentation
+# For presentation: SRI cuts
 begin
     T_range = 72000:9000:90000
     ngroute_neighborhood_charging_size_range = ["small", "medium"]
-    groupnames = ["CG", "CG + acceleration", "CG + acceleration + cuts"]
+    groupnames = ["CG", "CG + ng-relaxation", "CG + ng-relaxation + SRI cuts"]
     sizenames = string.(20:4:40)
     for T in T_range, ngroute_neighborhood_charging_size in ngroute_neighborhood_charging_size_range
         data_df = (
@@ -158,17 +161,17 @@ begin
             group = repeat(groupnames, inner = length(sizenames)),
             barwidth = 0.75,
             framestyle = :box,
-            xlabel = "# customers",
+            xlabel = "# tasks",
             yscale = :log10,
-            ylabel = "Time taken (s)",
+            ylabel = "Computational time (s)",
             ylim = 10.0.^(-0.5, 4.0), 
             grid = :y,
             legend = :bottomright,
         )
         yticks!(p1, p1_ytickvalues, string.(p1_ytickvalues))
         hline!([3600], linestyle = :dash, label = false, color = :black)
-        savefig(p1, "$(@__DIR__)/plots/time_taken_groupedbar_simple_$(T)_$ngroute_neighborhood_charging_size.pdf")
-        savefig(p1, "$(@__DIR__)/plots/time_taken_groupedbar_simple_$(T)_$ngroute_neighborhood_charging_size.png")
+        savefig(p1, "$(@__DIR__)/plots/time_taken_groupedbar_SRI_$(T)_$ngroute_neighborhood_charging_size.pdf")
+        savefig(p1, "$(@__DIR__)/plots/time_taken_groupedbar_SRI_$(T)_$ngroute_neighborhood_charging_size.png")
         p2_ytickvalues = [0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 50.0, 100.0]
         p2 = groupedbar(
             repeat(sizenames, outer = length(groupnames)),
@@ -176,7 +179,7 @@ begin
             group = repeat(groupnames, inner = length(sizenames)),
             barwidth = 0.75,
             framestyle = :box,
-            xlabel = "# customers",
+            xlabel = "# tasks",
             yscale = :log10,
             ylabel = "Optimality gap (%)",
             ylim = 10.0.^(-0.5, 2),
@@ -184,16 +187,84 @@ begin
             legend = :bottomright,
         )
         yticks!(p2, p2_ytickvalues, string.(p2_ytickvalues))
-        savefig(p2, "$(@__DIR__)/plots/LP_IP_gap_groupedbar_simple_$(T)_$ngroute_neighborhood_charging_size.pdf")
-        savefig(p2, "$(@__DIR__)/plots/LP_IP_gap_groupedbar_simple_$(T)_$ngroute_neighborhood_charging_size.png")
+        savefig(p2, "$(@__DIR__)/plots/LP_IP_gap_groupedbar_SRI_$(T)_$ngroute_neighborhood_charging_size.pdf")
+        savefig(p2, "$(@__DIR__)/plots/LP_IP_gap_groupedbar_SRI_$(T)_$ngroute_neighborhood_charging_size.png")
     end
 end
+
+# Plotting: aggregate grouped bar plots with StatsPlots
+# For presentation: lm-SRI cuts
+begin
+    T_range = 72000:9000:90000
+    ngroute_neighborhood_charging_size_range = ["small", "medium"]
+    groupnames = ["CG", "CG + ng-relaxation", "CG + ng-relaxation + lmSRI cuts"]
+    sizenames = string.(20:4:40)
+    for T in T_range, ngroute_neighborhood_charging_size in ngroute_neighborhood_charging_size_range
+        data_df = (
+            summary 
+            |> x -> filter(
+                r -> (
+                    r.T == T
+                    && r.ngroute_neighborhood_charging_size == ngroute_neighborhood_charging_size
+                ),
+                x
+            )
+        )
+        time_taken_df = (
+            data_df
+            |> x -> filter(r -> r.use_lmSR3_cuts, x) 
+            |> x -> select(x, :n_customers, :time_taken_first, :time_taken_total, :time_taken_total_SR3)
+        )
+        LP_IP_gap_df = (
+            data_df
+            |> x -> filter(r -> r.use_lmSR3_cuts, x) 
+            |> x -> select(x, :n_customers, :LP_IP_gap_first, :LP_IP_gap_last, :LP_IP_gap_last_SR3)
+        )
+
+        p1_ytickvalues = [1, 10, 100, 1000, 3600]
+        p1 = groupedbar(
+            repeat(sizenames, outer = length(groupnames)),
+            Matrix(time_taken_df[!, 2:end]),
+            group = repeat(groupnames, inner = length(sizenames)),
+            barwidth = 0.75,
+            framestyle = :box,
+            xlabel = "# tasks",
+            yscale = :log10,
+            ylabel = "Computational time (s)",
+            ylim = 10.0.^(-0.5, 4.0), 
+            grid = :y,
+            legend = :bottomright,
+        )
+        yticks!(p1, p1_ytickvalues, string.(p1_ytickvalues))
+        hline!([3600], linestyle = :dash, label = false, color = :black)
+        savefig(p1, "$(@__DIR__)/plots/time_taken_groupedbar_lmSRI_$(T)_$ngroute_neighborhood_charging_size.pdf")
+        savefig(p1, "$(@__DIR__)/plots/time_taken_groupedbar_lmSRI_$(T)_$ngroute_neighborhood_charging_size.png")
+        p2_ytickvalues = [0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 50.0, 100.0]
+        p2 = groupedbar(
+            repeat(sizenames, outer = length(groupnames)),
+            Matrix(LP_IP_gap_df[!, 2:end]),
+            group = repeat(groupnames, inner = length(sizenames)),
+            barwidth = 0.75,
+            framestyle = :box,
+            xlabel = "# tasks",
+            yscale = :log10,
+            ylabel = "Optimality gap (%)",
+            ylim = 10.0.^(-0.5, 2),
+            grid = :y,
+            legend = :bottomright,
+        )
+        yticks!(p2, p2_ytickvalues, string.(p2_ytickvalues))
+        savefig(p2, "$(@__DIR__)/plots/LP_IP_gap_groupedbar_lmSRI_$(T)_$ngroute_neighborhood_charging_size.pdf")
+        savefig(p2, "$(@__DIR__)/plots/LP_IP_gap_groupedbar_lmSRI_$(T)_$ngroute_neighborhood_charging_size.png")
+    end
+end
+
 
 # Plotting: aggregate grouped bar plots with StatsPlots
 begin
     T_range = 72000:9000:90000
     ngroute_neighborhood_charging_size_range = ["small", "medium"]
-    groupnames = ["CG", "CG + adaptive ng-route", "CG + adaptive ng-route + SR3 cuts", "CG + adaptive ng-route + lmSR3 cuts"]
+    groupnames = ["CG", "CG + ng-relaxation", "CG + ng-relaxation + SRI cuts", "CG + ng-relaxation + lmSRI cuts"]
     sizenames = string.(20:4:40)
     for T in T_range, ngroute_neighborhood_charging_size in ngroute_neighborhood_charging_size_range
         data_df = (
@@ -250,9 +321,9 @@ begin
             group = repeat(groupnames, inner = length(sizenames)),
             barwidth = 0.8,
             framestyle = :box,
-            xlabel = "# customers",
+            xlabel = "# tasks",
             yscale = :log10,
-            ylabel = "Time taken (s)",
+            ylabel = "Computational time (s)",
             ylim = 10.0.^(-0.5, 4.0), 
             grid = :y,
             legend = :bottomright,
@@ -268,7 +339,7 @@ begin
             group = repeat(groupnames, inner = length(sizenames)),
             barwidth = 0.8,
             framestyle = :box,
-            xlabel = "# customers",
+            xlabel = "# tasks",
             yscale = :log10,
             ylabel = "Optimality gap (%)",
             ylim = 10.0.^(-1, 2),
@@ -305,7 +376,7 @@ begin
         xtickvalues = [1, 10, 100, 1000, 3600]
         ytickvalues = [0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 50.0, 100.0]
         p = plot(
-            xlabel = "Time taken (s)", 
+            xlabel = "Computational time (s)", 
             ylabel = "Optimality gap (%)",
             xscale = :log10,
             yscale = :log10,
@@ -416,7 +487,7 @@ begin
     )[!, :index]
 
     plot(
-        xlabel = "Time taken (s)",
+        xlabel = "Computational time (s)",
         # xscale = :log10,
         ylabel = "Objective gap (%)",
         ylim = (-2.0, 50.0),
