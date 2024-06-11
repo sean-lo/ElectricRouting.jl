@@ -1169,9 +1169,9 @@ function add_SR3_constraints_to_path_model!(
 end
 
 function update_lmSR3_constraint_list!(
-    lmSR3_list::Vector{Tuple{Float64, NTuple{3, Int}, <:Tuple{Vararg{Int}}}},
-    implemented_lmSR3_list::Vector{Tuple{Float64, NTuple{3, Int}, <:Tuple{Vararg{Int}}}},
-)
+    lmSR3_list::Vector{Tuple{Float64, NTuple{3, Int}, T}},
+    implemented_lmSR3_list::Vector{Tuple{Float64, NTuple{3, Int}, T}},
+) where {T <: Tuple{Vararg{Int}}}
     lmSR3_list_todelete = Tuple{Float64, NTuple{3, Int}, Tuple{Vararg{Int}}}[]
     lmSR3_list_toadd = Tuple{Float64, NTuple{3, Int}, Tuple{Vararg{Int}}}[]
     for item in implemented_lmSR3_list
