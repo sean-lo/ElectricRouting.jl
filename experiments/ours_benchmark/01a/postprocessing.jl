@@ -333,7 +333,8 @@ begin
             TB_range_unfolded[mask],
             vec(data)[mask],
         )
-            textcolor = val > -50 ? :white : :black
+            # textcolor = val > -50 ? :white : :black
+            textcolor = :black
             text!(
                 ax, 
                 string(round(val, digits = 1)) * "%",
