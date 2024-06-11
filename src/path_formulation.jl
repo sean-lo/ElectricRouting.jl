@@ -1508,14 +1508,14 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
             add_message!(printlist, message, verbose)
         end
 
-        if CG_params["converged"]
-            CGLP_results["paths"] = collect_path_solution_support(
-                CGLP_results, some_paths, data, graph
-            )
-            CGIP_results["paths"] = collect_path_solution_support(
-                CGIP_results, some_paths, data, graph
-            )
-        end
+        # if CG_params["converged"]
+        CGLP_results["paths"] = collect_path_solution_support(
+            CGLP_results, some_paths, data, graph
+        )
+        CGIP_results["paths"] = collect_path_solution_support(
+            CGIP_results, some_paths, data, graph
+        )
+        # end
         
         iteration_params["CGLP_objective"] = CG_params["CGLP_objective"]
         iteration_params["CGIP_objective"] = CG_params["CGIP_objective"]
@@ -1546,9 +1546,9 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
                 continue_flag = true
                 iteration_params["method"] = "use_adaptive_ngroute"
                 iteration_params["cycles_lookup_length"] = length(cycles_lookup)
-                add_message!(printlist, "Expanded ng-route neighborhoods by $(length(cycles_lookup))\n", verbose)
-                add_message!(printlist, "\n", verbose)
             end
+            add_message!(printlist, "Expanded ng-route neighborhoods by $(length(cycles_lookup))\n", verbose)
+            add_message!(printlist, "\n", verbose)
         end
 
         if CG_params["converged"] && !continue_flag && !converged && ngroute && use_SR3_cuts
@@ -1662,14 +1662,23 @@ function collect_path_solution_support(
     ;
 )
     results_paths = Tuple{Float64, Path}[]
-    for key in keys(paths)
-        for p in 1:length(paths[key])
-            val = results["z"][key,p]
-            if val > 1e-5
-                push!(results_paths, (val, paths[key][p]))
+    for ((key, p), val) in pairs(results["z"])
+        if key in keys(paths)
+            if p <= length(paths[key])
+                if val > 1e-5
+                    push!(results_paths, (val, paths[key][p]))
+                end
             end
         end
     end
+    # for key in keys(paths)
+    #     for p in 1:length(paths[key])
+    #         val = results["z"][key,p]
+    #         if val > 1e-5
+    #             push!(results_paths, (val, paths[key][p]))
+    #         end
+    #     end
+    # end
 
     sort!(
         results_paths,
