@@ -1,3 +1,0 @@
-- Scalability experiments
-- using SR3 instead of lmSR3
-- moderate $n$
