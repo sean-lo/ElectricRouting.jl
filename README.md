@@ -1,8 +1,19 @@
 # Subpath-based Column Generation for the Electric Routing-Scheduling Problem (ERSP)
 
-This repository implements the algorithm and experiment suite for the paper: "Subpath-based Column Generation for the Electric Routing-Scheduling Problem" by Alexandre Jacquillat and Sean Lo.
+This repository implements the algorithm and experiment suite for the paper: "Subpath-based Column Generation for the Electric Routing-Scheduling Problem" by Alexandre Jacquillat and Sean Lo. The paper can be found [here](https://arxiv.org/abs/2407.02640).
 
-<!-- TODO: add citation -->
+Please cite this paper as:
+```
+@misc{jacquillat2024subpath,
+      title={Subpath-Based Column Generation for the Electric Routing-Scheduling Problem}, 
+      author={Alexandre Jacquillat and Sean Lo},
+      year={2024},
+      eprint={2407.02640},
+      archivePrefix={arXiv},
+      primaryClass={math.OC},
+      url={https://arxiv.org/abs/2407.02640}, 
+}
+```
 <!-- TODO: add links to paper -->
 
 ## Usage
