@@ -174,6 +174,9 @@ function compute_new_pure_path(
     )
 
     new_path.cost += modified_costs[current_node,next_node]
+    # Assume only homogenous charging costs for benchmark method
+    # Practically - these charging amounts are performed at previously visited CSes
+    new_path.cost += data.charge_cost_levelslist[1] * (excess + slack)
 
     return (true, new_path)
 end
