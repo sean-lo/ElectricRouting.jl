@@ -439,49 +439,55 @@ function add_paths_to_path_model!(
         end
         for p_new in generated_paths[state_pair]
             if state_pair in keys(some_paths)
-                add = !any(isequal(p_new, p) for p in some_paths[state_pair])
-            else
-                add = true
-            end
-            if add
-                count += 1
-                # 1: include in some_paths
-                push!(some_paths[state_pair], p_new)
-                # 2: add path cost
-                push!(
-                    path_costs[state_pair], 
-                    compute_path_cost(data, graph, p_new)
-                )
-                # 3: add path service
-                for i in 1:graph.n_customers
-                    push!(path_service[(state_pair, i)], p_new.served[i])
-                end
-                # 4: create variable
-                z[(state_pair, count)] = @variable(model, lower_bound = 0)
-                (state1, state2) = state_pair
-                # 5: modify constraints starting from depot, ending at depot
-                set_normalized_coefficient(model[:κ][state1[1]], z[state_pair,count], 1)
-                set_normalized_coefficient(model[:μ][state2[1]], z[state_pair,count], 1)
-                # 6: modify customer service constraints
-                for l in graph.N_customers
-                    set_normalized_coefficient(model[:ν][l], z[state_pair, count], p_new.served[l])
-                end
-                # 7: modify objective
-                set_objective_coefficient(model, z[state_pair, count], path_costs[state_pair][count])
-                # 8: add variable to violated SR3 constraints (if applicable)
-                if keytype(SR3_constraints) == NTuple{3, Int}
-                    for (SR3_key, SR3_con) in pairs(SR3_constraints)
-                        val = check_path_in_SR3_constraint(p_new, SR3_key)
-                        if val > 0
-                            set_normalized_coefficient(SR3_con, z[state_pair,count], val)
-                        end
+                for p in some_paths[state_pair]
+                    if isequal(p_new, p)
+                        throw(ErrorException("""
+                        Generated path already in `some_paths!`
+                        Generated path: $p_new
+                        `some_paths`: $(some_paths[state_pair])
+                        """))
+                        break
                     end
-                elseif keytype(SR3_constraints) == Tuple{NTuple{3, Int}, Tuple{Vararg{Int}}}
-                    for ((S, M), SR3_con) in pairs(SR3_constraints)
-                        val = compute_path_coefficient_in_lmSRnk_constraint(p_new, S, M, 2)
-                        if val > 0
-                            set_normalized_coefficient(SR3_con, z[state_pair,count], val)
-                        end
+                end
+            end
+
+            count += 1
+            # 1: include in some_paths
+            push!(some_paths[state_pair], p_new)
+            # 2: add path cost
+            push!(
+                path_costs[state_pair], 
+                compute_path_cost(data, graph, p_new)
+            )
+            # 3: add path service
+            for i in 1:graph.n_customers
+                push!(path_service[(state_pair, i)], p_new.served[i])
+            end
+            # 4: create variable
+            z[(state_pair, count)] = @variable(model, lower_bound = 0)
+            (state1, state2) = state_pair
+            # 5: modify constraints starting from depot, ending at depot
+            set_normalized_coefficient(model[:κ][state1[1]], z[state_pair,count], 1)
+            set_normalized_coefficient(model[:μ][state2[1]], z[state_pair,count], 1)
+            # 6: modify customer service constraints
+            for l in graph.N_customers
+                set_normalized_coefficient(model[:ν][l], z[state_pair, count], p_new.served[l])
+            end
+            # 7: modify objective
+            set_objective_coefficient(model, z[state_pair, count], path_costs[state_pair][count])
+            # 8: add variable to violated SR3 constraints (if applicable)
+            if keytype(SR3_constraints) == NTuple{3, Int}
+                for (SR3_key, SR3_con) in pairs(SR3_constraints)
+                    val = check_path_in_SR3_constraint(p_new, SR3_key)
+                    if val > 0
+                        set_normalized_coefficient(SR3_con, z[state_pair,count], val)
+                    end
+                end
+            elseif keytype(SR3_constraints) == Tuple{NTuple{3, Int}, Tuple{Vararg{Int}}}
+                for ((S, M), SR3_con) in pairs(SR3_constraints)
+                    val = compute_path_coefficient_in_lmSRnk_constraint(p_new, S, M, 2)
+                    if val > 0
+                        set_normalized_coefficient(SR3_con, z[state_pair,count], val)
                     end
                 end
             end
