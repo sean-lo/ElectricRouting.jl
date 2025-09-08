@@ -2309,7 +2309,7 @@ function get_negative_path_labels_from_path_labels(
     return PathLabel[
         path_label
         for path_label in unwrap_path_labels(path_labels)
-            if path_label.cost < -1e-6
+            if path_label.cost < -1e-4
     ]
 end
 

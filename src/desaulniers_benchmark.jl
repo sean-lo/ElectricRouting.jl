@@ -770,7 +770,7 @@ function get_negative_pure_path_labels_from_pure_path_labels(
     return PurePathLabel[
         pure_path_label
         for pure_path_label in unwrap_pure_path_labels(pure_path_labels)
-            if pure_path_label.cost < -1e-6
+            if pure_path_label.cost < -1e-4
     ]
 end
 
