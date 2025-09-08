@@ -545,6 +545,10 @@ function path_formulation_column_generation!(
     max_iters::Float64 = Inf,
 ) where {T}
 
+    if method == "benchmark" && charge_cost_heterogenous
+        throw(ErrorException("Benchmark method does not support heterogenous charging costs."))
+    end
+
     start_time = time()
     counter = 0
     converged = false
