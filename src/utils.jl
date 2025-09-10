@@ -655,9 +655,9 @@ function generate_instance(
     xmax::Float64,
     ymin::Float64,
     ymax::Float64,
-    T::Int,
+    T::Int, # Length of time horizon
     seed::Int,
-    B::Int,
+    B::Int, # Battery capacity
     inverse_refueling_rate::Float64, # Inverse refueling rate
     travel_cost_coeff::Int,
     charge_cost_coeff::Int,
@@ -1041,6 +1041,12 @@ function charge_to_specified_level(
     desired_end_charge::Int, 
     starting_time::Int, 
 )
+    """
+    For a given starting charge, desired end charge, and starting time,
+    compute the charged amount, end time, and end charge after charging.
+
+    Note: assumes that 1 unit of charge takes 1 unit of time.
+    """
     if desired_end_charge ≤ starting_charge
         return (0, starting_time, starting_charge)
     end
