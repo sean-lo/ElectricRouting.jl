@@ -58,9 +58,9 @@ function compute_new_subpath(
 )
 
     # time and charge feasibility
-    # if current_subpath.time_taken + graph.t[current_node, next_node] + graph.min_t[next_node] > graph.T
-    #     return (false, current_subpath)
-    # end 
+    if current_subpath.time_taken + graph.t[current_node, next_node] + graph.min_t[next_node] > graph.T
+        return (false, current_subpath)
+    end 
 
     if current_subpath.charge_taken + graph.q[current_node, next_node] + graph.min_q[next_node] > graph.B
         return (false, current_subpath)
