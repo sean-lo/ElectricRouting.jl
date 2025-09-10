@@ -700,7 +700,7 @@ function path_formulation_column_generation_nocharge!(
     converged = false
     local CGLP_results = Dict{String, Any}()
 
-    T_heuristic = Int(round(time_heuristic_slack * (graph.T + graph.B) * graph.μ / (1 + graph.μ)))
+    T_heuristic = Int(round(time_heuristic_slack * (graph.T + graph.B) * graph.inverse_refueling_rate / (1 + graph.inverse_refueling_rate)))
 
     CG_params = Dict{String, Any}()
     CG_params["number_of_paths"] = [sum(length(v) for v in values(some_paths))]
@@ -1479,7 +1479,7 @@ function path_formulation_decomposition_heuristic(
         end
 
         # filter all paths that are shorter than time_heuristic
-        T_heuristic = Int(round(time_heuristic_slack * (graph.T + graph.B) * graph.μ / (1 + graph.μ)))
+        T_heuristic = Int(round(time_heuristic_slack * (graph.T + graph.B) * graph.inverse_refueling_rate / (1 + graph.inverse_refueling_rate)))
         delete_paths_by_time_length_from_model!(
             model, z, 
             some_paths, path_costs, path_service,

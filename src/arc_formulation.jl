@@ -48,7 +48,7 @@ function arc_formulation(
     if with_charging
         q = graph.q
         B = graph.B
-        μ = graph.μ
+        μ = graph.inverse_refueling_rate
     end
 
     start_time = time()
@@ -428,7 +428,7 @@ function arc_results_printout(
                             results["b_end"][a[2],k],
                             results["l_leave"][a[2],k],
                             results["δ"][a[2],k],
-                            results["δ"][a[2],k] * graph.μ,
+                            results["δ"][a[2],k] * graph.inverse_refueling_rate,
                         )
                     )
                 else

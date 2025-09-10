@@ -172,7 +172,7 @@ struct EVRPData
     T::Int
     α::Vector{Int}
     β::Vector{Int}
-    μ::Int
+    inverse_refueling_rate::Float64
     B::Int
     travel_cost_coeff::Int
     charge_cost_coeffs::Dict{Int, Int}
@@ -200,7 +200,7 @@ struct EVRPGraph
     A::Set{Tuple{Int, Int}}
     T::Int
     B::Int
-    μ::Int
+    inverse_refueling_rate::Float64
     α::Vector{Int}
     β::Vector{Int}
     min_t::Vector{Int}
@@ -657,7 +657,7 @@ function generate_instance(
     T::Int,
     seed::Int,
     B::Int,
-    μ::Int,
+    inverse_refueling_rate::Float64, # Inverse refueling rate
     travel_cost_coeff::Int,
     charge_cost_coeff::Int,
     load_scale::Float64,
@@ -723,7 +723,7 @@ function generate_instance(
     # t = Int.(round.(100 .* distances)) # travel times are integer
     # q = Int.(round.(100 .* distances)) # charge costs are integer
     c = Int.(round.(distances .* 10000))
-    t = Int.(round.(distances .* 10000) .* μ)
+    t = Int.(round.(distances .* 10000) .* inverse_refueling_rate)
     q = Int.(round.(distances .* 10000))
     d = vcat(
         Int.(floor.(rand(Gamma(load_scale, load_shape), n_customers) ./ n_customers)),
@@ -812,10 +812,10 @@ function generate_instance(
         q,
         d,
         C,
-        T * μ,
-        α_charge * μ,
-        β_charge * μ,
-        μ,
+        T * inverse_refueling_rate,
+        α_charge * inverse_refueling_rate,
+        β_charge * inverse_refueling_rate,
+        inverse_refueling_rate,
         B,
         travel_cost_coeff,
         charge_cost_coeffs,
@@ -905,7 +905,7 @@ function generate_graph_from_data(
         A,
         data.T,
         data.B,
-        data.μ,
+        data.inverse_refueling_rate,
         copy(data.α), 
         copy(data.β),
         tc_depot,
@@ -970,7 +970,7 @@ function prune_graph(
         A,
         graph.T,
         graph.B,
-        graph.μ,
+        graph.inverse_refueling_rate,
         copy(graph.α), 
         copy(graph.β),
         t_ds.dists,
