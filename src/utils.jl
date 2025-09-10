@@ -162,7 +162,7 @@ struct EVRPData
     coords::Array{Float64, 2}
     distances::Array{Float64, 2}
     V::Dict{Int, Vector{Int}}
-    v_start::Vector{Int}
+    v_start::Dict{Int, Int}
     v_end::Dict{Int, Int}
     c::Array{Int, 2}
     t::Array{Int, 2}
@@ -715,9 +715,8 @@ function generate_instance(
 
     start_depots = StatsBase.sample(MersenneTwister(seeds[4]), N_depots, n_vehicles, replace = true)
     V = Dict(i => findall(x -> x==i, start_depots) for i in N_depots)
-    v_start = [length(V[i]) for i in N_depots]
-    v_end_vec = repeat([1], n_depots)
-    v_end  = Dict(i => v_end_vec[ind] for (ind, i) in enumerate(N_depots))
+    v_start = Dict(i => V[i] for i in N_depots)
+    v_end  = Dict(i => 1 for i in N_depots)
     
     # c = Int.(round.(100 .* distances))
     # t = Int.(round.(100 .* distances)) # travel times are integer

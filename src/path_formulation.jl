@@ -308,16 +308,16 @@ function path_formulation_build_model(
     )
     @constraint(
         model, 
-        κ[i in graph.N_depots],
+        κ[n1 in graph.N_depots],
         sum(
             sum(
-                z[((i,0,graph.B),state2),p]
-                for p in 1:length(some_paths[((i,0,graph.B),state2)])
+                z[(state1, state2),p]
+                for p in 1:length(some_paths[(state1, state2)])
             )
             for (state1, state2) in keys(some_paths)
-                if state1[1] == i && state1[2] == 0 && state1[3] == graph.B
+                if state1[1] == n1 && state1[2] == 0 && state1[3] == graph.B
         )
-        == data.v_start[findfirst(x -> (x == i), graph.N_depots)]
+        == data.v_start[n1]
     )
     @constraint(
         model,
