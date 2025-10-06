@@ -408,7 +408,7 @@ function compute_path_modified_cost(
         val * check_path_in_SR3_constraint(p, S)
         for (S, val) in pairs(λ)
     )
-    verbose && @printf("lm-SR3 costs: \t%11.3f\n", SR3_costs)
+    verbose && @printf("SR3 costs: \t\t%11.3f\n", SR3_costs)
     reduced_cost += SR3_costs
 
     charging_costs = length(p.charging_arcs) > 0 ? sum(compute_charging_arc_cost(a, data) for a in p.charging_arcs) : 0
