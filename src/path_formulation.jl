@@ -664,10 +664,10 @@ function path_formulation_column_generation!(
                 round(base_labels_time + full_labels_time, digits=3)
             )
         elseif method == "benchmark"
-            local negative_pure_path_labels  
-            local pure_path_labels_time
+            local negative_path_labels  
+            local path_labels_time
             try
-                (negative_pure_path_labels, _, pure_path_labels_time) = subproblem_iteration_benchmark(
+                (negative_path_labels, _, path_labels_time) = subproblem_iteration_benchmark(
                     data, graph, 
                     CGLP_results["κ"], 
                     CGLP_results["μ"], 
@@ -676,6 +676,7 @@ function path_formulation_column_generation!(
                     ;
                     load = use_load,
                     time_windows = time_windows,
+                    charge_cost_heterogenous = charge_cost_heterogenous,
                     neighborhoods = neighborhoods,
                     ngroute = ngroute,
                     elementary = elementary,
@@ -688,8 +689,8 @@ function path_formulation_column_generation!(
                     throw(e)
                 end
             end
-            generated_paths = get_paths_from_negative_pure_path_labels(
-                data, graph, negative_pure_path_labels,
+            generated_paths = get_paths_from_negative_path_labels(
+                data, graph, negative_path_labels,
             )
             push!(
                 CG_params["sp_base_time_taken"],
@@ -697,11 +698,11 @@ function path_formulation_column_generation!(
             )
             push!(
                 CG_params["sp_full_time_taken"],
-                round(pure_path_labels_time, digits=3)
+                round(path_labels_time, digits=3)
             )
             push!(
                 CG_params["sp_total_time_taken"],
-                round(pure_path_labels_time, digits=3)
+                round(path_labels_time, digits=3)
             )
         end
         

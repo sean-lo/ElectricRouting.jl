@@ -783,12 +783,17 @@ function subproblem_iteration_benchmark(
     λ::Dict{<:Tuple, Float64},
     ;
     load::Bool = false,
+    charge_cost_heterogenous::Bool = false,
     neighborhoods::Union{Nothing, BitMatrix} = nothing,
     ngroute::Bool = false,
     time_windows::Bool = false,
     elementary::Bool = true,
     time_limit::Float64 = Inf,
 )
+
+    if charge_cost_heterogenous
+        error("Heterogenous charging costs not supported in benchmark method")
+    end
     if load
         error("Load constraints not currently supported for this benchmark method")
     end
