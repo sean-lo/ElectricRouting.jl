@@ -11,6 +11,27 @@ using Plots
 using ColorSchemes
 
 abstract type Label end
+Base.copy(x::T) where T <: Label = T([deepcopy(getfield(x, k)) for k in fieldnames(T)]...)
+
+abstract type Config end
+abstract type Load <: Config end
+struct YesLoad <: Load end
+struct NoLoad <: Load end
+abstract type TimeWindows <: Config end
+struct YesTimeWindows <: TimeWindows end
+struct NoTimeWindows <: TimeWindows end 
+abstract type CustomerService <: Config end
+struct Elementary <: CustomerService end
+struct NoService <: CustomerService end
+struct NgRoute <: CustomerService end
+abstract type Cuts <: Config end
+struct NoCuts <: Cuts end
+struct SR3Cuts <: Cuts end
+struct LmSR3Cuts <: Cuts end
+abstract type ChargeCosts <: Config end
+struct HomCharge <: ChargeCosts end
+struct HetCharge <: ChargeCosts end
+
 
 Base.@kwdef mutable struct Subpath
     n_customers::Int
@@ -1147,6 +1168,40 @@ function compute_ngroute_neighborhoods(
     return neighborhoods
 end
 
+# v2
+function ngroute_update_fset!(
+    l::Label,
+    next_node::Int,
+    neighborhoods::BitMatrix,
+)
+    l.ng_fset .&= neighborhoods[:, next_node]
+    l.ng_fset[next_node] = true
+    return
+end
+
+# v2
+function ngroute_update_bset!(
+    l::Label,
+    next_node::Int,
+)
+    if l.ng_residue[next_node]
+        l.ng_bset[next_node] = true
+    end
+    return
+end
+
+# v2
+function ngroute_update_residue!(
+    l::Label,
+    next_node::Int,
+    neighborhoods::BitMatrix,
+)
+    l.ng_residue .&= neighborhoods[:, next_node]
+    return
+end
+
+
+# v1
 function ngroute_check_create_fset(
     neighborhoods::BitMatrix,
     fset::BitVector,
@@ -1163,6 +1218,7 @@ function ngroute_check_create_fset(
     return (true, new_fset)
 end
 
+# v1
 function ngroute_create_bset(
     next_node::Int,
     bset::BitVector,
@@ -1175,12 +1231,82 @@ function ngroute_create_bset(
     return new_bset
 end
 
+# v1
 function ngroute_create_residue(
     neighborhoods::BitMatrix,
     next_node::Int,
     residue::BitVector,
 )
     return residue .& neighborhoods[:, next_node]
+end
+
+# v2
+function SR3_update_cost!(
+    l::Label, # BPathLabel or SubpathLabel
+    next_node::Int,
+    λvals::Vector{Float64},
+    λcust::BitMatrix,
+)
+    l.cost -= sum(λvals[l.cut_flabels .& λcust[:, next_node]])
+    return
+end
+
+# v2
+function SR3_update_cut_flabels!(
+    l::Label,
+    next_node::Int,
+    λcust::BitMatrix,
+)
+    l.cut_flabels .⊻= λcust[:, next_node]
+    return
+end
+
+# v2
+function lmSR3_update_cost!(
+    l::Label,
+    next_node::Int,
+    λvals::Vector{Float64},
+    λcust::BitMatrix,
+    λmemory::BitMatrix,
+)
+    l.cost -= sum(λvals[(
+        l.cut_flabels
+        .& λmemory[:, next_node]
+        .& λcust[:, next_node]
+    )])
+    return
+end
+
+# v2
+function lmSR3_update_cut_flabels!(
+    l::Label,
+    next_node::Int,
+    λcust::BitMatrix,
+    λmemory::BitMatrix,
+)
+    l.cut_flabels .&= λmemory[:, next_node]
+    l.cut_flabels .⊻= λcust[:, next_node]
+    return
+end
+
+# v2
+function lmSR3_update_cut_blabels!(
+    l::Label,
+    next_node::Int,
+    λcust::BitMatrix,
+)
+    l.cut_blabels .⊻= (l.cut_mlabels .& λcust[:, next_node])
+    return
+end
+
+# v2
+function lmSR3_update_cut_mlabels!(
+    l::Label,
+    next_node::Int,
+    λmemory::BitMatrix,
+)
+    l.cut_mlabels .&= λmemory[:, next_node]
+    return
 end
 
 # v1

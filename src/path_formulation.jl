@@ -3,8 +3,8 @@ using Gurobi
 using Suppressor
 
 include("utils.jl")
-include("desaulniers_benchmark.jl")
-include("subpath_stitching.jl")
+# include("desaulniers_benchmark.jl")
+# include("subpath_stitching.jl")
 
 function generate_artificial_paths(
     data::EVRPData,
