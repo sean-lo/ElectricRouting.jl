@@ -1147,6 +1147,36 @@ function ngroute_create_residue(
     return residue .& neighborhoods[:, next_node]
 end
 
+# v1
+function compute_new_lambda_labels_cost(
+    next_node::Int,
+    current_λ_labels::BitVector,
+    λvals::Vector{Float64},
+    λcust::BitMatrix,
+)
+    # 1: create new λ_labels 
+    new_λ_labels = current_λ_labels .⊻ λcust[:, next_node]
+    # 2: modify cost of new_subpath
+    return (new_λ_labels, - sum(λvals[current_λ_labels .& λcust[:, next_node]]))
+end
+
+# v1
+function compute_lambda_flabels_cost_lmSR3(
+    next_node::Int,
+    current_λ_flabels::BitVector,
+    λvals::Vector{Float64},
+    λcust::BitMatrix,
+    λmemory::BitMatrix,
+)
+    # 1: create new λ_flabels 
+    λ_flabels = current_λ_flabels .& λmemory[:, next_node]
+    new_λ_flabels = λ_flabels .⊻ λcust[:, next_node]
+    # 2: modify cost of new_subpath
+    new_cost = - sum(λvals[λ_flabels .& λcust[:, next_node]])
+    return (new_λ_flabels, new_cost)
+end
+
+
 function compute_arc_modified_costs(
     graph::EVRPGraph,
     data::EVRPData,
@@ -1339,36 +1369,6 @@ function add_label_to_collection_lmSR3_subpath!(
         insert!(collection, k1, v1)
     end
     return added
-end
-
-
-
-function compute_new_lambda_labels_cost(
-    next_node::Int,
-    current_λ_labels::BitVector,
-    λvals::Vector{Float64},
-    λcust::BitMatrix,
-)
-    # 1: create new λ_labels 
-    new_λ_labels = current_λ_labels .⊻ λcust[:, next_node]
-    # 2: modify cost of new_subpath
-    return (new_λ_labels, - sum(λvals[current_λ_labels .& λcust[:, next_node]]))
-end
-
-
-function compute_lambda_flabels_cost_lmSR3(
-    next_node::Int,
-    current_λ_flabels::BitVector,
-    λvals::Vector{Float64},
-    λcust::BitMatrix,
-    λmemory::BitMatrix,
-)
-    # 1: create new λ_flabels 
-    λ_flabels = current_λ_flabels .& λmemory[:, next_node]
-    new_λ_flabels = λ_flabels .⊻ λcust[:, next_node]
-    # 2: modify cost of new_subpath
-    new_cost = - sum(λvals[λ_flabels .& λcust[:, next_node]])
-    return (new_λ_flabels, new_cost)
 end
 
 
