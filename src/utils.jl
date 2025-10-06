@@ -79,6 +79,32 @@ Base.@kwdef struct ChargingArc
     current_charge::Int = starting_charge
 end
 
+ChargingArc() = ChargingArc(0,0,0,0,0,0,0)
+ChargingArc(starting_node::Int, starting_time::Int, starting_charge::Int, charge_cost_coeff::Int) = ChargingArc(
+    starting_node,
+    starting_time,
+    starting_charge,
+    0,
+    charge_cost_coeff,
+    starting_time,
+    starting_charge,
+)
+ChargingArc(
+    starting_node::Int,
+    starting_time::Int,
+    starting_charge::Int,
+    delta::Int,
+    charge_cost_coeff::Int,
+) = ChargingArc(
+    starting_node,
+    starting_time,
+    starting_charge,
+    delta,
+    charge_cost_coeff,
+    starting_time + delta,
+    starting_charge + delta,
+)
+
 Base.isequal(a1::ChargingArc, a2::ChargingArc) = (
     a1.starting_node == a2.starting_node
     && a1.starting_time == a2.starting_time
