@@ -743,7 +743,7 @@ function generate_instance(
 
     start_depots = StatsBase.sample(MersenneTwister(seeds[4]), N_depots, n_vehicles, replace = true)
     V = Dict(i => findall(x -> x==i, start_depots) for i in N_depots)
-    v_start = Dict(i => V[i] for i in N_depots)
+    v_start = Dict(i => length(V[i]) for i in N_depots)
     v_end  = Dict(i => 1 for i in N_depots)
     
     # c = Int.(round.(100 .* distances))
