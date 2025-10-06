@@ -188,6 +188,7 @@ struct EVRPGraph
     t::Array{Int, 2}
     q::Array{Int, 2}
     d::Vector{Int}
+    C::Int
     N_customers::UnitRange{Int}
     n_customers::Int
     N_depots::UnitRange{Int}
@@ -893,6 +894,7 @@ function generate_graph_from_data(
         copy(data.t),
         copy(data.q),
         copy(data.d),
+        data.C,
         data.N_customers,
         data.n_customers,
         data.N_depots,
@@ -959,6 +961,7 @@ function prune_graph(
         copy(graph.t),
         copy(graph.q),
         copy(graph.d),
+        graph.C,
         graph.N_customers,
         graph.n_customers,
         graph.N_depots,
