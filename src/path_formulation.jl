@@ -984,7 +984,7 @@ function delete_paths_with_found_cycles_from_model!(
         # delete variables from model
         orig_inds = 1:length(some_paths[state_pair])
         for count in delete_inds
-            delete(model, z[(state_pair, count)])
+            JuMP.delete(model, z[(state_pair, count)])
             pop!(z, (state_pair, count))
         end
         # rename variable bindings in dictionary `z`
@@ -1230,7 +1230,7 @@ function add_lmSR3_constraints_to_path_model!(
 ) where {T <: Tuple{Vararg{Int}}}
     for item in lmSR3_list_todelete
         S, M = item[2], item[3]
-        delete(model, lmSR3_constraints[(S, M)])
+        JuMP.delete(model, lmSR3_constraints[(S, M)])
         pop!(lmSR3_constraints, (S, M))
     end
     for item in lmSR3_list_toadd

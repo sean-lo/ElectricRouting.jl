@@ -1043,7 +1043,7 @@ function delete_paths_by_time_length_from_model!(
         # delete variables from model
         orig_inds = 1:length(some_paths[state_pair])
         for count in delete_inds
-            delete(model, z[(state_pair, count)])
+            JuMP.delete(model, z[(state_pair, count)])
             pop!(z, (state_pair, count))
         end
         # rename variable bindings in dictionary `z`
