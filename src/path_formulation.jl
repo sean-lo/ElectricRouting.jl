@@ -55,6 +55,7 @@ function generate_artificial_paths(
             arcs = [(starting_node, current_node)],
             current_time = starting_time,
             current_charge = starting_charge,
+            load = 0,
             served = served,
             artificial = true,
         )
@@ -62,6 +63,7 @@ function generate_artificial_paths(
             subpaths = [s],
             charging_arcs = ChargingArc[],
             served = served,
+            load = 0,
             arcs = [(starting_node, current_node)],
             customer_arcs = NTuple{2, Int}[],
             artificial = true,
@@ -535,6 +537,7 @@ function path_formulation_column_generation!(
     printlist::Vector{String},
     ;
     method::String = "ours",
+    use_load::Bool = false,
     charge_cost_heterogenous::Bool = false,
     time_windows::Bool = false,
     elementary::Bool = true,
@@ -631,6 +634,7 @@ function path_formulation_column_generation!(
                     CGLP_results["ν"], 
                     CGLP_results["λ"], 
                     ;
+                    load = use_load,
                     charge_cost_heterogenous = charge_cost_heterogenous,
                     neighborhoods = neighborhoods,
                     ngroute = ngroute,
@@ -670,9 +674,10 @@ function path_formulation_column_generation!(
                     CGLP_results["ν"], 
                     CGLP_results["λ"], 
                     ;
-                    neighborhoods = neighborhoods, 
-                    ngroute = ngroute, 
+                    load = use_load,
                     time_windows = time_windows,
+                    neighborhoods = neighborhoods,
+                    ngroute = ngroute,
                     elementary = elementary,
                     time_limit = time_limit - (time() - start_time),
                 )
@@ -1295,20 +1300,21 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
     method::String = "ours",
     charge_cost_heterogenous::Bool = false,
     time_windows::Bool = false,
+    use_load::Bool = false,
     elementary::Bool = false,
     ngroute::Bool = true,
     neighborhoods::Union{Nothing, BitMatrix} = nothing,
     ngroute_neighborhood_size::Int = Int(ceil(sqrt(graph.n_customers))),
     ngroute_neighborhood_depots_size::String = "small",
     ngroute_neighborhood_charging_size::String = "small",
-    verbose::Bool = true,
-    time_limit::Float64 = Inf,
-    max_iters::Float64 = Inf,
     use_adaptive_ngroute::Bool = true,
     use_SR3_cuts::Bool = true,
     use_lmSR3_cuts::Bool = true,
     max_SR3_cuts::Int = 5, 
     randomize_cuts::Bool = false,
+    verbose::Bool = true,
+    time_limit::Float64 = Inf,
+    max_iters::Float64 = Inf,
 )
     start_time = time()
 
@@ -1344,6 +1350,7 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
             # charging stations:            %3d
             # vehicles:                     %3d
             time windows?:                  %s
+            load?:                          %s
             heterogenous charging costs?:   %s
             charge_cost_nlevels:            %3d
 
@@ -1354,6 +1361,7 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
             graph.n_charging,
             data.n_vehicles,
             time_windows,
+            use_load,
             charge_cost_heterogenous,
             data.charge_cost_nlevels,
             method,
@@ -1475,6 +1483,7 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
             printlist,
             ;
             method = method,
+            use_load = use_load,
             charge_cost_heterogenous = charge_cost_heterogenous,
             time_windows = time_windows,
             elementary = elementary,

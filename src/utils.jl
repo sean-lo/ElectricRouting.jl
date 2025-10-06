@@ -21,6 +21,7 @@ Base.@kwdef mutable struct Subpath
     arcs::Vector{NTuple{2, Int}} = NTuple{2, Int}[]
     current_time::Int = starting_time
     current_charge::Int = starting_charge
+    load::Int = 0
     served::Vector{Int} = zeros(Int, n_customers)
     artificial::Bool = false
 end
@@ -34,6 +35,7 @@ Base.copy(s::Subpath) = Subpath(
     arcs = copy(s.arcs),
     current_time = s.current_time,
     current_charge = s.current_charge,
+    load = s.load,
     served = copy(s.served),
     artificial = s.artificial,
 )
@@ -50,6 +52,7 @@ Base.show(io::IO, s::Subpath) = begin
     ($(s.starting_node), $(s.starting_time), $(s.starting_charge)) -> ($(s.current_node), $(s.current_time), $(s.current_charge))
     arcs:           $(s.arcs)
     served:         $(s.served)
+    load:           $(s.load)
     """
     print(io, message)
 end
@@ -64,6 +67,7 @@ Base.isequal(s1::Subpath, s2::Subpath) = begin
         && s1.arcs == s2.arcs
         && s1.current_time == s2.current_time
         && s1.current_charge == s2.current_charge
+        && s1.load == s2.load
         && s1.served == s2.served
         && s1.artificial == s2.artificial
     )
@@ -129,6 +133,7 @@ Base.@kwdef mutable struct Path
     subpaths::Vector{Subpath}
     charging_arcs::Vector{ChargingArc}
     served::Vector{Int} = sum(s.served for s in subpaths)
+    load::Int = sum(s.load for s in subpaths)
     arcs::Vector{NTuple{2, Int}} = vcat([s.arcs for s in subpaths]...)
     customer_arcs::Vector{NTuple{2, Int}} = NTuple{2, Int}[]
     artificial::Bool = false
@@ -138,6 +143,7 @@ Base.isequal(p1::Path, p2::Path) = (
     all(isequal(s1, s2) for (s1, s2) in zip(p1.subpaths, p2.subpaths))
     && all(isequal(a1, a2) for (a1, a2) in zip(p1.charging_arcs, p2.charging_arcs))
     && p1.served == p2.served
+    && p1.load == p2.load
     && p1.arcs == p2.arcs
     && p1.customer_arcs == p2.customer_arcs
     && p1.artificial == p2.artificial
@@ -147,6 +153,7 @@ Base.copy(p::Path) = Path(
     subpaths = [copy(s) for s in p.subpaths],
     charging_arcs = [copy(a) for a in p.charging_arcs],
     served = copy(p.served),
+    load = copy(p.load),
     arcs = copy(p.arcs),
     customer_arcs = copy(p.customer_arcs),
     artificial = p.artificial,

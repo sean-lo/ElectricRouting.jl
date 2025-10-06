@@ -780,14 +780,18 @@ function subproblem_iteration_benchmark(
     κ::Dict{Int, Float64},
     μ::Dict{Int, Float64},
     ν::Vector{Float64}, 
-    λ::Dict{T, Float64},
+    λ::Dict{<:Tuple, Float64},
     ;
+    load::Bool = false,
     neighborhoods::Union{Nothing, BitMatrix} = nothing,
     ngroute::Bool = false,
     time_windows::Bool = false,
     elementary::Bool = true,
     time_limit::Float64 = Inf,
-) where {T}
+)
+    if load
+        error("Load constraints not currently supported for this benchmark method")
+    end
     start_time = time()
     if time_windows
         α = graph.α
