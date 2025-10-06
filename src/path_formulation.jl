@@ -3,6 +3,7 @@ using Gurobi
 using Suppressor
 
 include("utils.jl")
+include("heuristics.jl")
 # include("desaulniers_benchmark.jl")
 # include("subpath_stitching.jl")
 
@@ -1149,6 +1150,7 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
     charge_cost_heterogenous::Bool = false,
     time_windows::Bool = false,
     use_load::Bool = false,
+    use_heuristic::Bool = false,
     elementary::Bool = false,
     ngroute::Bool = true,
     neighborhoods::Union{Nothing, BitMatrix} = nothing,
@@ -1175,16 +1177,6 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
         )
     end
 
-    artificial_paths = generate_artificial_paths(data, graph)
-    some_paths = deepcopy(artificial_paths)
-    path_costs = compute_path_costs(
-        data, graph, 
-        some_paths,
-    )
-    path_service = compute_path_service(
-        graph,
-        some_paths,
-    )
 
     printlist = String[]
 
@@ -1276,6 +1268,42 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
     for message in start_printlist
         add_message!(printlist, message, verbose)
     end
+
+    if use_heuristic
+        if time_windows
+            error("Heuristic path generation not implemented for time windows.")
+        end
+        heuristic_paths_r = @timed compute_heuristic_paths_notimewindows(data, graph; use_load = use_load)
+        heuristic_paths = heuristic_paths_r.value
+        if length(heuristic_paths) != 0
+            add_message!(
+                printlist, 
+                @sprintf("Generated initial paths with heuristic in %9.3f s.\n", heuristic_paths_r.time),
+                verbose,
+            )
+            artificial_paths = Dict{NTuple{2, NTuple{3, Int}}, Vector{Path}}()
+            some_paths = deepcopy(heuristic_paths)
+        else
+            add_message!(
+                printlist,
+                @sprintf("Heuristic failed in %9.3f s, defaulting to artificial paths.\n", heuristic_paths_r.time),
+                verbose,
+            )
+            artificial_paths = generate_artificial_paths(data, graph)
+            some_paths = deepcopy(artificial_paths)
+        end
+    else
+        artificial_paths = generate_artificial_paths(data, graph)
+        some_paths = deepcopy(artificial_paths)
+    end
+    path_costs = compute_path_costs(
+        data, graph, 
+        some_paths,
+    )
+    path_service = compute_path_service(
+        graph,
+        some_paths,
+    )
 
     add_message!(
         printlist,
