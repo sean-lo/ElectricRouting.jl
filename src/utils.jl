@@ -18,7 +18,7 @@ Base.@kwdef mutable struct Subpath
     starting_time::Int
     starting_charge::Int
     current_node::Int = starting_node
-    arcs::Vector{NTuple{2, Int}} = []
+    arcs::Vector{NTuple{2, Int}} = NTuple{2, Int}[]
     current_time::Int = starting_time
     current_charge::Int = starting_charge
     served::Vector{Int} = zeros(Int, n_customers)
