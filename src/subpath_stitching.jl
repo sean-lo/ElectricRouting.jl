@@ -315,17 +315,13 @@ function generate_base_labels_ngroute(
                 current_node, next_node, modified_costs,
             )
             !feasible && continue
-            if starting_node in graph.N_depots
-                new_ng_resources = [new_fset; current_residue; current_bset]
-            else
-                new_residue = ngroute_create_residue(
-                    neighborhoods, next_node, current_residue,
-                )
-                new_bset = ngroute_create_bset(
-                    next_node, current_bset, current_residue,
-                )
-                new_ng_resources = [new_fset; new_residue; new_bset]
-            end
+            new_residue = ngroute_create_residue(
+                neighborhoods, next_node, current_residue,
+            )
+            new_bset = ngroute_create_bset(
+                next_node, current_bset, current_residue,
+            )
+            new_ng_resources = [new_fset; new_residue; new_bset]
             
             new_key = (
                 new_subpath.cost,
