@@ -347,18 +347,13 @@ function generate_base_labels_ngroute(
         end
     end
 
+    # Remove empty subpaths
     for node in graph.N_depots_charging
-        # Π: Forward NG-set
-        fset = falses(graph.n_nodes)
-        fset[node] = true
-        # Ω: Nodes that if in the previous forward NG-set, stay in the next forward NG-set
-        residue = copy(neighborhoods[:, node])
-        # Φ: Backward NG-set
-        bset = falses(graph.n_nodes)
-        bset[node] = true
-        ng_resources = [fset; residue; bset]
-        key = (0.0, 0, 0, ng_resources,)
-        pop!(base_labels[(node, node)], key)
+        for (k, s) in pairs(base_labels[(node, node)])
+            if length(s.nodes) == 1
+                pop!(base_labels[(node, node)], k)
+            end
+        end
     end
 
     for starting_node in graph.N_depots
