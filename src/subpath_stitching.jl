@@ -2434,3 +2434,70 @@ function subproblem_iteration_ours(
     negative_full_labels_count = length(negative_full_labels)
     return (negative_full_labels, negative_full_labels_count, base_labels_time, full_labels_time)
 end
+
+function convert_path_label_to_path(
+    path_label::PathLabel,
+    data::EVRPData,
+    graph::EVRPGraph,
+    ;
+    use_load::Bool = false,
+)
+    current_time, current_charge = (0, graph.B)
+    prev_time, prev_charge = current_time, current_charge
+    s_labels = copy(path_label.subpath_labels)
+    deltas = copy(path_label.charging_actions)
+    p = Path(
+        subpaths = Subpath[],
+        charging_arcs = ChargingArc[],
+        served = zeros(Int, graph.n_customers),
+        load = 0,
+        arcs = NTuple{2, Int}[],
+        customer_arcs = NTuple{2, Int}[],
+    )
+    while true
+        s_label = popfirst!(s_labels)
+        prev_time = current_time
+        prev_charge = current_charge
+        current_node = s_label.nodes[end]
+        current_time = current_time + s_label.time_taken
+        current_charge = current_charge - s_label.charge_taken
+        served = [count(x -> x == i, s_label.nodes[2:end-1]) for i in 1:graph.n_customers]
+        s = Subpath(
+            n_customers = graph.n_customers,
+            starting_node = s_label.nodes[1],
+            starting_time = prev_time,
+            starting_charge = prev_charge,
+            current_node = current_node,
+            arcs = collect(zip(s_label.nodes[1:end-1], s_label.nodes[2:end])),
+            current_time = current_time,
+            current_charge = current_charge,
+            load = (use_load ? s_label.load : 0),
+            served = served,
+        )
+        push!(p.subpaths, s)
+        if length(deltas) == 0 
+            break
+        end
+        delta = popfirst!(deltas)
+        prev_time = current_time
+        prev_charge = current_charge
+        current_time = current_time + delta
+        current_charge = current_charge + delta
+        a = ChargingArc(
+            starting_node = current_node, 
+            starting_time = prev_time, 
+            starting_charge = prev_charge, 
+            delta = delta,
+            charge_cost_coeff = data.charge_cost_coeffs[current_node],
+            current_time = current_time, 
+            current_charge = current_charge,
+        )
+        push!(p.charging_arcs, a)
+    end
+    p.served = sum(s.served for s in p.subpaths)
+    p.load = sum(s.load for s in p.subpaths)
+    p.arcs = vcat([s.arcs for s in p.subpaths]...)
+    customers = [a[1] for a in p.arcs if a[1] in graph.N_customers]
+    p.customer_arcs = collect(zip(customers[1:end-1], customers[2:end]))
+    return p
+end

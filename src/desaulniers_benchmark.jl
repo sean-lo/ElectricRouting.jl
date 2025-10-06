@@ -844,3 +844,88 @@ function subproblem_iteration_benchmark(
     return (negative_pure_path_labels, negative_pure_path_labels_count, pure_path_labels_time)
 end
 
+
+function convert_path_label_to_path(
+    path_label::PurePathLabel,
+    data::EVRPData,
+    graph::EVRPGraph,
+    ;
+    use_load::Bool = false,
+)
+    p = Path(
+        subpaths = Subpath[],
+        charging_arcs = ChargingArc[],
+        served = zeros(Int, graph.n_customers),
+        load = 0,
+        arcs = NTuple{2, Int}[],
+        customer_arcs = NTuple{2, Int}[],
+    )
+    states = NTuple{3, Int}[]
+    current_subpath = Subpath(
+        n_customers = graph.n_customers,
+        starting_node = path_label.nodes[1],
+        starting_time = 0, 
+        starting_charge = graph.B,
+    )
+    i = path_label.nodes[1]
+    for (j, e, s) in zip(path_label.nodes[2:end], path_label.excesses, path_label.slacks)
+        current_subpath.current_node = j
+        push!(current_subpath.arcs, (i, j))
+        current_subpath.starting_time += (e + s)
+        current_subpath.starting_charge += (e + s) 
+        current_subpath.current_time += (graph.t[i,j] + e + s)
+        current_subpath.current_charge += (- graph.q[i,j] + e + s)
+        if use_load
+            current_subpath.load += graph.d[j]
+        end
+        if j in graph.N_charging
+            push!(
+                states, 
+                (current_subpath.starting_node, current_subpath.starting_time, current_subpath.starting_charge), 
+                (current_subpath.current_node, current_subpath.current_time, current_subpath.current_charge), 
+            )
+            push!(
+                p.subpaths,
+                current_subpath,
+            )
+            current_subpath = Subpath(
+                n_customers = graph.n_customers,
+                starting_node = j,
+                starting_time = current_subpath.current_time, 
+                starting_charge = current_subpath.current_charge,
+            )
+        elseif j in graph.N_customers
+            current_subpath.served[j] += 1
+        end
+        i = j
+    end
+    push!(
+        states, 
+        (current_subpath.starting_node, current_subpath.starting_time, current_subpath.starting_charge), 
+        (current_subpath.current_node, current_subpath.current_time, current_subpath.current_charge), 
+    )
+    push!(
+        p.subpaths,
+        current_subpath,
+    )
+    for i in 1:(length(states)÷2)-1
+        push!(
+            p.charging_arcs, 
+            ChargingArc(
+                states[2*i][1],
+                states[2*i][2],
+                states[2*i][3],
+                states[2*i+1][2] - states[2*i][2],
+                data.charge_cost_coeffs[states[2*i][1]],
+                states[2*i+1][2],
+                states[2*i+1][3],
+            )
+        )
+    end
+    p.served = sum(s.served for s in p.subpaths)
+    p.load = sum(s.load for s in p.subpaths)
+    p.arcs = vcat([s.arcs for s in p.subpaths]...)
+    customers = [a[1] for a in p.arcs if a[1] in graph.N_customers]
+    p.customer_arcs = collect(zip(customers[1:end-1], customers[2:end]))
+    return p
+end
