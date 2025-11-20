@@ -6,77 +6,208 @@ abstract type SubpathLabel <: Label end
 
 function get_subpath_vkey_type(
     use_load::Load,
+    use_time_windows::TimeWindows,
     customer_service::CustomerService,
     cuts::Cuts,
 )
-    if use_load isa YesLoad
+    """
+    (
+        cost::Float64,
+        if (
+            customer_service isa NgRoute
+            && cuts isa SR3Cuts
+        )
+            cut_flabels::BitVector (n_cuts,)
+        elseif (
+            customer_service isa NgRoute
+            && cuts isa LmSR3Cuts
+        )
+            cut_flabels::BitVector (n_cuts,)
+            cut_blabels::BitVector (n_cuts,)
+            cut_mlabels::BitVector (n_cuts,)
+        end
+        if use_time_windows isa YesTimeWindows
+            time_end_earliest::Int,
+            time_start_latest::Int,
+            max(time_end_earliest - time_start_latest, time_taken)::Int,
+        else
+            time_taken::Int,
+        end
+        charge::Int,
+        if use_load isa YesLoad
+            load::Int,
+        end
         if customer_service isa Elementary
-            return Tuple{
-                Float64, 
-                Int, Int, Int,
-                BitVector,
-            }
-        elseif customer_service isa NoService
-            return Tuple{
-                Float64, 
-                Int, Int, Int,
-            }
+            served::BitVector (n_customers,)
         elseif customer_service isa NgRoute
-            if cuts isa NoCuts
+            ng_fset::BitVector (n_nodes,)
+            ng_residue::BitVector (n_nodes,)
+            ng_bset::BitVector (n_nodes,)
+        end
+    )
+    """
+    if use_load isa YesLoad
+        if use_time_windows isa YesTimeWindows
+            if customer_service isa Elementary
                 return Tuple{
                     Float64, 
                     Int, Int, Int, 
-                    BitVector, BitVector, BitVector,
-                }
-            elseif cuts isa SR3Cuts
-                return Tuple{
-                    Float64, 
+                    Int, Int, 
                     BitVector,
-                    Int, Int, Int, 
-                    BitVector, BitVector, BitVector, 
                 }
-            elseif cuts isa LmSR3Cuts
+            elseif customer_service isa NoService
                 return Tuple{
                     Float64, 
-                    BitVector, BitVector, BitVector,
                     Int, Int, Int, 
-                    BitVector, BitVector, BitVector, 
+                    Int, Int, 
                 }
+            elseif customer_service isa NgRoute
+                if cuts isa NoCuts
+                    return Tuple{
+                        Float64,     
+                        Int, Int, Int, 
+                        Int, Int, 
+                        BitVector, BitVector, BitVector,
+                    }
+                elseif cuts isa SR3Cuts
+                    return Tuple{
+                        Float64, 
+                        BitVector,
+                        Int, Int, Int, 
+                        Int, Int, 
+                        BitVector, BitVector, BitVector, 
+                    }
+                elseif cuts isa LmSR3Cuts
+                    return Tuple{
+                        Float64, 
+                        BitVector, BitVector, BitVector,
+                        Int, Int, Int, 
+                        Int, Int, 
+                        BitVector, BitVector, BitVector, 
+                    }
+                end
+            end
+        elseif use_time_windows isa NoTimeWindows
+            if customer_service isa Elementary
+                return Tuple{
+                    Float64, 
+                    Int, 
+                    Int, Int,
+                    BitVector,
+                }
+            elseif customer_service isa NoService
+                return Tuple{
+                    Float64, 
+                    Int, 
+                    Int, Int,
+                }
+            elseif customer_service isa NgRoute
+                if cuts isa NoCuts
+                    return Tuple{
+                        Float64, 
+                        Int, 
+                        Int, Int, 
+                        BitVector, BitVector, BitVector,
+                    }
+                elseif cuts isa SR3Cuts
+                    return Tuple{
+                        Float64, 
+                        BitVector,
+                        Int, 
+                        Int, Int, 
+                        BitVector, BitVector, BitVector, 
+                    }
+                elseif cuts isa LmSR3Cuts
+                    return Tuple{
+                        Float64, 
+                        BitVector, BitVector, BitVector,
+                        Int, 
+                        Int, Int, 
+                        BitVector, BitVector, BitVector, 
+                    }
+                end
             end
         end
     elseif use_load isa NoLoad
-        if customer_service isa Elementary
-            return Tuple{
-                Float64, 
-                Int, Int,
-                BitVector,
-            }
-        elseif customer_service isa NoService
-            return Tuple{
-                Float64, 
-                Int, Int,
-            }
-        elseif customer_service isa NgRoute
-            if cuts isa NoCuts
+        if use_time_windows isa YesTimeWindows
+            if customer_service isa Elementary
                 return Tuple{
                     Float64, 
-                    Int, Int, 
-                    BitVector, BitVector, BitVector,
-                }
-            elseif cuts isa SR3Cuts
-                return Tuple{
-                    Float64, 
+                    Int, Int, Int,
+                    Int,
                     BitVector,
-                    Int, Int, 
-                    BitVector, BitVector, BitVector, 
                 }
-            elseif cuts isa LmSR3Cuts
+            elseif customer_service isa NoService
                 return Tuple{
                     Float64, 
-                    BitVector, BitVector, BitVector,
-                    Int, Int, 
-                    BitVector, BitVector, BitVector, 
+                    Int, Int, Int,
+                    Int,
                 }
+            elseif customer_service isa NgRoute
+                if cuts isa NoCuts
+                    return Tuple{
+                        Float64, 
+                        Int, Int, Int,
+                        Int,
+                        BitVector, BitVector, BitVector,
+                    }
+                elseif cuts isa SR3Cuts
+                    return Tuple{
+                        Float64, 
+                        BitVector,
+                        Int, Int, Int,
+                        Int,
+                        BitVector, BitVector, BitVector, 
+                    }
+                elseif cuts isa LmSR3Cuts
+                    return Tuple{
+                        Float64, 
+                        BitVector, BitVector, BitVector,
+                        Int, Int, Int,
+                        Int,
+                        BitVector, BitVector, BitVector, 
+                    }
+                end
+            end
+        elseif use_time_windows isa NoTimeWindows
+            if customer_service isa Elementary
+                return Tuple{
+                    Float64, 
+                    Int, 
+                    Int,
+                    BitVector,
+                }
+            elseif customer_service isa NoService
+                return Tuple{
+                    Float64, 
+                    Int, 
+                    Int,
+                }
+            elseif customer_service isa NgRoute
+                if cuts isa NoCuts
+                    return Tuple{
+                        Float64, 
+                        Int, 
+                        Int, 
+                        BitVector, BitVector, BitVector,
+                    }
+                elseif cuts isa SR3Cuts
+                    return Tuple{
+                        Float64, 
+                        BitVector,
+                        Int, 
+                        Int, 
+                        BitVector, BitVector, BitVector, 
+                    }
+                elseif cuts isa LmSR3Cuts
+                    return Tuple{
+                        Float64, 
+                        BitVector, BitVector, BitVector,
+                        Int, 
+                        Int, 
+                        BitVector, BitVector, BitVector, 
+                    }
+                end
             end
         end
     end
@@ -84,90 +215,20 @@ end
 
 function get_subpath_vkey_fkey_type(
     use_load::Load,
+    use_time_windows::TimeWindows,
     customer_service::CustomerService,
     cuts::Cuts,
 )
-    if use_load isa YesLoad
-        if customer_service isa Elementary
-            return Tuple{
-                Float64, 
-                Int, Int, Int,
-                BitVector,
-                Int, Int,
-            }
-        elseif customer_service isa NoService
-            return Tuple{
-                Float64, 
-                Int, Int, Int,
-                Int, Int,
-            }
-        elseif customer_service isa NgRoute
-            if cuts isa NoCuts
-                return Tuple{
-                    Float64, 
-                    Int, Int, Int, 
-                    BitVector, BitVector, BitVector,
-                    Int, Int,
-                }
-            elseif cuts isa SR3Cuts
-                return Tuple{
-                    Float64, 
-                    BitVector,
-                    Int, Int, Int, 
-                    BitVector, BitVector, BitVector, 
-                    Int, Int,
-                }
-            elseif cuts isa LmSR3Cuts
-                return Tuple{
-                    Float64, 
-                    BitVector, BitVector, BitVector,
-                    Int, Int, Int, 
-                    BitVector, BitVector, BitVector, 
-                    Int, Int,
-                }
-            end
-        end
-    elseif use_load isa NoLoad
-        if customer_service isa Elementary
-            return Tuple{
-                Float64, 
-                Int, Int,
-                BitVector,
-                Int, Int,
-            }
-        elseif customer_service isa NoService
-            return Tuple{
-                Float64, 
-                Int, Int,
-                Int, Int,
-            }
-        elseif customer_service isa NgRoute
-            if cuts isa NoCuts
-                return Tuple{
-                    Float64, 
-                    Int, Int, 
-                    BitVector, BitVector, BitVector,
-                    Int, Int,
-                }
-            elseif cuts isa SR3Cuts
-                return Tuple{
-                    Float64,
-                    BitVector,
-                    Int, Int, 
-                    BitVector, BitVector, BitVector, 
-                    Int, Int,
-                }
-            elseif cuts isa LmSR3Cuts
-                return Tuple{
-                    Float64, 
-                    BitVector, BitVector, BitVector,
-                    Int, Int, 
-                    BitVector, BitVector, BitVector, 
-                    Int, Int,
-                }
-            end
-        end
-    end
+    return Tuple{
+        get_subpath_vkey_type(
+            use_load, 
+            use_time_windows,
+            customer_service,
+            cuts,
+        ).parameters...,
+        # starting_node, current_node,
+        Int, Int,
+    }
 end
 
 function get_path_vkey_type(
@@ -176,6 +237,30 @@ function get_path_vkey_type(
     customer_service::CustomerService,
     cuts::Cuts,
 )
+    """
+    (
+        cost::Float64,
+        if (
+            customer_service isa NgRoute
+            && (cuts isa SR3Cuts || cuts isa LmSR3Cuts)
+        )
+            cut_flabels::BitVector (n_cuts,)
+        end
+        time::Int,
+        charge::Int,
+        if use_load isa YesLoad
+            load::Int,
+        end
+        if charge_costs isa HetCharge
+            charge_rebalance_slacks::Vector{Int} (charge_cost_nlevels - 1,)
+        end
+        if customer_service isa Elementary
+            served::BitVector (n_customers,)
+        elseif customer_service isa NgRoute
+            ng_fset::BitVector (n_nodes,)
+        end
+    )
+    """
     if use_load isa YesLoad
         if charge_costs isa HomCharge
             if customer_service isa Elementary
@@ -309,179 +394,143 @@ function get_path_vkey_fkey_type(
     customer_service::CustomerService,
     cuts::Cuts,
 )
-    """
-    (
-        cost::Float64,
-        if (
-            customer_service isa NgRoute
-            && (cuts isa SR3Cuts || cuts isa LmSR3Cuts)
-        )
-            cut_flabels::BitVector (n_cuts,)
-        end
-        time::Int,
-        charge::Int,
-        if use_load isa YesLoad
-            load::Int,
-        end
-        if charge_costs isa HetCharge
-            charge_rebalance_slacks::Vector{Int} (charge_cost_nlevels - 1,)
-        end
-        if customer_service isa Elementary
-            served::BitVector (n_customers,)
-        elseif customer_service isa NgRoute
-            ng_fset::BitVector (n_nodes,)
-        end
-        starting_node::Int,
-        current_node::Int,
-    )
-    """
-
-    if use_load isa YesLoad
-        if charge_costs isa HomCharge
-            if customer_service isa Elementary
-                return Tuple{
-                    Float64, 
-                    Int, Int, Int,
-                    BitVector,
-                    Int, Int,
-                }
-            elseif customer_service isa NoService
-                return Tuple{
-                    Float64, 
-                    Int, Int, Int,
-                    Int, Int,
-                }
-            elseif customer_service isa NgRoute
-                if cuts isa NoCuts
-                    return Tuple{
-                        Float64, 
-                        Int, Int, Int, 
-                        BitVector, 
-                        Int, Int,
-                    }
-                elseif cuts isa SR3Cuts || cuts isa LmSR3Cuts
-                    return Tuple{
-                        Float64, 
-                        BitVector,
-                        Int, Int, Int, 
-                        BitVector, 
-                        Int, Int,
-                    }
-                end
-            end
-        elseif charge_costs isa HetCharge
-            if customer_service isa Elementary
-                return Tuple{
-                    Float64, 
-                    Int, Int, Int,
-                    Vector{Int},
-                    BitVector,
-                    Int, Int,
-                }
-            elseif customer_service isa NoService
-                return Tuple{
-                    Float64, 
-                    Int, Int, Int,
-                    Vector{Int},
-                    Int, Int,
-                }
-            elseif customer_service isa NgRoute
-                if cuts isa NoCuts
-                    return Tuple{
-                        Float64, 
-                        Int, Int, Int, 
-                        Vector{Int},
-                        BitVector, 
-                        Int, Int,
-                    }
-                elseif cuts isa SR3Cuts || cuts isa LmSR3Cuts
-                    return Tuple{
-                        Float64, 
-                        BitVector, 
-                        Int, Int, Int, 
-                        Vector{Int},
-                        BitVector, 
-                        Int, Int,
-                    }
-                end
-            end
-        end
-    elseif use_load isa NoLoad
-        if charge_costs isa HomCharge
-            if customer_service isa Elementary
-                return Tuple{
-                    Float64, 
-                    Int, Int,
-                    BitVector,
-                    Int, Int,
-                }
-            elseif customer_service isa NoService
-                return Tuple{
-                    Float64, 
-                    Int, Int,
-                    Int, Int,
-                }
-            elseif customer_service isa NgRoute
-                if cuts isa NoCuts
-                    return Tuple{
-                        Float64, 
-                        Int, Int, 
-                        BitVector, 
-                        Int, Int,
-                    }
-                elseif cuts isa SR3Cuts || cuts isa LmSR3Cuts
-                    return Tuple{
-                        Float64, 
-                        BitVector,
-                        Int, Int, 
-                        BitVector, 
-                        Int, Int,
-                    }
-                end
-            end
-        elseif charge_costs isa HetCharge
-            if customer_service isa Elementary
-                return Tuple{
-                    Float64, 
-                    Int, Int,
-                    Vector{Int},
-                    BitVector,
-                    Int, Int,
-                }
-            elseif customer_service isa NoService
-                return Tuple{
-                    Float64, 
-                    Int, Int,
-                    Vector{Int},
-                    Int, Int,
-                }
-            elseif customer_service isa NgRoute
-                if cuts isa NoCuts
-                    return Tuple{
-                        Float64, 
-                        Int, Int, 
-                        Vector{Int},
-                        BitVector, 
-                        Int, Int,
-                    }
-                elseif cuts isa SR3Cuts || cuts isa LmSR3Cuts
-                    return Tuple{
-                        Float64, 
-                        BitVector, 
-                        Int, Int, 
-                        Vector{Int},
-                        BitVector, 
-                        Int, Int,
-                    }
-                end
-            end
-        end
-    end
+    return Tuple{
+        get_path_vkey_type(
+            use_load, 
+            charge_costs,
+            customer_service,
+            cuts,
+        ).parameters...,
+        # starting_node, current_node,
+        Int, Int,
+    }
 end
 
 abstract type YesLoadSubpathLabel <: SubpathLabel end
+abstract type YesLoadYesTimeWindowsSubpathLabel <: YesLoadSubpathLabel end
 
-mutable struct YesLoadElementarySubpathLabel <: SubpathLabel
+mutable struct YesLoadYesTimeWindowsElementarySubpathLabel <: SubpathLabel
+    cost::Float64
+    time_taken::Int
+    time_end_earliest::Int
+    time_start_latest::Int
+    charge_taken::Int
+    load::Int
+    nodes::Vector{Int}
+    served::BitVector
+end
+get_vkey(s::YesLoadYesTimeWindowsElementarySubpathLabel) = (
+    s.cost,
+    s.time_end_earliest,
+    - s.time_start_latest,
+    max(s.time_end_earliest - s.time_start_latest, s.time_taken),
+    s.charge_taken,
+    s.load,
+    s.served,
+)
+mutable struct YesLoadYesTimeWindowsNoServiceSubpathLabel <: SubpathLabel
+    cost::Float64
+    time_taken::Int
+    time_end_earliest::Int
+    time_start_latest::Int
+    charge_taken::Int
+    load::Int
+    nodes::Vector{Int}
+end
+get_vkey(s::YesLoadYesTimeWindowsNoServiceSubpathLabel) = (
+    s.cost,
+    s.time_end_earliest,
+    - s.time_start_latest,
+    max(s.time_end_earliest - s.time_start_latest, s.time_taken),
+    s.charge_taken,
+    s.load,
+)
+
+abstract type YesLoadYesTimeWindowsNgRouteSubpathLabel <: YesLoadYesTimeWindowsSubpathLabel end
+
+mutable struct YesLoadYesTimeWindowsNgRouteNoCutsSubpathLabel <: YesLoadYesTimeWindowsNgRouteSubpathLabel
+    cost::Float64
+    time_taken::Int
+    time_end_earliest::Int
+    time_start_latest::Int
+    charge_taken::Int
+    load::Int
+    nodes::Vector{Int}
+    ng_fset::BitVector
+    ng_residue::BitVector
+    ng_bset::BitVector
+end
+get_vkey(s::YesLoadYesTimeWindowsNgRouteNoCutsSubpathLabel) = (
+    s.cost,
+    s.time_end_earliest,
+    - s.time_start_latest,
+    max(s.time_end_earliest - s.time_start_latest, s.time_taken),
+    s.charge_taken,
+    s.load,
+    s.ng_fset,
+    s.ng_residue,
+    s.ng_bset,
+)
+
+mutable struct YesLoadYesTimeWindowsNgRouteSR3CutsSubpathLabel <: YesLoadYesTimeWindowsNgRouteSubpathLabel
+    cost::Float64
+    time_taken::Int
+    time_end_earliest::Int
+    time_start_latest::Int
+    charge_taken::Int
+    load::Int
+    nodes::Vector{Int}
+    ng_fset::BitVector
+    ng_residue::BitVector
+    ng_bset::BitVector
+    cut_flabels::BitVector
+end
+get_vkey(s::YesLoadYesTimeWindowsNgRouteSR3CutsSubpathLabel) = (
+    s.cost,
+    s.cut_flabels,
+    s.time_end_earliest,
+    - s.time_start_latest,
+    max(s.time_end_earliest - s.time_start_latest, s.time_taken),
+    s.charge_taken,
+    s.load,
+    s.ng_fset,
+    s.ng_residue,
+    s.ng_bset,
+)
+
+mutable struct YesLoadYesTimeWindowsNgRouteLmSR3CutsSubpathLabel <: YesLoadYesTimeWindowsNgRouteSubpathLabel
+    cost::Float64
+    time_taken::Int
+    time_end_earliest::Int
+    time_start_latest::Int
+    charge_taken::Int
+    load::Int
+    nodes::Vector{Int}
+    ng_fset::BitVector
+    ng_residue::BitVector
+    ng_bset::BitVector
+    cut_flabels::BitVector
+    cut_blabels::BitVector
+    cut_mlabels::BitVector
+end
+get_vkey(s::YesLoadYesTimeWindowsNgRouteLmSR3CutsSubpathLabel) = (
+    s.cost,
+    s.cut_flabels,
+    s.cut_blabels,
+    s.cut_mlabels,
+    s.time_end_earliest,
+    - s.time_start_latest,
+    max(s.time_end_earliest - s.time_start_latest, s.time_taken),
+    s.charge_taken,
+    s.load,
+    s.ng_fset,
+    s.ng_residue,
+    s.ng_bset,
+)
+
+
+abstract type YesLoadNoTimeWindowsSubpathLabel <: YesLoadSubpathLabel end
+mutable struct YesLoadNoTimeWindowsElementarySubpathLabel <: YesLoadNoTimeWindowsSubpathLabel
     cost::Float64
     time_taken::Int
     charge_taken::Int
@@ -489,30 +538,30 @@ mutable struct YesLoadElementarySubpathLabel <: SubpathLabel
     nodes::Vector{Int}
     served::BitVector
 end
-get_vkey(s::YesLoadElementarySubpathLabel) = (
+get_vkey(s::YesLoadNoTimeWindowsElementarySubpathLabel) = (
     s.cost,
     s.time_taken,
     s.charge_taken,
     s.load,
     s.served,
 )
-mutable struct YesLoadNoServiceSubpathLabel <: SubpathLabel
+mutable struct YesLoadNoTimeWindowsNoServiceSubpathLabel <: YesLoadNoTimeWindowsSubpathLabel
     cost::Float64
     time_taken::Int
     charge_taken::Int
     load::Int
     nodes::Vector{Int}
 end
-get_vkey(s::YesLoadNoServiceSubpathLabel) = (
+get_vkey(s::YesLoadNoTimeWindowsNoServiceSubpathLabel) = (
     s.cost,
     s.time_taken,
     s.charge_taken,
     s.load,
 )
 
-abstract type YesLoadNgRouteSubpathLabel <: YesLoadSubpathLabel end
+abstract type YesLoadNoTimeWindowsNgRouteSubpathLabel <: YesLoadNoTimeWindowsSubpathLabel end
 
-mutable struct YesLoadNgRouteNoCutsSubpathLabel <: YesLoadNgRouteSubpathLabel
+mutable struct YesLoadNoTimeWindowsNgRouteNoCutsSubpathLabel <: YesLoadNoTimeWindowsNgRouteSubpathLabel
     cost::Float64
     time_taken::Int
     charge_taken::Int
@@ -522,7 +571,7 @@ mutable struct YesLoadNgRouteNoCutsSubpathLabel <: YesLoadNgRouteSubpathLabel
     ng_residue::BitVector
     ng_bset::BitVector
 end
-get_vkey(s::YesLoadNgRouteNoCutsSubpathLabel) = (
+get_vkey(s::YesLoadNoTimeWindowsNgRouteNoCutsSubpathLabel) = (
     s.cost,
     s.time_taken,
     s.charge_taken,
@@ -532,7 +581,7 @@ get_vkey(s::YesLoadNgRouteNoCutsSubpathLabel) = (
     s.ng_bset,
 )
 
-mutable struct YesLoadNgRouteSR3CutsSubpathLabel <: YesLoadNgRouteSubpathLabel
+mutable struct YesLoadNoTimeWindowsNgRouteSR3CutsSubpathLabel <: YesLoadNoTimeWindowsNgRouteSubpathLabel
     cost::Float64
     time_taken::Int
     charge_taken::Int
@@ -543,7 +592,7 @@ mutable struct YesLoadNgRouteSR3CutsSubpathLabel <: YesLoadNgRouteSubpathLabel
     ng_bset::BitVector
     cut_flabels::BitVector
 end
-get_vkey(s::YesLoadNgRouteSR3CutsSubpathLabel) = (
+get_vkey(s::YesLoadNoTimeWindowsNgRouteSR3CutsSubpathLabel) = (
     s.cost,
     s.cut_flabels,
     s.time_taken,
@@ -554,7 +603,7 @@ get_vkey(s::YesLoadNgRouteSR3CutsSubpathLabel) = (
     s.ng_bset,
 )
 
-mutable struct YesLoadNgRouteLmSR3CutsSubpathLabel <: YesLoadNgRouteSubpathLabel
+mutable struct YesLoadNoTimeWindowsNgRouteLmSR3CutsSubpathLabel <: YesLoadNoTimeWindowsNgRouteSubpathLabel
     cost::Float64
     time_taken::Int
     charge_taken::Int
@@ -567,7 +616,7 @@ mutable struct YesLoadNgRouteLmSR3CutsSubpathLabel <: YesLoadNgRouteSubpathLabel
     cut_blabels::BitVector
     cut_mlabels::BitVector
 end
-get_vkey(s::YesLoadNgRouteLmSR3CutsSubpathLabel) = (
+get_vkey(s::YesLoadNoTimeWindowsNgRouteLmSR3CutsSubpathLabel) = (
     s.cost,
     s.cut_flabels,
     s.cut_blabels,
@@ -582,34 +631,147 @@ get_vkey(s::YesLoadNgRouteLmSR3CutsSubpathLabel) = (
 
 abstract type NoLoadSubpathLabel <: SubpathLabel end
 
-mutable struct NoLoadElementarySubpathLabel <: NoLoadSubpathLabel
+abstract type NoLoadYesTimeWindowsSubpathLabel <: NoLoadSubpathLabel end
+mutable struct NoLoadYesTimeWindowsElementarySubpathLabel <: NoLoadYesTimeWindowsSubpathLabel
+    cost::Float64
+    time_taken::Int
+    time_end_earliest::Int
+    time_start_latest::Int
+    charge_taken::Int
+    nodes::Vector{Int}
+    served::BitVector
+end
+get_vkey(s::NoLoadYesTimeWindowsElementarySubpathLabel) = (
+    s.cost,
+    s.time_end_earliest,
+    - s.time_start_latest,
+    max(s.time_end_earliest - s.time_start_latest, s.time_taken),
+    s.charge_taken,
+    s.served,
+)
+mutable struct NoLoadYesTimeWindowsNoServiceSubpathLabel <: NoLoadYesTimeWindowsSubpathLabel
+    cost::Float64
+    time_taken::Int
+    time_end_earliest::Int
+    time_start_latest::Int
+    charge_taken::Int
+    nodes::Vector{Int}
+end
+get_vkey(s::NoLoadYesTimeWindowsNoServiceSubpathLabel) = (
+    s.cost,
+    s.time_end_earliest,
+    - s.time_start_latest,
+    max(s.time_end_earliest - s.time_start_latest, s.time_taken),
+    s.charge_taken,
+)
+
+abstract type NoLoadYesTimeWindowsNgRouteSubpathLabel <: NoLoadYesTimeWindowsSubpathLabel end
+
+mutable struct NoLoadYesTimeWindowsNgRouteNoCutsSubpathLabel <: NoLoadYesTimeWindowsNgRouteSubpathLabel
+    cost::Float64
+    time_taken::Int
+    time_end_earliest::Int
+    time_start_latest::Int
+    charge_taken::Int
+    nodes::Vector{Int}
+    ng_fset::BitVector
+    ng_residue::BitVector
+    ng_bset::BitVector
+end
+get_vkey(s::NoLoadYesTimeWindowsNgRouteNoCutsSubpathLabel) = (
+    s.cost,
+    s.time_end_earliest,
+    - s.time_start_latest,
+    max(s.time_end_earliest - s.time_start_latest, s.time_taken),
+    s.charge_taken,
+    s.ng_fset,
+    s.ng_residue,
+    s.ng_bset,
+)
+
+mutable struct NoLoadYesTimeWindowsNgRouteSR3CutsSubpathLabel <: NoLoadYesTimeWindowsNgRouteSubpathLabel
+    cost::Float64
+    time_taken::Int
+    time_end_earliest::Int
+    time_start_latest::Int
+    charge_taken::Int
+    nodes::Vector{Int}
+    ng_fset::BitVector
+    ng_residue::BitVector
+    ng_bset::BitVector
+    cut_flabels::BitVector
+end
+get_vkey(s::NoLoadYesTimeWindowsNgRouteSR3CutsSubpathLabel) = (
+    s.cost,
+    s.cut_flabels,
+    s.time_end_earliest,
+    - s.time_start_latest,
+    max(s.time_end_earliest - s.time_start_latest, s.time_taken),
+    s.charge_taken,
+    s.ng_fset,
+    s.ng_residue,
+    s.ng_bset,
+)
+
+mutable struct NoLoadYesTimeWindowsNgRouteLmSR3CutsSubpathLabel <: NoLoadYesTimeWindowsNgRouteSubpathLabel
+    cost::Float64
+    time_taken::Int
+    time_end_earliest::Int
+    time_start_latest::Int
+    charge_taken::Int
+    nodes::Vector{Int}
+    ng_fset::BitVector
+    ng_residue::BitVector
+    ng_bset::BitVector
+    cut_flabels::BitVector
+    cut_blabels::BitVector
+    cut_mlabels::BitVector
+end
+get_vkey(s::NoLoadYesTimeWindowsNgRouteLmSR3CutsSubpathLabel) = (
+    s.cost,
+    s.cut_flabels,
+    s.cut_blabels,
+    s.cut_mlabels,
+    s.time_end_earliest,
+    - s.time_start_latest,
+    max(s.time_end_earliest - s.time_start_latest, s.time_taken),
+    s.charge_taken,
+    s.ng_fset,
+    s.ng_residue,
+    s.ng_bset,
+)
+
+
+abstract type NoLoadNoTimeWindowsSubpathLabel <: NoLoadSubpathLabel end
+
+mutable struct NoLoadNoTimeWindowsElementarySubpathLabel <: NoLoadNoTimeWindowsSubpathLabel
     cost::Float64
     time_taken::Int
     charge_taken::Int
     nodes::Vector{Int}
     served::BitVector
 end
-get_vkey(s::NoLoadElementarySubpathLabel) = (
+get_vkey(s::NoLoadNoTimeWindowsElementarySubpathLabel) = (
     s.cost,
     s.time_taken,
     s.charge_taken,
     s.served,
 )
-mutable struct NoLoadNoServiceSubpathLabel <: NoLoadSubpathLabel
+mutable struct NoLoadNoTimeWindowsNoServiceSubpathLabel <: NoLoadNoTimeWindowsSubpathLabel
     cost::Float64
     time_taken::Int
     charge_taken::Int
     nodes::Vector{Int}
 end
-get_vkey(s::NoLoadNoServiceSubpathLabel) = (
+get_vkey(s::NoLoadNoTimeWindowsNoServiceSubpathLabel) = (
     s.cost,
     s.time_taken,
     s.charge_taken,
 )
 
-abstract type NoLoadNgRouteSubpathLabel <: NoLoadSubpathLabel end
+abstract type NoLoadNoTimeWindowsNgRouteSubpathLabel <: NoLoadNoTimeWindowsSubpathLabel end
 
-mutable struct NoLoadNgRouteNoCutsSubpathLabel <: NoLoadNgRouteSubpathLabel
+mutable struct NoLoadNoTimeWindowsNgRouteNoCutsSubpathLabel <: NoLoadNoTimeWindowsNgRouteSubpathLabel
     cost::Float64
     time_taken::Int
     charge_taken::Int
@@ -618,7 +780,7 @@ mutable struct NoLoadNgRouteNoCutsSubpathLabel <: NoLoadNgRouteSubpathLabel
     ng_residue::BitVector
     ng_bset::BitVector
 end
-get_vkey(s::NoLoadNgRouteNoCutsSubpathLabel) = (
+get_vkey(s::NoLoadNoTimeWindowsNgRouteNoCutsSubpathLabel) = (
     s.cost,
     s.time_taken,
     s.charge_taken,
@@ -627,7 +789,7 @@ get_vkey(s::NoLoadNgRouteNoCutsSubpathLabel) = (
     s.ng_bset,
 )
 
-mutable struct NoLoadNgRouteSR3CutsSubpathLabel <: NoLoadNgRouteSubpathLabel
+mutable struct NoLoadNoTimeWindowsNgRouteSR3CutsSubpathLabel <: NoLoadNoTimeWindowsNgRouteSubpathLabel
     cost::Float64
     time_taken::Int
     charge_taken::Int
@@ -637,7 +799,7 @@ mutable struct NoLoadNgRouteSR3CutsSubpathLabel <: NoLoadNgRouteSubpathLabel
     ng_bset::BitVector
     cut_flabels::BitVector
 end
-get_vkey(s::NoLoadNgRouteSR3CutsSubpathLabel) = (
+get_vkey(s::NoLoadNoTimeWindowsNgRouteSR3CutsSubpathLabel) = (
     s.cost,
     s.cut_flabels,
     s.time_taken,
@@ -647,7 +809,7 @@ get_vkey(s::NoLoadNgRouteSR3CutsSubpathLabel) = (
     s.ng_bset,
 )
 
-mutable struct NoLoadNgRouteLmSR3CutsSubpathLabel <: NoLoadNgRouteSubpathLabel
+mutable struct NoLoadNoTimeWindowsNgRouteLmSR3CutsSubpathLabel <: NoLoadNoTimeWindowsNgRouteSubpathLabel
     cost::Float64
     time_taken::Int
     charge_taken::Int
@@ -659,7 +821,7 @@ mutable struct NoLoadNgRouteLmSR3CutsSubpathLabel <: NoLoadNgRouteSubpathLabel
     cut_blabels::BitVector
     cut_mlabels::BitVector
 end
-get_vkey(s::NoLoadNgRouteLmSR3CutsSubpathLabel) = (
+get_vkey(s::NoLoadNoTimeWindowsNgRouteLmSR3CutsSubpathLabel) = (
     s.cost,
     s.cut_flabels,
     s.cut_blabels,
@@ -674,6 +836,7 @@ get_vkey(s::NoLoadNgRouteLmSR3CutsSubpathLabel) = (
 
 function get_subpath_label_type(
     use_load::Load,
+    use_time_windows::TimeWindows,
     customer_service::CustomerService,
     cuts::Cuts,
 )
@@ -1087,6 +1250,7 @@ get_vkey(p::NoLoadHetChargeNgRouteLmSR3CutsPPathLabel) = (
 
 function get_path_label_type(
     use_load::Load,
+    use_time_windows::TimeWindows,
     charge_costs::ChargeCosts,
     customer_service::CustomerService,
     cuts::Cuts,
@@ -1155,13 +1319,9 @@ function get_path_label_type(
 end
 
 
-
-
-
-
-
 function create_new_subpath_label(
     use_load::Load,
+    use_time_windows::TimeWindows,
     customer_service::CustomerService,
     cuts::Cuts,
     starting_node::Int,
@@ -1261,6 +1421,7 @@ end
 
 function create_empty_path_label(
     use_load::Load,
+    use_time_windows::TimeWindows,
     charge_costs::ChargeCosts,
     customer_service::CustomerService,
     cuts::Cuts,
@@ -1273,6 +1434,7 @@ function create_empty_path_label(
 )
     s = create_new_subpath_label(
         use_load,
+        use_time_windows,
         customer_service,
         cuts,
         depot,
@@ -1353,6 +1515,7 @@ function compute_new_subpath(
     current_node::Int,
     next_node::Int,
     use_load::Load,
+    use_time_windows::TimeWindows,
     customer_service::CustomerService,
     cuts::Cuts,
     ;
@@ -1429,6 +1592,7 @@ function generate_subpath_labels(
     μ::Dict{Int, Float64},
     ν::Vector{Float64}, 
     use_load::Load,
+    use_time_windows::TimeWindows,
     customer_service::CustomerService,
     cuts::Cuts,
     ;
@@ -1466,6 +1630,7 @@ function generate_subpath_labels(
     for starting_node in graph.N_depots_charging
         s = create_new_subpath_label(
             use_load,
+            use_time_windows,
             customer_service,
             cuts,
             starting_node,
@@ -1502,6 +1667,7 @@ function generate_subpath_labels(
                 current_node,
                 next_node, 
                 use_load,
+                use_time_windows,
                 customer_service,
                 cuts,
                 ;
@@ -1544,6 +1710,7 @@ function generate_subpath_labels(
     for node in graph.N_depots_charging
         s = create_new_subpath_label(
             use_load,
+            use_time_windows,
             customer_service,
             cuts,
             node,
@@ -1573,6 +1740,7 @@ end
 
 function create_new_path_label(
     use_load::Load,
+    use_time_windows::TimeWindows,
     charge_costs::ChargeCosts,
     customer_service::CustomerService,
     cuts::Cuts,
@@ -1814,6 +1982,7 @@ function compute_new_path(
     next_node::Int,
     s::SubpathLabel,
     use_load::Load,
+    use_time_windows::TimeWindows,
     charge_costs::ChargeCosts,
     customer_service::CustomerService,
     cuts::Cuts,
@@ -1934,12 +2103,13 @@ function compute_new_path(
 end
 
 
-function generate_path_labels_notimewindows(
+function generate_path_labels(
     data::EVRPData, 
     graph::EVRPGraph,
     κ::Dict{Int, Float64},
     μ::Dict{Int, Float64},
     use_load::Load,
+    use_time_windows::TimeWindows,
     charge_costs::ChargeCosts,
     customer_service::CustomerService,
     cuts::Cuts,
@@ -1965,18 +2135,19 @@ function generate_path_labels_notimewindows(
 
     path_labels = Dict(
         (starting_node, current_node) => SortedDict{
-            get_path_vkey_type(use_load, charge_costs, customer_service, cuts),
-            get_path_label_type(use_load, charge_costs, customer_service, cuts),
+            get_path_vkey_type(use_load, use_time_windows, charge_costs, customer_service, cuts),
+            get_path_label_type(use_load, use_time_windows, charge_costs, customer_service, cuts),
             Base.Order.ForwardOrdering,
         }(Base.Order.ForwardOrdering())
         for starting_node in graph.N_depots,
             current_node in graph.N_depots_charging
     )
-    unexplored_states = SortedSet{get_path_vkey_fkey_type(use_load, charge_costs, customer_service, cuts)}()
+    unexplored_states = SortedSet{get_path_vkey_fkey_type(use_load, use_time_windows, charge_costs, customer_service, cuts)}()
 
     for depot in graph.N_depots
         p = create_new_path_label(
             use_load,
+            use_time_windows,
             charge_costs,
             customer_service,
             cuts,
@@ -2011,6 +2182,7 @@ function generate_path_labels_notimewindows(
                     next_node,
                     s,
                     use_load,
+                    use_time_windows,
                     charge_costs,
                     customer_service,
                     cuts,
@@ -2041,6 +2213,7 @@ function generate_path_labels_notimewindows(
     for depot in graph.N_depots
         p = create_empty_path_label(
             use_load,
+            use_time_windows,
             charge_costs,
             customer_service,
             cuts,
@@ -2119,6 +2292,7 @@ function subproblem_iteration_ours(
     λ::Dict{<:Any, Float64},
     ;
     load::Bool = false,
+    time_windows::Bool = false,
     charge_cost_heterogenous::Bool = false,
     neighborhoods::BitMatrix = falses(graph.n_nodes, graph.n_nodes),
     ngroute::Bool = false,
@@ -2128,6 +2302,7 @@ function subproblem_iteration_ours(
     start_time = time()
 
     use_load = load ? YesLoad() : NoLoad()
+    use_time_windows = time_windows ? YesTimeWindows() : NoTimeWindows()
     charge_costs = charge_cost_heterogenous ? HetCharge() : HomCharge()
     if ngroute
         customer_service = NgRoute()
@@ -2153,6 +2328,7 @@ function subproblem_iteration_ours(
         μ,
         ν,
         use_load,
+        use_time_windows,
         customer_service,
         cuts,
         ;
@@ -2162,12 +2338,13 @@ function subproblem_iteration_ours(
     )
     subpath_labels_time = subpath_labels_result.time
 
-    path_labels_result = @timed generate_path_labels_notimewindows(
+    path_labels_result = @timed generate_path_labels(
         data,
         graph,
         κ,
         μ,
         use_load,
+        use_time_windows,
         charge_costs,
         customer_service,
         cuts,

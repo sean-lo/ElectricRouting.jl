@@ -717,7 +717,7 @@ function compute_new_bpath(
     return (true, new_path)
 end
 
-function generate_path_labels(
+function generate_path_labels_benchmark(
     data::EVRPData,
     graph::EVRPGraph,
     κ::Dict{Int, Float64},
@@ -913,7 +913,7 @@ function subproblem_iteration_benchmark(
         cuts = NoCuts()
     end
 
-    path_labels_result = @timed generate_path_labels(
+    path_labels_result = @timed generate_path_labels_benchmark(
         data, 
         graph,
         κ,
