@@ -404,8 +404,9 @@ function compute_path_modified_cost(
         reduced_cost += compute_subpath_modified_cost(data, graph, s, κ, μ, ν, verbose = verbose)
     end
     SR3_costs = sum(
-        val * check_path_in_SR3_constraint(p, S)
-        for (S, val) in pairs(λ)
+        [val * check_path_in_SR3_constraint(p, S)
+        for (S, val) in pairs(λ)],
+        init=0.0,
     )
     verbose && @printf("SR3 costs: \t\t%11.3f\n", SR3_costs)
     reduced_cost += SR3_costs
@@ -435,8 +436,9 @@ function compute_path_modified_cost(
         reduced_cost += compute_subpath_modified_cost(data, graph, s, κ, μ, ν, verbose = verbose)
     end
     lmSR3_costs = sum(
-        val * compute_path_coefficient_in_lmSRnk_constraint(p, S, M, 2)
-        for ((S, M), val) in pairs(λ)
+        [val * compute_path_coefficient_in_lmSRnk_constraint(p, S, M, 2)
+        for ((S, M), val) in pairs(λ)],
+        init=0.0,
     )
     verbose && @printf("lm-SR3 costs: \t%11.3f\n", lmSR3_costs)
     reduced_cost += lmSR3_costs
