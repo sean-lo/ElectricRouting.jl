@@ -1341,27 +1341,6 @@ function dominates_lmSR3_01(
     )
 end
 
-function dominates_lmSR3(
-    k1::T, 
-    k2::T, 
-    λvals::Vector{Float64}, 
-) where {T <: Tuple{Float64, BitVector, BitVector, BitVector, Vararg{Any}}}
-    return (
-        (
-            k1[1] 
-            - sum(λvals[.~k1[4] .& .~k2[4] .& k1[2]   .& .~k2[2]])
-            - sum(λvals[.~k1[4] .& .~k2[4] .& k1[3]   .& .~k2[3]])
-            - sum(λvals[k1[4]   .& .~k2[4]])
-            - sum(λvals[k1[4]   .& .~k2[4] .& k1[2]   .& .~k2[2] .& .~k2[3]])
-            + sum(λvals[k1[4]   .& .~k2[4] .& .~k1[2] .& k2[2]   .& k2[3]])
-            - sum(λvals[.~k1[4] .& k2[4]   .& k1[2]   .& k1[3]   .& k2[2]])
-            - sum(λvals[.~k1[4] .& k2[4]   .& .~k2[2]])
-            + sum(λvals[.~k1[4] .& k2[4]   .& .~k1[2] .& .~k1[3] .& .~k2[2]])
-            - sum(λvals[k1[4]   .& k2[4]   .& k1[2]   .& .~k2[2]])
-        ) ≤ k2[1]
-        && all(dominates(v1, v2) for (v1, v2) in zip(k1[5:end], k2[5:end]))
-    )
-end
 
 
 function add_label_to_collection!(
