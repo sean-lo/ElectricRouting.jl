@@ -150,13 +150,23 @@ function get_paths_from_negative_path_labels(
     path_labels::Vector{<:Label},
     ;
     use_load::Bool = false,
+    use_nonlinear_charging::Bool = false,
+    charging_function::PiecewiseLinearIncreasingConcaveFunction = PiecewiseLinearIncreasingConcaveFunction(
+        [graph.B], [1],
+    ),
 )
     generated_paths = Dict{
         Tuple{NTuple{3, Int}, NTuple{3, Int}}, 
         Vector{Path},
     }()
     for path_label in path_labels
-        p = convert_path_label_to_path(path_label, data, graph; use_load = use_load)
+        p = convert_path_label_to_path(
+            path_label, data, graph,
+            ; 
+            use_load = use_load,
+            use_nonlinear_charging = use_nonlinear_charging,
+            charging_function = charging_function
+        )
         add_path_to_generated_paths!(generated_paths, p)
     end
     return generated_paths
@@ -432,18 +442,17 @@ function path_formulation_column_generation!(
     ;
     method::String = "ours",
     use_load::Bool = false,
-    charge_cost_heterogenous::Bool = false,
-    time_windows::Bool = false,
+    use_time_windows::Bool = false,
+    use_nonlinear_charging::Bool = false,
+    charging_function::PiecewiseLinearIncreasingConcaveFunction = PiecewiseLinearIncreasingConcaveFunction(
+        [graph.B], [1],
+    ),
     use_ngroute::Bool = false,
     ng_neighborhoods::Union{Nothing, BitMatrix} = nothing,
     verbose::Bool = true,
     time_limit::Float64 = Inf,
     max_iters::Float64 = Inf,
 ) where {T}
-
-    if method == "benchmark" && charge_cost_heterogenous
-        throw(ErrorException("Benchmark method does not support heterogenous charging costs."))
-    end
 
     start_time = time()
     counter = 0
@@ -527,12 +536,13 @@ function path_formulation_column_generation!(
                     CGLP_results["ν"], 
                     CGLP_results["λ"], 
                     ;
-                    load = use_load,
-                    charge_cost_heterogenous = charge_cost_heterogenous,
-                    neighborhoods = neighborhoods,
-                    ngroute = ngroute,
-                    elementary = elementary,
-                    time_limit = time_limit - (time() - start_time),
+                    use_load = use_load,
+                    use_time_windows = use_time_windows,
+                    use_nonlinear_charging = use_nonlinear_charging,
+                    charging_function = charging_function,
+                    use_ngroute = use_ngroute,
+                    ng_neighborhoods = ng_neighborhoods,
+                    # time_limit = time_limit - (time() - start_time),
                 )
             catch e
                 if isa(e, TimeLimitException)
@@ -543,6 +553,10 @@ function path_formulation_column_generation!(
             end
             generated_paths = get_paths_from_negative_path_labels(
                 data, graph, negative_full_labels,
+                ;
+                use_load = use_load,
+                use_nonlinear_charging = use_nonlinear_charging,
+                charging_function = charging_function,
             )
             push!(
                 CG_params["sp_base_time_taken"],
@@ -567,13 +581,13 @@ function path_formulation_column_generation!(
                     CGLP_results["ν"], 
                     CGLP_results["λ"], 
                     ;
-                    load = use_load,
-                    time_windows = time_windows,
-                    charge_cost_heterogenous = charge_cost_heterogenous,
-                    neighborhoods = neighborhoods,
-                    ngroute = ngroute,
-                    elementary = elementary,
-                    time_limit = time_limit - (time() - start_time),
+                    use_load = use_load,
+                    use_time_windows = use_time_windows,
+                    use_nonlinear_charging = use_nonlinear_charging,
+                    charging_function = charging_function,
+                    use_ngroute = use_ngroute,
+                    ng_neighborhoods = ng_neighborhoods,
+                    # time_limit = time_limit - (time() - start_time),
                 )
             catch e
                 if isa(e, TimeLimitException)
@@ -584,6 +598,8 @@ function path_formulation_column_generation!(
             end
             generated_paths = get_paths_from_negative_path_labels(
                 data, graph, negative_path_labels,
+                ;
+                use_load = use_load,
             )
             push!(
                 CG_params["sp_base_time_taken"],
@@ -1189,16 +1205,18 @@ function add_lmSR3_constraints_to_path_model!(
 end
 
 
-function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
+function path_formulation_column_generation_with_adaptive_ngroute_SR3_cuts(
     data::EVRPData, 
     graph::EVRPGraph,
     ;
     Env = nothing,
     method::String = "ours",
-    charge_cost_heterogenous::Bool = false,
-    time_windows::Bool = false,
+    use_time_windows::Bool = false,
     use_load::Bool = false,
-    use_heuristic::Bool = false,
+    use_nonlinear_charging::Bool = false,
+    charging_function::PiecewiseLinearIncreasingConcaveFunction = PiecewiseLinearIncreasingConcaveFunction(
+        [graph.B], [1],
+    ),
     use_ngroute::Bool = true,
     ng_neighborhoods::Union{Nothing, BitMatrix} = nothing,
     ngroute_neighborhood_size::Int = Int(ceil(sqrt(graph.n_customers))),
@@ -1236,10 +1254,8 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
             # depots:                       %3d
             # charging stations:            %3d
             # vehicles:                     %3d
-            time windows?:                  %s
-            load?:                          %s
-            heterogenous charging costs?:   %s
-            charge_cost_nlevels:            %3d
+            use load?:                      %s
+            use time windows?:              %s
 
             method:                         %s
             """,
@@ -1247,10 +1263,8 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
             graph.n_depots,
             graph.n_charging,
             data.n_vehicles,
-            time_windows,
             use_load,
-            charge_cost_heterogenous,
-            data.charge_cost_nlevels,
+            use_time_windows,
             method,
         )
     )
@@ -1280,8 +1294,8 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
             push!(start_printlist,
                 @sprintf(
                     """
-                    use_SR3_cuts:                   %s
-                        use_lmSR3_cuts:             %s
+                    use_SR3_cuts?:                  %s
+                        use_lmSR3_cuts?:            %s
                         max_SR3_cuts:               %3d
                     """,
                     use_SR3_cuts,
@@ -1293,7 +1307,7 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
             push!(start_printlist,
                 @sprintf(
                     """
-                    use_SR3_cuts:                   %s
+                    use_SR3_cuts?:                  %s
                     """,
                     use_SR3_cuts,
                 )
@@ -1315,7 +1329,7 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
     end
 
     if use_heuristic
-        if time_windows
+        if use_time_windows
             error("Heuristic path generation not implemented for time windows.")
         end
         heuristic_paths_r = @timed compute_heuristic_paths_notimewindows(data, graph; use_load = use_load)
@@ -1407,11 +1421,11 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
             ;
             method = method,
             use_load = use_load,
-            charge_cost_heterogenous = charge_cost_heterogenous,
-            time_windows = time_windows,
-            elementary = elementary,
-            neighborhoods = neighborhoods,
-            ngroute = ngroute,
+            use_time_windows = use_time_windows,
+            use_nonlinear_charging = use_nonlinear_charging,
+            charging_function = charging_function,
+            use_ngroute = use_ngroute,
+            ng_neighborhoods = ng_neighborhoods,
             verbose = verbose,
             time_limit = time_limit - (time() - start_time),
             max_iters = max_iters,
