@@ -126,18 +126,6 @@ function read_evrptw_instance(
     β = transform_floats.(β * scale_time_horizon)
     T = Int(round(maximum(β)))
 
-    # Charging costs (no heterogenous charging)
-    charge_cost_coeffs = Dict(
-        i => charge_cost_coeff
-        for i in N_charging
-    )
-    charge_cost_levelslist = [charge_cost_coeff]
-    charge_cost_levels = Dict(
-        i => 1
-        for i in N_charging
-    )
-    charge_cost_nlevels = 1
-
     data = EVRPData(
         n_depots,
         n_customers,
@@ -178,10 +166,7 @@ function read_evrptw_instance(
         inverse_refueling_rate,
         B,
         travel_cost_coeff,
-        charge_cost_coeffs,
-        charge_cost_levels,
-        charge_cost_levelslist,
-        charge_cost_nlevels,
+        charge_cost_coeff,
     )
 
     return data
