@@ -1305,7 +1305,7 @@ function prepare_lambda(
     return λvals, λcust, λmemory
 end
 
-
+# Note: the all() function uses short-circuiting (returns false if any value is false)
 dominates(v1::T, v2::T) where {T <: Real} = v1 ≤ v2
 dominates(v1::BitVector, v2::BitVector) = all(v1 .≤ v2)
 dominates(v1::T, v2::T) where {T <: Vector{Int}} = all(v1 .≤ v2)
@@ -1356,6 +1356,10 @@ function add_label_to_collection!(
     T <: Tuple, 
     L <: Label,
 }
+"""
+# Fix: check each attribute lazily
+# Fix: find the index of the incoming label in the collection, in terms of reduced cost
+"""
     added = true
     for (k2, v2) in pairs(collection)
         if dominates(k2, k1)
