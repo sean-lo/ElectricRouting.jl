@@ -948,7 +948,6 @@ function compute_new_path(
     #     amount_charged = max(0, s.charge_taken - current_path.charge_end_min)
     #     @debug "  Amount to be charged: $(amount_charged)"
     #     # include cost of charging
-    #     new_path.cost += amount_charged * data.charge_cost_coeff
     #     for i in 1:length(new_path.charging_amounts_max)-1
     #         delta = new_path.charging_amounts_max[i] - new_path.charging_amounts[i]
     #         if delta > 0

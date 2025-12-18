@@ -203,7 +203,6 @@ struct EVRPData
     inverse_refueling_rate::Float64
     B::Int
     travel_cost_coeff::Int
-    charge_cost_coeff::Int
 end
 
 struct EVRPGraph
@@ -341,13 +340,6 @@ function compute_subpath_service(
     return subpath_service
 end
 
-function compute_charging_arc_cost(
-    a::ChargingArc,
-    data::EVRPData,
-)
-    return data.charge_cost_coeff * a.charge_diff
-end
-
 function compute_path_cost(
     data::EVRPData,
     graph::EVRPGraph, 
@@ -358,11 +350,8 @@ function compute_path_cost(
 )
     subpath_costs = length(p.subpaths) > 0 ? sum(compute_subpath_cost(data, graph, s, M) for s in p.subpaths) : 0
     verbose && @printf("Subpath costs: \t\t%11.3f\n", subpath_costs)
-
-    charging_arc_costs = length(p.charging_arcs) > 0 ? sum(compute_charging_arc_cost(a, data) for a in p.charging_arcs) : 0
-    verbose && @printf("Charging arc costs: \t\t%11d\n", charging_arc_costs)
     
-    return subpath_costs + charging_arc_costs
+    return subpath_costs
 end
 
 function compute_path_modified_cost(
@@ -379,9 +368,6 @@ function compute_path_modified_cost(
     for s in p.subpaths
         reduced_cost += compute_subpath_modified_cost(data, graph, s, κ, μ, ν, verbose = verbose)
     end
-    charging_costs = length(p.charging_arcs) > 0 ? sum(compute_charging_arc_cost(a, data) for a in p.charging_arcs) : 0
-    verbose && @printf("Charging arc costs: \t%11d\n", charging_costs)
-    reduced_cost += charging_costs
 
     verbose && @printf("Total modified cost: \t%11.3f\n\n", reduced_cost)
 
@@ -411,10 +397,6 @@ function compute_path_modified_cost(
     verbose && @printf("SR3 costs: \t\t%11.3f\n", SR3_costs)
     reduced_cost += SR3_costs
 
-    charging_costs = length(p.charging_arcs) > 0 ? sum(compute_charging_arc_cost(a, data) for a in p.charging_arcs) : 0
-    verbose && @printf("Charging arc costs: \t%11d\n", charging_costs)
-    reduced_cost += charging_costs
-
     verbose && @printf("Total modified cost: \t%11.3f\n\n", reduced_cost)
 
     return reduced_cost
@@ -442,10 +424,6 @@ function compute_path_modified_cost(
     )
     verbose && @printf("lm-SR3 costs: \t%11.3f\n", lmSR3_costs)
     reduced_cost += lmSR3_costs
-
-    charging_costs = length(p.charging_arcs) > 0 ? sum(compute_charging_arc_cost(a, data) for a in p.charging_arcs) : 0
-    verbose && @printf("Charging arc costs: \t%11d\n", charging_costs)
-    reduced_cost += charging_costs
 
     verbose && @printf("Total modified cost: \t%11.3f\n\n", reduced_cost)
 
@@ -688,7 +666,6 @@ function generate_instance(
     B::Int, # Battery capacity
     inverse_refueling_rate::Float64, # Inverse refueling rate
     travel_cost_coeff::Int,
-    charge_cost_coeff::Int,
     load_scale::Float64,
     load_shape::Float64,
     load_tolerance::Float64,
@@ -798,7 +775,6 @@ function generate_instance(
         inverse_refueling_rate,
         B,
         travel_cost_coeff,
-        charge_cost_coeff,
     )
     return data
 end

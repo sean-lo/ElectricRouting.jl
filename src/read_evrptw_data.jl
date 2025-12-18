@@ -19,7 +19,6 @@ function read_evrptw_instance(
     fp::String,
     n_vehicles::Int,
     travel_cost_coeff::Int,
-    charge_cost_coeff::Int,
     ;
     n_charging::Int = 0, # If 0, read from file
     n_customers::Int = 0, # If 0, read from file
@@ -166,7 +165,6 @@ function read_evrptw_instance(
         inverse_refueling_rate,
         B,
         travel_cost_coeff,
-        charge_cost_coeff,
     )
 
     return data
