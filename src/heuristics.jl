@@ -225,13 +225,13 @@ function convert_heuristic_path_label_to_path(
         )
 
         a = ChargingArc(
-            starting_node = current_node, 
-            starting_time = prev_time, 
-            starting_charge = prev_charge, 
-            delta = delta,
-            charge_cost_coeff = data.charge_cost_coeffs[current_node],
-            current_time = current_time, 
-            current_charge = current_charge,
+            node = current_node,
+            time_start = prev_time, 
+            time_end = current_time, 
+            time_diff = delta,
+            charge_start = prev_charge,
+            charge_end = current_charge,
+            charge_diff = delta,
         )
         push!(p.charging_arcs, a)
     end
