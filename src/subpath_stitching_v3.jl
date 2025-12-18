@@ -492,8 +492,6 @@ function generate_subpath_labels_from_node(
     data::EVRPData,
     graph::EVRPGraph,
     modified_costs::Matrix{Float64},
-    κ::Dict{Int, Float64},
-    μ::Dict{Int, Float64},
     starting_node::Int,
     use_load::Bool,
     use_time_windows::Bool,
@@ -619,7 +617,10 @@ function generate_subpath_labels_all(
     ;
     # time_limit::Float64 = Inf,
 )
-    modified_costs = compute_arc_modified_costs(graph, data, ν)
+    modified_costs = compute_arc_modified_costs(
+        graph, data, 
+        κ, μ, ν,
+    )
 
     all_subpath_labels = Dict{
         Int,
@@ -638,8 +639,6 @@ function generate_subpath_labels_all(
             data,
             graph,
             modified_costs,
-            κ,
-            μ,
             starting_node,
             use_load,
             use_time_windows,
@@ -652,19 +651,6 @@ function generate_subpath_labels_all(
             ;
             # time_limit = time_limit,
         )
-    end
-
-    # Cleanup
-    ## Subtract duals
-    for starting_node in graph.N_depots, end_node in graph.N_depots_charging
-        for (vkey, subpath) in all_subpath_labels[starting_node][end_node]
-            subpath.cost -= κ[starting_node]
-        end
-    end
-    for starting_node in graph.N_depots_charging, end_node in graph.N_depots
-        for (vkey, subpath) in all_subpath_labels[starting_node][end_node]
-            subpath.cost -= μ[end_node]
-        end
     end
 
     return all_subpath_labels

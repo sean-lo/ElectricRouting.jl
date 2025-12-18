@@ -519,7 +519,7 @@ function generate_path_labels_all(
     ;
 )
 
-    modified_costs = compute_arc_modified_costs(graph, data, ν)
+    modified_costs = compute_arc_modified_costs(graph, data, κ, μ, ν)
     all_path_labels = Dict{
         Int,
         Dict{
@@ -565,15 +565,6 @@ function generate_path_labels_all(
                 path.nodes = [depot, depot]
                 path.excesses = [0]
                 path.slacks = [0]
-            end
-        end
-    end
-
-    ## Subtract duals (starting and ending at depot)
-    for starting_node in graph.N_depots
-        for end_node in graph.N_depots
-            for (vkey, path) in all_path_labels[starting_node][end_node]
-                path.cost -= (κ[starting_node] + μ[end_node])
             end
         end
     end

@@ -1240,15 +1240,20 @@ end
 function compute_arc_modified_costs(
     graph::EVRPGraph,
     data::EVRPData,
-    ν::Vector{Float64}, 
+    κ::Dict{Int, Float64},
+    μ::Dict{Int, Float64},
+    ν::Vector{Float64},
     ;
 )
     modified_costs = data.travel_cost_coeff * Float64.(copy(graph.c))
     for j in graph.N_customers
-        for i in graph.N_nodes
-            modified_costs[i,j] -= ν[j]
-        end
+        modified_costs[:,j] .-= ν[j]
     end
+    for i in graph.N_depots
+        modified_costs[i,:] .-= κ[i]
+        modified_costs[:,i] .-= μ[i]
+    end
+
     return modified_costs
 end
 
