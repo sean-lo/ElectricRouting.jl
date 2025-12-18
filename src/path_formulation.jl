@@ -144,33 +144,6 @@ function add_path_to_generated_paths!(
     return
 end
 
-function get_paths_from_negative_path_labels(
-    data::EVRPData,
-    graph::EVRPGraph,
-    path_labels::Vector{<:Label},
-    ;
-    use_load::Bool = false,
-    use_nonlinear_charging::Bool = false,
-    charging_function::PiecewiseLinearIncreasingConcaveFunction = PiecewiseLinearIncreasingConcaveFunction(
-        [graph.B], [1],
-    ),
-)
-    generated_paths = Dict{
-        Tuple{NTuple{3, Int}, NTuple{3, Int}}, 
-        Vector{Path},
-    }()
-    for path_label in path_labels
-        p = convert_path_label_to_path(
-            path_label, data, graph,
-            ; 
-            use_load = use_load,
-            use_nonlinear_charging = use_nonlinear_charging,
-            charging_function = charging_function
-        )
-        add_path_to_generated_paths!(generated_paths, p)
-    end
-    return generated_paths
-end
 
 function path_formulation_build_model(
     data::EVRPData,
@@ -524,12 +497,13 @@ function path_formulation_column_generation!(
         push!(CG_params["λ"], CGLP_results["λ"])
         push!(CG_params["lp_relaxation_solution_time_taken"], round(mp_solution_end_time - mp_solution_start_time, digits = 3))
 
+        local generated_paths
+        local generated_paths_count
         if method == "ours"
-            local negative_full_labels  
             local base_labels_time
             local full_labels_time
             try
-                (negative_full_labels, _, base_labels_time, full_labels_time) = subproblem_iteration_ours(
+                (generated_paths, generated_paths_count, base_labels_time, full_labels_time) = subproblem_iteration_ours(
                     data, graph, 
                     CGLP_results["κ"], 
                     CGLP_results["μ"], 
@@ -551,30 +525,13 @@ function path_formulation_column_generation!(
                     throw(e)
                 end
             end
-            generated_paths = get_paths_from_negative_path_labels(
-                data, graph, negative_full_labels,
-                ;
-                use_load = use_load,
-                use_nonlinear_charging = use_nonlinear_charging,
-                charging_function = charging_function,
-            )
-            push!(
-                CG_params["sp_base_time_taken"],
-                round(base_labels_time, digits=3)
-            )
-            push!(
-                CG_params["sp_full_time_taken"],
-                round(full_labels_time, digits=3)
-            )
-            push!(
-                CG_params["sp_total_time_taken"],
-                round(base_labels_time + full_labels_time, digits=3)
-            )
+            push!(CG_params["sp_base_time_taken"], base_labels_time)
+            push!(CG_params["sp_full_time_taken"], full_labels_time)
+            push!(CG_params["sp_total_time_taken"], base_labels_time + full_labels_time)
         elseif method == "benchmark"
-            local negative_path_labels  
             local path_labels_time
             try
-                (negative_path_labels, _, path_labels_time) = subproblem_iteration_benchmark(
+                (generated_paths, generated_paths_count, path_labels_time) = subproblem_iteration_benchmark(
                     data, graph, 
                     CGLP_results["κ"], 
                     CGLP_results["μ"], 
@@ -596,33 +553,14 @@ function path_formulation_column_generation!(
                     throw(e)
                 end
             end
-            generated_paths = get_paths_from_negative_path_labels(
-                data, graph, negative_path_labels,
-                ;
-                use_load = use_load,
-            )
-            push!(
-                CG_params["sp_base_time_taken"],
-                0.0
-            )
-            push!(
-                CG_params["sp_full_time_taken"],
-                round(path_labels_time, digits=3)
-            )
-            push!(
-                CG_params["sp_total_time_taken"],
-                round(path_labels_time, digits=3)
-            )
+            push!(CG_params["sp_base_time_taken"], 0.0)
+            push!(CG_params["sp_full_time_taken"], path_labels_time)
+            push!(CG_params["sp_total_time_taken"], path_labels_time)
         end
         
-        if length(generated_paths) == 0
-            push!(CG_params["number_of_new_paths"], 0)
+        push!(CG_params["number_of_new_paths"], generated_paths_count)
+        if generated_paths_count == 0
             converged = true
-        else
-            push!(
-                CG_params["number_of_new_paths"],
-                sum(length(v) for v in values(generated_paths))
-            )
         end
 
         mp_constraint_time = add_paths_to_path_model!(
@@ -1217,6 +1155,7 @@ function path_formulation_column_generation_with_adaptive_ngroute_SR3_cuts(
     charging_function::PiecewiseLinearIncreasingConcaveFunction = PiecewiseLinearIncreasingConcaveFunction(
         [graph.B], [1],
     ),
+    use_heuristic::Bool = false,
     use_ngroute::Bool = true,
     ng_neighborhoods::Union{Nothing, BitMatrix} = nothing,
     ngroute_neighborhood_size::Int = Int(ceil(sqrt(graph.n_customers))),

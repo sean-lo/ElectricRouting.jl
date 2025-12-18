@@ -1297,125 +1297,46 @@ function generate_path_labels_all(
 end
 
 
-unwrap_path_labels(p::Label) = Label[p]
+# unwrap_path_labels(p::Label) = Label[p]
 
-function unwrap_path_labels(d::AbstractDict)
-    u = Label[]
-    for v in values(d)
-        append!(u, unwrap_path_labels(v))
-    end
-    return u
-end
+# function unwrap_path_labels(d::AbstractDict)
+#     u = Label[]
+#     for v in values(d)
+#         append!(u, unwrap_path_labels(v))
+#     end
+#     return u
+# end
+
+# function get_negative_path_labels_from_path_labels(
+#     path_labels::Dict{Int, Dict{Int, T}},
+# ) where {T <: AbstractDict}
+#     return Label[
+#         path_label
+#         for path_label in unwrap_path_labels(path_labels)
+#             if path_label.cost < -1e-4
+#     ]
+# end
 
 function get_negative_path_labels_from_path_labels(
-    path_labels::Dict{Int, Dict{Int, T}},
-) where {T <: AbstractDict}
-    return Label[
+    path_labels::Dict{
+        Int, Dict{
+            Int, 
+            SortedDict{
+                PPATH_VKEY_TYPE,
+                PPathLabel,
+                Base.Order.ForwardOrdering,
+            },
+        },
+    },
+)
+    return PPathLabel[
         path_label
-        for path_label in unwrap_path_labels(path_labels)
-            if path_label.cost < -1e-4
+        for (k, v) in pairs(path_labels)
+        for (k_, v_) in pairs(v)
+        for path_label in values(v_)
+        if path_label.cost < -1e-4
     ]
 end
-
-
-function subproblem_iteration_ours(
-    data::EVRPData, 
-    graph::EVRPGraph,
-    κ::Dict{Int, Float64},
-    μ::Dict{Int, Float64},
-    ν::Vector{Float64}, 
-    λ::Dict{<:Any, Float64},
-    ;
-    use_load::Bool = false,
-    use_time_windows::Bool = false,
-    use_nonlinear_charging::Bool = false,
-    charging_function::PiecewiseLinearIncreasingConcaveFunction = PiecewiseLinearIncreasingConcaveFunction(
-        [graph.B], [1],
-    ),
-    use_ngroute::Bool = false,
-    ng_neighborhoods::BitMatrix = falses(graph.n_nodes, graph.n_nodes),
-)
-
-    start_time = time()
-
-    if use_ngroute
-        if length(λ) == 0
-            cuts = "NoCuts"
-        elseif keytype(λ) == NTuple{3, Int}
-            cuts = "SR3"
-        elseif keytype(λ) == Tuple{NTuple{3, Int}, Tuple{Vararg{Int}}}
-            cuts = "LmSR3"
-        else
-            error("Unrecognized key type for λ: $(keytype(λ))")
-        end
-    else
-        ng_neighborhoods = falses(graph.n_nodes, graph.n_nodes)
-        cuts = "NoCuts"
-    end
-
-    if cuts == "NoCuts"
-        λvals = Float64[]
-        λcust = falses(length(λ), graph.n_nodes)
-        λmemory = falses(length(λ), graph.n_nodes)
-    elseif cuts == "SR3"
-        λvals, λcust = prepare_lambda(λ, graph.n_nodes)
-        λmemory = falses(length(λ), graph.n_nodes)
-    elseif cuts == "LmSR3"
-        λvals, λcust, λmemory = prepare_lambda(λ, graph.n_nodes)
-    end
-
-    subpath_labels_result = @timed generate_subpath_labels_all(
-        data,
-        graph,
-        κ,
-        μ,
-        ν,
-        use_load,
-        use_time_windows,
-        use_ngroute,
-        ng_neighborhoods,
-        cuts,
-        λvals,
-        λcust,
-        λmemory,
-        ;
-        # time_limit = time_limit - (time() - start_time),
-    )
-    subpath_labels_time = subpath_labels_result.time
-
-    path_labels_result = @timed generate_path_labels_all(
-        data,
-        graph,
-        subpath_labels_result.value,
-        use_load,
-        use_time_windows,
-        use_nonlinear_charging,
-        use_ngroute,
-        cuts,
-        λvals,
-        ;
-        charging_function = charging_function,
-        # time_limit = time_limit - (time() - start_time),
-    )
-
-    path_labels_time = path_labels_result.time
-    path_labels = path_labels_result.value
-
-    negative_path_labels = get_negative_path_labels_from_path_labels(path_labels)
-    negative_path_labels_count = length(negative_path_labels)
-
-    return (
-        negative_path_labels,
-        negative_path_labels_count,
-        subpath_labels_time,
-        path_labels_time,
-    )
-end
-
-
-
-
-
 
 function convert_path_label_to_path(
     path_label::PPathLabel,
@@ -1507,4 +1428,133 @@ function convert_path_label_to_path(
     customers = [a[1] for a in p.arcs if a[1] in graph.N_customers]
     p.customer_arcs = collect(zip(customers[1:end-1], customers[2:end]))
     return p
+end
+
+function get_paths_from_negative_path_labels(
+    data::EVRPData,
+    graph::EVRPGraph,
+    path_labels::Vector{PPathLabel},
+    ;
+    use_load::Bool = false,
+    use_nonlinear_charging::Bool = false,
+    charging_function::PiecewiseLinearIncreasingConcaveFunction = PiecewiseLinearIncreasingConcaveFunction(
+        [graph.B], [1],
+    ),
+)
+    generated_paths = Dict{
+        Tuple{NTuple{3, Int}, NTuple{3, Int}}, 
+        Vector{Path},
+    }()
+    for path_label in path_labels
+        p = convert_path_label_to_path(
+            path_label, data, graph,
+            ; 
+            use_load = use_load,
+            use_nonlinear_charging = use_nonlinear_charging,
+            charging_function = charging_function
+        )
+        add_path_to_generated_paths!(generated_paths, p)
+    end
+    return generated_paths
+end
+
+function subproblem_iteration_ours(
+    data::EVRPData, 
+    graph::EVRPGraph,
+    κ::Dict{Int, Float64},
+    μ::Dict{Int, Float64},
+    ν::Vector{Float64}, 
+    λ::Dict{<:Any, Float64},
+    ;
+    use_load::Bool = false,
+    use_time_windows::Bool = false,
+    use_nonlinear_charging::Bool = false,
+    charging_function::PiecewiseLinearIncreasingConcaveFunction = PiecewiseLinearIncreasingConcaveFunction(
+        [graph.B], [1],
+    ),
+    use_ngroute::Bool = false,
+    ng_neighborhoods::BitMatrix = falses(graph.n_nodes, graph.n_nodes),
+)
+
+    start_time = time()
+
+    if use_ngroute
+        if length(λ) == 0
+            cuts = "NoCuts"
+        elseif keytype(λ) == NTuple{3, Int}
+            cuts = "SR3"
+        elseif keytype(λ) == Tuple{NTuple{3, Int}, Tuple{Vararg{Int}}}
+            cuts = "LmSR3"
+        else
+            error("Unrecognized key type for λ: $(keytype(λ))")
+        end
+    else
+        ng_neighborhoods = falses(graph.n_nodes, graph.n_nodes)
+        cuts = "NoCuts"
+    end
+
+    if cuts == "NoCuts"
+        λvals = Float64[]
+        λcust = falses(length(λ), graph.n_nodes)
+        λmemory = falses(length(λ), graph.n_nodes)
+    elseif cuts == "SR3"
+        λvals, λcust = prepare_lambda(λ, graph.n_nodes)
+        λmemory = falses(length(λ), graph.n_nodes)
+    elseif cuts == "LmSR3"
+        λvals, λcust, λmemory = prepare_lambda(λ, graph.n_nodes)
+    end
+
+    subpath_labels_result = @timed generate_subpath_labels_all(
+        data,
+        graph,
+        κ,
+        μ,
+        ν,
+        use_load,
+        use_time_windows,
+        use_ngroute,
+        ng_neighborhoods,
+        cuts,
+        λvals,
+        λcust,
+        λmemory,
+        ;
+        # time_limit = time_limit - (time() - start_time),
+    )
+    subpath_labels_time = round(subpath_labels_result.time, digits=3)
+
+    path_labels_result = @timed generate_path_labels_all(
+        data,
+        graph,
+        subpath_labels_result.value,
+        use_load,
+        use_time_windows,
+        use_nonlinear_charging,
+        use_ngroute,
+        cuts,
+        λvals,
+        ;
+        charging_function = charging_function,
+        # time_limit = time_limit - (time() - start_time),
+    )
+
+    path_labels_time = round(path_labels_result.time, digits=3)
+    path_labels = path_labels_result.value
+
+    negative_path_labels = get_negative_path_labels_from_path_labels(path_labels)
+    negative_path_labels_count = length(negative_path_labels)
+
+    generated_paths = get_paths_from_negative_path_labels(
+        data, graph, negative_path_labels,
+        ;
+        use_load = use_load,
+        use_nonlinear_charging = use_nonlinear_charging,
+        charging_function = charging_function,
+    )
+    return (
+        generated_paths,
+        negative_path_labels_count,
+        subpath_labels_time,
+        path_labels_time,
+    )
 end
