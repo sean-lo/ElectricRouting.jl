@@ -633,8 +633,8 @@ function generate_subpath_labels_all(
             },
         },
     }()
-    Threads.@threads for starting_node in graph.N_depots_charging
-    # for starting_node in graph.N_depots_charging
+    # Threads.@threads for starting_node in graph.N_depots_charging
+    for starting_node in graph.N_depots_charging
         all_subpath_labels[starting_node] = generate_subpath_labels_from_node(
             data,
             graph,
