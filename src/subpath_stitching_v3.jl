@@ -1321,6 +1321,17 @@ function convert_path_label_to_path(
     path_label::PPathLabel,
     data::EVRPData,
     graph::EVRPGraph,
+    subpath_labels::Dict{
+        Int,
+        Dict{
+            Int,
+            SortedDict{
+                SUBPATH_VKEY_TYPE,
+                SubpathLabel,
+                Base.Order.ForwardOrdering,
+            },
+        },
+    },
     ;
     use_load::Bool = false,
     use_nonlinear_charging::Bool = false,
@@ -1413,6 +1424,17 @@ function get_paths_from_negative_path_labels(
     data::EVRPData,
     graph::EVRPGraph,
     path_labels::Vector{PPathLabel},
+    subpath_labels::Dict{
+        Int,
+        Dict{
+            Int,
+            SortedDict{
+                SUBPATH_VKEY_TYPE,
+                SubpathLabel,
+                Base.Order.ForwardOrdering,
+            },
+        },
+    },
     ;
     use_load::Bool = false,
     use_nonlinear_charging::Bool = false,
@@ -1428,6 +1450,7 @@ function get_paths_from_negative_path_labels(
         p = convert_path_label_to_path(
             path_label, 
             data, graph,
+            subpath_labels,
             ; 
             use_load = use_load,
             use_nonlinear_charging = use_nonlinear_charging,
@@ -1528,6 +1551,7 @@ function subproblem_iteration_ours(
     generated_paths = get_paths_from_negative_path_labels(
         data, graph, 
         negative_path_labels,
+        subpath_labels,
         ;
         use_load = use_load,
         use_nonlinear_charging = use_nonlinear_charging,
