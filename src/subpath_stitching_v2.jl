@@ -2043,7 +2043,7 @@ function compute_new_path(
     new_path.charge = end_charge
     if length(current_path.subpath_labels) > 0
         push!(new_path.charging_actions, original_charge_amount)
-        new_path.cost += data.charge_cost_coeffs[current_node] * original_charge_amount
+        new_path.cost += data.charge_cost_coeff * original_charge_amount
     end
 
     if use_load isa YesLoad
@@ -2051,39 +2051,6 @@ function compute_new_path(
     end
 
     push!(new_path.subpath_labels, s)
-
-    
-    # Heterogenous charging updates
-    if charge_costs isa HetCharge
-        
-        charge_amount = original_charge_amount
-        rho = data.charge_cost_levels[current_node]
-        charge_rebalance_slacks_diffs = new_path.charge_rebalance_slacks .- vcat([0], new_path.charge_rebalance_slacks[1:end-1])
-        for k in 1:rho-1
-            ω_k = new_path.charge_rebalance_indexes[k]
-            if ω_k == 0
-                continue
-            end
-            charge_amount_k = min(charge_amount, charge_rebalance_slacks_diffs[k])
-            charge_amount -= charge_amount_k
-            new_path.charging_actions[ω_k] += charge_amount_k
-            new_path.cost += data.charge_cost_levelslist[k] * charge_amount_k
-            if charge_amount == 0
-                break
-            end
-        end
-
-        push!(new_path.charging_actions, charge_amount)
-        new_path.cost += data.charge_cost_coeffs[current_node] * charge_amount
-
-        new_path.charge_rebalance_indexes[rho] = length(current_path.subpath_labels)
-        new_path.charge_rebalance_indexes[rho+1:end] .= 0
-
-        new_path.charge_rebalance_slacks[1:rho-1] .- original_charge_amount
-        new_path.charge_rebalance_slacks[1:rho-1] .= max.(0, new_path.charge_rebalance_slacks[1:rho-1])
-        new_path.charge_rebalance_slacks[rho:end] .= min.(data.B - s.charge_taken, data.B - current_charge)
-
-    end
 
     # Customer service
     if customer_service isa Elementary
