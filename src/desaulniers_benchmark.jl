@@ -1,7 +1,3 @@
-using Pkg
-Pkg.activate(".")
-include("utils.jl")
-
 mutable struct BPathLabel <: Label
     cost::Float64
     nodes::Vector{Int}

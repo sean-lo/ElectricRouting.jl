@@ -1,7 +1,3 @@
-using Pkg
-Pkg.activate(".")
-include("utils.jl")
-
 mutable struct SubpathLabel <: Label
     cost::Float64
     time_taken::Int

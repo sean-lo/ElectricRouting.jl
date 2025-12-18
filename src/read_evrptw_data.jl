@@ -1,5 +1,3 @@
-include("utils.jl")
-
 using CSV
 using DataFrames
 

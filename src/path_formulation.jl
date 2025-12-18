@@ -2,11 +2,6 @@ using JuMP
 using Gurobi
 using Suppressor
 
-include("utils.jl")
-include("heuristics.jl")
-# include("desaulniers_benchmark.jl")
-# include("subpath_stitching.jl")
-
 function generate_artificial_paths(
     data::EVRPData,
     graph::EVRPGraph,
@@ -1420,6 +1415,7 @@ function path_formulation_column_generation_with_adaptive_ngroute_SR3_cuts(
         iteration_params["CG_time_taken"] = CG_params["time_taken"]
         iteration_params["CG_sp_time_taken_mean"] = CG_params["sp_time_taken_mean"]
         iteration_params["method"] = "none"
+        iteration_params["ngroute_neighborhoods_expanded"] = 0
         iteration_params["ngroute_neighborhood_size"] = use_ngroute ? (graph.n_customers + graph.n_charging) * mean(ng_neighborhoods[graph.N_customers, vcat(graph.N_customers, graph.N_charging)]) : 0
         iteration_params["cycles_lookup_length"] = 0
         iteration_params["implemented_SR3_cuts_count"] = 0

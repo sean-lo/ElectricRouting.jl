@@ -1,6 +1,3 @@
-using Pkg
-Pkg.activate(".")
-
 abstract type PiecewiseLinearIncreasingFunction end 
 
 struct PiecewiseLinearIncreasingConcaveFunction <: PiecewiseLinearIncreasingFunction
