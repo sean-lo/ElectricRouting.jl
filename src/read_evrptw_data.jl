@@ -171,3 +171,52 @@ function read_evrptw_instance(
 
     return data
 end
+
+function stretch_time_windows(
+    data_in::EVRPData,
+    stretch_factor::Float64,
+)
+    if !(0.0 <= stretch_factor <= 1.0)
+        error("stretch_factor must be in [0, 1]")
+    end
+    data = deepcopy(data_in)
+    data.α .= Int.(round.(
+        # stretch_factor .* 0 .+ 
+        (1 - stretch_factor) .* data.α 
+    ))
+    data.β .= Int.(round.(
+        stretch_factor .* data.T
+        .+ (1 - stretch_factor) .* data.β
+    ))
+    return data
+end
+
+function remove_time_windows(
+    data_in::EVRPData,
+    remove_factor::Float64,
+    ;
+    seed::Union{Int, Nothing} = nothing
+)
+    if !(0.0 <= remove_factor <= 1.0)
+        error("remove_factor must be in [0, 1]")
+    end
+    data = deepcopy(data_in)
+    n_TWs_remove = Int(round(remove_factor * data.n_customers * 2))
+    
+    if !isnothing(seed)
+        Random.seed!(seed)
+    end
+    rand_inds = Random.shuffle(1:2*data.n_customers)[1:n_TWs_remove]
+
+    for i in rand_inds
+        if i <= data.n_customers
+            j = i
+            data.α[j] = 0
+        else
+            j = i - data.n_customers
+            data.β[j] = data.T
+        end
+    end
+    return data
+end
+
