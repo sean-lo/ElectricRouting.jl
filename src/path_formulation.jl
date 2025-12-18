@@ -248,7 +248,7 @@ function path_formulation_build_model(
             )
             for (state1, state2) in keys(some_paths)
         )
-        == 1
+        >= 1
     )
     @expression(
         model, 
