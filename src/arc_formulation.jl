@@ -239,7 +239,7 @@ function arc_formulation(
             model,
             total_charge_cost, 
             sum(
-                data.charge_cost_coeffs[i] * δ[i,k] 
+                data.charge_cost_coeff * δ[i,k] 
                 for i in N_charging, k in N_vehicles
             )
         )
