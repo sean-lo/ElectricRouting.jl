@@ -434,9 +434,8 @@ function path_formulation_column_generation!(
     use_load::Bool = false,
     charge_cost_heterogenous::Bool = false,
     time_windows::Bool = false,
-    elementary::Bool = true,
-    neighborhoods::Union{Nothing, BitMatrix} = nothing,
-    ngroute::Bool = false,
+    use_ngroute::Bool = false,
+    ng_neighborhoods::Union{Nothing, BitMatrix} = nothing,
     verbose::Bool = true,
     time_limit::Float64 = Inf,
     max_iters::Float64 = Inf,
@@ -818,13 +817,16 @@ function detect_cycles_in_path_solution(
 end
 
 
-function modify_neighborhoods_with_found_cycles!(
-    neighborhoods::BitMatrix,
+function modify_ng_neighborhoods_with_found_cycles!(
+    ng_neighborhoods::BitMatrix,
     cycles_lookup::Dict{Int, Set{Int}},
 )
+    entries_changed = 0
     for (node, changed_nodes) in pairs(cycles_lookup)
-        neighborhoods[node, collect(changed_nodes)] .= 1
+        entries_changed += sum(.!ng_neighborhoods[node, collect(changed_nodes)])
+        ng_neighborhoods[node, collect(changed_nodes)] .= 1
     end
+    return entries_changed
 end
 
 
@@ -1197,9 +1199,8 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
     time_windows::Bool = false,
     use_load::Bool = false,
     use_heuristic::Bool = false,
-    elementary::Bool = false,
-    ngroute::Bool = true,
-    neighborhoods::Union{Nothing, BitMatrix} = nothing,
+    use_ngroute::Bool = true,
+    ng_neighborhoods::Union{Nothing, BitMatrix} = nothing,
     ngroute_neighborhood_size::Int = Int(ceil(sqrt(graph.n_customers))),
     ngroute_neighborhood_depots_size::String = "small",
     ngroute_neighborhood_charging_size::String = "small",
@@ -1214,8 +1215,8 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
 )
     start_time = time()
 
-    if ngroute && isnothing(neighborhoods)
-        neighborhoods = compute_ngroute_neighborhoods(
+    if use_ngroute && isnothing(ng_neighborhoods)
+        ng_neighborhoods = compute_ngroute_neighborhoods(
             graph,
             ngroute_neighborhood_size; 
             depots_size = ngroute_neighborhood_depots_size,
@@ -1253,17 +1254,17 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
             method,
         )
     )
-    if ngroute
+    if use_ngroute
         push!(start_printlist, 
             @sprintf(
                 """
-                ngroute:                        %s
+                use ngroute?:                   %s
                 ngroute neighborhood size:
                     customers                   %3d
                     depots                      %s
                     charging                    %s
                 """,
-                ngroute,
+                use_ngroute,
                 ngroute_neighborhood_size,
                 ngroute_neighborhood_depots_size,
                 ngroute_neighborhood_charging_size,
@@ -1302,11 +1303,9 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
         push!(start_printlist,
             @sprintf(
                 """
-                ngroute:                        %s
-                elementary:                     %s
+                use ngroute?:                   %s
                 """,
-                ngroute,
-                elementary,
+                use_ngroute,
             )
         )
     end
@@ -1389,10 +1388,10 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
     CGIP_all_results = Dict[]
     all_params = Dict[]
     CG_all_params = Dict[]
-    if ngroute
-        CG_all_neighborhoods = BitMatrix[]
+    if use_ngroute
+        CG_all_ng_neighborhoods = BitMatrix[]
     else
-        CG_all_neighborhoods = nothing
+        CG_all_ng_neighborhoods = nothing
     end
 
     while true
@@ -1425,8 +1424,8 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
         push!(CGLP_all_results, CGLP_results)
         push!(CGIP_all_results, CGIP_results)
         push!(CG_all_params, CG_params)
-        if ngroute
-            push!(CG_all_neighborhoods, copy(neighborhoods))
+        if use_ngroute
+            push!(CG_all_ng_neighborhoods, copy(ng_neighborhoods))
         end
 
         if CGLP_results["errored"] || CGIP_results["errored"] || CG_params["cycled"]
@@ -1468,7 +1467,7 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
         iteration_params["CG_time_taken"] = CG_params["time_taken"]
         iteration_params["CG_sp_time_taken_mean"] = CG_params["sp_time_taken_mean"]
         iteration_params["method"] = "none"
-        iteration_params["ngroute_neighborhood_size"] = ngroute ? (graph.n_customers + graph.n_charging) * mean(neighborhoods[graph.N_customers, vcat(graph.N_customers, graph.N_charging)]) : 0
+        iteration_params["ngroute_neighborhood_size"] = use_ngroute ? (graph.n_customers + graph.n_charging) * mean(ng_neighborhoods[graph.N_customers, vcat(graph.N_customers, graph.N_charging)]) : 0
         iteration_params["cycles_lookup_length"] = 0
         iteration_params["implemented_SR3_cuts_count"] = 0
         iteration_params["converged"] = false
@@ -1480,21 +1479,22 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
             iteration_params["converged"] = true
         end
 
-        if CG_params["converged"] && !continue_flag && !converged && ngroute && use_adaptive_ngroute
+        if CG_params["converged"] && !continue_flag && !converged && use_ngroute && use_adaptive_ngroute
             # see if any path in solution was non-elementary
             cycles_lookup = detect_cycles_in_path_solution([p for (val, p) in CGLP_results["paths"]], graph)
+            entries_changed = 0
             if length(cycles_lookup) > 0 
                 delete_paths_with_found_cycles_from_model!(model, z, some_paths, path_costs, path_service, cycles_lookup, graph)
-                modify_neighborhoods_with_found_cycles!(neighborhoods, cycles_lookup)
+                entries_changed = modify_ng_neighborhoods_with_found_cycles!(ng_neighborhoods, cycles_lookup)
                 continue_flag = true
                 iteration_params["method"] = "use_adaptive_ngroute"
-                iteration_params["cycles_lookup_length"] = length(cycles_lookup)
+                iteration_params["ngroute_neighborhoods_expanded"] = entries_changed
             end
-            add_message!(printlist, "Expanded ng-route neighborhoods by $(length(cycles_lookup))\n", verbose)
+            add_message!(printlist, "Expanded ng-route ng_neighborhoods by $(entries_changed)\n", verbose)
             add_message!(printlist, "\n", verbose)
         end
 
-        if CG_params["converged"] && !continue_flag && !converged && ngroute && use_SR3_cuts
+        if CG_params["converged"] && !continue_flag && !converged && use_ngroute && use_SR3_cuts
             # if no path in solution was non-elementary, 
             # generate violated SR3 inequalities
             generated_SR3_list = enumerate_violated_path_SR3_inequalities(
@@ -1588,7 +1588,7 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
     end
 
     return (
-        CGLP_all_results, CGIP_all_results, CG_all_params, CG_all_neighborhoods, all_params, printlist, 
+        CGLP_all_results, CGIP_all_results, CG_all_params, CG_all_ng_neighborhoods, all_params, printlist, 
         some_paths, model, z, SR3_constraints
     )
 end
