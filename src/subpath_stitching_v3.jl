@@ -1296,27 +1296,6 @@ function generate_path_labels_all(
     return all_path_labels
 end
 
-
-# unwrap_path_labels(p::Label) = Label[p]
-
-# function unwrap_path_labels(d::AbstractDict)
-#     u = Label[]
-#     for v in values(d)
-#         append!(u, unwrap_path_labels(v))
-#     end
-#     return u
-# end
-
-# function get_negative_path_labels_from_path_labels(
-#     path_labels::Dict{Int, Dict{Int, T}},
-# ) where {T <: AbstractDict}
-#     return Label[
-#         path_label
-#         for path_label in unwrap_path_labels(path_labels)
-#             if path_label.cost < -1e-4
-#     ]
-# end
-
 function get_negative_path_labels_from_path_labels(
     path_labels::Dict{
         Int, Dict{
