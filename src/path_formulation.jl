@@ -77,6 +77,52 @@ function generate_artificial_paths(
     return artificial_paths
 end
 
+function add_empty_paths!(
+    some_paths::Dict{
+        Tuple{NTuple{3, Int}, NTuple{3, Int}},
+        Vector{Path},
+    },
+    data::EVRPData,
+    graph::EVRPGraph,
+)
+    for starting_node in graph.N_depots
+        starting_time = 0.0
+        starting_charge = graph.B
+        current_node = starting_node
+        key = (
+            (starting_node, starting_time, starting_charge),  
+            (current_node, starting_time, starting_charge)
+        )
+        s = Subpath(
+            n_customers = graph.n_customers,
+            starting_node = starting_node,
+            starting_time = starting_time,
+            starting_charge = starting_charge,
+            current_node = current_node,
+            arcs = [(starting_node, current_node)],
+            current_time = starting_time,
+            current_charge = starting_charge,
+            load = 0,
+            served = zeros(Int, graph.n_customers),
+            artificial = false,
+        )
+        p = Path(
+            subpaths = [s],
+            charging_arcs = ChargingArc[],
+            served = zeros(Int, graph.n_customers),
+            load = 0,
+            arcs = [(starting_node, current_node)],
+            customer_arcs = NTuple{2, Int}[],
+            artificial = false,
+        )
+        if !(key in keys(some_paths))
+            some_paths[key] = Path[]
+        end
+        push!(some_paths[key], p)
+    end
+    return
+end
+
 function add_path_to_generated_paths!(
     generated_paths::Dict{
         Tuple{NTuple{3, Int}, NTuple{3, Int}}, 
@@ -1296,6 +1342,8 @@ function path_formulation_column_generation_with_adaptve_ngroute_SR3_cuts(
         artificial_paths = generate_artificial_paths(data, graph)
         some_paths = deepcopy(artificial_paths)
     end
+    add_empty_paths!(some_paths, data, graph)
+
     path_costs = compute_path_costs(
         data, graph, 
         some_paths,
