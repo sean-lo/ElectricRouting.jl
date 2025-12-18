@@ -21,7 +21,7 @@ function generate_artificial_paths(
             start_depots[v] = k
         end
     end
-    end_depots = []
+    end_depots = Int[]
     for k in graph.N_depots
         append!(end_depots, repeat([k], data.v_end[k]))
     end
@@ -70,7 +70,7 @@ function generate_artificial_paths(
             artificial = true,
         )
         if !(key in keys(artificial_paths))
-            artificial_paths[key] = []
+            artificial_paths[key] = Path[]
         end
         push!(artificial_paths[key], p)
     end
