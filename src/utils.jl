@@ -95,59 +95,33 @@ Base.isequal(s1::Subpath, s2::Subpath) = begin
 end
 
 Base.@kwdef struct ChargingArc
-    starting_node::Int
-    starting_time::Int
-    starting_charge::Int
-    delta::Int = 0
-    charge_cost_coeff::Int
-    current_time::Int = starting_time
-    current_charge::Int = starting_charge
+    node::Int
+    time_start::Int
+    time_end::Int
+    time_diff::Int
+    charge_start::Int
+    charge_end::Int
+    charge_diff::Int
 end
 
-ChargingArc() = ChargingArc(0,0,0,0,0,0,0)
-ChargingArc(starting_node::Int, starting_time::Int, starting_charge::Int, charge_cost_coeff::Int) = ChargingArc(
-    starting_node,
-    starting_time,
-    starting_charge,
-    0,
-    charge_cost_coeff,
-    starting_time,
-    starting_charge,
-)
-ChargingArc(
-    starting_node::Int,
-    starting_time::Int,
-    starting_charge::Int,
-    delta::Int,
-    charge_cost_coeff::Int,
-) = ChargingArc(
-    starting_node,
-    starting_time,
-    starting_charge,
-    delta,
-    charge_cost_coeff,
-    starting_time + delta,
-    starting_charge + delta,
-)
-
 Base.isequal(a1::ChargingArc, a2::ChargingArc) = (
-    a1.starting_node == a2.starting_node
-    && a1.starting_time == a2.starting_time
-    && a1.starting_charge == a2.starting_charge
-    && a1.delta == a2.delta
-    && a1.charge_cost_coeff == a2.charge_cost_coeff
-    && a1.current_time == a2.current_time
-    && a1.current_charge == a2.current_charge
+    a1.node == a2.node
+    && a1.time_start == a2.time_start
+    && a1.time_end == a2.time_end
+    && a1.time_diff == a2.time_diff
+    && a1.charge_start == a2.charge_start
+    && a1.charge_end == a2.charge_end
+    && a1.charge_diff == a2.charge_diff
 )
 
 Base.copy(a::ChargingArc) = ChargingArc(
-    starting_node = a.starting_node,
-    starting_time = a.starting_time,
-    starting_charge = a.starting_charge,
-    delta = a.delta,
-    charge_cost_coeff = a.charge_cost_coeff,
-    current_time = a.current_time,
-    current_charge = a.current_charge,
+    node = a.node,
+    time_start = a.time_start,
+    time_end = a.time_end,
+    time_diff = a.time_diff,
+    charge_start = a.charge_start,
+    charge_end = a.charge_end,
+    charge_diff = a.charge_diff,
 )
 
 Base.@kwdef mutable struct Path
