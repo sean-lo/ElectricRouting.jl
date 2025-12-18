@@ -203,10 +203,7 @@ struct EVRPData
     inverse_refueling_rate::Float64
     B::Int
     travel_cost_coeff::Int
-    charge_cost_coeffs::Dict{Int, Int}
-    charge_cost_levels::Dict{Int, Int}
-    charge_cost_levelslist::Vector{Int}
-    charge_cost_nlevels::Int
+    charge_cost_coeff::Int
 end
 
 struct EVRPGraph
@@ -348,7 +345,7 @@ function compute_charging_arc_cost(
     a::ChargingArc,
     data::EVRPData,
 )
-    return data.charge_cost_coeffs[a.starting_node] * a.delta
+    return data.charge_cost_coeff * a.charge_diff
 end
 
 function compute_path_cost(
@@ -696,11 +693,6 @@ function generate_instance(
     batch::Int,
     permissiveness::Float64,
     data_dir::String = "data/",
-    charge_cost_heterogenous::Bool = false,
-    charge_cost_random::Bool = false,
-    charge_cost_stddev::Float64 = 0.0,
-    charge_cost_nlevels::Int = 1,
-    charge_cost_coeff_increment::Int = 0,
 )
     n_nodes = n_depots + n_customers + n_charging
 
@@ -764,49 +756,6 @@ function generate_instance(
     α_charge = vcat(α, repeat([0], n_depots + n_charging))
     β_charge = vcat(β, repeat([T], n_depots + n_charging))
 
-
-    if charge_cost_heterogenous
-        if charge_cost_random
-            Random.seed!(seeds[6])
-            charge_cost_coeffs = Dict(
-                i => Int(round(rand(Normal(charge_cost_coeff, charge_cost_stddev))))
-                for i in N_charging
-            )
-            charge_cost_levelslist = charge_cost_coeffs |> values |> collect |> unique |> sort
-            charge_cost_levels = Dict(
-                i => findfirst(x -> x == charge_cost_coeffs[i], charge_cost_levelslist)
-                for i in N_charging
-            )
-            charge_cost_nlevels = length(charge_cost_levelslist)
-        else
-            # deterministic levels, random placements
-            charge_cost_levelslist = collect(charge_cost_coeff:charge_cost_coeff_increment:charge_cost_coeff+charge_cost_coeff_increment*(charge_cost_nlevels-1))
-            Random.seed!(seeds[6])
-            charge_cost_levels = Dict(
-                i => ind
-                for (i, ind) in zip(
-                    shuffle(collect(N_charging)), 
-                    repeat(1:charge_cost_nlevels, Int(ceil(n_charging / charge_cost_nlevels))),
-                )
-            )
-            charge_cost_coeffs = Dict(
-                i => charge_cost_levelslist[charge_cost_levels[i]]
-                for i in N_charging
-            )
-        end
-    else
-        charge_cost_coeffs = Dict(
-            i => charge_cost_coeff
-            for i in N_charging
-        )
-        charge_cost_levelslist = [charge_cost_coeff]
-        charge_cost_levels = Dict(
-            i => 1
-            for i in N_charging
-        )
-        charge_cost_nlevels = 1
-    end
-
     data = EVRPData(
         n_depots,
         n_customers,
@@ -847,10 +796,7 @@ function generate_instance(
         inverse_refueling_rate,
         B,
         travel_cost_coeff,
-        charge_cost_coeffs,
-        charge_cost_levels,
-        charge_cost_levelslist,
-        charge_cost_nlevels,
+        charge_cost_coeff,
     )
     return data
 end
