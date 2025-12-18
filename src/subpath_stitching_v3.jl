@@ -1426,7 +1426,8 @@ function get_paths_from_negative_path_labels(
     }()
     for path_label in path_labels
         p = convert_path_label_to_path(
-            path_label, data, graph,
+            path_label, 
+            data, graph,
             ; 
             use_load = use_load,
             use_nonlinear_charging = use_nonlinear_charging,
@@ -1500,12 +1501,13 @@ function subproblem_iteration_ours(
         ;
         # time_limit = time_limit - (time() - start_time),
     )
+    subpath_labels = subpath_labels_result.value
     subpath_labels_time = round(subpath_labels_result.time, digits=3)
 
     path_labels_result = @timed generate_path_labels_all(
         data,
         graph,
-        subpath_labels_result.value,
+        subpath_labels,
         use_load,
         use_time_windows,
         use_nonlinear_charging,
@@ -1524,7 +1526,8 @@ function subproblem_iteration_ours(
     negative_path_labels_count = length(negative_path_labels)
 
     generated_paths = get_paths_from_negative_path_labels(
-        data, graph, negative_path_labels,
+        data, graph, 
+        negative_path_labels,
         ;
         use_load = use_load,
         use_nonlinear_charging = use_nonlinear_charging,
