@@ -671,34 +671,6 @@ function generate_subpath_labels_all(
 end
 
 
-# function create_empty_path_label(
-#     depot::Int,
-#     data::EVRPData,
-#     ;
-#     n_cuts::Int = 0,
-#     ng_neighborhoods::BitMatrix = falses(data.n_nodes, data.n_nodes),
-#     λmemory::BitMatrix = falses(n_cuts, data.n_nodes),
-# )
-#     s = create_new_subpath_label(
-#         depot, # starting_node
-#         data,
-#         ;
-#         n_cuts = n_cuts,
-#         ng_neighborhoods = ng_neighborhoods,
-#         λmemory = λmemory,
-#     )
-#     push!(s.nodes, depot)
-#     p = create_new_path_label(
-#         depot,
-#         data,
-#         ;
-#         n_cuts = n_cuts,
-#     )
-#     push!(p.subpath_labels, s)
-
-#     return p
-# end
-
 function create_new_path_label(
     starting_node::Int,
     data::EVRPData,
