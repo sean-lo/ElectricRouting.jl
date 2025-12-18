@@ -94,7 +94,7 @@ mutable struct PPathLabel <: Label
     time_end_earliest::Int
     charge_end_max::Int
     load::Int
-    subpath_labels::Vector{SubpathLabel}  # FIXME: change to vkeys
+    subpath_label_vkeys::Vector{SUBPATH_VKEY_TYPE}
     charging_amounts_max::Vector{Int}
     charging_amounts::Vector{Int}
     served::Vector{Int}
@@ -108,7 +108,7 @@ Base.copy(p::PPathLabel) = PPathLabel(
     p.time_end_earliest,
     p.charge_end_max,
     p.load,
-    [copy(s) for s in p.subpath_labels],
+    copy(p.subpath_label_vkeys),
     copy(p.charging_amounts_max),
     copy(p.charging_amounts),
     copy(p.served),
@@ -134,7 +134,7 @@ function Base.show(io::IO, p::PPathLabel)
         p.time_end_earliest,
         p.charge_end_max,
         p.load,
-        [get_vkey(s) for s in p.subpath_labels],
+        p.subpath_label_vkeys,
         [(i, p.served[i]) for i in 1:length(p.served) if p.served[i] > 0],
         findall(x -> x == 1, p.ng_fset),
         findall(x -> x == 1, p.cut_flabels)
@@ -742,7 +742,7 @@ function compute_new_path(
         [graph.B], [1],
     ),
 )
-    @debug "Computing new path with: path = $current_path, subpath = $s"
+    # @debug "Computing new path with: path = $current_path, subpath = $s"
 
     # Time windows feasibility
     if use_time_windows
@@ -760,19 +760,19 @@ function compute_new_path(
                 s.charge_taken - current_path.charge_end_max,
             )
         end
-        @debug "  charging_duration_min = $charging_duration_min"
+        # @debug "  charging_duration_min = $charging_duration_min"
 
         if current_path.time_end_earliest + charging_duration_min > s.time_start_latest
-            @debug "  Infeasible extension from node $current_node to node $next_node (time windows): $(current_path.time_end_earliest), $charging_duration_min, $(s.time_start_latest)"
+            # @debug "  Infeasible extension from node $current_node to node $next_node (time windows): $(current_path.time_end_earliest), $charging_duration_min, $(s.time_start_latest)"
             return (false, current_path)
         end
         new_time_end_earliest = max(
             s.time_end_earliest,
             s.time_taken + current_path.time_end_earliest + charging_duration_min,
         )
-        @debug "  new_time_end_earliest = $new_time_end_earliest"
+        # @debug "  new_time_end_earliest = $new_time_end_earliest"
         if new_time_end_earliest + graph.min_t[next_node] > graph.T
-            @debug "  Infeasible extension from node $current_node to node $next_node (time boundary): $(new_time_end_earliest), $(graph.min_t[next_node]), $(graph.T)"
+            # @debug "  Infeasible extension from node $current_node to node $next_node (time boundary): $(new_time_end_earliest), $(graph.min_t[next_node]), $(graph.T)"
             return (false, current_path)
         end
 
@@ -803,9 +803,9 @@ function compute_new_path(
                 ),
             )
         end
-        @debug "  charge_end_max_before_subpath = $charge_end_max_before_subpath"
+        # @debug "  charge_end_max_before_subpath = $charge_end_max_before_subpath"
         new_charge_end_max = charge_end_max_before_subpath - s.charge_taken
-        @debug "  new_charge_end_max = $new_charge_end_max"
+        # @debug "  new_charge_end_max = $new_charge_end_max"
     else
         if use_nonlinear_charging
             # time_end_earliest
@@ -821,12 +821,12 @@ function compute_new_path(
                 s.charge_taken - current_path.charge_end_max,
             )
         end
-        @debug "  charging_duration_min = $charging_duration_min"
+        # @debug "  charging_duration_min = $charging_duration_min"
         new_time_end_earliest = s.time_taken + current_path.time_end_earliest + charging_duration_min
 
-        @debug "  new_time_end_earliest = $new_time_end_earliest"
+        # @debug "  new_time_end_earliest = $new_time_end_earliest"
         if new_time_end_earliest + graph.min_t[next_node] > graph.T
-            @debug "  Infeasible extension from node $current_node to node $next_node (time boundary): $(new_time_end_earliest), $(graph.min_t[next_node]), $(graph.T)"
+            # @debug "  Infeasible extension from node $current_node to node $next_node (time boundary): $(new_time_end_earliest), $(graph.min_t[next_node]), $(graph.T)"
             return (false, current_path)
         end
         # charge_end_max 
@@ -834,7 +834,7 @@ function compute_new_path(
             0, 
             current_path.charge_end_max - s.charge_taken,
         )
-        @debug "  charge_end_max = $charge_end_max"
+        # @debug "  charge_end_max = $charge_end_max"
         # charge_end_max 
         charge_end_max_before_subpath = min(
             max(
@@ -843,15 +843,15 @@ function compute_new_path(
             ),
             graph.B,
         )
-        @debug "  charge_end_max_before_subpath = $charge_end_max_before_subpath"
+        # @debug "  charge_end_max_before_subpath = $charge_end_max_before_subpath"
     end
 
     # load feasibility
     if use_load
         new_load = current_path.load + s.load
-        @debug "  current_path.load  = $(current_path.load), s.load = $(s.load), new_load = $new_load"
+        # @debug "  current_path.load  = $(current_path.load), s.load = $(s.load), new_load = $new_load"
         if new_load > graph.C
-            @debug "  Infeasible extension from node $current_node to node $next_node (load): $(new_load), $(graph.C)"
+            # @debug "  Infeasible extension from node $current_node to node $next_node (load): $(new_load), $(graph.C)"
             return (false, current_path)
         end
     end
@@ -866,13 +866,13 @@ function compute_new_path(
             s.ng_bset,
         )
         if !feasible
-            @debug "  Infeasible extension from node $current_node to node $next_node (ng-route): $(current_path.ng_fset), $(s.ng_bset)"
+            # @debug "  Infeasible extension from node $current_node to node $next_node (ng-route): $(current_path.ng_fset), $(s.ng_bset)"
             return (false, current_path)
         end
     else
         # elementary
         if any(s.served + current_path.served .> 1)
-            @debug "  Infeasible extension from node $current_node to node $next_node (elementary): $(current_path.served), $(current_path.served)"
+            # @debug "  Infeasible extension from node $current_node to node $next_node (elementary): $(current_path.served), $(current_path.served)"
             return (false, current_path)
         end
     end
@@ -889,42 +889,15 @@ function compute_new_path(
     new_path.cost += s.cost
 
 
-    if length(current_path.subpath_labels) > 0
+    if length(current_path.subpath_label_vkeys) > 0
         amount_charged = charge_end_max_before_subpath - current_path.charge_end_max
         push!(new_path.charging_amounts_max, amount_charged)
         push!(new_path.charging_amounts, amount_charged)
-        @debug "  Charging amounts so far: $(new_path.charging_amounts)"
-        @debug "  Amount to be charged: $(amount_charged)"
+        # @debug "  Charging amounts so far: $(new_path.charging_amounts)"
+        # @debug "  Amount to be charged: $(amount_charged)"
     end
 
-    # if length(current_path.subpath_labels) > 0
-    #     push!(
-    #         new_path.charging_amounts_max,
-    #         charge_end_max_before_subpath - current_path.charge_end_max,
-    #     )
-    #     @debug "  Charging amounts max: $(new_path.charging_amounts_max)"
-    #     amount_charged = max(0, s.charge_taken - current_path.charge_end_min)
-    #     @debug "  Amount to be charged: $(amount_charged)"
-    #     # include cost of charging
-    #     for i in 1:length(new_path.charging_amounts_max)-1
-    #         delta = new_path.charging_amounts_max[i] - new_path.charging_amounts[i]
-    #         if delta > 0
-    #             delta_ = min(amount_charged, delta)
-    #             amount_charged -= delta_
-    #             new_path.charging_amounts[i] += delta_
-    #         end
-    #         @debug "  Charging amounts so far: $(new_path.charging_amounts)"
-    #         @debug "  Amount to be charged: $(amount_charged)"
-    #         if amount_charged == 0
-    #             break
-    #         end
-    #     end
-    #     push!(new_path.charging_amounts, amount_charged)
-    #     @debug "  Charging amounts so far: $(new_path.charging_amounts)"
-    #     @debug "  Amount to be charged: $(amount_charged)"
-    # end
-
-    push!(new_path.subpath_labels, s)
+    push!(new_path.subpath_label_vkeys, get_vkey(s))
     new_path.nodes = vcat(new_path.nodes, s.nodes[2:end])
 
     # Customer service
@@ -1279,7 +1252,7 @@ function convert_path_label_to_path(
     path_label::PPathLabel,
     data::EVRPData,
     graph::EVRPGraph,
-    subpath_labels::Dict{
+    all_subpath_labels::Dict{
         Int,
         Dict{
             Int,
@@ -1303,10 +1276,10 @@ function convert_path_label_to_path(
     """
     current_time, current_charge = (0, graph.B)
     prev_time, prev_charge = current_time, current_charge
-    subpath_labels = copy(path_label.subpath_labels)
+    subpath_label_vkeys = copy(path_label.subpath_label_vkeys)
     charging_amounts = copy(path_label.charging_amounts)
-    @assert length(subpath_labels) == length(charging_amounts) + 1
-    current_node = path_label.subpath_labels[1].nodes[1]
+    @assert length(subpath_label_vkeys) == length(charging_amounts) + 1
+    current_node = subpath_label_vkeys[1][end][1]
 
     p = Path(
         subpaths = Subpath[],
@@ -1317,13 +1290,17 @@ function convert_path_label_to_path(
         customer_arcs = NTuple{2, Int}[],
     )
     while true
-        subpath_label = popfirst!(subpath_labels)
+        subpath_label_vkey = popfirst!(subpath_label_vkeys)
+        prev_node = subpath_label_vkey[end][1]
+        @assert prev_node == current_node
+        current_node = subpath_label_vkey[end][end]
+        subpath_label = all_subpath_labels[prev_node][current_node][subpath_label_vkey]
         prev_time = current_time
         prev_charge = current_charge
-        prev_node = subpath_label.nodes[1]
-        @assert prev_node == current_node
-        current_node = subpath_label.nodes[end]
-        current_time = current_time + subpath_label.time_taken
+        current_time = max(
+            subpath_label.time_end_earliest,
+            current_time + subpath_label.time_taken,
+        )
         current_charge = current_charge - subpath_label.charge_taken
         @assert current_time <= graph.T
         @assert current_charge >= 0
