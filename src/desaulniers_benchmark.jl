@@ -176,7 +176,7 @@ function compute_new_pure_path(
     new_path.cost += modified_costs[current_node,next_node]
     # Assume only homogenous charging costs for benchmark method
     # Practically - these charging amounts are performed at previously visited CSes
-    new_path.cost += data.charge_cost_levelslist[1] * (excess + slack)
+    new_path.cost += data.charge_cost_coeff * (excess + slack)
 
     return (true, new_path)
 end
@@ -914,11 +914,11 @@ function convert_path_label_to_path(
             ChargingArc(
                 states[2*i][1],
                 states[2*i][2],
-                states[2*i][3],
-                states[2*i+1][2] - states[2*i][2],
-                data.charge_cost_coeffs[states[2*i][1]],
                 states[2*i+1][2],
+                states[2*i+1][2] - states[2*i][2],
+                states[2*i][3],
                 states[2*i+1][3],
+                states[2*i+1][3] - states[2*i][3],
             )
         )
     end
