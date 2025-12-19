@@ -695,45 +695,6 @@ function path_formulation_solve_integer_model!(
     return CGIP_results
 end
 
-function enumerate_violated_path_WSR3_inequalities(
-    paths::Vector{Tuple{Float64, Path}},
-    graph::EVRPGraph,
-)
-    S_list = Tuple{Float64, Vararg{Int}}[]
-    for S in combinations(graph.N_customers, 3)
-        S_paths = [
-            (val, p) for (val, p) in values(paths)
-            if !isdisjoint(p.customer_arcs, Tuple.(permutations(S, 2)))
-        ]
-        violation = sum([x[1] for x in S_paths], init = 0.0) - 1.0
-        if violation ≤ 1e-6
-            continue
-        end
-        # Find included charging stations if they exist
-        included_charging_stations = Set{Int}()
-        for (val, p) in S_paths
-            customer_arcs = intersect(Tuple.(permutations(S, 2)), p.customer_arcs)
-            for ca in customer_arcs
-                union!(included_charging_stations, 
-                    Set{Int}(
-                        a1[2]
-                        for (a1, a2) in zip(p.arcs[1:end-1], p.arcs[2:end])
-                            if (
-                                a1[1] == ca[1] 
-                                && a1[2] != ca[2] 
-                                && a2[2] == ca[2]
-                                && a1[2] in graph.N_charging
-                            )
-                    )
-                )
-            end
-        end
-        push!(S_list, (violation, S..., included_charging_stations...))
-    end
-    sort!(S_list, by = x -> x[1], rev = true)
-    return S_list
-end
-
 
 function detect_cycle_in_path(
     p::Path,
