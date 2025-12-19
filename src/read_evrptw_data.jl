@@ -23,8 +23,9 @@ function read_evrptw_instance(
     scale_time_horizon::Float64 = 1.0,
     scale_charge_capacity::Float64 = 1.0,
     scale_load_capacity::Float64 = 1.0,
+    data_dir::String = "data/",
 )
-    lines = readlines(fp)
+    lines = readlines(joinpath(data_dir, fp))
     sep = findfirst(x -> occursin(r"^\s*$", x), lines)
     table_str = join(lines[1:sep-1], "\n")
     df = CSV.read(IOBuffer(table_str), DataFrame, delim=' ', ignorerepeated=true)
