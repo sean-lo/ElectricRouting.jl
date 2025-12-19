@@ -492,6 +492,12 @@ function path_formulation_column_generation!(
         push!(CG_params["λ"], CGLP_results["λ"])
         push!(CG_params["lp_relaxation_solution_time_taken"], round(mp_solution_end_time - mp_solution_start_time, digits = 3))
 
+        modified_costs = compute_arc_modified_costs(
+            graph, data,
+            CGLP_results["κ"], 
+            CGLP_results["μ"], 
+            CGLP_results["ν"],
+        )
         local generated_paths
         local generated_paths_count
         if method == "ours"
@@ -500,9 +506,7 @@ function path_formulation_column_generation!(
             try
                 (generated_paths, generated_paths_count, base_labels_time, full_labels_time) = subproblem_iteration_ours(
                     data, graph, 
-                    CGLP_results["κ"], 
-                    CGLP_results["μ"], 
-                    CGLP_results["ν"], 
+                    modified_costs,
                     CGLP_results["λ"], 
                     ;
                     use_load = use_load,
@@ -528,9 +532,7 @@ function path_formulation_column_generation!(
             try
                 (generated_paths, generated_paths_count, path_labels_time) = subproblem_iteration_benchmark(
                     data, graph, 
-                    CGLP_results["κ"], 
-                    CGLP_results["μ"], 
-                    CGLP_results["ν"], 
+                    modified_costs,
                     CGLP_results["λ"], 
                     ;
                     use_load = use_load,

@@ -599,9 +599,7 @@ end
 function generate_subpath_labels_all(
     data::EVRPData,
     graph::EVRPGraph,
-    κ::Dict{Int, Float64},
-    μ::Dict{Int, Float64},
-    ν::Vector{Float64},
+    modified_costs::Matrix{Float64},
     use_load::Bool,
     use_time_windows::Bool,
     use_ngroute::Bool,
@@ -613,10 +611,6 @@ function generate_subpath_labels_all(
     ;
     # time_limit::Float64 = Inf,
 )
-    modified_costs = compute_arc_modified_costs(
-        graph, data, 
-        κ, μ, ν,
-    )
 
     all_subpath_labels = Dict{
         Int,
@@ -1395,9 +1389,7 @@ end
 function subproblem_iteration_ours(
     data::EVRPData, 
     graph::EVRPGraph,
-    κ::Dict{Int, Float64},
-    μ::Dict{Int, Float64},
-    ν::Vector{Float64}, 
+    modified_costs::Matrix{Float64},
     λ::Dict{<:Any, Float64},
     ;
     use_load::Bool = false,
@@ -1441,9 +1433,7 @@ function subproblem_iteration_ours(
     subpath_labels_result = @timed generate_subpath_labels_all(
         data,
         graph,
-        κ,
-        μ,
-        ν,
+        modified_costs,
         use_load,
         use_time_windows,
         use_ngroute,
