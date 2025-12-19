@@ -4,7 +4,6 @@ using Suppressor
 
 function generate_artificial_paths(
     data::EVRPData,
-    graph::EVRPGraph,
 )
     artificial_paths = Dict{
         Tuple{NTuple{3, Int}, NTuple{3, Int}},
@@ -17,33 +16,33 @@ function generate_artificial_paths(
         end
     end
     end_depots = Int[]
-    for k in graph.N_depots
+    for k in data.N_depots
         append!(end_depots, repeat([k], data.v_end[k]))
     end
     append!(end_depots,
         repeat(
-            graph.N_depots, 
-            outer = Int(ceil((data.n_vehicles - sum(values(data.v_end))) / graph.n_depots))
+            data.N_depots, 
+            outer = Int(ceil((data.n_vehicles - sum(values(data.v_end))) / data.n_depots))
         )
     )
     end_depots = end_depots[1:data.n_vehicles]
     
     for (v, (starting_node, current_node)) in enumerate(zip(start_depots, end_depots))
         starting_time = 0.0
-        starting_charge = graph.B
+        starting_charge = data.B
         key = (
             (starting_node, starting_time, starting_charge),  
             (current_node, starting_time, starting_charge)
         )
         # initialise a proportion of the customers to be served
-        served = zeros(Int, graph.n_customers)
+        served = zeros(Int, data.n_customers)
         for i in 1:length(served)
             if mod1(i, data.n_vehicles) == v
                 served[i] = 1
             end
         end
         s = Subpath(
-            n_customers = graph.n_customers,
+            n_customers = data.n_customers,
             starting_node = starting_node,
             starting_time = starting_time,
             starting_charge = starting_charge,
@@ -78,18 +77,17 @@ function add_empty_paths!(
         Vector{Path},
     },
     data::EVRPData,
-    graph::EVRPGraph,
 )
-    for starting_node in graph.N_depots
+    for starting_node in data.N_depots
         starting_time = 0.0
-        starting_charge = graph.B
+        starting_charge = data.B
         current_node = starting_node
         key = (
             (starting_node, starting_time, starting_charge),  
             (current_node, starting_time, starting_charge)
         )
         s = Subpath(
-            n_customers = graph.n_customers,
+            n_customers = data.n_customers,
             starting_node = starting_node,
             starting_time = starting_time,
             starting_charge = starting_charge,
@@ -98,13 +96,13 @@ function add_empty_paths!(
             current_time = starting_time,
             current_charge = starting_charge,
             load = 0,
-            served = zeros(Int, graph.n_customers),
+            served = zeros(Int, data.n_customers),
             artificial = false,
         )
         p = Path(
             subpaths = [s],
             charging_arcs = ChargingArc[],
-            served = zeros(Int, graph.n_customers),
+            served = zeros(Int, data.n_customers),
             load = 0,
             arcs = [(starting_node, current_node)],
             customer_arcs = NTuple{2, Int}[],
@@ -142,7 +140,6 @@ end
 
 function path_formulation_build_model(
     data::EVRPData,
-    graph::EVRPGraph,
     some_paths::Dict{
         Tuple{NTuple{3, Int}, NTuple{3, Int}}, 
         Vector{Path},
@@ -182,20 +179,20 @@ function path_formulation_build_model(
     )
     @constraint(
         model, 
-        κ[n1 in graph.N_depots],
+        κ[n1 in data.N_depots],
         sum(
             sum(
                 z[(state1, state2),p]
                 for p in 1:length(some_paths[(state1, state2)])
             )
             for (state1, state2) in keys(some_paths)
-                if state1[1] == n1 && state1[2] == 0 && state1[3] == graph.B
+                if state1[1] == n1 && state1[2] == 0 && state1[3] == data.B
         )
         == data.v_start[n1]
     )
     @constraint(
         model,
-        μ[n2 in graph.N_depots],
+        μ[n2 in data.N_depots],
         sum(
             sum(
                 z[(state1, state2),p]
@@ -208,7 +205,7 @@ function path_formulation_build_model(
     )
     @constraint(
         model,
-        ν[j in graph.N_customers],
+        ν[j in data.N_customers],
         sum(
             sum(
                 path_service[((state1, state2), j)][p] * z[(state1, state2), p]
@@ -297,14 +294,13 @@ function add_paths_to_path_model!(
         ConstraintRef, 
     },
     data::EVRPData,
-    graph::EVRPGraph,
 ) where {T}
     mp_constraint_start_time = time()
     for state_pair in keys(generated_paths)
         if !(state_pair in keys(some_paths))
             some_paths[state_pair] = Path[]
             path_costs[state_pair] = Int[]
-            for i in 1:graph.n_customers
+            for i in 1:data.n_customers
                 path_service[(state_pair, i)] = Int[]
             end
             count = 0
@@ -331,10 +327,10 @@ function add_paths_to_path_model!(
             # 2: add path cost
             push!(
                 path_costs[state_pair], 
-                compute_path_cost(data, graph, p_new)
+                compute_path_cost(data, p_new)
             )
             # 3: add path service
-            for i in 1:graph.n_customers
+            for i in 1:data.n_customers
                 push!(path_service[(state_pair, i)], p_new.served[i])
             end
             # 4: create variable
@@ -344,7 +340,7 @@ function add_paths_to_path_model!(
             set_normalized_coefficient(model[:κ][state1[1]], z[state_pair,count], 1)
             set_normalized_coefficient(model[:μ][state2[1]], z[state_pair,count], 1)
             # 6: modify customer service constraints
-            for l in graph.N_customers
+            for l in data.N_customers
                 set_normalized_coefficient(model[:ν][l], z[state_pair, count], p_new.served[l])
             end
             # 7: modify objective
@@ -413,7 +409,7 @@ function path_formulation_column_generation!(
     use_time_windows::Bool = false,
     use_nonlinear_charging::Bool = false,
     charging_function::PiecewiseLinearIncreasingConcaveFunction = PiecewiseLinearIncreasingConcaveFunction(
-        [graph.B], [1],
+        [data.B], [1],
     ),
     use_ngroute::Bool = false,
     ng_neighborhoods::Union{Nothing, BitMatrix} = nothing,
@@ -472,8 +468,8 @@ function path_formulation_column_generation!(
                 (key, p) => value.(z[(key, p)])
                 for (key, p) in keys(z)
             ),
-            "κ" => Dict(zip(graph.N_depots, dual.(model[:κ]).data)),
-            "μ" => Dict(zip(graph.N_depots, dual.(model[:μ]).data)),
+            "κ" => Dict(zip(data.N_depots, dual.(model[:κ]).data)),
+            "μ" => Dict(zip(data.N_depots, dual.(model[:μ]).data)),
             "ν" => dual.(model[:ν]).data,
             "λ" => Dict{keytype(SR3_constraints), Float64}(
                 S => dual(SR3_constraints[S])
@@ -568,7 +564,7 @@ function path_formulation_column_generation!(
             path_service,
             generated_paths,
             SR3_constraints,
-            data, graph,
+            data, 
         )
 
         push!(
@@ -714,7 +710,6 @@ end
 
 function detect_cycles_in_path_solution(
     path_results::Vector{Path},
-    graph::EVRPGraph,
 )
     cycles = Dict{Int, Set{Int}}()
     for p in path_results
@@ -770,7 +765,7 @@ function delete_paths_with_found_cycles_from_model!(
         Int,
         Set{Int},
     },
-    graph::EVRPGraph,
+    data::EVRPData,
 )
     for state_pair in keys(some_paths)
         delete_inds = Int[]
@@ -808,7 +803,7 @@ function delete_paths_with_found_cycles_from_model!(
         # delete paths, their costs, and service info via `delete_inds`
         deleteat!(some_paths[state_pair], delete_inds)
         deleteat!(path_costs[state_pair], delete_inds)
-        for node in graph.N_customers
+        for node in data.N_customers
             deleteat!(path_service[(state_pair, node)], delete_inds)
         end
     end
@@ -817,10 +812,10 @@ end
 
 function enumerate_violated_path_SR3_inequalities(
     paths::Vector{Tuple{Float64, Path}},
-    graph::EVRPGraph,
+    data::EVRPData,
 )
     S_list = Tuple{Float64, NTuple{3, Int}}[]
-    for S in combinations(graph.N_customers, 3)
+    for S in combinations(data.N_customers, 3)
         violation = sum(
             val * floor(sum(p.served[S]) / 2)
             for (val, p) in values(paths)
@@ -913,12 +908,12 @@ end
 
 function enumerate_violated_path_SRnk_inequalities(
     paths::Vector{Tuple{Float64, Path}},
-    graph::EVRPGraph,
+    data::EVRPData,
     n::Int,
     k::Int,
 )
     S_list = Tuple{Float64, NTuple{n, Int}}[]
-    for S in combinations(graph.N_customers, n)
+    for S in combinations(data.N_customers, n)
         violation = sum(
             val * floor(sum(p.served[S]) / k)
             for (val, p) in values(paths)
@@ -1111,12 +1106,12 @@ function path_formulation_column_generation_with_adaptive_ngroute_SR3_cuts(
     use_load::Bool = false,
     use_nonlinear_charging::Bool = false,
     charging_function::PiecewiseLinearIncreasingConcaveFunction = PiecewiseLinearIncreasingConcaveFunction(
-        [graph.B], [1],
+        [data.B], [1],
     ),
     use_heuristic::Bool = false,
     use_ngroute::Bool = true,
     ng_neighborhoods::Union{Nothing, BitMatrix} = nothing,
-    ngroute_neighborhood_size::Int = Int(ceil(sqrt(graph.n_customers))),
+    ngroute_neighborhood_size::Int = Int(ceil(sqrt(data.n_customers))),
     ngroute_neighborhood_depots_size::String = "small",
     ngroute_neighborhood_charging_size::String = "small",
     use_adaptive_ngroute::Bool = true,
@@ -1156,9 +1151,9 @@ function path_formulation_column_generation_with_adaptive_ngroute_SR3_cuts(
 
             method:                         %s
             """,
-            graph.n_customers,
-            graph.n_depots,
-            graph.n_charging,
+            data.n_customers,
+            data.n_depots,
+            data.n_charging,
             data.n_vehicles,
             use_load,
             use_time_windows,
@@ -1245,23 +1240,17 @@ function path_formulation_column_generation_with_adaptive_ngroute_SR3_cuts(
                 @sprintf("Heuristic failed in %9.3f s, defaulting to artificial paths.\n", heuristic_paths_r.time),
                 verbose,
             )
-            artificial_paths = generate_artificial_paths(data, graph)
+            artificial_paths = generate_artificial_paths(data)
             some_paths = deepcopy(artificial_paths)
         end
     else
-        artificial_paths = generate_artificial_paths(data, graph)
+        artificial_paths = generate_artificial_paths(data)
         some_paths = deepcopy(artificial_paths)
     end
-    add_empty_paths!(some_paths, data, graph)
+    add_empty_paths!(some_paths, data)
 
-    path_costs = compute_path_costs(
-        data, graph, 
-        some_paths,
-    )
-    path_service = compute_path_service(
-        graph,
-        some_paths,
-    )
+    path_costs = compute_path_costs(data, some_paths)
+    path_service = compute_path_service(data, some_paths)
 
     add_message!(
         printlist,
@@ -1275,7 +1264,7 @@ function path_formulation_column_generation_with_adaptive_ngroute_SR3_cuts(
     )
 
     model, z = path_formulation_build_model(
-        data, graph, some_paths, path_costs, path_service,
+        data, some_paths, path_costs, path_service,
         ; 
         Env = Env,
     )
@@ -1363,10 +1352,10 @@ function path_formulation_column_generation_with_adaptive_ngroute_SR3_cuts(
 
         # if CG_params["converged"]
         CGLP_results["paths"] = collect_path_solution_support(
-            CGLP_results, some_paths, data, graph
+            CGLP_results, some_paths, data,
         )
         CGIP_results["paths"] = collect_path_solution_support(
-            CGIP_results, some_paths, data, graph
+            CGIP_results, some_paths, data, 
         )
         # end
         
@@ -1379,7 +1368,7 @@ function path_formulation_column_generation_with_adaptive_ngroute_SR3_cuts(
         iteration_params["CG_sp_time_taken_mean"] = CG_params["sp_time_taken_mean"]
         iteration_params["method"] = "none"
         iteration_params["ngroute_neighborhoods_expanded"] = 0
-        iteration_params["ngroute_neighborhood_size"] = use_ngroute ? (graph.n_customers + graph.n_charging) * mean(ng_neighborhoods[graph.N_customers, vcat(graph.N_customers, graph.N_charging)]) : 0
+        iteration_params["ngroute_neighborhood_size"] = use_ngroute ? (data.n_customers + data.n_charging) * mean(ng_neighborhoods[data.N_customers, vcat(data.N_customers, data.N_charging)]) : 0
         iteration_params["cycles_lookup_length"] = 0
         iteration_params["implemented_SR3_cuts_count"] = 0
         iteration_params["converged"] = false
@@ -1393,10 +1382,10 @@ function path_formulation_column_generation_with_adaptive_ngroute_SR3_cuts(
 
         if CG_params["converged"] && !continue_flag && !converged && use_ngroute && use_adaptive_ngroute
             # see if any path in solution was non-elementary
-            cycles_lookup = detect_cycles_in_path_solution([p for (val, p) in CGLP_results["paths"]], graph)
+            cycles_lookup = detect_cycles_in_path_solution([p for (val, p) in CGLP_results["paths"]])
             entries_changed = 0
             if length(cycles_lookup) > 0 
-                delete_paths_with_found_cycles_from_model!(model, z, some_paths, path_costs, path_service, cycles_lookup, graph)
+                delete_paths_with_found_cycles_from_model!(model, z, some_paths, path_costs, path_service, cycles_lookup, data)
                 entries_changed = modify_ng_neighborhoods_with_found_cycles!(ng_neighborhoods, cycles_lookup)
                 continue_flag = true
                 iteration_params["method"] = "use_adaptive_ngroute"
@@ -1409,10 +1398,7 @@ function path_formulation_column_generation_with_adaptive_ngroute_SR3_cuts(
         if CG_params["converged"] && !continue_flag && !converged && use_ngroute && use_SR3_cuts
             # if no path in solution was non-elementary, 
             # generate violated SR3 inequalities
-            generated_SR3_list = enumerate_violated_path_SR3_inequalities(
-                CGLP_results["paths"],
-                graph,
-            )
+            generated_SR3_list = enumerate_violated_path_SR3_inequalities(CGLP_results["paths"], data)
             add_message!(printlist, "Found SR3 cuts:\t\t\t$(length(generated_SR3_list))\n", verbose)
             if length(generated_SR3_list) != 0
                 generated_SR3_list = select_representative_violated_path_SR3_inequalities(
@@ -1513,7 +1499,6 @@ function collect_path_solution_support(
         Vector{Path},
     },
     data::EVRPData,
-    graph::EVRPGraph,
     ;
 )
     results_paths = Tuple{Float64, Path}[]
@@ -1537,7 +1522,7 @@ function collect_path_solution_support(
 
     sort!(
         results_paths,
-        by = x -> (-compute_path_cost(data, graph, x[2]), -x[1]),
+        by = x -> (-compute_path_cost(data, x[2]), -x[1]),
     )
     return results_paths
 end
@@ -1636,10 +1621,9 @@ end
 function compute_objective_from_path_solution(
     results_paths::Vector{Tuple{Float64, Path}},
     data::EVRPData,
-    graph::EVRPGraph,
 )
     return sum(
-        [val * compute_path_cost(data, graph, p)
+        [val * compute_path_cost(data, p)
         for (val, p) in results_paths],
         init = 0.0,
     )

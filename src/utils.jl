@@ -249,7 +249,6 @@ end
 
 function compute_subpath_cost(
     data::EVRPData,
-    graph::EVRPGraph,
     s::Subpath,
     M::Int = Int(1e10),
     ;
@@ -261,14 +260,13 @@ function compute_subpath_cost(
     end
 
     travel_cost = data.travel_cost_coeff * sum(
-        graph.c[a...] for a in s.arcs
+        data.c[a...] for a in s.arcs
     )
     return travel_cost
 end
 
 function compute_subpath_modified_cost(
     data::EVRPData,
-    graph::EVRPGraph,
     s::Subpath,
     κ::Dict{Int, Float64},
     μ::Dict{Int, Float64},
@@ -276,7 +274,7 @@ function compute_subpath_modified_cost(
     ;
     verbose = false,
 )
-    reduced_cost = compute_subpath_cost(data, graph, s)
+    reduced_cost = compute_subpath_cost(data, s)
     verbose && @printf("Subpath cost: \t\t%11.3f\n", reduced_cost)
 
     service_cost = 0.0
@@ -286,14 +284,14 @@ function compute_subpath_modified_cost(
     verbose && @printf("Service cost: \t\t%11.3f\n", service_cost)
     reduced_cost += service_cost
 
-    if s.starting_node in graph.N_depots
-        if s.starting_time == 0.0 && s.starting_charge == graph.B
+    if s.starting_node in data.N_depots
+        if s.starting_time == 0.0 && s.starting_charge == data.B
             verbose && @printf("Starting depot cost: \t%11.3f\n", (- κ[s.starting_node]))
             reduced_cost = reduced_cost - κ[s.starting_node]
         end
     end
 
-    if s.current_node in graph.N_depots
+    if s.current_node in data.N_depots
         verbose && @printf("Ending depot cost: \t%11.3f\n", ( - μ[s.current_node]))
         reduced_cost = reduced_cost - μ[s.current_node]
     end
@@ -305,7 +303,6 @@ end
 
 function compute_subpath_costs(
     data::EVRPData,
-    graph::EVRPGraph,
     all_subpaths::Dict{
         Tuple{NTuple{3, Int}, NTuple{3, Int}}, 
         Vector{Subpath},
@@ -315,7 +312,7 @@ function compute_subpath_costs(
 )
     subpath_costs = Dict(
         key => Int[
-            compute_subpath_cost(data, graph, s, M;)
+            compute_subpath_cost(data, s, M;)
             for s in all_subpaths[key]
         ]
         for key in keys(all_subpaths)
@@ -324,7 +321,7 @@ function compute_subpath_costs(
 end
 
 function compute_subpath_service(
-    graph::EVRPGraph,
+    data::EVRPData,
     all_subpaths::Dict{
         Tuple{NTuple{3, Int}, NTuple{3, Int}}, 
         Vector{Subpath},
@@ -335,20 +332,19 @@ function compute_subpath_service(
             s.served[i]
             for s in all_subpaths[key]
         ]
-        for key in keys(all_subpaths), i in 1:graph.n_customers
+        for key in keys(all_subpaths), i in 1:data.n_customers
     )
     return subpath_service
 end
 
 function compute_path_cost(
     data::EVRPData,
-    graph::EVRPGraph, 
     p::Path,
     M::Int = Int(1e10),
     ;
     verbose = false,
 )
-    subpath_costs = length(p.subpaths) > 0 ? sum(compute_subpath_cost(data, graph, s, M) for s in p.subpaths) : 0
+    subpath_costs = length(p.subpaths) > 0 ? sum(compute_subpath_cost(data, s, M) for s in p.subpaths) : 0
     verbose && @printf("Subpath costs: \t\t%11.3f\n", subpath_costs)
     
     return subpath_costs
@@ -356,7 +352,6 @@ end
 
 function compute_path_modified_cost(
     data::EVRPData,
-    graph::EVRPGraph,
     p::Path,
     κ::Dict{Int, Float64},
     μ::Dict{Int, Float64},
@@ -366,7 +361,7 @@ function compute_path_modified_cost(
 )
     reduced_cost = 0.0
     for s in p.subpaths
-        reduced_cost += compute_subpath_modified_cost(data, graph, s, κ, μ, ν, verbose = verbose)
+        reduced_cost += compute_subpath_modified_cost(data, s, κ, μ, ν, verbose = verbose)
     end
 
     verbose && @printf("Total modified cost: \t%11.3f\n\n", reduced_cost)
@@ -376,7 +371,6 @@ end
 
 function compute_path_modified_cost(
     data::EVRPData,
-    graph::EVRPGraph,
     p::Path,
     κ::Dict{Int, Float64},
     μ::Dict{Int, Float64},
@@ -387,7 +381,7 @@ function compute_path_modified_cost(
 )
     reduced_cost = 0.0
     for s in p.subpaths
-        reduced_cost += compute_subpath_modified_cost(data, graph, s, κ, μ, ν, verbose = verbose)
+        reduced_cost += compute_subpath_modified_cost(data, s, κ, μ, ν, verbose = verbose)
     end
     SR3_costs = sum(
         [val * check_path_in_SR3_constraint(p, S)
@@ -404,7 +398,6 @@ end
 
 function compute_path_modified_cost(
     data::EVRPData,
-    graph::EVRPGraph,
     p::Path,
     κ::Dict{Int, Float64},
     μ::Dict{Int, Float64},
@@ -415,7 +408,7 @@ function compute_path_modified_cost(
 )
     reduced_cost = 0.0
     for s in p.subpaths
-        reduced_cost += compute_subpath_modified_cost(data, graph, s, κ, μ, ν, verbose = verbose)
+        reduced_cost += compute_subpath_modified_cost(data, s, κ, μ, ν, verbose = verbose)
     end
     lmSR3_costs = sum(
         [val * compute_path_coefficient_in_lmSRnk_constraint(p, S, M, 2)
@@ -432,7 +425,6 @@ end
 
 function compute_path_costs(
     data::EVRPData,
-    graph::EVRPGraph,
     all_paths::Dict{
         Tuple{NTuple{3, Int}, NTuple{3, Int}}, 
         Vector{Path},
@@ -442,7 +434,7 @@ function compute_path_costs(
 )
     path_costs = Dict(
         key => Int[
-            compute_path_cost(data, graph, p, M;)
+            compute_path_cost(data, p, M;)
             for p in all_paths[key]
         ]
         for key in keys(all_paths)
@@ -451,7 +443,7 @@ function compute_path_costs(
 end
 
 function compute_path_service(
-    graph::EVRPGraph,
+    data::EVRPData,
     all_paths::Dict{
         Tuple{NTuple{3, Int}, NTuple{3, Int}}, 
         Vector{Path},
@@ -462,7 +454,7 @@ function compute_path_service(
             p.served[i]
             for p in all_paths[key]
         ]
-        for key in keys(all_paths), i in 1:graph.n_customers
+        for key in keys(all_paths), i in 1:data.n_customers
     )
     return path_service
 end
@@ -1245,11 +1237,11 @@ function compute_arc_modified_costs(
     ν::Vector{Float64},
     ;
 )
-    modified_costs = data.travel_cost_coeff * Float64.(copy(graph.c))
-    for j in graph.N_customers
+    modified_costs = data.travel_cost_coeff * Float64.(copy(data.c))
+    for j in data.N_customers
         modified_costs[:,j] .-= ν[j]
     end
-    for i in graph.N_depots
+    for i in data.N_depots
         modified_costs[i,:] .-= κ[i]
         modified_costs[:,i] .-= μ[i]
     end

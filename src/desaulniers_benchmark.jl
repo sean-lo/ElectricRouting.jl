@@ -140,7 +140,7 @@ function compute_new_bpath(
         end
     else
         # elementary
-        if next_node in graph.N_customers && current_path.served[next_node]
+        if next_node in data.N_customers && current_path.served[next_node]
             @debug "  Infeasible extension from node $current_node to node $next_node (elementary): $(current_path.served)"
             return (false, current_path)
         end
@@ -150,9 +150,9 @@ function compute_new_bpath(
 
     # load feasibility
     if use_load
-        @debug "  Current load: $(current_path.load), next customer load: $(graph.d[next_node]), Capacity: $(graph.C)"
-        if current_path.load + graph.d[next_node] > graph.C
-            @debug "  Infeasible extension (load): $(current_path.load), $(graph.d[next_node]), $(graph.C)"
+        @debug "  Current load: $(current_path.load), next customer load: $(data.d[next_node]), Capacity: $(data.C)"
+        if current_path.load + data.d[next_node] > data.C
+            @debug "  Infeasible extension (load): $(current_path.load), $(data.d[next_node]), $(data.C)"
             return (false, current_path)
         end
     end
@@ -160,20 +160,20 @@ function compute_new_bpath(
 
     new_path = copy(current_path)
     push!(new_path.nodes, next_node)
-    if next_node in graph.N_charging
+    if next_node in data.N_charging
         new_path.recharged += 1
     end
 
     @debug "  Time windows: [$(data.α[next_node]), $(data.β[next_node])]"
     @debug "  current_path.time_mincharge: $(current_path.time_mincharge)"
     @debug "  current_path.time_maxcharge: $(current_path.time_maxcharge)"
-    @debug "  graph.t[current_node, next_node]: $(graph.t[current_node,next_node])"
+    @debug "  data.t[current_node, next_node]: $(data.t[current_node,next_node])"
 
-    if current_node in graph.N_charging
+    if current_node in data.N_charging
         slack = max(
             0,
             min(
-                data.α[next_node] - current_path.time_mincharge - graph.t[current_node,next_node],
+                data.α[next_node] - current_path.time_mincharge - data.t[current_node,next_node],
                 current_path.time_maxrecharge,
             )
         )
@@ -181,7 +181,7 @@ function compute_new_bpath(
         slack = max(
             0,
             min(
-                data.α[next_node] - current_path.time_mincharge - graph.t[current_node,next_node],
+                data.α[next_node] - current_path.time_mincharge - data.t[current_node,next_node],
                 current_path.time_maxcharge - current_path.time_mincharge,
             )
         )
@@ -190,7 +190,7 @@ function compute_new_bpath(
     push!(new_path.slacks, slack)
 
     @debug "  current_path.time_maxrecharge: $(current_path.time_maxrecharge)"
-    @debug "  graph.q[current_node, next_node]: $(graph.q[current_node,next_node])"
+    @debug "  data.q[current_node, next_node]: $(data.q[current_node,next_node])"
 
     excess = max(
         0,
@@ -198,27 +198,27 @@ function compute_new_bpath(
             0,
             current_path.time_maxrecharge - slack,
         )
-        - (graph.B - graph.q[current_node,next_node]),
+        - (data.B - data.q[current_node,next_node]),
     )
     @debug "  excess: $excess"
     push!(new_path.excesses, excess)
 
     new_path.time_mincharge = max(
         data.α[next_node],
-        current_path.time_mincharge + graph.t[current_node,next_node]
+        current_path.time_mincharge + data.t[current_node,next_node]
     )
     if current_path.recharged > 0
         new_path.time_mincharge += excess
     end
     @debug "  new_path.time_mincharge: $(new_path.time_mincharge)"
 
-    if current_node in graph.N_charging
+    if current_node in data.N_charging
         new_path.time_maxcharge = min(
             data.β[next_node],
             max(
                 data.α[next_node],
                 current_path.time_mincharge + current_path.time_maxrecharge 
-                + graph.t[current_node,next_node],
+                + data.t[current_node,next_node],
             )
         )
     else
@@ -227,7 +227,7 @@ function compute_new_bpath(
             max(
                 data.α[next_node],
                 current_path.time_maxcharge 
-                + graph.t[current_node,next_node],
+                + data.t[current_node,next_node],
             )
         )
     end
@@ -248,20 +248,20 @@ function compute_new_bpath(
     end
 
     if current_path.recharged == 0
-        new_path.time_maxrecharge = current_path.time_maxrecharge + graph.q[current_node,next_node]
-        if new_path.time_maxrecharge > graph.B
+        new_path.time_maxrecharge = current_path.time_maxrecharge + data.q[current_node,next_node]
+        if new_path.time_maxrecharge > data.B
             @debug "  Infeasible due to battery limits:"
             @debug "    new_path.time_maxrecharge: $(new_path.time_maxrecharge)"
             return (false, current_path)
         end
     else
         new_path.time_maxrecharge = min(
-            graph.B,
+            data.B,
             max(
                 0,
                 current_path.time_maxrecharge - slack,
             )
-            + graph.q[current_node, next_node]
+            + data.q[current_node, next_node]
         )
     end
     @debug "  new_path.time_maxrecharge: $(new_path.time_maxrecharge)"
@@ -272,7 +272,7 @@ function compute_new_bpath(
 
     # Load
     if use_load
-        new_path.load += graph.d[next_node]
+        new_path.load += data.d[next_node]
         @debug "  new_path.load: $(new_path.load)"
     end
 
@@ -282,7 +282,7 @@ function compute_new_bpath(
         @debug "  new_path.ng_fset: $(new_path.ng_fset)"
     else
         # elementary
-        if next_node in graph.N_customers
+        if next_node in data.N_customers
             new_path.served[next_node] = true
         end
         @debug "  new_path.served: $(new_path.served)"
@@ -434,7 +434,7 @@ function generate_path_labels_from_node(
             BPathLabel,
             Base.Order.ForwardOrdering,
         }(Base.Order.ForwardOrdering())
-        for current_node in graph.N_nodes
+        for current_node in data.N_nodes
     )
     unexplored_states = SortedSet{BPATH_VKEY_TYPE}()
 
@@ -488,7 +488,7 @@ function generate_path_labels_from_node(
                 cuts,
                 λvals,
             )
-            if added && !(next_node in graph.N_depots)
+            if added && !(next_node in data.N_depots)
                 push!(unexplored_states, new_vkey)
             end
         end
@@ -525,7 +525,7 @@ function generate_path_labels_all(
         }
     }()
 
-    for starting_node in graph.N_depots
+    for starting_node in data.N_depots
         all_path_labels[starting_node] = generate_path_labels_from_node(
             data,
             graph,
@@ -545,14 +545,14 @@ function generate_path_labels_all(
 
     # Cleanup
     ## Remove paths that do not end at the depot
-    for starting_node in graph.N_depots
-        for end_node in setdiff(graph.N_nodes, graph.N_depots)
+    for starting_node in data.N_depots
+        for end_node in setdiff(data.N_nodes, data.N_depots)
             pop!(all_path_labels[starting_node], end_node)
         end
     end
 
     ## Make sure that empty depot-to-depot paths have two nodes
-    for depot in graph.N_depots
+    for depot in data.N_depots
         for (vkey, path) in all_path_labels[depot][depot]
             if length(path.nodes) == 1
                 path.nodes = [depot, depot]
@@ -595,7 +595,7 @@ function convert_path_label_to_path(
     use_load::Bool = false,
     use_nonlinear_charging::Bool = false,
     charging_function::PiecewiseLinearIncreasingConcaveFunction = PiecewiseLinearIncreasingConcaveFunction(
-        [graph.B], [1],
+        [data.B], [1],
     ),
 )
     """
@@ -608,17 +608,17 @@ function convert_path_label_to_path(
     p = Path(
         subpaths = Subpath[],
         charging_arcs = ChargingArc[],
-        served = zeros(Int, graph.n_customers),
+        served = zeros(Int, data.n_customers),
         load = 0,
         arcs = NTuple{2, Int}[],
         customer_arcs = NTuple{2, Int}[],
     )
     states = NTuple{3, Int}[]
     current_subpath = Subpath(
-        n_customers = graph.n_customers,
+        n_customers = data.n_customers,
         starting_node = path_label.nodes[1],
         starting_time = 0, 
-        starting_charge = graph.B,
+        starting_charge = data.B,
     )
     i = path_label.nodes[1]
     for (j, e, s) in zip(path_label.nodes[2:end], path_label.excesses, path_label.slacks)
@@ -626,14 +626,14 @@ function convert_path_label_to_path(
         push!(current_subpath.arcs, (i, j))
         current_subpath.starting_time += (e + s)
         current_subpath.starting_charge += (e + s) 
-        current_subpath.current_time += (graph.t[i,j] + e + s)
-        current_subpath.current_charge += (- graph.q[i,j] + e + s)
+        current_subpath.current_time += (data.t[i,j] + e + s)
+        current_subpath.current_charge += (- data.q[i,j] + e + s)
         if use_load
-            current_subpath.load += graph.d[j]
+            current_subpath.load += data.d[j]
         end
-        if j in graph.N_charging
-            @assert 0 <= current_subpath.current_charge <= graph.B
-            @assert 0 <= current_subpath.current_time <= graph.T
+        if j in data.N_charging
+            @assert 0 <= current_subpath.current_charge <= data.B
+            @assert 0 <= current_subpath.current_time <= data.T
             push!(
                 states, 
                 (current_subpath.starting_node, current_subpath.starting_time, current_subpath.starting_charge), 
@@ -644,12 +644,12 @@ function convert_path_label_to_path(
                 current_subpath,
             )
             current_subpath = Subpath(
-                n_customers = graph.n_customers,
+                n_customers = data.n_customers,
                 starting_node = j,
                 starting_time = current_subpath.current_time, 
                 starting_charge = current_subpath.current_charge,
             )
-        elseif j in graph.N_customers
+        elseif j in data.N_customers
             current_subpath.served[j] += 1
         end
         i = j
@@ -680,7 +680,7 @@ function convert_path_label_to_path(
     p.served = sum(s.served for s in p.subpaths)
     p.load = sum(s.load for s in p.subpaths)
     p.arcs = vcat([s.arcs for s in p.subpaths]...)
-    customers = [a[1] for a in p.arcs if a[1] in graph.N_customers]
+    customers = [a[1] for a in p.arcs if a[1] in data.N_customers]
     p.customer_arcs = collect(zip(customers[1:end-1], customers[2:end]))
     return p
 end
@@ -693,7 +693,7 @@ function get_paths_from_negative_path_labels(
     use_load::Bool = false,
     use_nonlinear_charging::Bool = false,
     charging_function::PiecewiseLinearIncreasingConcaveFunction = PiecewiseLinearIncreasingConcaveFunction(
-        [graph.B], [1],
+        [data.B], [1],
     ),
 )
     generated_paths = Dict{
@@ -724,10 +724,10 @@ function subproblem_iteration_benchmark(
     use_time_windows::Bool = false,
     use_nonlinear_charging::Bool = false,
     charging_function::PiecewiseLinearIncreasingConcaveFunction = PiecewiseLinearIncreasingConcaveFunction(
-        [graph.B], [1],
+        [data.B], [1],
     ),
     use_ngroute::Bool = false,
-    ng_neighborhoods::BitMatrix = falses(graph.n_nodes, graph.n_nodes),
+    ng_neighborhoods::BitMatrix = falses(data.n_nodes, data.n_nodes),
 )
 
     if use_nonlinear_charging
@@ -747,19 +747,19 @@ function subproblem_iteration_benchmark(
             error("Unrecognized key type for λ: $(keytype(λ))")
         end
     else
-        ng_neighborhoods = falses(graph.n_nodes, graph.n_nodes)
+        ng_neighborhoods = falses(data.n_nodes, data.n_nodes)
         cuts = "NoCuts"
     end
 
     if cuts == "NoCuts"
         λvals = Float64[]
-        λcust = falses(length(λ), graph.n_nodes)
-        λmemory = falses(length(λ), graph.n_nodes)
+        λcust = falses(length(λ), data.n_nodes)
+        λmemory = falses(length(λ), data.n_nodes)
     elseif cuts == "SR3"
-        λvals, λcust = prepare_lambda(λ, graph.n_nodes)
-        λmemory = falses(length(λ), graph.n_nodes)
+        λvals, λcust = prepare_lambda(λ, data.n_nodes)
+        λmemory = falses(length(λ), data.n_nodes)
     elseif cuts == "LmSR3"
-        λvals, λcust, λmemory = prepare_lambda(λ, graph.n_nodes)
+        λvals, λcust, λmemory = prepare_lambda(λ, data.n_nodes)
     end
 
     path_labels_result = @timed generate_path_labels_all(

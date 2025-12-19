@@ -266,7 +266,7 @@ function compute_new_subpath(
         end
     else
         # elementary
-        if next_node in graph.N_customers && current_subpath.served[next_node] > 0
+        if next_node in data.N_customers && current_subpath.served[next_node] > 0
             return (false, current_subpath)
         end
     end
@@ -278,21 +278,21 @@ function compute_new_subpath(
     if use_time_windows
         ## time_end_earliest
         new_subpath.time_end_earliest = max(
-            new_subpath.time_end_earliest + graph.t[current_node, next_node], 
-            graph.α[next_node],
+            new_subpath.time_end_earliest + data.t[current_node, next_node], 
+            data.α[next_node],
         )
-        if new_subpath.time_end_earliest > graph.β[next_node]
+        if new_subpath.time_end_earliest > data.β[next_node]
             return (false, current_subpath)
         end
-        if new_subpath.time_end_earliest + graph.min_t[next_node] > graph.T
+        if new_subpath.time_end_earliest + graph.min_t[next_node] > data.T
             return (false, current_subpath)
         end
 
         ## time_start_latest
-        new_subpath.time_taken += graph.t[current_node, next_node]
+        new_subpath.time_taken += data.t[current_node, next_node]
         new_subpath.time_start_latest = min(
             new_subpath.time_start_latest,
-            graph.β[next_node] - new_subpath.time_taken,
+            data.β[next_node] - new_subpath.time_taken,
         )
         if new_subpath.time_start_latest < 0
             return (false, current_subpath)
@@ -307,25 +307,25 @@ function compute_new_subpath(
             new_subpath.time_taken,
         )
     else
-        new_subpath.time_end_earliest += graph.t[current_node, next_node]
-        if new_subpath.time_end_earliest + graph.min_t[next_node] > graph.T
+        new_subpath.time_end_earliest += data.t[current_node, next_node]
+        if new_subpath.time_end_earliest + graph.min_t[next_node] > data.T
             return (false, current_subpath)
         end
-        new_subpath.time_taken += graph.t[current_node, next_node]
+        new_subpath.time_taken += data.t[current_node, next_node]
         # breakpoints
         new_subpath.Q = new_subpath.time_end_earliest
     end
     
     # charge feasibility
-    new_subpath.charge_taken += graph.q[current_node, next_node]
-    if new_subpath.charge_taken + graph.min_q[next_node] > graph.B
+    new_subpath.charge_taken += data.q[current_node, next_node]
+    if new_subpath.charge_taken + graph.min_q[next_node] > data.B
         return (false, current_subpath)
     end
 
     # load feasibility
     if use_load
-        new_subpath.load += graph.d[next_node]
-        if new_subpath.load > graph.C
+        new_subpath.load += data.d[next_node]
+        if new_subpath.load > data.C
             return (false, current_subpath)
         end
     end
@@ -337,7 +337,7 @@ function compute_new_subpath(
     push!(new_subpath.nodes, next_node)
 
     # Customer service
-    if next_node in graph.N_customers
+    if next_node in data.N_customers
         new_subpath.served[next_node] += 1
     end
     if use_ngroute
@@ -507,7 +507,7 @@ function generate_subpath_labels_from_node(
             SubpathLabel,
             Base.Order.ForwardOrdering,
         }(Base.Order.ForwardOrdering())
-        for current_node in graph.N_nodes
+        for current_node in data.N_nodes
     )
     unexplored_states = SortedSet{SUBPATH_VKEY_TYPE}()
 
@@ -569,7 +569,7 @@ function generate_subpath_labels_from_node(
                 λvals,
             )
 
-            if added && next_node in graph.N_customers
+            if added && next_node in data.N_customers
                 push!(unexplored_states, new_vkey)
             end
         end
@@ -577,7 +577,7 @@ function generate_subpath_labels_from_node(
 
     # Cleanup
     ## Remove subpaths ending at customers
-    for end_node in graph.N_customers
+    for end_node in data.N_customers
         pop!(subpath_labels, end_node)
     end
 
@@ -623,8 +623,8 @@ function generate_subpath_labels_all(
             },
         },
     }()
-    # Threads.@threads for starting_node in graph.N_depots_charging
-    for starting_node in graph.N_depots_charging
+    # Threads.@threads for starting_node in data.N_depots_charging
+    for starting_node in data.N_depots_charging
         all_subpath_labels[starting_node] = generate_subpath_labels_from_node(
             data,
             graph,
@@ -729,7 +729,7 @@ function compute_new_path(
     λvals::Vector{Float64}
     ;
     charging_function::PiecewiseLinearIncreasingConcaveFunction = PiecewiseLinearIncreasingConcaveFunction(
-        [graph.B], [1],
+        [data.B], [1],
     ),
 )
     # @debug "Computing new path with: path = $current_path, subpath = $s"
@@ -761,15 +761,15 @@ function compute_new_path(
             s.time_taken + current_path.time_end_earliest + charging_duration_min,
         )
         # @debug "  new_time_end_earliest = $new_time_end_earliest"
-        if new_time_end_earliest + graph.min_t[next_node] > graph.T
-            # @debug "  Infeasible extension from node $current_node to node $next_node (time boundary): $(new_time_end_earliest), $(graph.min_t[next_node]), $(graph.T)"
+        if new_time_end_earliest + graph.min_t[next_node] > data.T
+            # @debug "  Infeasible extension from node $current_node to node $next_node (time boundary): $(new_time_end_earliest), $(graph.min_t[next_node]), $(data.T)"
             return (false, current_path)
         end
 
         if use_nonlinear_charging
             # charge_end_max 
             charge_end_max_before_subpath = min(
-                graph.B,
+                data.B,
                 max(
                     compute_end_charge(
                         charging_function,
@@ -784,7 +784,7 @@ function compute_new_path(
             )
         else
             charge_end_max_before_subpath = min(
-                graph.B,
+                data.B,
                     max(
                     current_path.charge_end_max,
                     current_path.charge_end_max
@@ -815,8 +815,8 @@ function compute_new_path(
         new_time_end_earliest = s.time_taken + current_path.time_end_earliest + charging_duration_min
 
         # @debug "  new_time_end_earliest = $new_time_end_earliest"
-        if new_time_end_earliest + graph.min_t[next_node] > graph.T
-            # @debug "  Infeasible extension from node $current_node to node $next_node (time boundary): $(new_time_end_earliest), $(graph.min_t[next_node]), $(graph.T)"
+        if new_time_end_earliest + graph.min_t[next_node] > data.T
+            # @debug "  Infeasible extension from node $current_node to node $next_node (time boundary): $(new_time_end_earliest), $(graph.min_t[next_node]), $(data.T)"
             return (false, current_path)
         end
         # charge_end_max 
@@ -831,7 +831,7 @@ function compute_new_path(
                 current_path.charge_end_max,
                 s.charge_taken
             ),
-            graph.B,
+            data.B,
         )
         # @debug "  charge_end_max_before_subpath = $charge_end_max_before_subpath"
     end
@@ -840,8 +840,8 @@ function compute_new_path(
     if use_load
         new_load = current_path.load + s.load
         # @debug "  current_path.load  = $(current_path.load), s.load = $(s.load), new_load = $new_load"
-        if new_load > graph.C
-            # @debug "  Infeasible extension from node $current_node to node $next_node (load): $(new_load), $(graph.C)"
+        if new_load > data.C
+            # @debug "  Infeasible extension from node $current_node to node $next_node (load): $(new_load), $(data.C)"
             return (false, current_path)
         end
     end
@@ -918,7 +918,7 @@ function ppath_dominates(
     λvals::Vector{Float64},
     ;
     charging_function::PiecewiseLinearIncreasingConcaveFunction = PiecewiseLinearIncreasingConcaveFunction(
-        [graph.B], [1],
+        [data.B], [1],
     ),
 )
     # Reduced cost comparison (depends on cuts)
@@ -988,7 +988,7 @@ function add_ppath_to_collection!(
     λvals::Vector{Float64},
     ;
     charging_function::PiecewiseLinearIncreasingConcaveFunction = PiecewiseLinearIncreasingConcaveFunction(
-        [graph.B], [1],
+        [data.B], [1],
     ),
 )
     added = true
@@ -1062,7 +1062,7 @@ function generate_path_labels_from_node(
     λvals::Vector{Float64},
     ;
     charging_function::PiecewiseLinearIncreasingConcaveFunction = PiecewiseLinearIncreasingConcaveFunction(
-        [graph.B], [1],
+        [data.B], [1],
     ),
     # time_limit::Float64 = Inf,
 )
@@ -1076,7 +1076,7 @@ function generate_path_labels_from_node(
             PPathLabel,
             Base.Order.ForwardOrdering,
         }(Base.Order.ForwardOrdering())
-        for current_node in graph.N_depots_charging
+        for current_node in data.N_depots_charging
     )
     unexplored_states = SortedSet{PPATH_VKEY_TYPE}()
 
@@ -1105,7 +1105,7 @@ function generate_path_labels_from_node(
         end
 
         current_path = path_labels[current_node][current_vkey]
-        for next_node in graph.N_depots_charging
+        for next_node in data.N_depots_charging
             for (_, s) in pairs(subpath_labels[current_node][next_node])
                 (feasible, new_path) = compute_new_path(
                     current_path,
@@ -1140,7 +1140,7 @@ function generate_path_labels_from_node(
                     ;
                     charging_function = charging_function, 
                 )
-                if added && next_node in graph.N_charging
+                if added && next_node in data.N_charging
                     push!(unexplored_states, new_vkey)
                 end
             end
@@ -1175,7 +1175,7 @@ function generate_path_labels_all(
     λvals::Vector{Float64},
     ;
     charging_function::PiecewiseLinearIncreasingConcaveFunction = PiecewiseLinearIncreasingConcaveFunction(
-        [graph.B], [1],
+        [data.B], [1],
     ),
     # time_limit::Float64 = Inf,
 )
@@ -1210,7 +1210,7 @@ function generate_path_labels_all(
         )
     end
 
-    for starting_node in graph.N_depots, end_node in graph.N_charging
+    for starting_node in graph.N_depots, end_node in data.N_charging
         pop!(all_path_labels[starting_node], end_node)
     end
 
@@ -1257,14 +1257,14 @@ function convert_path_label_to_path(
     use_load::Bool = false,
     use_nonlinear_charging::Bool = false,
     charging_function::PiecewiseLinearIncreasingConcaveFunction = PiecewiseLinearIncreasingConcaveFunction(
-        [graph.B], [1],
+        [data.B], [1],
     ),
 )
     """
     Converts a PPathLabel into a Path.
     Checks that the path is feasible.
     """
-    current_time, current_charge = (0, graph.B)
+    current_time, current_charge = (0, data.B)
     prev_time, prev_charge = current_time, current_charge
     subpath_label_vkeys = copy(path_label.subpath_label_vkeys)
     charging_amounts = copy(path_label.charging_amounts)
@@ -1292,7 +1292,7 @@ function convert_path_label_to_path(
             current_time + subpath_label.time_taken,
         )
         current_charge = current_charge - subpath_label.charge_taken
-        @assert current_time <= graph.T
+        @assert current_time <= data.T
         @assert current_charge >= 0
         s = Subpath(
             n_customers = graph.n_customers,
@@ -1324,8 +1324,8 @@ function convert_path_label_to_path(
         end
         current_time = current_time + time_diff
         current_charge = current_charge + charging_amount
-        @assert current_time <= graph.T
-        @assert current_charge <= graph.B
+        @assert current_time <= data.T
+        @assert current_charge <= data.B
         a = ChargingArc(
             node = current_node,
             time_start = prev_time,
@@ -1340,7 +1340,7 @@ function convert_path_label_to_path(
     p.served = sum(s.served for s in p.subpaths)
     p.load = sum(s.load for s in p.subpaths)
     p.arcs = vcat([s.arcs for s in p.subpaths]...)
-    customers = [a[1] for a in p.arcs if a[1] in graph.N_customers]
+    customers = [a[1] for a in p.arcs if a[1] in data.N_customers]
     p.customer_arcs = collect(zip(customers[1:end-1], customers[2:end]))
     return p
 end
@@ -1364,7 +1364,7 @@ function get_paths_from_negative_path_labels(
     use_load::Bool = false,
     use_nonlinear_charging::Bool = false,
     charging_function::PiecewiseLinearIncreasingConcaveFunction = PiecewiseLinearIncreasingConcaveFunction(
-        [graph.B], [1],
+        [data.B], [1],
     ),
 )
     generated_paths = Dict{
@@ -1396,10 +1396,10 @@ function subproblem_iteration_ours(
     use_time_windows::Bool = false,
     use_nonlinear_charging::Bool = false,
     charging_function::PiecewiseLinearIncreasingConcaveFunction = PiecewiseLinearIncreasingConcaveFunction(
-        [graph.B], [1],
+        [data.B], [1],
     ),
     use_ngroute::Bool = false,
-    ng_neighborhoods::BitMatrix = falses(graph.n_nodes, graph.n_nodes),
+    ng_neighborhoods::BitMatrix = falses(data.n_nodes, data.n_nodes),
 )
 
     start_time = time()
@@ -1415,19 +1415,19 @@ function subproblem_iteration_ours(
             error("Unrecognized key type for λ: $(keytype(λ))")
         end
     else
-        ng_neighborhoods = falses(graph.n_nodes, graph.n_nodes)
+        ng_neighborhoods = falses(data.n_nodes, data.n_nodes)
         cuts = "NoCuts"
     end
 
     if cuts == "NoCuts"
         λvals = Float64[]
-        λcust = falses(length(λ), graph.n_nodes)
-        λmemory = falses(length(λ), graph.n_nodes)
+        λcust = falses(length(λ), data.n_nodes)
+        λmemory = falses(length(λ), data.n_nodes)
     elseif cuts == "SR3"
-        λvals, λcust = prepare_lambda(λ, graph.n_nodes)
-        λmemory = falses(length(λ), graph.n_nodes)
+        λvals, λcust = prepare_lambda(λ, data.n_nodes)
+        λmemory = falses(length(λ), data.n_nodes)
     elseif cuts == "LmSR3"
-        λvals, λcust, λmemory = prepare_lambda(λ, graph.n_nodes)
+        λvals, λcust, λmemory = prepare_lambda(λ, data.n_nodes)
     end
 
     subpath_labels_result = @timed generate_subpath_labels_all(
