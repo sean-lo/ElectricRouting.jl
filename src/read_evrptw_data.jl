@@ -99,9 +99,9 @@ function read_evrptw_instance(
     # Travel cost
     c = transform_floats.(distances)
     # (Scaled) travel time
-    t = transform_floats.(distances * inverse_refueling_rate)
+    t = transform_floats.(distances)
     # Battery consumption
-    q = transform_floats.(distances)
+    q = transform_floats.(distances * inverse_refueling_rate)
 
     # Demand
     d = vcat(
