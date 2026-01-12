@@ -861,7 +861,7 @@ function generate_graph_from_data(
 
 end
 
-function prune_graph(
+function create_pruned_edges(
     graph::EVRPGraph,
     k::Int,
 )
@@ -883,12 +883,44 @@ function prune_graph(
         union!(A, [(i, node) for i in closest_customers])
     end
 
+    return A
+end
+
+function create_pruned_edges(
+    graph,
+    k,
+    modified_costs::Matrix{Float64},
+)
+    A = Set{Tuple{Int, Int}}()
+    # 1. include self-loops in depots
+    union!(A, [(i, i) for i in graph.N_depots])
+    # 2. include all nodes incoming and outgoing from depots
+    union!(A, [(i, j) for i in graph.N_depots for j in graph.N_nodes])
+    union!(A, [(i, j) for i in graph.N_nodes for j in graph.N_depots])
+    # 3. at customers and charging stations, include edges to and from nearest k customers based on modified costs
+    N_customers_charging = union(graph.N_customers, graph.N_charging)
+    for node in N_customers_charging
+        closest_nodes = sortperm(modified_costs[node, N_customers_charging])[1:k+1]
+        union!(A, [(node, i) for i in closest_nodes])
+    end
+
+    return A
+end
+
+function prune_graph(
+    graph::EVRPGraph,
+    modified_costs::Matrix{Float64},
+    ;
+    k::Int = 5,
+)
+    A = create_pruned_edges(graph, k, modified_costs)
+
     G = SimpleDiGraph{Int}(graph.n_nodes)
     for (i, j) in A
         add_edge!(G, i, j)
     end
     t_ds = dijkstra_shortest_paths(G, collect(graph.N_depots), graph.t)
-    q_ds = dijkstra_shortest_paths(G, collect(graph.N_depots_charging), data.q)
+    q_ds = dijkstra_shortest_paths(G, collect(graph.N_depots_charging), graph.q)
 
     node_labels = merge(Dict(
         i => "Depot $ind" for (ind, i) in enumerate(graph.N_depots)

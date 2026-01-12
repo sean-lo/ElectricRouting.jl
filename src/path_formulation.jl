@@ -368,6 +368,215 @@ function add_paths_to_path_model!(
     return mp_constraint_time
 end
 
+function path_formulation_column_generation_solve_linear_relaxation!(
+    model::Model,
+    CG_params::Dict{String, Any},
+    printlist::Vector{String},
+    z::Dict{
+        Tuple{
+            Tuple{NTuple{3, Int}, NTuple{3, Int}},
+            Int,
+        },
+        VariableRef,
+    },
+    SR3_constraints::Dict{
+        T,
+        ConstraintRef,
+    },
+    data::EVRPData,
+    artificial_paths::Dict{
+        Tuple{NTuple{3, Int}, NTuple{3, Int}},
+        Vector{Path},
+    },
+) where {T}
+    mp_solution_start_time = time()
+    @suppress optimize!(model)
+    mp_solution_end_time = time()
+    if JuMP.termination_status(model) in [
+        JuMP.INFEASIBLE,
+        JuMP.INFEASIBLE_OR_UNBOUNDED,
+        JuMP.TIME_LIMIT,
+        JuMP.MEMORY_LIMIT,
+    ]
+        CGLP_results = Dict(
+            "errored" => true,
+            "artificial" => false,
+        )
+        add_message!(printlist, "CGLP model errored.\n", verbose)
+        return CGLP_results
+    end
+    CGLP_results = Dict(
+        "errored" => false,
+        "objective" => objective_value(model),
+        "z" => Dict(
+            (key, p) => value.(z[(key, p)])
+            for (key, p) in keys(z)
+        ),
+        "κ" => Dict(zip(data.N_depots, dual.(model[:κ]).data)),
+        "μ" => Dict(zip(data.N_depots, dual.(model[:μ]).data)),
+        "ν" => dual.(model[:ν]).data,
+        "λ" => Dict{keytype(SR3_constraints), Float64}(
+            S => dual(SR3_constraints[S])
+            for S in keys(SR3_constraints)
+        ),
+    )
+    CGLP_results["artificial"] = any(
+        value.(z[(key, p)]) > 1e-3
+        for key in keys(artificial_paths)
+            for p in 1:length(artificial_paths[key])
+    )
+    push!(CG_params["objective"], CGLP_results["objective"])
+    push!(CG_params["κ"], CGLP_results["κ"])
+    push!(CG_params["μ"], CGLP_results["μ"])
+    push!(CG_params["ν"], CGLP_results["ν"])
+    push!(CG_params["λ"], CGLP_results["λ"])
+    push!(CG_params["lp_relaxation_solution_time_taken"], round(mp_solution_end_time - mp_solution_start_time, digits = 3))
+
+    return CGLP_results
+end
+
+function path_formulation_column_generation_find_nondominated_paths(
+    data::EVRPData,
+    graph::EVRPGraph,
+    CG_params::Dict{String, Any},
+    CGLP_results::Dict{String, Any},
+    printlist::Vector{String},
+    ;
+    method::String = "ours",
+    use_load::Bool = false,
+    use_time_windows::Bool = false,
+    use_nonlinear_charging::Bool = false,
+    charging_function::PiecewiseLinearIncreasingConcaveFunction = PiecewiseLinearIncreasingConcaveFunction(
+        [data.B], [1],
+    ),
+    prune_graph_outdegree_sequence::Vector{Int} = Int[],
+    use_ngroute::Bool = false,
+    ng_neighborhoods::Union{Nothing, BitMatrix} = nothing,
+    verbose::Bool = false,
+)
+    """
+    For a given iteration, run either the "ours" or "benchmark" algorithm 
+    to find nondominated paths with negative reduced cost.
+    """
+    modified_costs = compute_arc_modified_costs(
+        graph, data,
+        CGLP_results["κ"], 
+        CGLP_results["μ"], 
+        CGLP_results["ν"],
+    )
+
+    subpath_labels_total_time = 0.0
+    path_labels_total_time = 0.0
+
+    found_paths_with_pruned_graph = false
+    prune_graph_outdegree_sequence = [
+        k for k in prune_graph_outdegree_sequence
+            if k < data.n_customers
+    ]
+
+    for k in prune_graph_outdegree_sequence
+        pruned_graph = prune_graph(graph, modified_costs; k = k)
+
+        if method == "ours"
+            (generated_paths, generated_paths_count, subpath_labels_time, path_labels_time) = subproblem_iteration_ours(
+                data, pruned_graph, 
+                modified_costs,
+                CGLP_results["λ"], 
+                ;
+                use_load = use_load,
+                use_time_windows = use_time_windows,
+                use_nonlinear_charging = use_nonlinear_charging,
+                charging_function = charging_function,
+                use_ngroute = use_ngroute,
+                ng_neighborhoods = ng_neighborhoods,
+            )
+        elseif method == "benchmark"
+            subpath_labels_time = 0.0
+            (generated_paths, generated_paths_count, path_labels_time) = subproblem_iteration_benchmark(
+                data, pruned_graph, 
+                modified_costs,
+                CGLP_results["λ"], 
+                ;
+                use_load = use_load,
+                use_time_windows = use_time_windows,
+                use_nonlinear_charging = use_nonlinear_charging,
+                charging_function = charging_function,
+                use_ngroute = use_ngroute,
+                ng_neighborhoods = ng_neighborhoods,
+            )
+        end
+        subpath_labels_total_time += subpath_labels_time
+        path_labels_total_time += path_labels_time
+        add_message!(
+            printlist, 
+            @sprintf(
+                "              |            |            |           | %9.3f | %9.3f |           | %10d %s %2d\n", 
+                subpath_labels_time,
+                path_labels_time,
+                generated_paths_count,
+                "- H",
+                k,
+            ),
+            verbose,
+        )
+        if generated_paths_count > 0
+            found_paths_with_pruned_graph = true
+            break
+        end
+    end
+
+    if !found_paths_with_pruned_graph
+        if method == "ours"
+            (generated_paths, generated_paths_count, subpath_labels_time, path_labels_time) = subproblem_iteration_ours(
+                data, graph, 
+                modified_costs,
+                CGLP_results["λ"], 
+                ;
+                use_load = use_load,
+                use_time_windows = use_time_windows,
+                use_nonlinear_charging = use_nonlinear_charging,
+                charging_function = charging_function,
+                use_ngroute = use_ngroute,
+                ng_neighborhoods = ng_neighborhoods,
+            )
+        elseif method == "benchmark"
+            subpath_labels_time = 0.0
+            (generated_paths, generated_paths_count, path_labels_time) = subproblem_iteration_benchmark(
+                data, graph, 
+                modified_costs,
+                CGLP_results["λ"], 
+                ;
+                use_load = use_load,
+                use_time_windows = use_time_windows,
+                use_nonlinear_charging = use_nonlinear_charging,
+                charging_function = charging_function,
+                use_ngroute = use_ngroute,
+                ng_neighborhoods = ng_neighborhoods,
+            )
+        end
+        subpath_labels_total_time += subpath_labels_time
+        path_labels_total_time += path_labels_time
+        add_message!(
+            printlist, 
+            @sprintf(
+                "              |            |            |           | %9.3f | %9.3f |           | %10d %s\n", 
+                subpath_labels_time,
+                path_labels_time,
+                generated_paths_count,
+                (found_paths_with_pruned_graph ? "- H" : ""),
+            ),
+            verbose,
+        )
+    end
+
+    push!(CG_params["sp_base_time_taken"], subpath_labels_total_time)
+    push!(CG_params["sp_full_time_taken"], path_labels_total_time)
+    push!(CG_params["sp_total_time_taken"], subpath_labels_total_time + path_labels_total_time)
+    push!(CG_params["number_of_new_paths"], generated_paths_count)
+
+    return generated_paths, generated_paths_count
+end
+
 function path_formulation_column_generation!(
     model::Model,
     z::Dict{
@@ -411,6 +620,8 @@ function path_formulation_column_generation!(
     charging_function::PiecewiseLinearIncreasingConcaveFunction = PiecewiseLinearIncreasingConcaveFunction(
         [data.B], [1],
     ),
+    use_pruned_graph::Bool = false,
+    prune_graph_outdegree_sequence::Vector{Int} = Int[3, 8],
     use_ngroute::Bool = false,
     ng_neighborhoods::Union{Nothing, BitMatrix} = nothing,
     verbose::Bool = true,
@@ -445,113 +656,41 @@ function path_formulation_column_generation!(
         && max_iters > counter
     )
         counter += 1
-        mp_solution_start_time = time()
-        @suppress optimize!(model)
-        mp_solution_end_time = time()
-        if JuMP.termination_status(model) in [
-            JuMP.INFEASIBLE,
-            JuMP.INFEASIBLE_OR_UNBOUNDED,
-            JuMP.TIME_LIMIT,
-            JuMP.MEMORY_LIMIT,
-        ]
-            CGLP_results = Dict(
-                "errored" => true,
-                "artificial" => false,
-            )
-            add_message!(printlist, "CGLP model errored.\n", verbose)
+
+        CGLP_results = path_formulation_column_generation_solve_linear_relaxation!(
+            model,
+            CG_params,
+            printlist,
+            z,
+            SR3_constraints,
+            data,
+            artificial_paths,
+        )
+        if CGLP_results["errored"]
             break
         end
-        CGLP_results = Dict(
-            "errored" => false,
-            "objective" => objective_value(model),
-            "z" => Dict(
-                (key, p) => value.(z[(key, p)])
-                for (key, p) in keys(z)
-            ),
-            "κ" => Dict(zip(data.N_depots, dual.(model[:κ]).data)),
-            "μ" => Dict(zip(data.N_depots, dual.(model[:μ]).data)),
-            "ν" => dual.(model[:ν]).data,
-            "λ" => Dict{keytype(SR3_constraints), Float64}(
-                S => dual(SR3_constraints[S])
-                for S in keys(SR3_constraints)
-            ),
-        )
-        CGLP_results["artificial"] = any(
-            value.(z[(key, p)]) > 1e-3
-            for key in keys(artificial_paths)
-                for p in 1:length(artificial_paths[key])
-        )
-        push!(CG_params["objective"], CGLP_results["objective"])
-        push!(CG_params["κ"], CGLP_results["κ"])
-        push!(CG_params["μ"], CGLP_results["μ"])
-        push!(CG_params["ν"], CGLP_results["ν"])
-        push!(CG_params["λ"], CGLP_results["λ"])
-        push!(CG_params["lp_relaxation_solution_time_taken"], round(mp_solution_end_time - mp_solution_start_time, digits = 3))
 
-        modified_costs = compute_arc_modified_costs(
-            graph, data,
-            CGLP_results["κ"], 
-            CGLP_results["μ"], 
-            CGLP_results["ν"],
+        (generated_paths, generated_paths_count) = path_formulation_column_generation_find_nondominated_paths(
+            data,
+            graph,
+            CG_params,
+            CGLP_results,
+            printlist,
+            ;
+            method = method,
+            use_load = use_load,
+            use_time_windows = use_time_windows,
+            use_nonlinear_charging = use_nonlinear_charging,
+            charging_function = charging_function,
+            prune_graph_outdegree_sequence = (
+                use_pruned_graph 
+                ? prune_graph_outdegree_sequence
+                : Int[]
+            ),
+            use_ngroute = use_ngroute,
+            ng_neighborhoods = ng_neighborhoods,
+            verbose = verbose,
         )
-        local generated_paths
-        local generated_paths_count
-        if method == "ours"
-            local base_labels_time
-            local full_labels_time
-            try
-                (generated_paths, generated_paths_count, base_labels_time, full_labels_time) = subproblem_iteration_ours(
-                    data, graph, 
-                    modified_costs,
-                    CGLP_results["λ"], 
-                    ;
-                    use_load = use_load,
-                    use_time_windows = use_time_windows,
-                    use_nonlinear_charging = use_nonlinear_charging,
-                    charging_function = charging_function,
-                    use_ngroute = use_ngroute,
-                    ng_neighborhoods = ng_neighborhoods,
-                    # time_limit = time_limit - (time() - start_time),
-                )
-            catch e
-                if isa(e, TimeLimitException)
-                    break
-                else
-                    throw(e)
-                end
-            end
-            push!(CG_params["sp_base_time_taken"], base_labels_time)
-            push!(CG_params["sp_full_time_taken"], full_labels_time)
-            push!(CG_params["sp_total_time_taken"], base_labels_time + full_labels_time)
-        elseif method == "benchmark"
-            local path_labels_time
-            try
-                (generated_paths, generated_paths_count, path_labels_time) = subproblem_iteration_benchmark(
-                    data, graph, 
-                    modified_costs,
-                    CGLP_results["λ"], 
-                    ;
-                    use_load = use_load,
-                    use_time_windows = use_time_windows,
-                    use_nonlinear_charging = use_nonlinear_charging,
-                    charging_function = charging_function,
-                    use_ngroute = use_ngroute,
-                    ng_neighborhoods = ng_neighborhoods,
-                    # time_limit = time_limit - (time() - start_time),
-                )
-            catch e
-                if isa(e, TimeLimitException)
-                    break
-                else
-                    throw(e)
-                end
-            end
-            push!(CG_params["sp_base_time_taken"], 0.0)
-            push!(CG_params["sp_full_time_taken"], path_labels_time)
-            push!(CG_params["sp_total_time_taken"], path_labels_time)
-        end
-        
-        push!(CG_params["number_of_new_paths"], generated_paths_count)
         if generated_paths_count == 0
             converged = true
         end
@@ -578,7 +717,7 @@ function path_formulation_column_generation!(
         add_message!(
             printlist, 
             @sprintf(
-                "Iteration %3d | %.4e | %10d | %9.3f | %9.3f | %9.3f | %9.3f | %10d \n", 
+                "Iteration %3d | %.4e | %10d | %9.3f | %9.3f | %9.3f | %9.3f | %10d %s\n", 
                 counter,
                 CG_params["objective"][counter],
                 CG_params["number_of_paths"][counter],
@@ -587,6 +726,7 @@ function path_formulation_column_generation!(
                 CG_params["sp_full_time_taken"][counter],                
                 CG_params["lp_relaxation_constraint_time_taken"][counter],
                 CG_params["number_of_new_paths"][counter],
+                (use_pruned_graph ? "- H" : ""),
             ),
             verbose,
         )
@@ -1109,6 +1249,8 @@ function path_formulation_column_generation_with_adaptive_ngroute_SR3_cuts(
         [data.B], [1],
     ),
     use_heuristic::Bool = false,
+    use_pruned_graph::Bool = false,
+    prune_graph_outdegree_sequence::Vector{Int} = Int[3, 8],
     use_ngroute::Bool = true,
     ng_neighborhoods::Union{Nothing, BitMatrix} = nothing,
     ngroute_neighborhood_size::Int = Int(ceil(sqrt(data.n_customers))),
@@ -1310,6 +1452,8 @@ function path_formulation_column_generation_with_adaptive_ngroute_SR3_cuts(
             use_time_windows = use_time_windows,
             use_nonlinear_charging = use_nonlinear_charging,
             charging_function = charging_function,
+            use_pruned_graph = use_pruned_graph,
+            prune_graph_outdegree_sequence = prune_graph_outdegree_sequence,
             use_ngroute = use_ngroute,
             ng_neighborhoods = ng_neighborhoods,
             verbose = verbose,
