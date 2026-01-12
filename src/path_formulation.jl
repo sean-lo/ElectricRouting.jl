@@ -60,7 +60,6 @@ function generate_artificial_paths(
             served = served,
             load = 0,
             arcs = [(starting_node, current_node)],
-            customer_arcs = NTuple{2, Int}[],
             artificial = true,
         )
         if !(key in keys(artificial_paths))
@@ -105,7 +104,6 @@ function add_empty_paths!(
             served = zeros(Int, data.n_customers),
             load = 0,
             arcs = [(starting_node, current_node)],
-            customer_arcs = NTuple{2, Int}[],
             artificial = false,
         )
         if !(key in keys(some_paths))
@@ -459,7 +457,7 @@ function path_formulation_column_generation_find_nondominated_paths(
     to find nondominated paths with negative reduced cost.
     """
     modified_costs = compute_arc_modified_costs(
-        graph, data,
+        data,
         CGLP_results["κ"], 
         CGLP_results["μ"], 
         CGLP_results["ν"],

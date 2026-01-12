@@ -858,7 +858,6 @@ function convert_path_label_to_path(
         served = zeros(Int, graph.n_customers),
         load = 0,
         arcs = NTuple{2, Int}[],
-        customer_arcs = NTuple{2, Int}[],
     )
     states = NTuple{3, Int}[]
     current_subpath = Subpath(
@@ -925,7 +924,5 @@ function convert_path_label_to_path(
     p.served = sum(s.served for s in p.subpaths)
     p.load = sum(s.load for s in p.subpaths)
     p.arcs = vcat([s.arcs for s in p.subpaths]...)
-    customers = [a[1] for a in p.arcs if a[1] in graph.N_customers]
-    p.customer_arcs = collect(zip(customers[1:end-1], customers[2:end]))
     return p
 end

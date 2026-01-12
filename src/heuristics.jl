@@ -187,7 +187,6 @@ function convert_heuristic_path_label_to_path(
         served = r.served,
         load = r.load,
         arcs = NTuple{2, Int}[],
-        customer_arcs = NTuple{2, Int}[],
     )
     for (s_ind, subpath) in enumerate(r.arcs)
         prev_time = current_time
@@ -239,8 +238,6 @@ function convert_heuristic_path_label_to_path(
     @assert p.load == r.load
     p.arcs = vcat([s.arcs for s in p.subpaths]...)
     @assert p.arcs == vcat(r.arcs...)
-    customers = [a[1] for a in p.arcs if a[1] in graph.N_customers]
-    p.customer_arcs = collect(zip(customers[1:end-1], customers[2:end]))
     return p
 
 end
