@@ -525,11 +525,6 @@ function generate_subpath_labels_from_node(
 
     # Iterate over unextended labels
     while length(unexplored_states) > 0
-        # # Time limit check
-        # if time_limit < time() - start_time
-        #     throw(TimeLimitException())
-        # end
-
         # Retrieve most promising unexplored state
         current_vkey = pop!(unexplored_states)
         current_node = current_vkey[end][end]
@@ -1092,10 +1087,6 @@ function generate_path_labels_from_node(
 
     # Iterate over unextended labels
     while length(unexplored_states) > 0
-        # Time limit check
-        # if time_limit < time() - start_time
-        #     throw(TimeLimitException())
-        # end
 
         # Retrieve most promising unexplored state
         current_vkey = pop!(unexplored_states)
