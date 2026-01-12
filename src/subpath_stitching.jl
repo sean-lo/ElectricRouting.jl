@@ -245,6 +245,7 @@ end
 
 function compute_new_subpath(
     current_subpath::SubpathLabel,
+    data::EVRPData,
     graph::EVRPGraph,
     modified_costs::Matrix{Float64},
     current_node::Int,
@@ -537,6 +538,7 @@ function generate_subpath_labels_from_node(
             # Check feasibility and create new subpath
             (feasible, new_subpath) = compute_new_subpath(
                 current_subpath,
+                data,
                 graph,
                 modified_costs,
                 current_node,
