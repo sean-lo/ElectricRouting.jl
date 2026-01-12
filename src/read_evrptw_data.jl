@@ -30,8 +30,15 @@ function read_evrptw_instance(
     instance_lines = readlines(instance_fp)
     sep = findfirst(x -> occursin(r"^\s*$", x), instance_lines)
     table_str = join(instance_lines[1:sep-1], "\n")
-    df = CSV.read(IOBuffer(table_str), DataFrame, delim=' ', ignorerepeated=true)
-
+    df = CSV.read(
+        IOBuffer(table_str), 
+        DataFrame, 
+        header=["StringID", "Type", "x", "y", "demand", "ReadyTime", "DueDate", "ServiceTime"],
+        skipto=2,
+        delim=' ', 
+        ignorerepeated=true,
+    )
+    
     (
         B_, # Unscaled battery capacity
         C,  # Load capacity
@@ -118,9 +125,9 @@ function read_evrptw_instance(
     )
     α = transform_floats.(α * scale_time_horizon)
     β = vcat(
-        customers_df[!, :DueDateServiceTime],
-        depots_df[!, :DueDateServiceTime],
-        charging_df[!, :DueDateServiceTime],
+        customers_df[!, :DueDate],
+        depots_df[!, :DueDate],
+        charging_df[!, :DueDate],
     )
     β = transform_floats.(β * scale_time_horizon)
     T = Int(round(maximum(β)))
