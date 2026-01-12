@@ -73,11 +73,11 @@ function read_evrptw_instance(
     N_nodes = 1:n_customers+n_depots+n_charging
 
     node_labels = merge(Dict(
-        i => "Depot $ind" for (ind, i) in enumerate(N_depots)
+        N_depots .=> depots_df[!, :StringID]
     ), Dict(
-        i => "Customer $ind" for (ind, i) in enumerate(N_customers)
+        N_customers .=> customers_df[!, :StringID]
     ), Dict(
-        i => "Charging $ind" for (ind, i) in enumerate(N_charging)
+        N_charging .=> charging_df[!, :StringID]
     ))
 
     # Locations 
