@@ -11,27 +11,6 @@ using Plots
 using ColorSchemes
 
 abstract type Label end
-Base.copy(x::T) where T <: Label = T([deepcopy(getfield(x, k)) for k in fieldnames(T)]...)
-
-abstract type Config end
-abstract type Load <: Config end
-struct YesLoad <: Load end
-struct NoLoad <: Load end
-abstract type TimeWindows <: Config end
-struct YesTimeWindows <: TimeWindows end
-struct NoTimeWindows <: TimeWindows end 
-abstract type CustomerService <: Config end
-struct Elementary <: CustomerService end
-struct NoService <: CustomerService end
-struct NgRoute <: CustomerService end
-abstract type Cuts <: Config end
-struct NoCuts <: Cuts end
-struct SR3Cuts <: Cuts end
-struct LmSR3Cuts <: Cuts end
-abstract type ChargeCosts <: Config end
-struct HomCharge <: ChargeCosts end
-struct HetCharge <: ChargeCosts end
-
 
 Base.@kwdef mutable struct Subpath
     n_customers::Int
@@ -232,9 +211,6 @@ struct EVRPGraph
     min_t::Vector{Int}
     min_q::Vector{Int}
 end
-
-struct TimeLimitException <: Exception end
-struct CGException <: Exception end
 
 function add_message!(
     printlist::Vector{String}, 
@@ -1090,7 +1066,6 @@ function compute_ngroute_neighborhoods(
     return neighborhoods
 end
 
-# v2
 function ngroute_update_fset!(
     l::Label,
     next_node::Int,
@@ -1101,7 +1076,6 @@ function ngroute_update_fset!(
     return
 end
 
-# v2
 function ngroute_update_bset!(
     l::Label,
     next_node::Int,
@@ -1112,7 +1086,6 @@ function ngroute_update_bset!(
     return
 end
 
-# v2
 function ngroute_update_residue!(
     l::Label,
     next_node::Int,
@@ -1122,47 +1095,6 @@ function ngroute_update_residue!(
     return
 end
 
-
-# v1
-function ngroute_check_create_fset(
-    neighborhoods::BitMatrix,
-    fset::BitVector,
-    next_node::Int,
-)
-    if fset[next_node]
-        # if next_node is a customer not yet visited, proceed
-        # only if one can extend current_subpath along next_node according to ng-route rules
-        return (false, fset)
-    end
-    new_fset = copy(fset)
-    new_fset .&= neighborhoods[:, next_node]
-    new_fset[next_node] = true
-    return (true, new_fset)
-end
-
-# v1
-function ngroute_create_bset(
-    next_node::Int,
-    bset::BitVector,
-    residue::BitVector,
-)
-    new_bset = copy(bset)
-    if residue[next_node]
-        new_bset[next_node] = true
-    end
-    return new_bset
-end
-
-# v1
-function ngroute_create_residue(
-    neighborhoods::BitMatrix,
-    next_node::Int,
-    residue::BitVector,
-)
-    return residue .& neighborhoods[:, next_node]
-end
-
-# v2
 function SR3_update_cost!(
     l::Label, # BPathLabel or SubpathLabel
     next_node::Int,
@@ -1173,7 +1105,6 @@ function SR3_update_cost!(
     return
 end
 
-# v2
 function SR3_update_cut_flabels!(
     l::Label,
     next_node::Int,
@@ -1183,7 +1114,6 @@ function SR3_update_cut_flabels!(
     return
 end
 
-# v2
 function lmSR3_update_cost!(
     l::Label,
     next_node::Int,
@@ -1199,7 +1129,6 @@ function lmSR3_update_cost!(
     return
 end
 
-# v2
 function lmSR3_update_cut_flabels!(
     l::Label,
     next_node::Int,
@@ -1211,7 +1140,6 @@ function lmSR3_update_cut_flabels!(
     return
 end
 
-# v2
 function lmSR3_update_cut_blabels!(
     l::Label,
     next_node::Int,
@@ -1221,7 +1149,6 @@ function lmSR3_update_cut_blabels!(
     return
 end
 
-# v2
 function lmSR3_update_cut_mlabels!(
     l::Label,
     next_node::Int,
@@ -1231,38 +1158,7 @@ function lmSR3_update_cut_mlabels!(
     return
 end
 
-# v1
-function compute_new_lambda_labels_cost(
-    next_node::Int,
-    current_λ_labels::BitVector,
-    λvals::Vector{Float64},
-    λcust::BitMatrix,
-)
-    # 1: create new λ_labels 
-    new_λ_labels = current_λ_labels .⊻ λcust[:, next_node]
-    # 2: modify cost of new_subpath
-    return (new_λ_labels, - sum(λvals[current_λ_labels .& λcust[:, next_node]]))
-end
-
-# v1
-function compute_lambda_flabels_cost_lmSR3(
-    next_node::Int,
-    current_λ_flabels::BitVector,
-    λvals::Vector{Float64},
-    λcust::BitMatrix,
-    λmemory::BitMatrix,
-)
-    # 1: create new λ_flabels 
-    λ_flabels = current_λ_flabels .& λmemory[:, next_node]
-    new_λ_flabels = λ_flabels .⊻ λcust[:, next_node]
-    # 2: modify cost of new_subpath
-    new_cost = - sum(λvals[λ_flabels .& λcust[:, next_node]])
-    return (new_λ_flabels, new_cost)
-end
-
-
 function compute_arc_modified_costs(
-    graph::EVRPGraph,
     data::EVRPData,
     κ::Dict{Int, Float64},
     μ::Dict{Int, Float64},
