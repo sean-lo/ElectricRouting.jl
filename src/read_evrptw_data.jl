@@ -106,7 +106,11 @@ function read_evrptw_instance(
     # Travel cost
     c = transform_floats.(distances)
     # (Scaled) travel time
-    t = transform_floats.(distances)
+    travel_times = copy(distances)
+    for i in 1:n_customers
+        travel_times[i, :] .+= customers_df[i, "ServiceTime"]
+    end
+    t = transform_floats.(travel_times)
     # Battery consumption
     q = transform_floats.(distances * inverse_refueling_rate)
 
