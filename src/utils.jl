@@ -796,17 +796,9 @@ function generate_graph_from_data(
         add_edge!(G, i, j)
     end
 
-    node_labels = merge(Dict(
-        i => "Depot $ind" for (ind, i) in enumerate(data.N_depots)
-    ), Dict(
-        i => "Customer $ind" for (ind, i) in enumerate(data.N_customers)
-    ), Dict(
-        i => "Charging $ind" for (ind, i) in enumerate(data.N_charging)
-    ))
-
     return EVRPGraph(
         G,
-        node_labels,
+        copy(data.node_labels),
         copy(data.c),
         copy(data.t),
         copy(data.q),
