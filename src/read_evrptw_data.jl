@@ -14,7 +14,7 @@ function transform_floats(
 end
 
 function read_evrptw_instance(
-    fp::String,
+    instance_name::String,
     n_vehicles::Int,
     travel_cost_coeff::Int,
     ;
@@ -25,9 +25,11 @@ function read_evrptw_instance(
     scale_load_capacity::Float64 = 1.0,
     data_dir::String = "data/",
 )
-    lines = readlines(joinpath(data_dir, fp))
-    sep = findfirst(x -> occursin(r"^\s*$", x), lines)
-    table_str = join(lines[1:sep-1], "\n")
+    # Read instance
+    instance_fp = joinpath(data_dir, "evrptw/Instances/", instance_name * ".txt")
+    instance_lines = readlines(instance_fp)
+    sep = findfirst(x -> occursin(r"^\s*$", x), instance_lines)
+    table_str = join(instance_lines[1:sep-1], "\n")
     df = CSV.read(IOBuffer(table_str), DataFrame, delim=' ', ignorerepeated=true)
 
     (
@@ -36,7 +38,7 @@ function read_evrptw_instance(
         _,
         inverse_refueling_rate,  # Inverse battery refueling rate
         _
-    ) = [parse(Float64, match(r"/([\d.]+)/", x)[1]) for x in lines[sep+1:end]]
+    ) = [parse(Float64, match(r"/([\d.]+)/", x)[1]) for x in instance_lines[sep+1:end]]
 
     # Scale load capacity
     C = Int(round(C * scale_load_capacity))
