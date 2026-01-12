@@ -787,6 +787,9 @@ function generate_graph_from_data(
                 push!(A, (i, j))
             end
         else
+            if min_time == 0 || min_charge == 0
+                continue
+            end
             push!(A, (i, j))
         end
     end
