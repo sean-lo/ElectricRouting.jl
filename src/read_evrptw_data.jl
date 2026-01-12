@@ -48,7 +48,6 @@ function read_evrptw_instance(
 
     # DataFrames for depots, customers, charging stations
     Random.seed!(0)
-    df = df[shuffle(1:nrow(df)), :]
     depots_df = filter(r -> r.Type == "d", df)
     customers_df = filter(r -> r.Type == "c", df)
     charging_df = filter(r -> r.Type == "f", df)
