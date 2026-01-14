@@ -1007,7 +1007,7 @@ function compute_ngroute_neighborhoods(
     k::Int, 
     ;
     depots_size::String = "small",
-    charging_size::String = "small",
+    charging_size::String = "medium",
 )
     """
     neighborhoods[i,j] == 1 iff node i is in the ng-neighborhood of node j 
@@ -1017,21 +1017,26 @@ function compute_ngroute_neighborhoods(
     end
     neighborhoods = falses(graph.n_nodes, graph.n_nodes)
     for i in graph.N_customers
-        neighborhoods[sortperm(graph.c[i, graph.N_customers])[1:k], i] .= true
+        # Include itself and k next closest customers
+        k_ = min(graph.n_customers, k+1)
+        neighborhoods[sortperm(graph.c[i, graph.N_customers])[1:k_], i] .= true
         # do not include any charging stations / depots in the neighborhoods of customers,
         # since there is no limit on repeat visits to charging stations / depots
     end
     if depots_size == "small"
         for i in graph.N_depots
+            # Include itself
             neighborhoods[i,i] = true
         end
     elseif depots_size == "medium"
         for i in graph.N_depots
+            # Include itself and k closest customers
             neighborhoods[i,i] = true
             neighborhoods[sortperm(graph.c[i, graph.N_customers])[1:k], i] .= true
         end
     elseif depots_size == "large"
         for i in graph.N_depots
+            # Include itself and all customers
             neighborhoods[i,i] = true
             neighborhoods[graph.N_customers, i] .= true
         end
