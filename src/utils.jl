@@ -870,6 +870,8 @@ function create_pruned_edges(
     for node in N_customers_charging
         closest_nodes = sortperm(modified_costs[node, N_customers_charging])[1:k+1]
         union!(A, [(node, i) for i in closest_nodes])
+        closest_nodes = sortperm(modified_costs[N_customers_charging, node])[1:k+1]
+        union!(A, [(i, node) for i in closest_nodes])
     end
 
     return A
