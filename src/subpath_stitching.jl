@@ -414,15 +414,12 @@ function subpath_dominates(
     end
     # ng-route resources
     if use_ngroute
-        if any(s1.ng_fset .> s2.ng_fset)
-            return false
-        end
-        if any(s1.ng_bset .> s2.ng_bset)
-            return false
-        end
-        if any(s1.ng_residue .> s2.ng_residue)
-            return false
-        end
+        # Remark: this only works since the ng-route comparison is the final comparison
+        return (
+            bitvector_dominates(s1.ng_fset, s2.ng_fset) 
+            && bitvector_dominates(s1.ng_bset, s2.ng_bset) 
+            && bitvector_dominates(s1.ng_residue, s2.ng_residue)
+        )
     end
 
     return true
@@ -858,9 +855,11 @@ function compute_new_path(
         end
     else
         # elementary
-        if any(s.served + current_path.served .> 1)
-            # @debug "  Infeasible extension from node $current_node to node $next_node (elementary): $(current_path.served), $(current_path.served)"
-            return (false, current_path)
+        for i in eachindex(s.served)
+            if s.served[i] && current_path.served[i]
+                # @debug "  Infeasible extension from node $current_node to node $next_node (elementary): $(current_path.served), $(current_path.served)"
+                return (false, current_path)
+            end
         end
     end
 
@@ -960,9 +959,8 @@ function ppath_dominates(
     end
     # ng-route resources
     if use_ngroute
-        if any(p1.ng_fset .> p2.ng_fset)
-            return false
-        end
+        # Remark: this only works since the ng-route comparison is the final comparison
+        return bitvector_dominates(p1.ng_fset, p2.ng_fset)
     end
 
     return true

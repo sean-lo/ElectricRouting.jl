@@ -346,9 +346,8 @@ function bpath_dominates(
 
     # ng-route resources
     if use_ngroute
-        if any(p1.ng_fset .& .~p2.ng_fset)
-            return false
-        end
+        # Remark: this only works since the ng-route comparison is the final comparison
+        return bitvector_dominates(p1.ng_fset, p2.ng_fset)
     end
     
     return true

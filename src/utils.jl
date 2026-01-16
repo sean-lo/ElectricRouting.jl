@@ -1203,6 +1203,22 @@ function prepare_lambda(
     return λvals, λcust, λmemory
 end
 
+function bitvector_dominates(
+    v1::BitVector,
+    v2::BitVector,
+) 
+    """
+    Returns true if v2[i] is true (i.e. = 1) whenever v1[i] is true,
+    and false otherwise.
+    """
+    for i in eachindex(v1)
+        if v1[i] && !v2[i]
+            return false
+        end
+    end
+    return true
+end
+
 # Note: the all() function uses short-circuiting (returns false if any value is false)
 dominates(v1::T, v2::T) where {T <: Real} = v1 ≤ v2
 dominates(v1::BitVector, v2::BitVector) = all(v1 .≤ v2)
