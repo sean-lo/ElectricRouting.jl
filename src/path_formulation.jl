@@ -1278,8 +1278,7 @@ function path_formulation_column_generation_with_adaptive_ngroute_SR3_cuts(
     use_ngroute::Bool = true,
     ng_neighborhoods::Union{Nothing, BitMatrix} = nothing,
     ngroute_neighborhood_size::Int = Int(ceil(sqrt(data.n_customers))),
-    ngroute_neighborhood_depots_size::String = "small",
-    ngroute_neighborhood_charging_size::String = "small",
+    ngroute_neighborhood_charging_size::Int = 1,
     use_adaptive_ngroute::Bool = true,
     use_SR3_cuts::Bool = true,
     use_lmSR3_cuts::Bool = true,
@@ -1294,9 +1293,8 @@ function path_formulation_column_generation_with_adaptive_ngroute_SR3_cuts(
     if use_ngroute && isnothing(ng_neighborhoods)
         ng_neighborhoods = compute_ngroute_neighborhoods(
             graph,
-            ngroute_neighborhood_size; 
-            depots_size = ngroute_neighborhood_depots_size,
-            charging_size = ngroute_neighborhood_charging_size,
+            ngroute_neighborhood_size, 
+            ngroute_neighborhood_charging_size,
         )
     end
 
@@ -1333,12 +1331,12 @@ function path_formulation_column_generation_with_adaptive_ngroute_SR3_cuts(
                 use ngroute?:                   %s
                 ngroute neighborhood size:
                     customers                   %3d
-                    depots                      %s
-                    charging                    %s
+                    depots                      %3d
+                    charging                    %3d
                 """,
                 use_ngroute,
                 ngroute_neighborhood_size,
-                ngroute_neighborhood_depots_size,
+                1,
                 ngroute_neighborhood_charging_size,
             )
         )
