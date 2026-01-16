@@ -451,11 +451,15 @@ function path_formulation_column_generation_find_nondominated_paths(
     use_ngroute::Bool = false,
     ng_neighborhoods::Union{Nothing, BitMatrix} = nothing,
     verbose::Bool = false,
+    time_limit::Float64 = Inf,
 )
     """
     For a given iteration, run either the "ours" or "benchmark" algorithm 
     to find nondominated paths with negative reduced cost.
     """
+
+    start_time = time()
+
     modified_costs = compute_arc_modified_costs(
         data,
         CGLP_results["κ"], 
@@ -476,7 +480,7 @@ function path_formulation_column_generation_find_nondominated_paths(
         pruned_graph = prune_graph(graph, modified_costs; k = k)
 
         if method == "ours"
-            (generated_paths, generated_paths_count, subpath_labels_time, path_labels_time) = subproblem_iteration_ours(
+            (timed_out, generated_paths, generated_paths_count, subpath_labels_time, path_labels_time) = subproblem_iteration_ours(
                 data, pruned_graph, 
                 modified_costs,
                 CGLP_results["λ"], 
@@ -487,10 +491,11 @@ function path_formulation_column_generation_find_nondominated_paths(
                 charging_function = charging_function,
                 use_ngroute = use_ngroute,
                 ng_neighborhoods = ng_neighborhoods,
+                time_limit = time_limit - (time() - start_time),
             )
         elseif method == "benchmark"
             subpath_labels_time = 0.0
-            (generated_paths, generated_paths_count, path_labels_time) = subproblem_iteration_benchmark(
+            (timed_out, generated_paths, generated_paths_count, path_labels_time) = subproblem_iteration_benchmark(
                 data, pruned_graph, 
                 modified_costs,
                 CGLP_results["λ"], 
@@ -501,6 +506,7 @@ function path_formulation_column_generation_find_nondominated_paths(
                 charging_function = charging_function,
                 use_ngroute = use_ngroute,
                 ng_neighborhoods = ng_neighborhoods,
+                time_limit = time_limit - (time() - start_time),
             )
         end
         subpath_labels_total_time += subpath_labels_time
@@ -517,6 +523,13 @@ function path_formulation_column_generation_find_nondominated_paths(
             ),
             verbose,
         )
+        if timed_out
+            push!(CG_params["sp_base_time_taken"], subpath_labels_total_time)
+            push!(CG_params["sp_full_time_taken"], path_labels_total_time)
+            push!(CG_params["sp_total_time_taken"], subpath_labels_total_time + path_labels_total_time)
+            push!(CG_params["number_of_new_paths"], generated_paths_count)
+            return (true, generated_paths, generated_paths_count)
+        end
         if generated_paths_count > 0
             found_paths_with_pruned_graph = true
             break
@@ -525,7 +538,7 @@ function path_formulation_column_generation_find_nondominated_paths(
 
     if !found_paths_with_pruned_graph
         if method == "ours"
-            (generated_paths, generated_paths_count, subpath_labels_time, path_labels_time) = subproblem_iteration_ours(
+            (timed_out, generated_paths, generated_paths_count, subpath_labels_time, path_labels_time) = subproblem_iteration_ours(
                 data, graph, 
                 modified_costs,
                 CGLP_results["λ"], 
@@ -536,10 +549,11 @@ function path_formulation_column_generation_find_nondominated_paths(
                 charging_function = charging_function,
                 use_ngroute = use_ngroute,
                 ng_neighborhoods = ng_neighborhoods,
+                time_limit = time_limit - (time() - start_time),
             )
         elseif method == "benchmark"
             subpath_labels_time = 0.0
-            (generated_paths, generated_paths_count, path_labels_time) = subproblem_iteration_benchmark(
+            (timed_out, generated_paths, generated_paths_count, path_labels_time) = subproblem_iteration_benchmark(
                 data, graph, 
                 modified_costs,
                 CGLP_results["λ"], 
@@ -550,6 +564,7 @@ function path_formulation_column_generation_find_nondominated_paths(
                 charging_function = charging_function,
                 use_ngroute = use_ngroute,
                 ng_neighborhoods = ng_neighborhoods,
+                time_limit = time_limit - (time() - start_time),
             )
         end
         subpath_labels_total_time += subpath_labels_time
@@ -565,14 +580,20 @@ function path_formulation_column_generation_find_nondominated_paths(
             ),
             verbose,
         )
+        if timed_out
+            push!(CG_params["sp_base_time_taken"], subpath_labels_total_time)
+            push!(CG_params["sp_full_time_taken"], path_labels_total_time)
+            push!(CG_params["sp_total_time_taken"], subpath_labels_total_time + path_labels_total_time)
+            push!(CG_params["number_of_new_paths"], generated_paths_count)
+            return (true, generated_paths, generated_paths_count)
+        end
     end
 
     push!(CG_params["sp_base_time_taken"], subpath_labels_total_time)
     push!(CG_params["sp_full_time_taken"], path_labels_total_time)
     push!(CG_params["sp_total_time_taken"], subpath_labels_total_time + path_labels_total_time)
     push!(CG_params["number_of_new_paths"], generated_paths_count)
-
-    return generated_paths, generated_paths_count
+    return (false, generated_paths, generated_paths_count)
 end
 
 function path_formulation_column_generation!(
@@ -668,7 +689,7 @@ function path_formulation_column_generation!(
             break
         end
 
-        (generated_paths, generated_paths_count) = path_formulation_column_generation_find_nondominated_paths(
+        (timed_out, generated_paths, generated_paths_count) = path_formulation_column_generation_find_nondominated_paths(
             data,
             graph,
             CG_params,
@@ -688,7 +709,11 @@ function path_formulation_column_generation!(
             use_ngroute = use_ngroute,
             ng_neighborhoods = ng_neighborhoods,
             verbose = verbose,
+            time_limit = time_limit - (time() - start_time),
         )
+        if timed_out
+            break
+        end
         if generated_paths_count == 0
             converged = true
         end
@@ -745,8 +770,9 @@ function path_formulation_column_generation!(
     CG_params["counter"] = counter
     end_time = time() 
     time_taken = round(end_time - start_time, digits = 3)
+    timed_out = (time_taken > time_limit)
     CG_params["time_taken"] = time_taken
-    CG_params["time_limit_reached"] = (time_taken > time_limit)
+    CG_params["time_limit_reached"] = timed_out
     CG_params["errored"] = CGLP_results["errored"]
     CG_params["artificial"] = CGLP_results["artificial"]
     CG_params["lp_relaxation_time_taken"] = sum.(zip(CG_params["lp_relaxation_constraint_time_taken"], CG_params["lp_relaxation_solution_time_taken"]))
@@ -772,7 +798,7 @@ function path_formulation_column_generation!(
         verbose,
     )
 
-    return CGLP_results, CG_params
+    return (timed_out, CGLP_results, CG_params)
 end
 
 function path_formulation_solve_integer_model!(
@@ -1438,7 +1464,7 @@ function path_formulation_column_generation_with_adaptive_ngroute_SR3_cuts(
         continue_flag = false
         iteration_params = Dict{String, Any}()
 
-        CGLP_results, CG_params = path_formulation_column_generation!(
+        (timed_out, CGLP_results, CG_params) = path_formulation_column_generation!(
             model, z, SR3_constraints,
             data, graph,
             artificial_paths,
@@ -1514,7 +1540,7 @@ function path_formulation_column_generation_with_adaptive_ngroute_SR3_cuts(
         iteration_params["cycles_lookup_length"] = 0
         iteration_params["implemented_SR3_cuts_count"] = 0
         iteration_params["converged"] = false
-        iteration_params["time_limit_reached"] = false
+        iteration_params["time_limit_reached"] = CG_params["time_limit_reached"]
 
         # check if converged
         if CGIP_results["objective"] ≈ CGLP_results["objective"]

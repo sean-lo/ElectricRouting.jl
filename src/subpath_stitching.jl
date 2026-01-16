@@ -496,8 +496,11 @@ function generate_subpath_labels_from_node(
     λcust::BitMatrix,
     λmemory::BitMatrix,
     ;
-    # time_limit::Float64 = Inf,
+    time_limit::Float64 = Inf,
 )
+
+    start_time = time()
+
     # Initialize data structures
     subpath_labels = Dict(
         current_node => SortedDict{
@@ -523,6 +526,9 @@ function generate_subpath_labels_from_node(
 
     # Iterate over unextended labels
     while length(unexplored_states) > 0
+        if time() - start_time > time_limit
+            return (true, subpath_labels)
+        end
         # Retrieve most promising unexplored state
         current_vkey = pop!(unexplored_states)
         current_node = current_vkey[end][end]
@@ -586,7 +592,7 @@ function generate_subpath_labels_from_node(
     )
     pop!(subpath_labels[starting_node], get_vkey(s))
 
-    return subpath_labels
+    return (false, subpath_labels)
 
 end
 
@@ -603,8 +609,10 @@ function generate_subpath_labels_all(
     λcust::BitMatrix,
     λmemory::BitMatrix,
     ;
-    # time_limit::Float64 = Inf,
+    time_limit::Float64 = Inf,
 )
+
+    start_time = time()
 
     all_subpath_labels = Dict{
         Int,
@@ -619,7 +627,7 @@ function generate_subpath_labels_all(
     }()
     # Threads.@threads for starting_node in data.N_depots_charging
     for starting_node in data.N_depots_charging
-        all_subpath_labels[starting_node] = generate_subpath_labels_from_node(
+        (timed_out, all_subpath_labels[starting_node]) = generate_subpath_labels_from_node(
             data,
             graph,
             modified_costs,
@@ -633,11 +641,14 @@ function generate_subpath_labels_all(
             λcust,
             λmemory,
             ;
-            # time_limit = time_limit,
+            time_limit = time_limit - (time() - start_time),
         )
+        if timed_out
+            return (true, time() - start_time, all_subpath_labels)
+        end
     end
 
-    return all_subpath_labels
+    return (false, time() - start_time, all_subpath_labels)
 end
 
 
@@ -1059,10 +1070,10 @@ function generate_path_labels_from_node(
     charging_function::PiecewiseLinearIncreasingConcaveFunction = PiecewiseLinearIncreasingConcaveFunction(
         [data.B], [1],
     ),
-    # time_limit::Float64 = Inf,
+    time_limit::Float64 = Inf,
 )
 
-    # start_time = time()
+    start_time = time()
 
     # Initialize data structures
     path_labels = Dict(
@@ -1087,6 +1098,9 @@ function generate_path_labels_from_node(
 
     # Iterate over unextended labels
     while length(unexplored_states) > 0
+        if time() - start_time > time_limit
+            return (true, path_labels)
+        end
 
         # Retrieve most promising unexplored state
         current_vkey = pop!(unexplored_states)
@@ -1139,7 +1153,7 @@ function generate_path_labels_from_node(
     end
 
 
-    return path_labels
+    return (false, path_labels)
 
 end
 
@@ -1168,8 +1182,10 @@ function generate_path_labels_all(
     charging_function::PiecewiseLinearIncreasingConcaveFunction = PiecewiseLinearIncreasingConcaveFunction(
         [data.B], [1],
     ),
-    # time_limit::Float64 = Inf,
+    time_limit::Float64 = Inf,
 )
+
+    start_time = time()
 
     all_path_labels = Dict{
         Int,
@@ -1184,7 +1200,7 @@ function generate_path_labels_all(
     }()
     # Threads.@threads for starting_node in graph.N_depots
     for starting_node in graph.N_depots
-        all_path_labels[starting_node] = generate_path_labels_from_node(
+        (timed_out, all_path_labels[starting_node]) = generate_path_labels_from_node(
             data,
             graph,
             subpath_labels,
@@ -1197,15 +1213,18 @@ function generate_path_labels_all(
             λvals,
             ;
             charging_function = charging_function,
-            # time_limit = time_limit,
+            time_limit = time_limit - (time() - start_time),
         )
+        if timed_out
+            return (true, time() - start_time, all_path_labels)
+        end
     end
 
     for starting_node in graph.N_depots, end_node in data.N_charging
         pop!(all_path_labels[starting_node], end_node)
     end
 
-    return all_path_labels
+    return (false, time() - start_time, all_path_labels)
 end
 
 function get_negative_path_labels_from_path_labels(
@@ -1388,6 +1407,7 @@ function subproblem_iteration_ours(
     ),
     use_ngroute::Bool = false,
     ng_neighborhoods::BitMatrix = falses(data.n_nodes, data.n_nodes),
+    time_limit::Float64 = Inf,
 )
 
     start_time = time()
@@ -1418,7 +1438,7 @@ function subproblem_iteration_ours(
         λvals, λcust, λmemory = prepare_lambda(λ, data.n_nodes)
     end
 
-    subpath_labels_result = @timed generate_subpath_labels_all(
+    (timed_out, subpath_labels_time, subpath_labels) = generate_subpath_labels_all(
         data,
         graph,
         modified_costs,
@@ -1431,12 +1451,28 @@ function subproblem_iteration_ours(
         λcust,
         λmemory,
         ;
-        # time_limit = time_limit - (time() - start_time),
+        time_limit = time_limit - (time() - start_time),
     )
-    subpath_labels = subpath_labels_result.value
-    subpath_labels_time = round(subpath_labels_result.time, digits=3)
+    subpath_labels_time = round(subpath_labels_time, digits=3)
+    if timed_out
+        return (
+            # timed_out
+            true,
+            # generated_paths
+            Dict{
+                Tuple{NTuple{3, Int}, NTuple{3, Int}}, 
+                Vector{Path},
+            }(),
+            # negative_path_labels_count 
+            0,
+            # subpath_labels_time
+            subpath_labels_time,
+            # path_labels_time
+            0.0,
+        )
+    end
 
-    path_labels_result = @timed generate_path_labels_all(
+    (timed_out, path_labels_time, path_labels) = generate_path_labels_all(
         data,
         graph,
         subpath_labels,
@@ -1448,11 +1484,26 @@ function subproblem_iteration_ours(
         λvals,
         ;
         charging_function = charging_function,
-        # time_limit = time_limit - (time() - start_time),
+        time_limit = time_limit - (time() - start_time),
     )
-
-    path_labels_time = round(path_labels_result.time, digits=3)
-    path_labels = path_labels_result.value
+    path_labels_time = round(path_labels_time, digits=3)
+    if timed_out
+        return (
+            # timed_out
+            true,
+            # generated_paths
+            Dict{
+                Tuple{NTuple{3, Int}, NTuple{3, Int}}, 
+                Vector{Path},
+            }(),
+            # negative_path_labels_count 
+            0,
+            # subpath_labels_time
+            subpath_labels_time,
+            # path_labels_time
+            path_labels_time,
+        )
+    end
 
     negative_path_labels = get_negative_path_labels_from_path_labels(path_labels)
     negative_path_labels_count = length(negative_path_labels)
@@ -1467,6 +1518,7 @@ function subproblem_iteration_ours(
         charging_function = charging_function,
     )
     return (
+        false, # timed_out
         generated_paths,
         negative_path_labels_count,
         subpath_labels_time,

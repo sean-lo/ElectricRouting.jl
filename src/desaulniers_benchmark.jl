@@ -425,7 +425,11 @@ function generate_path_labels_from_node(
     λcust::BitMatrix,
     λmemory::BitMatrix,
     ;
+    time_limit::Float64 = Inf,
 )
+
+    start_time = time()
+
     # Initialize data structures
     path_labels = Dict(
         current_node => SortedDict{
@@ -448,6 +452,9 @@ function generate_path_labels_from_node(
     push!(unexplored_states, vkey)
 
     while length(unexplored_states) > 0
+        if time() - start_time > time_limit
+            return (true, path_labels)
+        end
 
         # Retrieve most promising unexplored state
         current_vkey = pop!(unexplored_states)
@@ -493,7 +500,7 @@ function generate_path_labels_from_node(
         end
     end
 
-    return path_labels
+    return (false, path_labels)
 
 end
 
@@ -510,7 +517,10 @@ function generate_path_labels_all(
     λcust::BitMatrix,
     λmemory::BitMatrix,
     ;
+    time_limit::Float64 = Inf,
 )
+
+    start_time = time()
 
     all_path_labels = Dict{
         Int,
@@ -525,7 +535,7 @@ function generate_path_labels_all(
     }()
 
     for starting_node in data.N_depots
-        all_path_labels[starting_node] = generate_path_labels_from_node(
+        (timed_out, all_path_labels[starting_node]) = generate_path_labels_from_node(
             data,
             graph,
             modified_costs,
@@ -539,7 +549,11 @@ function generate_path_labels_all(
             λcust,
             λmemory,
             ;
+            time_limit = time_limit - (time() - start_time),
         )
+        if timed_out
+            return (true, time() - start_time, all_path_labels)
+        end
     end
 
     # Cleanup
@@ -561,7 +575,7 @@ function generate_path_labels_all(
         end
     end
 
-    return all_path_labels
+    return (false, time() - start_time, all_path_labels)
 
 end
 
@@ -724,6 +738,7 @@ function subproblem_iteration_benchmark(
     ),
     use_ngroute::Bool = false,
     ng_neighborhoods::BitMatrix = falses(data.n_nodes, data.n_nodes),
+    time_limit::Float64 = Inf,
 )
 
     if use_nonlinear_charging
@@ -758,7 +773,7 @@ function subproblem_iteration_benchmark(
         λvals, λcust, λmemory = prepare_lambda(λ, data.n_nodes)
     end
 
-    path_labels_result = @timed generate_path_labels_all(
+    (timed_out, path_labels_time, path_labels) = generate_path_labels_all(
         data, 
         graph,
         modified_costs,
@@ -771,9 +786,24 @@ function subproblem_iteration_benchmark(
         λcust,
         λmemory,
         ;
+        time_limit = time_limit - (time() - start_time),
     )
-    path_labels = path_labels_result.value
-    path_labels_time = round(path_labels_result.time, digits=3)
+    path_labels_time = round(path_labels_time, digits=3)
+    if timed_out
+        return (
+            # timed_out
+            true, 
+            # generated_paths
+            Dict{
+                Tuple{NTuple{3, Int}, NTuple{3, Int}}, 
+                Vector{Path},
+            }(),
+            # negative_path_labels_count
+            0,
+            # path_labels_time
+            path_labels_time,
+        )
+    end
     
     negative_path_labels = get_negative_path_labels_from_path_labels(path_labels)
     negative_path_labels_count = length(negative_path_labels)
@@ -785,5 +815,10 @@ function subproblem_iteration_benchmark(
         use_load = use_load,
     )
 
-    return (generated_paths, negative_path_labels_count, path_labels_time)
+    return (
+        false, # timed_out
+        generated_paths, 
+        negative_path_labels_count, 
+        path_labels_time,
+    )
 end
