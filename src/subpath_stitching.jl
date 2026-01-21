@@ -118,7 +118,7 @@ function Base.show(io::IO, p::PPathLabel)
         cost:               %e
         nodes:              %s
         time:               %d
-        charge:             %d,
+        charge:             %d
         load:               %d
         subpath_labels:     %s
         served:             %s
