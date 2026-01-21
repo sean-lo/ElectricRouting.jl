@@ -1244,7 +1244,7 @@ function get_negative_path_labels_from_path_labels(
         for (k, v) in pairs(path_labels)
         for (k_, v_) in pairs(v)
         for path_label in values(v_)
-        if path_label.cost < -1e-4
+        if path_label.cost < -1e-4 * (length(path_label.nodes) - 1)
     ]
 end
 
