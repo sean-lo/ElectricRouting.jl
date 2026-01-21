@@ -117,8 +117,9 @@ end
 function add_path_to_generated_paths!(
     generated_paths::Dict{
         Tuple{NTuple{3, Int}, NTuple{3, Int}}, 
-        Vector{Path},
+        Vector{Tuple{Float64, Path}},
     },
+    c::Float64,
     p::Path,
 )
     state_pair = (
@@ -127,10 +128,10 @@ function add_path_to_generated_paths!(
     )
     if state_pair in keys(generated_paths)
         if !any(isequal(p, p2) for p2 in generated_paths[state_pair])
-            push!(generated_paths[state_pair], p)
+            push!(generated_paths[state_pair], (c, p))
         end
     else
-        generated_paths[state_pair] = [p]
+        generated_paths[state_pair] = [(c, p)]
     end
     return
 end
@@ -285,7 +286,7 @@ function add_paths_to_path_model!(
     },
     generated_paths::Dict{
         Tuple{NTuple{3, Int}, NTuple{3, Int}},
-        Vector{Path},
+        Vector{Tuple{Float64, Path}},
     },
     SR3_constraints::Dict{
         T, 
@@ -305,12 +306,13 @@ function add_paths_to_path_model!(
         else
             count = length(some_paths[state_pair])
         end
-        for p_new in generated_paths[state_pair]
+        for (c, p_new) in generated_paths[state_pair]
             if state_pair in keys(some_paths)
                 for p in some_paths[state_pair]
                     if isequal(p_new, p)
                         throw(ErrorException("""
                         Generated path already in `some_paths!`
+                        Reduced cost: $c
                         Generated path: $p_new
                         `some_paths`: $(some_paths[state_pair])
                         """))

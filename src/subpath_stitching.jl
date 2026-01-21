@@ -1239,8 +1239,8 @@ function get_negative_path_labels_from_path_labels(
         },
     },
 )
-    return PPathLabel[
-        path_label
+    return Tuple{Float64, PPathLabel}[
+        (path_label.cost, path_label)
         for (k, v) in pairs(path_labels)
         for (k_, v_) in pairs(v)
         for path_label in values(v_)
@@ -1355,7 +1355,7 @@ end
 function get_paths_from_negative_path_labels(
     data::EVRPData,
     graph::EVRPGraph,
-    path_labels::Vector{PPathLabel},
+    path_labels::Vector{Tuple{Float64, PPathLabel}},
     subpath_labels::Dict{
         Int,
         Dict{
@@ -1376,9 +1376,9 @@ function get_paths_from_negative_path_labels(
 )
     generated_paths = Dict{
         Tuple{NTuple{3, Int}, NTuple{3, Int}}, 
-        Vector{Path},
+        Vector{Tuple{Float64, Path}},
     }()
-    for path_label in path_labels
+    for (c, path_label) in path_labels
         p = convert_path_label_to_path(
             path_label, 
             data, graph,
@@ -1388,7 +1388,7 @@ function get_paths_from_negative_path_labels(
             use_nonlinear_charging = use_nonlinear_charging,
             charging_function = charging_function
         )
-        add_path_to_generated_paths!(generated_paths, p)
+        add_path_to_generated_paths!(generated_paths, c, p)
     end
     return generated_paths
 end
