@@ -1326,6 +1326,33 @@ function add_label_to_collection_lmSR3_subpath!(
 end
 
 
+function get_next_state!(
+    unexplored_states::Vector{T},
+) where {T <: Tuple}
+    return popfirst!(unexplored_states)
+end
+
+function get_next_state!(
+    unexplored_states::SortedSet{T},
+) where {T <: Tuple}
+    return pop!(unexplored_states)
+end
+
+function add_state_to_unexplored_states!(
+    unexplored_states::Vector{T},
+    state::T,
+) where {T <: Tuple}
+    push!(unexplored_states, state)
+end
+
+function add_state_to_unexplored_states!(
+    unexplored_states::SortedSet{T},
+    state::T,
+) where {T <: Tuple}
+    push!(unexplored_states, state)
+end
+
+
 function plot_instance(
     data::EVRPData,
     ;

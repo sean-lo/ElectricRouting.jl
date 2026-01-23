@@ -496,6 +496,7 @@ function generate_subpath_labels_from_node(
     λcust::BitMatrix,
     λmemory::BitMatrix,
     ;
+    exploration_method::String = "bestfirst",
     time_limit::Float64 = Inf,
 )
 
@@ -510,7 +511,13 @@ function generate_subpath_labels_from_node(
         }(Base.Order.ForwardOrdering())
         for current_node in data.N_nodes
     )
-    unexplored_states = SortedSet{SUBPATH_VKEY_TYPE}()
+    if exploration_method == "bestfirst"
+        unexplored_states = SortedSet{SUBPATH_VKEY_TYPE}()
+    elseif exploration_method == "breadthfirst"
+        unexplored_states = SUBPATH_VKEY_TYPE[]
+    else
+        error("Unknown exploration method: $exploration_method")
+    end
 
     s = create_new_subpath_label(
         starting_node,
@@ -522,15 +529,15 @@ function generate_subpath_labels_from_node(
     )
     vkey = get_vkey(s)
     subpath_labels[starting_node][vkey] = s
-    push!(unexplored_states, vkey)
+    add_state_to_unexplored_states!(unexplored_states, vkey)
 
     # Iterate over unextended labels
-    while length(unexplored_states) > 0
+    while !isempty(unexplored_states)
         if time() - start_time > time_limit
             return (true, subpath_labels)
         end
         # Retrieve most promising unexplored state
-        current_vkey = pop!(unexplored_states)
+        current_vkey = get_next_state!(unexplored_states)
         current_node = current_vkey[end][end]
         if !(current_vkey in keys(subpath_labels[current_node]))
             continue
@@ -570,7 +577,7 @@ function generate_subpath_labels_from_node(
             )
 
             if added && next_node in data.N_customers
-                push!(unexplored_states, new_vkey)
+                add_state_to_unexplored_states!(unexplored_states, new_vkey)
             end
         end
     end
@@ -609,6 +616,7 @@ function generate_subpath_labels_all(
     λcust::BitMatrix,
     λmemory::BitMatrix,
     ;
+    exploration_method::String = "bestfirst",
     time_limit::Float64 = Inf,
 )
 
@@ -641,6 +649,7 @@ function generate_subpath_labels_all(
             λcust,
             λmemory,
             ;
+            exploration_method = exploration_method,
             time_limit = time_limit - (time() - start_time),
         )
         if timed_out
@@ -1070,6 +1079,7 @@ function generate_path_labels_from_node(
     charging_function::PiecewiseLinearIncreasingConcaveFunction = PiecewiseLinearIncreasingConcaveFunction(
         [data.B], [1],
     ),
+    exploration_method::String = "bestfirst",
     time_limit::Float64 = Inf,
 )
 
@@ -1084,7 +1094,13 @@ function generate_path_labels_from_node(
         }(Base.Order.ForwardOrdering())
         for current_node in data.N_depots_charging
     )
-    unexplored_states = SortedSet{PPATH_VKEY_TYPE}()
+    if exploration_method == "bestfirst"
+        unexplored_states = SortedSet{PPATH_VKEY_TYPE}()
+    elseif exploration_method == "breadthfirst"
+        unexplored_states = PPATH_VKEY_TYPE[]
+    else
+        error("Unknown exploration method: $exploration_method")
+    end
 
     p = create_new_path_label(
         starting_node,
@@ -1094,16 +1110,16 @@ function generate_path_labels_from_node(
     )
     vkey = get_vkey(p)
     path_labels[starting_node][vkey] = p
-    push!(unexplored_states, vkey)
+    add_state_to_unexplored_states!(unexplored_states, vkey)
 
     # Iterate over unextended labels
-    while length(unexplored_states) > 0
+    while !isempty(unexplored_states)
         if time() - start_time > time_limit
             return (true, path_labels)
         end
 
         # Retrieve most promising unexplored state
-        current_vkey = pop!(unexplored_states)
+        current_vkey = get_next_state!(unexplored_states)
         current_node = current_vkey[end][end]
         if !(current_vkey in keys(path_labels[current_node]))
             continue
@@ -1146,15 +1162,13 @@ function generate_path_labels_from_node(
                     charging_function = charging_function, 
                 )
                 if added && next_node in data.N_charging
-                    push!(unexplored_states, new_vkey)
+                    add_state_to_unexplored_states!(unexplored_states, new_vkey)
                 end
             end
         end
     end
 
-
     return (false, path_labels)
-
 end
 
 
@@ -1182,6 +1196,7 @@ function generate_path_labels_all(
     charging_function::PiecewiseLinearIncreasingConcaveFunction = PiecewiseLinearIncreasingConcaveFunction(
         [data.B], [1],
     ),
+    exploration_method::String = "bestfirst",
     time_limit::Float64 = Inf,
 )
 
@@ -1213,6 +1228,7 @@ function generate_path_labels_all(
             λvals,
             ;
             charging_function = charging_function,
+            exploration_method = exploration_method,
             time_limit = time_limit - (time() - start_time),
         )
         if timed_out
@@ -1405,6 +1421,7 @@ function subproblem_iteration_ours(
     charging_function::PiecewiseLinearIncreasingConcaveFunction = PiecewiseLinearIncreasingConcaveFunction(
         [data.B], [1],
     ),
+    exploration_method::String = "bestfirst",
     use_ngroute::Bool = false,
     ng_neighborhoods::BitMatrix = falses(data.n_nodes, data.n_nodes),
     time_limit::Float64 = Inf,
@@ -1451,6 +1468,7 @@ function subproblem_iteration_ours(
         λcust,
         λmemory,
         ;
+        exploration_method = exploration_method,
         time_limit = time_limit - (time() - start_time),
     )
     subpath_labels_time = round(subpath_labels_time, digits=3)
@@ -1484,6 +1502,7 @@ function subproblem_iteration_ours(
         λvals,
         ;
         charging_function = charging_function,
+        exploration_method = exploration_method,
         time_limit = time_limit - (time() - start_time),
     )
     path_labels_time = round(path_labels_time, digits=3)

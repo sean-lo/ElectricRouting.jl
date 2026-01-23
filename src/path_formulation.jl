@@ -450,6 +450,7 @@ function path_formulation_column_generation_find_nondominated_paths(
         [data.B], [1],
     ),
     prune_graph_outdegree_sequence::Vector{Int} = Int[],
+    exploration_method::String = "bestfirst",
     use_ngroute::Bool = false,
     ng_neighborhoods::Union{Nothing, BitMatrix} = nothing,
     verbose::Bool = false,
@@ -491,6 +492,7 @@ function path_formulation_column_generation_find_nondominated_paths(
                 use_time_windows = use_time_windows,
                 use_nonlinear_charging = use_nonlinear_charging,
                 charging_function = charging_function,
+                exploration_method = exploration_method,
                 use_ngroute = use_ngroute,
                 ng_neighborhoods = ng_neighborhoods,
                 time_limit = time_limit - (time() - start_time),
@@ -506,6 +508,7 @@ function path_formulation_column_generation_find_nondominated_paths(
                 use_time_windows = use_time_windows,
                 use_nonlinear_charging = use_nonlinear_charging,
                 charging_function = charging_function,
+                exploration_method = exploration_method,
                 use_ngroute = use_ngroute,
                 ng_neighborhoods = ng_neighborhoods,
                 time_limit = time_limit - (time() - start_time),
@@ -549,6 +552,7 @@ function path_formulation_column_generation_find_nondominated_paths(
                 use_time_windows = use_time_windows,
                 use_nonlinear_charging = use_nonlinear_charging,
                 charging_function = charging_function,
+                exploration_method = exploration_method,
                 use_ngroute = use_ngroute,
                 ng_neighborhoods = ng_neighborhoods,
                 time_limit = time_limit - (time() - start_time),
@@ -564,6 +568,7 @@ function path_formulation_column_generation_find_nondominated_paths(
                 use_time_windows = use_time_windows,
                 use_nonlinear_charging = use_nonlinear_charging,
                 charging_function = charging_function,
+                exploration_method = exploration_method,
                 use_ngroute = use_ngroute,
                 ng_neighborhoods = ng_neighborhoods,
                 time_limit = time_limit - (time() - start_time),
@@ -643,6 +648,7 @@ function path_formulation_column_generation!(
     ),
     use_pruned_graph::Bool = false,
     prune_graph_outdegree_sequence::Vector{Int} = Int[3, 8],
+    exploration_method::String = "bestfirst",
     use_ngroute::Bool = false,
     ng_neighborhoods::Union{Nothing, BitMatrix} = nothing,
     verbose::Bool = true,
@@ -708,6 +714,7 @@ function path_formulation_column_generation!(
                 ? prune_graph_outdegree_sequence
                 : Int[]
             ),
+            exploration_method = exploration_method,
             use_ngroute = use_ngroute,
             ng_neighborhoods = ng_neighborhoods,
             verbose = verbose,
@@ -1277,6 +1284,7 @@ function path_formulation_column_generation_with_adaptive_ngroute_SR3_cuts(
     use_heuristic::Bool = false,
     use_pruned_graph::Bool = false,
     prune_graph_outdegree_sequence::Vector{Int} = Int[3, 8],
+    exploration_method::String = "bestfirst",
     use_ngroute::Bool = true,
     ng_neighborhoods::Union{Nothing, BitMatrix} = nothing,
     ngroute_neighborhood_size::Int = Int(ceil(sqrt(data.n_customers))),
@@ -1316,6 +1324,7 @@ function path_formulation_column_generation_with_adaptive_ngroute_SR3_cuts(
             use time windows?:              %s
 
             method:                         %s
+            exploration method:             %S
             """,
             data.n_customers,
             data.n_depots,
@@ -1324,6 +1333,7 @@ function path_formulation_column_generation_with_adaptive_ngroute_SR3_cuts(
             use_load,
             use_time_windows,
             method,
+            exploration_method,
         )
     )
     if use_ngroute
@@ -1478,6 +1488,7 @@ function path_formulation_column_generation_with_adaptive_ngroute_SR3_cuts(
             charging_function = charging_function,
             use_pruned_graph = use_pruned_graph,
             prune_graph_outdegree_sequence = prune_graph_outdegree_sequence,
+            exploration_method = exploration_method,
             use_ngroute = use_ngroute,
             ng_neighborhoods = ng_neighborhoods,
             verbose = verbose,

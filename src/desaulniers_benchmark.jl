@@ -425,6 +425,7 @@ function generate_path_labels_from_node(
     λcust::BitMatrix,
     λmemory::BitMatrix,
     ;
+    exploration_method::String = "bestfirst",
     time_limit::Float64 = Inf,
 )
 
@@ -439,7 +440,13 @@ function generate_path_labels_from_node(
         }(Base.Order.ForwardOrdering())
         for current_node in data.N_nodes
     )
-    unexplored_states = SortedSet{BPATH_VKEY_TYPE}()
+    if exploration_method == "bestfirst"
+        unexplored_states = SortedSet{BPATH_VKEY_TYPE}()
+    elseif exploration_method == "breadthfirst"
+        unexplored_states = BPATH_VKEY_TYPE[]
+    else
+        error("Exploration method $exploration_method not recognized.")
+    end
 
     p = create_new_bpath_label(
         starting_node,
@@ -449,15 +456,15 @@ function generate_path_labels_from_node(
     )
     vkey = get_vkey(p)
     path_labels[starting_node][vkey] = p
-    push!(unexplored_states, vkey)
+    add_state_to_unexplored_states!(unexplored_states, vkey)
 
-    while length(unexplored_states) > 0
+    while !isempty(unexplored_states)
         if time() - start_time > time_limit
             return (true, path_labels)
         end
 
         # Retrieve most promising unexplored state
-        current_vkey = pop!(unexplored_states)
+        current_vkey = get_next_state!(unexplored_states)
         current_node = current_vkey[end][end]
         if !(current_vkey in keys(path_labels[current_node]))
             continue
@@ -495,7 +502,7 @@ function generate_path_labels_from_node(
                 λvals,
             )
             if added && !(next_node in data.N_depots)
-                push!(unexplored_states, new_vkey)
+                add_state_to_unexplored_states!(unexplored_states, new_vkey)
             end
         end
     end
@@ -517,6 +524,7 @@ function generate_path_labels_all(
     λcust::BitMatrix,
     λmemory::BitMatrix,
     ;
+    exploration_method::String = "bestfirst",
     time_limit::Float64 = Inf,
 )
 
@@ -549,6 +557,7 @@ function generate_path_labels_all(
             λcust,
             λmemory,
             ;
+            exploration_method = exploration_method,
             time_limit = time_limit - (time() - start_time),
         )
         if timed_out
@@ -736,6 +745,7 @@ function subproblem_iteration_benchmark(
     charging_function::PiecewiseLinearIncreasingConcaveFunction = PiecewiseLinearIncreasingConcaveFunction(
         [data.B], [1],
     ),
+    exploration_method::String = "bestfirst",
     use_ngroute::Bool = false,
     ng_neighborhoods::BitMatrix = falses(data.n_nodes, data.n_nodes),
     time_limit::Float64 = Inf,
@@ -786,6 +796,7 @@ function subproblem_iteration_benchmark(
         λcust,
         λmemory,
         ;
+        exploration_method = exploration_method,
         time_limit = time_limit - (time() - start_time),
     )
     path_labels_time = round(path_labels_time, digits=3)
