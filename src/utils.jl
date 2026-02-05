@@ -554,9 +554,9 @@ function generate_locations(
         coords = zeros(Float64, 2, n)
         n_blocks = Int(round((xmax - xmin) * (ymax - ymin)))
         while true
-            for (i, (x, y)) in enumerate(Iterators.product(
-                xmin:xmax-1,
+            for (i, (y, x)) in enumerate(Iterators.product(
                 ymin:ymax-1,
+                xmin:xmax-1,
             ))
                 coords[:, i:n_blocks:n] .= [x; y] .+ rand(Float64, 2, length(i:n_blocks:n)) 
             end
