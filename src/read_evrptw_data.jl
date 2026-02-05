@@ -1,5 +1,6 @@
 using CSV
 using DataFrames
+using Accessors
 
 function transform_floats(
     x,
@@ -181,14 +182,13 @@ function read_evrptw_instance(
     return data
 end
 
-function stretch_time_windows(
-    data_in::EVRPData,
+function stretch_time_windows!(
+    data::EVRPData,
     stretch_factor::Float64,
 )
     if !(0.0 <= stretch_factor <= 1.0)
         error("stretch_factor must be in [0, 1]")
     end
-    data = deepcopy(data_in)
     data.α .= Int.(round.(
         # stretch_factor .* 0 .+ 
         (1 - stretch_factor) .* data.α 
@@ -197,11 +197,11 @@ function stretch_time_windows(
         stretch_factor .* data.T
         .+ (1 - stretch_factor) .* data.β
     ))
-    return data
+    return
 end
 
-function remove_time_windows(
-    data_in::EVRPData,
+function remove_time_windows!(
+    data::EVRPData,
     remove_factor::Float64,
     ;
     seed::Union{Int, Nothing} = nothing
@@ -209,7 +209,6 @@ function remove_time_windows(
     if !(0.0 <= remove_factor <= 1.0)
         error("remove_factor must be in [0, 1]")
     end
-    data = deepcopy(data_in)
     n_TWs_remove = Int(round(remove_factor * data.n_customers * 2))
     
     if !isnothing(seed)
@@ -226,6 +225,30 @@ function remove_time_windows(
             data.β[j] = data.T
         end
     end
-    return data
+    return
 end
 
+function duplicate_time_horizon!(
+    data::EVRPData,
+    batch_size::Int,
+    ;
+    seed::Int = 0,
+)
+    @assert data.n_customers % batch_size == 0
+
+    Random.seed!(seed)
+
+    shuffled_customers = shuffle(1:data.n_customers)
+    n_batches = data.n_customers ÷ batch_size
+    batches = [
+        shuffled_customers[(k-1)*batch_size+1:k*batch_size] 
+        for k in 1:n_batches
+    ]
+    for (k, batch) in enumerate(batches)
+        data.α[batch] .+= (k-1) * data.T
+        data.β[batch] .+= (k-1) * data.T
+    end
+    @reset data.T = data.T * n_batches
+    data.β[data.N_depots_charging] .= data.T
+    return data
+end
