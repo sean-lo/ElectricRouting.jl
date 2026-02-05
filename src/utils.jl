@@ -634,8 +634,10 @@ function generate_instance(
     load_scale::Float64,
     load_shape::Float64,
     load_tolerance::Float64,
-    batch::Int,
-    permissiveness::Float64,
+    vehicle_locations::String = "random",
+    time_windows_distribution::String = "random",
+    time_windows_min_width::Float64 = 0.0,
+    time_windows_max_width::Float64 = 1.0,
     data_dir::String = "data/",
 )
     n_nodes = n_depots + n_customers + n_charging
@@ -679,10 +681,29 @@ function generate_instance(
         data_dir = data_dir,
     )
 
-    start_depots = StatsBase.sample(MersenneTwister(seeds[4]), N_depots, n_vehicles, replace = true)
-    V = Dict(i => findall(x -> x==i, start_depots) for i in N_depots)
-    v_start = Dict(i => length(V[i]) for i in N_depots)
-    v_end  = Dict(i => 1 for i in N_depots)
+    if vehicle_locations == "random"
+        start_depots = StatsBase.sample(MersenneTwister(seeds[4]), N_depots, n_vehicles, replace = true)
+        V = Dict(i => findall(x -> x==i, start_depots) for i in N_depots)
+        v_start = Dict(i => length(V[i]) for i in N_depots)
+        v_end  = Dict(i => 1 for i in N_depots)
+    elseif vehicle_locations == "gradiated"
+        @assert depot_pattern == "grid"
+        @assert n_depots == 4
+        @assert time_windows_distribution == "gradiated"
+        V = Dict(
+            N_depots[1] => collect(1:(n_vehicles÷2)),
+            N_depots[3] => collect((n_vehicles÷2)+1:n_vehicles),
+            N_depots[2] => Int[],
+            N_depots[4] => Int[],
+        )
+        v_start = Dict(i => length(V[i]) for i in N_depots)
+        v_end = Dict(
+            N_depots[1] => 0,
+            N_depots[3] => 0,
+            N_depots[2] => 1,
+            N_depots[4] => 1,
+        )
+    end
     
     # c = Int.(round.(100 .* distances))
     # t = Int.(round.(100 .* distances)) # travel times are integer
@@ -696,7 +717,34 @@ function generate_instance(
     )
     C = Int(ceil(sum(d) * load_tolerance / n_vehicles))
 
-    α, β = generate_times(T, n_customers, seeds[5], batch, permissiveness)
+    if time_windows_distribution == "random"
+        (α, β) = generate_time_windows(
+            0, T, n_customers, seeds[5],
+            time_windows_min_width,
+            time_windows_max_width,
+        )
+    elseif time_windows_distribution == "gradiated"
+        n_blocks = Int(round((xmax - xmin) * (ymax - ymin)))
+        n_customers_block = Int(n_customers / ((xmax - xmin) * (ymax - ymin)))
+        Random.seed!(seeds[5])
+        seeds_TW = abs.(rand(Int, n_blocks))
+        T_div = Int(round(T / (xmax - xmin)))
+        α = zeros(Int, n_customers)
+        β = zeros(Int, n_customers)
+        for (i, (y, x)) in enumerate(Iterators.product(
+            ymin:ymax-1,
+            xmin:xmax-1,
+        ))
+            α_, β_ = generate_time_windows(
+                Int(T_div * x), Int(T_div * (x+1)), n_customers_block,
+                seeds_TW[i],
+                time_windows_min_width,
+                time_windows_max_width,
+            )
+            α[i:n_blocks:n_customers] .= α_
+            β[i:n_blocks:n_customers] .= β_
+        end
+    end
     α_charge = vcat(α, repeat([0], n_depots + n_charging))
     β_charge = vcat(β, repeat([T], n_depots + n_charging))
 
@@ -930,23 +978,28 @@ function prune_graph(
 end
 
 function generate_time_windows(
-    T::Int,
+    T_start::Int,
+    T_end::Int,
     n_customers::Int,
     seed::Int,
-    time_window_min_width::Float64,
-    time_window_max_width::Float64,
+    time_windows_min_width::Float64,
+    time_windows_max_width::Float64,
 )
     if !(
-        0 < time_window_min_width ≤ time_window_max_width < 1
+        0 <= time_windows_min_width ≤ time_windows_max_width <= 1
     )
-        error("`time_window_min_width` and `time_window_max_width` out of bounds!")
+        error("`time_windows_min_width` and `time_windows_max_width` out of bounds!")
     end
     Random.seed!(seed)
-    time_window_dist = Uniform(time_window_min_width * T, time_window_max_width * T)
-    time_window_widths = Int.(round.(rand(time_window_dist, n_customers)))
+    if time_windows_min_width < time_windows_max_width
+        time_window_dist = Uniform(time_windows_min_width * (T_end - T_start), time_windows_max_width * (T_end - T_start))
+        time_window_widths = Int.(round.(rand(time_window_dist, n_customers)))
+    else
+        time_window_widths = Int.(round.(time_windows_min_width * (T_end - T_start)))
+    end
     time_window_posdist = Uniform(0.0, 1.0)
     time_window_pos = rand(time_window_posdist, n_customers)
-    α = Int.(round.(time_window_pos .* (T .- time_window_widths)))
+    α = T_start .+ Int.(round.(time_window_pos .* ((T_end - T_start) .- time_window_widths)))
     β = α .+ time_window_widths
 
     return (α, β)
