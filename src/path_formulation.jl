@@ -388,6 +388,8 @@ function path_formulation_column_generation_solve_linear_relaxation!(
         Tuple{NTuple{3, Int}, NTuple{3, Int}},
         Vector{Path},
     },
+    ;
+    verbose::Bool = true,
 ) where {T}
     mp_solution_start_time = time()
     @suppress optimize!(model)
@@ -692,6 +694,8 @@ function path_formulation_column_generation!(
             SR3_constraints,
             data,
             artificial_paths,
+            ;
+            verbose = verbose,
         )
         if CGLP_results["errored"]
             break
@@ -823,6 +827,7 @@ function path_formulation_solve_integer_model!(
         Tuple{NTuple{3, Int}, NTuple{3, Int}},
         Vector{Path},
     },
+    printlist::Vector{String},
 )
     for (key, p) in keys(z)
         JuMP.set_integer(z[key, p])
@@ -1499,6 +1504,7 @@ function path_formulation_column_generation_with_adaptive_ngroute_SR3_cuts(
             model,
             z,
             artificial_paths,
+            printlist,
         )
         push!(CGLP_all_results, CGLP_results)
         push!(CGIP_all_results, CGIP_results)
