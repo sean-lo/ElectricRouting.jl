@@ -754,14 +754,14 @@ function compute_new_path(
             # time_end_earliest
             charging_duration_min = compute_charging_duration(
                 charging_function,
-                current_path.charge_end_max,
-                s.charge_taken,
+                current_path.charge_end_max, # BendMax{p}
+                s.charge_taken, # B(s)
             )
         else
             # time_end_earliest
             charging_duration_min = max(
                 0, 
-                s.charge_taken - current_path.charge_end_max,
+                s.charge_taken - current_path.charge_end_max, # B(s) - BendMax{p}
             )
         end
         # @debug "  charging_duration_min = $charging_duration_min"
@@ -787,11 +787,11 @@ function compute_new_path(
                 max(
                     compute_end_charge(
                         charging_function,
-                        current_path.charge_end_max,
+                        current_path.charge_end_max, # BendMax{p}
                         max(
                             0, 
                             s.P - current_path.time_end_earliest,
-                        )
+                        ) # (P(s) - \TendMin{p})⁺
                     ),
                     s.charge_taken
                 ),
