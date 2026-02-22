@@ -639,9 +639,8 @@ function generate_instance(
     B::Int, # Battery capacity
     inverse_refueling_rate::Float64, # Inverse refueling rate
     travel_cost_coeff::Int,
-    load_scale::Float64,
-    load_shape::Float64,
     load_tolerance::Float64,
+    load_precision::Int,
     vehicle_locations::String = "random",
     time_windows_distribution::String = "random",
     time_windows_min_width::Float64 = 0.0,
@@ -720,11 +719,11 @@ function generate_instance(
     t = Int.(round.(distances .* 100))
     q = Int.(round.(distances .* 100 .* inverse_refueling_rate))
 
-    d = vcat(
-        Int.(floor.(rand(Gamma(load_scale, load_shape), n_customers) ./ n_customers)),
-        repeat([0], n_depots + n_charging),
-    )
-    C = Int(ceil(sum(d) * load_tolerance / n_vehicles))
+    Random.seed!(seeds[2])
+    d = (rand(Truncated(Geometric(0.5), 0, 4), n_customers) .+ 1) * load_precision
+    d = vcat(d, repeat([0], n_depots + n_charging))
+    C = sum(d) * load_tolerance / n_vehicles
+    C = Int(round(C / load_precision) * load_precision)
 
     if time_windows_distribution == "random"
         (α, β) = generate_time_windows(
