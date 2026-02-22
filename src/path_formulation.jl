@@ -662,6 +662,7 @@ function path_formulation_column_generation!(
     counter = 0
     converged = false
     local CGLP_results = Dict{String, Any}()
+    timed_out = false
 
     CG_params = Dict{String, Any}()
     CG_params["number_of_paths"] = [sum(length(v) for v in values(some_paths))]
@@ -681,7 +682,6 @@ function path_formulation_column_generation!(
 
     while (
         !converged
-        && time_limit ≥ (time() - start_time)
         && max_iters > counter
     )
         counter += 1
@@ -783,7 +783,6 @@ function path_formulation_column_generation!(
     CG_params["counter"] = counter
     end_time = time() 
     time_taken = round(end_time - start_time, digits = 3)
-    timed_out = (time_taken > time_limit)
     CG_params["time_taken"] = time_taken
     CG_params["time_limit_reached"] = timed_out
     CG_params["errored"] = CGLP_results["errored"]
@@ -1479,6 +1478,17 @@ function path_formulation_column_generation_with_adaptive_ngroute_SR3_cuts(
         continue_flag = false
         iteration_params = Dict{String, Any}()
 
+        # Setup
+        iteration_params["errored"] = false
+        iteration_params["method"] = "none"
+        iteration_params["ngroute_neighborhoods_expanded"] = 0
+        iteration_params["ngroute_neighborhood_size"] = use_ngroute ? (data.n_customers + data.n_charging) * mean(ng_neighborhoods[data.N_customers, vcat(data.N_customers, data.N_charging)]) : 0
+        iteration_params["cycles_lookup_length"] = 0
+        iteration_params["implemented_SR3_cuts_count"] = 0
+        iteration_params["converged"] = false
+        iteration_params["time_limit_reached"] = false
+
+        # Run column generation
         (timed_out, CGLP_results, CG_params) = path_formulation_column_generation!(
             model, z, SR3_constraints,
             data, graph,
@@ -1500,67 +1510,67 @@ function path_formulation_column_generation_with_adaptive_ngroute_SR3_cuts(
             time_limit = time_limit - (time() - start_time),
             max_iters = max_iters,
         )
+        push!(CGLP_all_results, CGLP_results)
+        push!(CG_all_params, CG_params)
+        if use_ngroute
+            push!(CG_all_ng_neighborhoods, copy(ng_neighborhoods))
+        end
+
+        if CGLP_results["errored"] || CG_params["cycled"]
+            add_message!(printlist, "Terminating column generation...\n", verbose)
+            iteration_params["errored"] = true
+            break
+        end
+
+        iteration_params["CGLP_objective"] = CGLP_results["objective"]
+        iteration_params["CG_time_taken"] = CG_params["time_taken"]
+        iteration_params["CGLP_artificial"] = CGLP_results["artificial"]
+        iteration_params["CG_sp_time_taken_mean"] = CG_params["sp_time_taken_mean"]
+        iteration_params["n_CG_iterations"] = CG_params["counter"]
+        iteration_params["CG_time_limit_reached"] = CG_params["time_limit_reached"]
+        iteration_params["time_limit_reached"] = CG_params["time_limit_reached"]
+        CGLP_results["paths"] = collect_path_solution_support(
+            CGLP_results, some_paths, data,
+        )
+
         CGIP_results = path_formulation_solve_integer_model!(
             model,
             z,
             artificial_paths,
             printlist,
         )
-        push!(CGLP_all_results, CGLP_results)
         push!(CGIP_all_results, CGIP_results)
-        push!(CG_all_params, CG_params)
-        if use_ngroute
-            push!(CG_all_ng_neighborhoods, copy(ng_neighborhoods))
-        end
-
-        if CGLP_results["errored"] || CGIP_results["errored"] || CG_params["cycled"]
+        if CGIP_results["errored"] 
             add_message!(printlist, "Terminating column generation...\n", verbose)
             iteration_params["errored"] = true
             break
-        else
-            iteration_params["errored"] = false
         end
 
         # Termination criteria
-        CG_params["CGLP_objective"] = CGLP_results["objective"]
-        CG_params["CGIP_objective"] = CGIP_results["objective"]
-        CG_params["LP_IP_gap"] = 1.0 - CGLP_results["objective"] / CGIP_results["objective"]
+        iteration_params["CGIP_objective"] = CGIP_results["objective"]
+        iteration_params["CGIP_time_taken"] = CGIP_results["time_taken"]
+        iteration_params["CGIP_artificial"] = CGIP_results["artificial"]
+        iteration_params["CG_LP_IP_gap"] = 1.0 - CGLP_results["objective"] / CGIP_results["objective"]
+        CGIP_results["paths"] = collect_path_solution_support(
+            CGIP_results, some_paths, data, 
+        )
         for message in [
             @sprintf("\n"),
-            @sprintf("Time taken (s):       %9.3f s\n", CG_params["time_taken"]),
-            @sprintf("(CGLP) Objective:         %.4e\n", CGLP_results["objective"]),
-            @sprintf("(CGIP) Objective:         %.4e\n", CGIP_results["objective"]),
-            @sprintf("%% gap:                %9.3f %%\n", CG_params["LP_IP_gap"] * 100.0),
+            @sprintf("Time taken (CG) (s):  %9.3f s\n", iteration_params["CG_time_taken"]),
+            @sprintf("(CGLP) Objective:         %.4e\n", iteration_params["CGLP_objective"]),
+
+            @sprintf("Time taken (IP) (s):  %9.3f s\n", iteration_params["CGIP_time_taken"]),
+            @sprintf("(CGIP) Objective:         %.4e\n", iteration_params["CGIP_objective"]),
+            @sprintf("%% gap:                %9.3f %%\n", iteration_params["CG_LP_IP_gap"] * 100.0),
         ]
             add_message!(printlist, message, verbose)
         end
 
-        # if CG_params["converged"]
-        CGLP_results["paths"] = collect_path_solution_support(
-            CGLP_results, some_paths, data,
-        )
-        CGIP_results["paths"] = collect_path_solution_support(
-            CGIP_results, some_paths, data, 
-        )
-        # end
-        
-        iteration_params["CGLP_objective"] = CG_params["CGLP_objective"]
-        iteration_params["CGIP_objective"] = CG_params["CGIP_objective"]
-        iteration_params["CGLP_artificial"] = CGLP_results["artificial"]
-        iteration_params["CGIP_artificial"] = CGIP_results["artificial"]
-        iteration_params["CG_LP_IP_gap"] = CG_params["LP_IP_gap"]
-        iteration_params["CG_time_taken"] = CG_params["time_taken"]
-        iteration_params["CG_sp_time_taken_mean"] = CG_params["sp_time_taken_mean"]
-        iteration_params["method"] = "none"
-        iteration_params["ngroute_neighborhoods_expanded"] = 0
-        iteration_params["ngroute_neighborhood_size"] = use_ngroute ? (data.n_customers + data.n_charging) * mean(ng_neighborhoods[data.N_customers, vcat(data.N_customers, data.N_charging)]) : 0
-        iteration_params["cycles_lookup_length"] = 0
-        iteration_params["implemented_SR3_cuts_count"] = 0
-        iteration_params["converged"] = false
-        iteration_params["time_limit_reached"] = CG_params["time_limit_reached"]
-
         # check if converged
-        if CGIP_results["objective"] ≈ CGLP_results["objective"]
+        if (
+            !CG_params["time_limit_reached"]
+            && CGIP_results["objective"] ≈ CGLP_results["objective"]
+        )
             converged = true
             iteration_params["converged"] = true
         end
@@ -1652,15 +1662,17 @@ function path_formulation_column_generation_with_adaptive_ngroute_SR3_cuts(
             end
         end
 
-        push!(all_params, iteration_params)
 
+        current_time_taken = time() - start_time
         add_message!(
             printlist,
-            @sprintf("Total time taken (s): %9.3f s\n\n", time() - start_time),
+            @sprintf("Total time taken (s): %9.3f s\n\n", current_time_taken),
             verbose,
         )
+        iteration_params["time_taken"] = current_time_taken
+        push!(all_params, iteration_params)
 
-        if !(time_limit > time() - start_time)
+        if !(time_limit > current_time_taken)
             iteration_params["time_limit_reached"] = true
             break
         end
