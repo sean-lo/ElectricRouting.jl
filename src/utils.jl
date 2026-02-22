@@ -9,6 +9,8 @@ using Graphs
 using LinearAlgebra
 using Plots
 using ColorSchemes
+using CSV
+using DataFrames
 
 abstract type Label end
 
@@ -447,6 +449,7 @@ function generate_locations(
     ymax::Float64,
     seed::Int,
     data_dir::String = "data/",
+    pr::Float64 = 100.0,
 )
     function complex_coords(
         n::Int,
@@ -594,6 +597,11 @@ function generate_locations(
     elseif charging_pattern == "circular_packing"
         charging_coords = circle_packing_coords(n_depots, xmin, xmax, ymin, ymax, data_dir = data_dir)
     end
+
+    customer_coords .*= pr 
+    depot_coords .*= pr 
+    charging_coords .*= pr 
+
     coords = hcat(
         customer_coords,
         depot_coords,
@@ -708,9 +716,10 @@ function generate_instance(
     # c = Int.(round.(100 .* distances))
     # t = Int.(round.(100 .* distances)) # travel times are integer
     # q = Int.(round.(100 .* distances)) # charge costs are integer
-    c = Int.(round.(distances .* 10000))
-    t = Int.(round.(distances .* 10000) .* inverse_refueling_rate)
-    q = Int.(round.(distances .* 10000))
+    c = Int.(round.(distances .* 100))
+    t = Int.(round.(distances .* 100))
+    q = Int.(round.(distances .* 100 .* inverse_refueling_rate))
+
     d = vcat(
         Int.(floor.(rand(Gamma(load_scale, load_shape), n_customers) ./ n_customers)),
         repeat([0], n_depots + n_charging),
@@ -782,14 +791,111 @@ function generate_instance(
         q,
         d,
         C,
-        Int(round(T * inverse_refueling_rate)),
-        Int.(round.(α_charge * inverse_refueling_rate)),
-        Int.(round.(β_charge * inverse_refueling_rate)),
+        T,
+        α_charge,
+        β_charge,
         inverse_refueling_rate,
-        B,
+        Int(round(B * inverse_refueling_rate)),
         travel_cost_coeff,
     )
     return data
+end
+
+
+function write_instance_evrptw_format(
+    data::EVRPData,
+    fp::String,
+    ;
+    multidepot::Bool = false,
+    pr::Float64 = 100.0,
+)
+
+    depot_df = DataFrame()
+    depot_df[!, :StringID] = ["D$(i-data.n_customers)" for i in data.N_depots]
+    depot_df[!, :Type] = ["d" for i in data.N_depots]
+    depot_coords = Int.(floor.(data.depot_coords))'
+    depot_df[!, :x] .= depot_coords[:,1]
+    depot_df[!, :y] .= depot_coords[:,2]
+    depot_df[!, :demand] .= 0
+    depot_df[!, :ReadyTime] .= Int.(floor.(data.α[data.N_depots] ./ pr))
+    depot_df[!, :DueDate] .= Int.(floor.(data.β[data.N_depots] ./ pr))
+    depot_df[!, :ServiceTime] .= 0
+
+    charging_df = DataFrame()
+    charging_df[!, :StringID] = ["S$(i-data.n_customers-data.n_depots)" for i in data.N_charging]
+    charging_df[!, :Type] = ["f" for i in data.N_charging]
+    charging_coords = Int.(floor.(data.charging_coords))'
+    charging_df[!, :x] .= charging_coords[:,1]
+    charging_df[!, :y] .= charging_coords[:,2]
+    charging_df[!, :demand] .= 0
+    charging_df[!, :ReadyTime] .= Int.(floor.(data.α[data.N_charging] ./ pr))
+    charging_df[!, :DueDate] .= Int.(floor.(data.β[data.N_charging] ./ pr))
+    charging_df[!, :ServiceTime] .= 0
+
+    customer_df = DataFrame()
+    customer_df[!, :StringID] = ["C$i" for i in data.N_customers]
+    customer_df[!, :Type] = ["c" for i in data.N_customers]
+    customer_coords = Int.(floor.(data.customer_coords))'
+    customer_df[!, :x] .= customer_coords[:,1]
+    customer_df[!, :y] .= customer_coords[:,2]
+    customer_df[!, :demand] .= 0
+    customer_df[!, :ReadyTime] .= Int.(floor.(data.α[data.N_customers] ./ pr))
+    customer_df[!, :DueDate] .= Int.(floor.(data.β[data.N_customers] ./ pr))
+    customer_df[!, :ServiceTime] .= 0
+
+    df = vcat(
+        depot_df,
+        charging_df,
+        customer_df,
+    )
+
+    # Write the DataFrame to a file with fixed-width columns
+    open(fp, "w") do io
+        for col in names(df)
+            print(io, lpad(col, 10))
+        end
+        print(io, "\n")
+        for row in eachrow(df)
+            for col in names(row)
+                print(io, lpad(row[col], 10))
+            # println(io, rpad(row[:StringID], 10), rpad(row[:Type], 5), 
+            #             lpad(row[:x], 10), lpad(row[:y], 10), 
+            #             lpad(row[:demand], 10), lpad(row[:ReadyTime], 10), 
+            #             lpad(row[:DueDate], 10), lpad(row[:ServiceTime], 10))
+            end
+            print(io, "\n")
+        end
+    end
+
+    B_ = data.B ./ (pr * data.inverse_refueling_rate)
+    C = data.C
+
+    open(fp, "a+") do io
+        println(io, "")
+        println(io, "Vehicle fuel tank capacity /$B_/")
+        println(io, "Vehicle load capacity /$C/")
+        println(io, "Fuel consumption rate /1.0/")
+        println(io, "Inverse refueling rate /$(inverse_refueling_rate)/")
+        println(io, "Average Velocity /1.0/")
+    end
+
+    if !multidepot
+        return
+    end
+
+    open(fp, "a+") do io
+        println(io, "")
+        println(io, "Vehicle start locations")
+        for i in data.N_depots
+            @printf(io, "D%d:   %2d\n", i-data.n_customers, data.v_start[i])
+        end
+        println(io, "Vehicle end locations")
+        for i in data.N_depots
+            @printf(io, "D%d:   %2d\n", i-data.n_customers, data.v_end[i])
+        end
+    end
+
+    return
 end
 
 function generate_graph_from_data(
