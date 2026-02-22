@@ -23,11 +23,11 @@ function read_evrptw_instance(
     n_customers::Int = 0, # If 0, read from file
     scale_time_horizon::Float64 = 1.0,
     scale_charge_capacity::Float64 = 1.0,
-    scale_load_capacity::Float64 = 1.0,
-    data_dir::String = "data/",
+    multidepot::Bool = false,
+    data_dir::String = "data/evrptw",
 )
     # Read instance
-    instance_fp = joinpath(data_dir, "evrptw/Instances/", instance_name * ".txt")
+    instance_fp = joinpath(data_dir, "Instances/", instance_name * ".txt")
     instance_lines = readlines(instance_fp)
     sep = findfirst(x -> occursin(r"^\s*$", x), instance_lines)
     table_str = join(instance_lines[1:sep-1], "\n")
@@ -46,10 +46,10 @@ function read_evrptw_instance(
         _,
         inverse_refueling_rate,  # Inverse battery refueling rate
         _
-    ) = [parse(Float64, match(r"/([\d.]+)/", x)[1]) for x in instance_lines[sep+1:end]]
+    ) = [parse(Float64, match(r"/([\d.]+)/", x)[1]) for x in instance_lines[sep+1:sep+5]]
 
     # Scale load capacity
-    C = Int(round(C * scale_load_capacity))
+    C = Int(round(C))
 
     # Scaled battery capacity
     B = transform_floats(B_ * scale_charge_capacity * inverse_refueling_rate)
@@ -100,18 +100,50 @@ function read_evrptw_instance(
     distances = Distances.pairwise(Euclidean(), coords; dims=2)
     
     # Starting locations of vehicles
-    start_depots = StatsBase.sample(N_depots, n_vehicles, replace = true)
-    V = Dict(i => findall(x -> x==i, start_depots) for i in N_depots)
-    v_start = v_end = Dict(i => length(V[i]) for i in N_depots)
+    if multidepot
+        # @assert sort(keys(multidepot_v_start)) == N_depots
+        # @assert sort(keys(multidepot_v_end)) == N_depots
+        # @assert sum(values(multidepot_v_start)) == n_vehicles
+        # @assert sum(values(multidepot_v_end)) <= n_vehicles
+        # v_start = multidepot_v_start
+        # v_end = multidepot_v_end
+        sep_start = findlast(x -> occursin(r"^Vehicle start locations", x), instance_lines)
+        V = Dict{Int, Vector{Int}}()
+        v_start = Dict{Int, Int}()
+        nv = 0
+        for i in 1:n_depots
+            m = match(r"^D(\d+):\s+(\d+)", instance_lines[sep_start + i])
+            depot = parse(Int, m[1]) + n_customers
+            val = parse(Int, m[2])
+            v_start[depot] = val
+            V[depot] = collect(nv+1:nv+val)
+            nv += val
+        end
+        sep_end = findlast(x -> occursin(r"^Vehicle end locations", x), instance_lines)
+        v_end = Dict{Int, Int}()
+        for i in 1:n_depots
+            m = match(r"^D(\d+):\s+(\d+)", instance_lines[sep_end + i])
+            depot = parse(Int, m[1]) + n_customers
+            val = parse(Int, m[2])
+            v_end[depot] = val
+        end
+    else
+        @assert n_depots == 1
+        start_depots = repeat(N_depots, n_vehicles)
+        V = Dict(N_depots[1] => collect(1:n_vehicles))
+        v_start = v_end = Dict(N_depots[1] => n_vehicles)
+    end
 
     # Travel cost
     c = transform_floats.(distances)
     # (Scaled) travel time
+
     travel_times = copy(distances)
     for i in 1:n_customers
         travel_times[i, :] .+= customers_df[i, "ServiceTime"]
     end
     t = transform_floats.(travel_times)
+
     # Battery consumption
     q = transform_floats.(distances * inverse_refueling_rate)
 
