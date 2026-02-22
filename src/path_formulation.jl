@@ -1,6 +1,8 @@
 using JuMP
 using Gurobi
 using Suppressor
+using StatsBase: mean
+using Printf
 
 function generate_artificial_paths(
     data::EVRPData,
@@ -1708,14 +1710,6 @@ function collect_path_solution_support(
             end
         end
     end
-    # for key in keys(paths)
-    #     for p in 1:length(paths[key])
-    #         val = results["z"][key,p]
-    #         if val > 1e-5
-    #             push!(results_paths, (val, paths[key][p]))
-    #         end
-    #     end
-    # end
 
     sort!(
         results_paths,
@@ -1724,158 +1718,87 @@ function collect_path_solution_support(
     return results_paths
 end
 
-function collect_solution_metrics!(
-    results, 
+function get_path_solution_metrics(
+    sol_paths::Vector{Tuple{Float64, Path}},
     data::EVRPData,
 )
-    if !("paths" in keys(results))
-        error()
-    end
+    metrics = Dict{String, Any}()
 
-    total_subpath_length = 0.0
-    weighted_total_subpath_length = 0.0
-    total_subpath_ncust = 0.0
-    weighted_total_subpath_ncust = 0.0
-    num_subpaths = 0.0
-    weighted_num_subpaths = 0.0
-    total_path_length = 0.0
-    weighted_total_path_length = 0.0
-    total_path_ncust = 0.0
-    weighted_total_path_ncust = 0.0
-    num_paths = 0.0
-    weighted_num_paths = 0.0
-    total_ps_length = 0.0
-    weighted_total_ps_length = 0.0
-    utilization_total = 0.0
-    driving_time_total = 0.0
-    charging_time_total = 0.0
-    for (val, p) in results["paths"]
-        if (
-            length(p.subpaths) == 1 
-            && (
-                p.subpaths[1].artificial # artificial path
-                || length(p.subpaths[1].arcs) == 1 # path from depot to depot
-            )
+    sol_paths = [(Int(round(i)), p) for (i, p) in sol_paths if length(p.arcs) > 1]
+    sol_paths = vcat([repeat([p], i) for (i, p) in sol_paths]...)
+
+    metrics["artificial"] = any([p.artificial for p in sol_paths])
+
+    metrics["n_vehicles_used"] = length(sol_paths)
+    metrics["path_lengths"] = [length(p.arcs) for p in sol_paths]
+    metrics["mean_path_length"] = mean(metrics["path_lengths"])
+    metrics["subpath_lengths"] = [length(s.arcs) for p in sol_paths for s in p.subpaths]
+    metrics["mean_subpath_length"] = mean(metrics["subpath_lengths"])
+    metrics["ps_lengths"] = [length(p.subpaths) for p in sol_paths]
+    metrics["mean_ps_length"] = mean(metrics["ps_lengths"])
+    
+    metrics["n_recharges"] = sum(metrics["ps_lengths"] .- 1, init=0)
+
+    metrics["path_costs"] = [compute_path_cost(data, p) for p in sol_paths]
+    metrics["total_cost"] = sum(metrics["path_costs"])
+    metrics["mean_path_cost"] = mean(metrics["path_costs"])
+
+    metrics["path_driving_times"] = [
+        sum(data.t[a...] for a in p.arcs)
+        for p in sol_paths
+    ]
+    metrics["path_charging_times"] = [
+        sum([a.time_diff for a in p.charging_arcs], init=0)
+        for p in sol_paths
+    ]
+    metrics["path_total_times"] = [
+        p.subpaths[end].current_time
+        for p in sol_paths
+    ]
+    metrics["path_waiting_times"] = [
+        l - dt - ct
+        for (l, dt, ct) in zip(
+            metrics["path_total_times"],
+            metrics["path_driving_times"],
+            metrics["path_charging_times"],
         )
-            continue
+    ]
+    metrics["mean_path_driving_time"] = mean(metrics["path_driving_times"]) / data.T
+    metrics["mean_path_charging_time"] = mean(metrics["path_charging_times"]) / data.T
+    metrics["mean_path_total_time"] = mean(metrics["path_total_times"]) / data.T
+    metrics["mean_path_waiting_time"] = mean(metrics["path_waiting_times"]) / data.T
+
+    metrics["path_nodes"] = [
+        vcat(p.arcs[1][1], [a[2] for a in p.arcs])
+        for p in sol_paths
+    ]
+    metrics["path_nodes_print"] = [
+        [data.node_labels[i] for i in nodes]
+        for nodes in metrics["path_nodes"]
+    ]
+
+    return metrics
+end
+
+function write_path_solution_metrics!(
+    metrics::Dict{String, Any},
+    fp::String,
+)
+    open(fp, "w+") do io
+        @printf(io, "Total cost:          %12d\n", metrics["total_cost"])
+        @printf(io, "No. of recharges:    %12d\n", metrics["n_recharges"])
+        @printf(io, "No. of vehicles:     %12d\n", metrics["n_vehicles_used"])
+        print(io, "\n")
+        for i in 1:length(metrics["path_costs"])
+            @printf(io, "Route %2d: Cost %12d\n", i, metrics["path_costs"][i])
+            for n in metrics["path_nodes_print"][i]
+                @printf(io, "  %4s", n)
+                if !(startswith(n, "C"))
+                    print(io, "\n")
+                end
+            end
+            print(io, "\n")
         end
-        total_subpath_length += sum(sum(s.served) + 1 for s in p.subpaths) 
-        weighted_total_subpath_length += val * sum(sum(s.served) + 1 for s in p.subpaths)
-        total_subpath_ncust += sum(sum(s.served) for s in p.subpaths)
-        weighted_total_subpath_ncust += val * sum(sum(s.served) for s in p.subpaths)
-
-        num_subpaths += length(p.subpaths)
-        weighted_num_subpaths += val * length(p.subpaths)
-        
-        total_path_length += sum(p.served) + length(p.subpaths)
-        weighted_total_path_length += val * (sum(p.served) + length(p.subpaths))
-        total_path_ncust += sum(p.served)
-        weighted_total_path_ncust += val * sum(p.served)
-
-        num_paths += 1
-        weighted_num_paths += val
-
-        total_ps_length += length(p.subpaths)
-        weighted_total_ps_length += val * length(p.subpaths)
-
-        utilization_total += val * p.subpaths[end].current_time
-        driving_time_total += val * sum(s.current_time - s.starting_time for s in p.subpaths)
-        charging_time_total += val * sum([a.delta for a in p.charging_arcs], init = 0.0)
     end
-
-    results["mean_subpath_length"] = total_subpath_length / num_subpaths
-    results["weighted_mean_subpath_length"] = weighted_total_subpath_length / weighted_num_subpaths
-    results["mean_subpath_ncust"] = total_subpath_ncust / num_subpaths
-    results["weighted_mean_subpath_ncust"] = weighted_total_subpath_ncust / weighted_num_subpaths
-    
-    results["mean_path_length"] = total_path_length / num_paths
-    results["weighted_mean_path_length"] = weighted_total_path_length / weighted_num_paths
-    results["mean_path_ncust"] = total_path_ncust / num_paths
-    results["weighted_mean_path_ncust"] = weighted_total_path_ncust / weighted_num_paths
-
-    results["mean_ps_length"] = total_ps_length / num_paths
-    results["weighted_mean_ps_length"] = weighted_total_ps_length / weighted_num_paths
-
-    results["utilization"] = utilization_total / (weighted_num_paths * data.T)
-    results["driving_time_proportion"] = driving_time_total / (weighted_num_paths * data.T)
-    results["charging_time_proportion"] = charging_time_total / (weighted_num_paths * data.T)
-
-    return results
-
-end
-
-function collect_path_solution_metrics!(
-    results,
-    data::EVRPData, 
-    graph::EVRPGraph,
-    paths,
-)
-    results["paths"] = collect_path_solution_support(results, paths, data, graph)
-    collect_solution_metrics!(results, data)
-    return results
-end
-
-function compute_objective_from_path_solution(
-    results_paths::Vector{Tuple{Float64, Path}},
-    data::EVRPData,
-)
-    return sum(
-        [val * compute_path_cost(data, p)
-        for (val, p) in results_paths],
-        init = 0.0,
-    )
-end
-
-function plot_path_solution(
-    results,
-    data::EVRPData,
-    graph::EVRPGraph,
-    paths,
-)
-    results["paths"] = collect_path_solution_support(results, paths, data, graph)
-    return plot_solution(results["paths"], data)
-end
-
-
-function plot_solution(
-    results_paths::Vector{Tuple{Float64, Path}}, 
-    data::EVRPData,
-)
-    p = plot_instance(data)
-    
-    n_paths = length(results_paths) 
-    colors = get(ColorSchemes.tol_bright, collect(0:1:(n_paths-1)) ./(n_paths-1))
-
-    all_plots = []
-    for (i, (val, path)) in enumerate(results_paths)
-        p = plot_instance(data)
-        arcs = vcat(collect(s.arcs for s in path.subpaths)...)
-        for (j, arc) in enumerate(arcs)
-            Plots.plot!(
-                data.coords[1,collect(arc)],
-                data.coords[2,collect(arc)],
-                color = colors[i],
-                alpha = 0.5,
-                lw = 1,
-            )
-        end
-        Plots.plot!(title = "Vehicle $i: $val")
-        push!(all_plots, p)
-    end
-
-    P = Plots.plot(
-        all_plots..., 
-        layout = (n_paths, 1), 
-        size = (500, 400 * n_paths), 
-        legend = false,
-        fmt = :png,
-    )
-    return P
-end
-
-function plot_solution(
-    results::Dict{String, Any},
-    data::EVRPData,
-)
-    return plot_solution(results["paths"], data)
+    return
 end
