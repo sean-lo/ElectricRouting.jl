@@ -24,6 +24,7 @@ function read_evrptw_instance(
     scale_time_horizon::Float64 = 1.0,
     scale_charge_capacity::Float64 = 1.0,
     multidepot::Bool = false,
+    separate_source_sink::Bool = false,
     data_dir::String = "data/evrptw",
 )
     # Read instance
@@ -71,25 +72,41 @@ function read_evrptw_instance(
     n_depots = nrow(depots_df)
     n_customers = nrow(customers_df)
     n_charging = nrow(charging_df)
-    n_nodes = n_depots + n_customers + n_charging
+
+    n_depots_ = (separate_source_sink ? 2 * n_depots : n_depots)
+
+    n_nodes = n_depots_ + n_customers + n_charging
 
     N_customers = 1:n_customers
-    N_depots = n_customers+1:n_customers+n_depots
+    N_depots = n_customers+1:n_customers+n_depots_
     N_vehicles = 1:n_vehicles
-    N_charging = n_customers+n_depots+1:n_customers+n_depots+n_charging
-    N_depots_charging = n_customers+1:n_customers+n_depots+n_charging
-    N_nodes = 1:n_customers+n_depots+n_charging
+    N_charging = n_customers+n_depots_+1:n_customers+n_depots_+n_charging
+    N_depots_charging = n_customers+1:n_customers+n_depots_+n_charging
+    N_nodes = 1:n_customers+n_depots_+n_charging
 
-    node_labels = merge(Dict(
-        N_depots .=> depots_df[!, :StringID]
-    ), Dict(
-        N_customers .=> customers_df[!, :StringID]
-    ), Dict(
-        N_charging .=> charging_df[!, :StringID]
-    ))
+    if separate_source_sink
+        node_labels = merge(Dict(
+            N_depots .=> repeat(depots_df[!, :StringID], 2)
+        ), Dict(
+            N_customers .=> customers_df[!, :StringID]
+        ), Dict(
+            N_charging .=> charging_df[!, :StringID]
+        ))
+    else 
+        node_labels = merge(Dict(
+            N_depots .=> depots_df[!, :StringID]
+        ), Dict(
+            N_customers .=> customers_df[!, :StringID]
+        ), Dict(
+            N_charging .=> charging_df[!, :StringID]
+        ))
+    end
 
     # Locations 
     depot_coords = depots_df[:, [:x, :y]] |> Matrix{Float64} |> transpose
+    if separate_source_sink
+        depot_coords = hcat(depot_coords, depot_coords)
+    end
     customer_coords = customers_df[:, [:x, :y]] |> Matrix{Float64} |> transpose
     charging_coords = charging_df[:, [:x, :y]] |> Matrix{Float64} |> transpose
 
@@ -148,33 +165,57 @@ function read_evrptw_instance(
     q = transform_floats.(distances * inverse_refueling_rate)
 
     # Demand
-    d = vcat(
-        customers_df[!, :demand],
-        depots_df[!, :demand],
-        charging_df[!, :demand],
-    )
-
-    # Time windows
-    α = vcat(
-        customers_df[!, :ReadyTime],
-        depots_df[!, :ReadyTime],
-        charging_df[!, :ReadyTime],
-    )
-    α = transform_floats.(α * scale_time_horizon)
-    β = vcat(
-        customers_df[!, :DueDate],
-        depots_df[!, :DueDate],
-        charging_df[!, :DueDate],
-    )
-    β = transform_floats.(β * scale_time_horizon)
-    T = Int(round(maximum(β)))
+    if separate_source_sink
+        d = vcat(
+            customers_df[!, :demand],
+            depots_df[!, :demand],
+            depots_df[!, :demand],
+            charging_df[!, :demand],
+        )
+        # Time windows
+        α = vcat(
+            customers_df[!, :ReadyTime],
+            depots_df[!, :ReadyTime],
+            depots_df[!, :ReadyTime],
+            charging_df[!, :ReadyTime],
+        )
+        α = transform_floats.(α * scale_time_horizon)
+        β = vcat(
+            customers_df[!, :DueDate],
+            depots_df[!, :DueDate],
+            depots_df[!, :DueDate],
+            charging_df[!, :DueDate],
+        )
+        β = transform_floats.(β * scale_time_horizon)
+        T = Int(round(maximum(β)))
+    else
+        d = vcat(
+            customers_df[!, :demand],
+            depots_df[!, :demand],
+            charging_df[!, :demand],
+        )
+        # Time windows
+        α = vcat(
+            customers_df[!, :ReadyTime],
+            depots_df[!, :ReadyTime],
+            charging_df[!, :ReadyTime],
+        )
+        α = transform_floats.(α * scale_time_horizon)
+        β = vcat(
+            customers_df[!, :DueDate],
+            depots_df[!, :DueDate],
+            charging_df[!, :DueDate],
+        )
+        β = transform_floats.(β * scale_time_horizon)
+        T = Int(round(maximum(β)))
+    end
 
     data = EVRPData(
-        n_depots,
+        n_depots_,
         n_customers,
         n_vehicles,
         n_charging,
-        n_depots + n_charging,
+        n_depots_ + n_charging,
         n_nodes,
         N_customers,
         N_depots,
