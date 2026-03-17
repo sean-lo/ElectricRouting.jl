@@ -1516,9 +1516,22 @@ function plot_instance(
     ;
     plot_edges::Bool = false,
     graph::Union{EVRPGraph, Nothing} = nothing,
+    fontsize::Int = 11,
+    markersize::Int = 4,
+    alpha::Float64 = 0.7,
+    legend::Union{Symbol, Bool} = :outerright,
+    add_text_labels::Bool = true,
 )
+
+    xrange = data.coords[1,:] |> extrema |> x -> x[2] - x[1]
+    yrange = data.coords[2,:] |> extrema |> x -> x[2] - x[1]
+    offset = 0.02 * max(xrange, yrange)
+    xlim = extrema(data.coords[1,:]) .+ [-3 * offset, 5 * offset]
+    ylim = extrema(data.coords[2,:]) .+ [-3 * offset, 5 * offset]
     p = Plots.plot(
         # xlim = (0, 1), ylim = (0, 1),
+        xlim = xlim,
+        ylim = ylim,
         aspect_ratio = :equal, 
         fmt = :png, 
     )
@@ -1526,43 +1539,60 @@ function plot_instance(
         data.customer_coords[1,:], data.customer_coords[2,:],
         seriestype = :scatter, 
         label = "Customer",
-        color = :green
+        markersize = markersize,
+        alpha = alpha,
+        color = :green,
     )
-    annotate!.(
-        data.customer_coords[1,:] .+ 0.1, data.customer_coords[2,:], 
-        Plots.text.(
-            collect(string(i) for i in 1:data.n_customers), 
-            :green, :left, 11
+    if add_text_labels
+        annotate!.(
+            data.customer_coords[1,:] .+ offset, data.customer_coords[2,:] .+ offset, 
+            Plots.text.(
+                collect(string(i) for i in 1:data.n_customers), 
+                :green, :left, fontsize,
+            )
         )
-    )
+    end
+
     Plots.plot!(
         data.depot_coords[1,:], data.depot_coords[2,:],
         seriestype = :scatter, 
         label = "Depots",
-        color = :black
+        markershape = :utriangle,
+        markersize = markersize,
+        # alpha = alpha,
+        alpha = 1.0,
+        color = :black,
     )
-    Plots.annotate!.(
-        data.depot_coords[1,:] .+ 0.1, data.depot_coords[2,:], 
-        Plots.text.(
-            collect("M" * string(i) for i in 1:data.n_depots), 
-            :black, :left, 11
+    if add_text_labels
+        Plots.annotate!.(
+            data.depot_coords[1,:] .+ offset, data.depot_coords[2,:] .+ offset, 
+            Plots.text.(
+                collect("M" * string(i) for i in 1:data.n_depots), 
+                :black, :left, fontsize,
+            )
         )
-    )
+    end
+
     Plots.plot!(
         data.charging_coords[1,:], data.charging_coords[2,:],
         seriestype = :scatter, 
         label = "Charging stations",
-        color = :grey
+        markersize = markersize,
+        markershape = :rect,
+        alpha = alpha,
+        color = :grey,
     )
-    Plots.annotate!.(
-        data.charging_coords[1,:] .+ 0.1, data.charging_coords[2,:], 
-        Plots.text.(
-            collect("R" * string(i) for i in 1:data.n_charging), 
-            :grey, :left, 11
+    if add_text_labels
+        Plots.annotate!.(
+            data.charging_coords[1,:] .+ offset, data.charging_coords[2,:] .+ offset, 
+            Plots.text.(
+                collect("R" * string(i) for i in 1:data.n_charging), 
+                :grey, :left, fontsize,
+            )
         )
-    )
+    end
 
-    Plots.plot!(legend = :outerright)
+    Plots.plot!(legend = legend)
 
     if plot_edges
         for e in edges(graph.G)
