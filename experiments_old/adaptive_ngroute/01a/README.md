@@ -1,1 +1,0 @@
-- ng-route and adaptive ng-route experiments: "pushing the pareto frontier"
