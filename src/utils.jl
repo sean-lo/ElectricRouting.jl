@@ -448,6 +448,7 @@ function generate_locations(
     ymin::Float64,
     ymax::Float64,
     seed::Int,
+    separate_source_sink::Bool = false,
     data_dir::String = "data/",
     pr::Float64 = 100.0,
 )
@@ -584,6 +585,10 @@ function generate_locations(
     elseif depot_pattern == "circular_packing"
         depot_coords = circle_packing_coords(n_depots, xmin, xmax, ymin, ymax, data_dir = data_dir)
     end
+    if separate_source_sink
+        depot_coords = hcat(depot_coords, depot_coords)
+    end
+    
     if charging_pattern == "circular"
         charging_coords = complex_coords(n_depots, xmin, xmax, ymin, ymax)
     elseif charging_pattern == "grid"
@@ -645,18 +650,21 @@ function generate_instance(
     time_windows_distribution::String = "random",
     time_windows_min_width::Float64 = 0.0,
     time_windows_max_width::Float64 = 1.0,
+    separate_source_sink::Bool = false,
     data_dir::String = "data/",
 )
-    n_nodes = n_depots + n_customers + n_charging
+
+    n_depots_ = (separate_source_sink ? 2 * n_depots : n_depots)
+    n_nodes = n_depots_ + n_customers + n_charging
 
     seeds = abs.(rand(MersenneTwister(seed), Int, 6))
 
     N_customers = 1:n_customers
-    N_depots = n_customers+1:n_customers+n_depots
+    N_depots = n_customers+1:n_customers+n_depots_
     N_vehicles = 1:n_vehicles
-    N_charging = n_customers+n_depots+1:n_customers+n_depots+n_charging
-    N_depots_charging = n_customers+1:n_customers+n_depots+n_charging
-    N_nodes = 1:n_customers+n_depots+n_charging
+    N_charging = n_customers+n_depots_+1:n_customers+n_depots_+n_charging
+    N_depots_charging = n_customers+1:n_customers+n_depots_+n_charging
+    N_nodes = 1:n_customers+n_depots_+n_charging
 
     node_labels = merge(Dict(
         i => "Depot $ind" for (ind, i) in enumerate(N_depots)
@@ -685,6 +693,7 @@ function generate_instance(
         ymin = ymin,
         ymax = ymax,
         seed = seeds[1],
+        separate_source_sink = separate_source_sink,
         data_dir = data_dir,
     )
 
@@ -721,7 +730,7 @@ function generate_instance(
 
     Random.seed!(seeds[2])
     d = (rand(Truncated(Geometric(0.5), 0, 4), n_customers) .+ 1) * load_precision
-    d = vcat(d, repeat([0], n_depots + n_charging))
+    d = vcat(d, repeat([0], n_depots_ + n_charging))
     C = sum(d) * load_tolerance / n_vehicles
     C = Int(round(C / load_precision) * load_precision)
 
@@ -753,15 +762,15 @@ function generate_instance(
             β[i:n_blocks:n_customers] .= β_
         end
     end
-    α_charge = vcat(α, repeat([0], n_depots + n_charging))
-    β_charge = vcat(β, repeat([T], n_depots + n_charging))
+    α_charge = vcat(α, repeat([0], n_depots_ + n_charging))
+    β_charge = vcat(β, repeat([T], n_depots_ + n_charging))
 
     data = EVRPData(
-        n_depots,
+        n_depots_,
         n_customers,
         n_vehicles,
         n_charging,
-        n_depots + n_charging,
+        n_depots_ + n_charging,
         n_nodes,
         N_customers,
         N_depots,
