@@ -1287,7 +1287,6 @@ function path_formulation_column_generation_with_adaptive_ngroute_SR3_cuts(
     charging_function::PiecewiseLinearIncreasingConcaveFunction = PiecewiseLinearIncreasingConcaveFunction(
         [data.B], [1],
     ),
-    use_heuristic::Bool = false,
     use_pruned_graph::Bool = false,
     prune_graph_outdegree_sequence::Vector{Int} = Int[3, 8],
     exploration_method::String = "bestfirst",
@@ -1402,33 +1401,8 @@ function path_formulation_column_generation_with_adaptive_ngroute_SR3_cuts(
         add_message!(printlist, message, verbose)
     end
 
-    if use_heuristic
-        if use_time_windows
-            error("Heuristic path generation not implemented for time windows.")
-        end
-        heuristic_paths_r = @timed compute_heuristic_paths_notimewindows(data, graph; use_load = use_load)
-        heuristic_paths = heuristic_paths_r.value
-        if length(heuristic_paths) != 0
-            add_message!(
-                printlist, 
-                @sprintf("Generated initial paths with heuristic in %9.3f s.\n", heuristic_paths_r.time),
-                verbose,
-            )
-            artificial_paths = Dict{NTuple{2, NTuple{3, Int}}, Vector{Path}}()
-            some_paths = deepcopy(heuristic_paths)
-        else
-            add_message!(
-                printlist,
-                @sprintf("Heuristic failed in %9.3f s, defaulting to artificial paths.\n", heuristic_paths_r.time),
-                verbose,
-            )
-            artificial_paths = generate_artificial_paths(data)
-            some_paths = deepcopy(artificial_paths)
-        end
-    else
-        artificial_paths = generate_artificial_paths(data)
-        some_paths = deepcopy(artificial_paths)
-    end
+    artificial_paths = generate_artificial_paths(data)
+    some_paths = deepcopy(artificial_paths)
     add_empty_paths!(some_paths, data)
 
     path_costs = compute_path_costs(data, some_paths)
