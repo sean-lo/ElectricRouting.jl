@@ -26,19 +26,21 @@ for instance_type in [
                 data_dir = "data/evrptw",
             )
             graph = generate_graph_from_data(data)
-            p = plot_instance(data; graph = graph)
-            if instance_type in ["r1", "r2"]
-                plot!(p, xlims = (-5, 75), ylims = (-5, 85))
-            elseif instance_type in ["c1", "c2", "rc1", "rc2"]
-                plot!(p, xlims = (-5, 105), ylims = (-5, 105))
-            end
+            p = plot_instance(
+                data; 
+                graph = graph,
+                alpha = 0.7,
+                legend = :outerbottom,
+                add_text_labels = false,
+            )
             Plots.plot!(
                 p,
                 xlabel = "x",
                 ylabel = "y",
-                legend = :outerbottom,
                 margin = 2Plots.mm,
-                size = (500, 500),
+                # size = (500, 450),
+                size = (500, 525),
+                framestyle = :box,
             )
             Plots.savefig(p, "$(@__DIR__)/../data/evrptw_plots/$(filename).png")
             
