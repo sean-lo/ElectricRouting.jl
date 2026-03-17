@@ -1,11 +1,12 @@
 using Pkg
-Pkg.activate("$(@__DIR__)/..")
+Pkg.activate("$(@__DIR__)/../")
 
 include("$(@__DIR__)/../src/utils.jl")
 include("$(@__DIR__)/../src/read_evrptw_data.jl")
 
 using Glob
 using Plots
+
 
 n_depots = 4
 depot_pattern = "grid"
@@ -40,6 +41,7 @@ time_windows_min_max_type_width_range = [
 ]
 seed_range = 1:5
 
+
 for (
     (xmax, k),
     density,
@@ -54,11 +56,15 @@ for (
     density_range,
     time_windows_min_max_type_width_range,
     seed_range,
+    # [(5.0, 9.0),],
+    # [5.0,],
+    # [(0.5, 0.5, "small"),],
+    # [1],
 )
+
     T = Int(B * k * (1 + inverse_refueling_rate))
     n_customers = Int(density * (xmax - xmin) * (ymax - ymin))
     n_charging = Int((xmax - xmin + 1)*(ymax - ymin + 1) - 4)
-
 
     filename = @sprintf(
         "%03d_%02d_%s_%02d", 
@@ -67,46 +73,33 @@ for (
         time_windows_type,
         seed,
     )
+    println(filename)
 
-    if (
-        n_customers == 60
-        && time_windows_type == "small"
-        && seed == 4
-        && xmax == 5.0
-    )
-        seed += 5
-    end
-
-    data = generate_instance(
-        n_depots = n_depots,
-        n_customers = n_customers,
-        n_charging = n_charging,
-        n_vehicles = n_vehicles,
-        depot_pattern = depot_pattern,
-        customer_pattern = customer_pattern,
-        charging_pattern = charging_pattern,
-        customer_spread = customer_spread,
-        xmin = xmin,
-        xmax = xmax,
-        ymin = ymin,
-        ymax = ymax,
-        T = T,
-        seed = seed,
-        B = B,
-        inverse_refueling_rate = inverse_refueling_rate,
-        travel_cost_coeff = 1,
-        load_tolerance = load_tolerance,
-        load_precision = 10,
-        vehicle_locations = "gradiated",
-        time_windows_distribution = "gradiated",
-        time_windows_min_width = time_windows_min_width,
-        time_windows_max_width = time_windows_max_width,
-    )
-
-    write_instance_evrptw_format(
-        data,
-        "$(@__DIR__)/../data/evrptw_multidepot/Instances/$filename.txt",
+    data = read_evrptw_instance(
+        filename,
+        5,
+        1,
         ;
+        data_dir = "data/evrptw_multidepot",
         multidepot = true,
     )
+    graph = generate_graph_from_data(data)
+    p = plot_instance(
+        data; 
+        graph = graph,
+        alpha = 0.7,
+        legend = :outerbottom,
+        add_text_labels = false,
+    )
+    Plots.plot!(
+        p,
+        xlabel = "x",
+        ylabel = "y",
+        margin = 2Plots.mm,
+        # size = (500, 450),
+        size = (500, 525),
+        framestyle = :box,
+    )
+    Plots.savefig(p, "$(@__DIR__)/../data/evrptw_multidepot/Plots/$filename.png")
+    Plots.display(p)
 end
